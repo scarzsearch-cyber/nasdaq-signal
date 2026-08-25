@@ -151,6 +151,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <div id="changeBox"></div>
       <div class="facts">
         <div class="fact"><div class="k">현재 낙폭</div><div class="v" id="fDd">—</div></div>
+        <div class="fact"><div class="k">QQQ 종가</div><div class="v" id="fClose">—</div></div>
         <div class="fact"><div class="k">252일 고점</div><div class="v" id="fMax">—</div></div>
         <div class="fact"><div class="k">다음 전환선</div><div class="v" id="fNext">—</div></div>
         <div class="fact"><div class="k">여유</div><div class="v" id="fGap">—</div></div>
@@ -290,6 +291,7 @@ function render(){
 
   document.getElementById('fDd').textContent = pct(last.dd);
   document.getElementById('fDd').style.color = color;
+  document.getElementById('fClose').textContent = num(last.c);
   document.getElementById('fMax').textContent = num(last.mx);
 
   const nextLine = isQld ? ENTER : EXIT;
@@ -393,7 +395,7 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   document.getElementById('verdict').textContent='—';
   document.getElementById('verdict').style.color='var(--ink)';
   document.getElementById('asof').textContent='데이터 없음';
-  ['fDd','fMax','fNext','fGap'].forEach(id=>document.getElementById(id).textContent='—');
+  ['fDd','fClose','fMax','fNext','fGap'].forEach(id=>document.getElementById(id).textContent='—');
   document.getElementById('changeBox').innerHTML='';
   document.getElementById('ruler').querySelectorAll('.tick').forEach(e=>e.remove());
   setMsg('전체 삭제됨');
@@ -433,6 +435,7 @@ function renderAuto(j){
   } else { box.className=''; box.innerHTML=''; }
   document.getElementById('fDd').textContent = j.dd.toFixed(2)+'%';
   document.getElementById('fDd').style.color = color;
+  document.getElementById('fClose').textContent = j.close.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('fMax').textContent = j.high_252.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('fNext').textContent = j.next_line.toFixed(0)+'%';
   document.getElementById('fGap').textContent = j.gap_pp.toFixed(1)+'%p';
