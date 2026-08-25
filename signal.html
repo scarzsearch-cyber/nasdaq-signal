@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오늘의 신호 — QLD / SCHD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+:root{
+  --paper:#EEF1F4;
+  --panel:#FFFFFF;
+  --ink:#16202B;
+  --muted:#6B7A88;
+  --rule:#C3CCD4;
+  --attack:#0B5FD6;
+  --defend:#B8722A;
+  --warn:#A3372B;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);
+  font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;}
+body{padding:28px 20px 64px;}
+.wrap{max-width:920px;margin:0 auto;}
+
+.masthead{display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:26px;}
+.masthead h1{font-family:'Archivo',sans-serif;font-weight:900;font-size:19px;
+  letter-spacing:-0.02em;text-transform:uppercase;}
+.masthead .sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+  letter-spacing:0.06em;}
+
+/* ---- 신호 패널 ---- */
+.signal{display:grid;grid-template-columns:132px 1fr;gap:0;background:var(--panel);
+  border:1px solid var(--rule);border-radius:2px;overflow:hidden;min-height:330px;}
+
+/* 낙폭 눈금자 (시그니처) */
+.ruler{position:relative;border-right:1px solid var(--rule);background:#F7F9FA;padding:22px 0;}
+.track{position:absolute;left:50%;top:22px;bottom:22px;width:2px;background:var(--rule);
+  transform:translateX(-50%);}
+.tick{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;padding-left:12px;}
+.tick .lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+  width:38px;text-align:right;}
+.tick .bar{height:1px;flex:1;background:var(--rule);}
+.tick.major .bar{height:2px;}
+.tick.enter .lbl,.tick.enter .bar{color:var(--defend);background:var(--defend);}
+.tick.enter .lbl{background:none;font-weight:600;}
+.tick.exit .lbl,.tick.exit .bar{color:var(--attack);background:var(--attack);}
+.tick.exit .lbl{background:none;font-weight:600;}
+.marker{position:absolute;left:0;right:0;display:flex;align-items:center;
+  transition:top .5s cubic-bezier(.2,.7,.3,1);}
+.marker .dot{width:11px;height:11px;border-radius:50%;margin-left:calc(50% - 5.5px);
+  border:2px solid var(--panel);box-shadow:0 0 0 1.5px currentColor;}
+.marker .val{position:absolute;left:0;font-family:'IBM Plex Mono',monospace;
+  font-size:11px;font-weight:600;padding-left:4px;}
+
+/* 상태 카드 */
+.state{padding:26px 28px;display:flex;flex-direction:column;}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.verdict{font-family:'Archivo',sans-serif;font-weight:900;font-size:clamp(34px,7vw,52px);
+  line-height:0.98;letter-spacing:-0.035em;margin-bottom:4px;}
+.product{font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:20px;}
+.product b{color:var(--ink);font-weight:600;}
+.facts{margin-top:auto;border-top:1px solid var(--rule);padding-top:16px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:16px 12px;}
+.fact .k{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+  letter-spacing:0.05em;margin-bottom:3px;}
+.fact .v{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;}
+.changed{background:#FFF4E0;border-left:3px solid var(--defend);padding:11px 14px;
+  font-size:13px;margin-bottom:18px;line-height:1.5;}
+.changed.toattack{background:#EAF2FE;border-left-color:var(--attack);}
+
+/* ---- 입력 ---- */
+.io{margin-top:22px;background:var(--panel);border:1px solid var(--rule);
+  border-radius:2px;padding:20px 22px;}
+.io h2{font-family:'Archivo',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+input[type=text],input[type=date]{font-family:'IBM Plex Mono',monospace;font-size:14px;
+  padding:9px 11px;border:1px solid var(--rule);border-radius:2px;background:#fff;
+  color:var(--ink);}
+input[type=text]{width:140px;}
+button{font-family:'Pretendard Variable',Pretendard,sans-serif;font-size:13px;font-weight:600;
+  padding:9px 16px;border:1px solid var(--ink);background:var(--ink);color:#fff;
+  border-radius:2px;cursor:pointer;transition:opacity .15s;}
+button:hover{opacity:.82}
+button.ghost{background:transparent;color:var(--ink);}
+button:focus-visible,input:focus-visible,label.file:focus-within{outline:2px solid var(--attack);
+  outline-offset:2px;}
+label.file{display:inline-block;font-size:13px;font-weight:600;padding:9px 16px;
+  border:1px solid var(--ink);border-radius:2px;cursor:pointer;}
+label.file input{position:absolute;opacity:0;width:0;height:0;}
+.hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;}
+.msg{font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:10px;}
+.msg.err{color:var(--warn);}
+
+table{width:100%;border-collapse:collapse;margin-top:14px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:10px;letter-spacing:0.05em;
+  border-bottom:1px solid var(--rule);padding:6px 8px;}
+td{padding:6px 8px;border-bottom:1px solid #E8ECEF;}
+td.s-qld{color:var(--attack);font-weight:600;}
+td.s-schd{color:var(--defend);font-weight:600;}
+
+/* ---- 운용 안내 ---- */
+.guide{margin-top:22px;background:var(--panel);border:1px solid var(--rule);
+  border-radius:2px;padding:20px 22px;}
+.guide h2{font-family:'Archivo',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
+.clock{display:grid;grid-template-columns:78px 1fr;gap:0;font-size:13px;line-height:1.55;}
+.clock dt{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+  padding:9px 0;border-top:1px solid #E8ECEF;}
+.clock dd{padding:9px 0;border-top:1px solid #E8ECEF;}
+.clock dt:first-of-type,.clock dd:first-of-type{border-top:none;}
+.rules{font-size:13px;line-height:1.7;color:var(--muted);margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--rule);}
+.rules b{color:var(--ink);}
+
+@media(max-width:600px){
+  .signal{grid-template-columns:1fr;}
+  .ruler{height:180px;border-right:none;border-bottom:1px solid var(--rule);}
+  .clock{grid-template-columns:68px 1fr;}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <h1>오늘의 신호</h1>
+    <div class="sub" id="asof">데이터 없음</div>
+  </div>
+
+  <div class="signal">
+    <div class="ruler" id="ruler">
+      <div class="track"></div>
+      <div class="marker" id="marker" style="top:22px">
+        <span class="val" id="markerVal"></span>
+        <span class="dot"></span>
+      </div>
+    </div>
+    <div class="state">
+      <div class="eyebrow" id="eyebrow">보유할 자산</div>
+      <div class="verdict" id="verdict">—</div>
+      <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
+      <div id="changeBox"></div>
+      <div class="facts">
+        <div class="fact"><div class="k">현재 낙폭</div><div class="v" id="fDd">—</div></div>
+        <div class="fact"><div class="k">252일 고점</div><div class="v" id="fMax">—</div></div>
+        <div class="fact"><div class="k">다음 전환선</div><div class="v" id="fNext">—</div></div>
+        <div class="fact"><div class="k">여유</div><div class="v" id="fGap">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="io">
+    <h2>종가 입력</h2>
+    <div class="row">
+      <input type="date" id="inDate">
+      <input type="text" id="inClose" placeholder="QQQ 종가" inputmode="decimal">
+      <button id="btnAdd">기록</button>
+      <label class="file">CSV 불러오기<input type="file" id="inFile" accept=".csv"></label>
+      <button class="ghost" id="btnClear">전체 삭제</button>
+    </div>
+    <div class="hint">
+      QQQ(미국 상장 나스닥100 ETF)의 <b>미국장 종가</b>를 넣습니다. 판정은 항상 QQQ 기준이고,
+      실제 매매만 TIGER ETF로 합니다. 처음 한 번은 stooq 등에서 받은 CSV(Date, Close 열 포함)를
+      올려 과거 1년치를 채워두세요. 그 뒤로는 매일 종가 하나만 추가하면 됩니다.
+    </div>
+    <div class="msg" id="msg"></div>
+    <table id="tbl" hidden>
+      <thead><tr><th>날짜</th><th>종가</th><th>낙폭</th><th>판정</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="guide">
+    <h2>한국장 실행 시각</h2>
+    <dl class="clock">
+      <dt>05:00 / 06:00</dt>
+      <dd>미국장 마감(16:00 ET). 서머타임 기간엔 05시, 겨울엔 06시. <b>이 종가로 판정합니다.</b></dd>
+      <dt>06:00~09:00</dt>
+      <dd>종가를 이 화면에 입력. 신호가 바뀌었는지 확인.</dd>
+      <dt>09:00~15:30</dt>
+      <dd>같은 날 한국장에서 교체 주문. 개장 직후·마감 동시호가는 호가가 벌어지니
+          <b>09:30~15:00 사이</b>가 무난합니다.</dd>
+    </dl>
+    <div class="rules">
+      <b>왜 같은 날인가</b> — 미국 종가는 한국 새벽에 확정되고 한국장은 그로부터 3~4시간 뒤에 열립니다.
+      백테스트는 "신호 다음날 미국 종가 체결"을 가정했는데, 한국장 실행은 그보다 오히려 반나절 빠릅니다.
+      체결이 늦어질수록 성과가 떨어지므로(1일 지연 126배 → 3일 지연 102배) 미루지 않는 게 좋습니다.<br><br>
+      <b>한국 휴장일에 신호가 뜨면</b> — 다음 개장일에 실행합니다. 2~3일 밀려도 전략은 무너지지 않습니다.<br><br>
+      <b>환율</b> — TIGER 레버리지는 환노출형이라 지수뿐 아니라 환변동도 2배로 반영됩니다.
+      위기 때 원화가 약해지면 완충이 되는 방향이라, 실제 낙폭은 달러 기준 백테스트보다 얕을 수 있습니다.
+      다만 이 효과는 백테스트에 반영돼 있지 않습니다.
+    </div>
+  </div>
+
+  <div class="guide" id="trajPanel">
+    <h2>위기 궤적 참고</h2>
+    <div id="trajBody">
+      <div class="hint" style="margin-top:0">자동 갱신 모드(배포된 링크)에서 과거 4대 위기와 겹쳐 표시됩니다.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ENTER = -0.16, EXIT = -0.11, LOOKBACK = 252;
+const KEY = 'qqq_signal_v17';
+
+let rows = [];   // {d:'YYYY-MM-DD', c:number}
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw) rows = JSON.parse(raw);
+  }catch(e){ /* 저장 불가 환경 — 세션 내에서만 동작 */ }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(rows)); }catch(e){}
+}
+
+function compute(){
+  rows.sort((a,b)=> a.d < b.d ? -1 : 1);
+  const out = [];
+  let state = 'QLD';
+  for(let i=0;i<rows.length;i++){
+    const from = Math.max(0, i-LOOKBACK+1);
+    let mx = 0;
+    for(let k=from;k<=i;k++) if(rows[k].c>mx) mx = rows[k].c;
+    const dd = rows[i].c/mx - 1;
+    const enough = (i-from+1) >= 60;
+    if(enough){
+      if(state==='QLD' && dd<=ENTER) state='SCHD';
+      else if(state==='SCHD' && dd>EXIT) state='QLD';
+    }
+    out.push({d:rows[i].d, c:rows[i].c, dd, mx, state, enough});
+  }
+  return out;
+}
+
+function pct(x){ return (x*100).toFixed(2)+'%'; }
+function num(x){ return x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function render(){
+  const res = compute();
+  const tbody = document.getElementById('tbody');
+  const tbl = document.getElementById('tbl');
+
+  if(res.length===0){
+    document.getElementById('asof').textContent = '데이터 없음';
+    tbl.hidden = true;
+    return;
+  }
+  const last = res[res.length-1];
+  const prev = res.length>1 ? res[res.length-2] : null;
+
+  document.getElementById('asof').textContent = last.d + ' 종가 기준';
+
+  const isQld = last.state==='QLD';
+  const color = isQld ? 'var(--attack)' : 'var(--defend)';
+
+  const v = document.getElementById('verdict');
+  v.textContent = isQld ? 'QLD' : 'SCHD';
+  v.style.color = color;
+
+  document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
+
+  document.getElementById('product').innerHTML = isQld
+    ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
+    : '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
+
+  // 상태 변화 안내
+  const box = document.getElementById('changeBox');
+  if(prev && prev.state!==last.state){
+    box.className = 'changed' + (isQld?' toattack':'');
+    box.innerHTML = isQld
+      ? '<b>오늘 전환 신호입니다.</b> 낙폭이 −11%보다 얕아졌습니다. 오늘 한국장에서 SCHD 전량 매도 → QLD 매수.'
+      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → SCHD 매수.';
+  } else {
+    box.className = '';
+    box.innerHTML = '';
+  }
+
+  document.getElementById('fDd').textContent = pct(last.dd);
+  document.getElementById('fDd').style.color = color;
+  document.getElementById('fMax').textContent = num(last.mx);
+
+  const nextLine = isQld ? ENTER : EXIT;
+  document.getElementById('fNext').textContent = (nextLine*100).toFixed(0)+'%';
+  const gap = Math.abs(last.dd - nextLine)*100;
+  document.getElementById('fGap').textContent = gap.toFixed(1)+'%p';
+
+  // 눈금자
+  drawRuler(last.dd, color);
+
+  // 최근 12일
+  tbl.hidden = false;
+  tbody.innerHTML = res.slice(-12).reverse().map(r=>
+    `<tr><td>${r.d}</td><td>${num(r.c)}</td><td>${r.enough?pct(r.dd):'—'}</td>`+
+    `<td class="${r.state==='QLD'?'s-qld':'s-schd'}">${r.enough?r.state:'—'}</td></tr>`
+  ).join('');
+
+  if(!last.enough){
+    setMsg('데이터가 60일 미만이라 아직 판정하지 않습니다. CSV로 과거 1년치를 채워주세요.', true);
+  }
+}
+
+function drawRuler(dd, color){
+  const ruler = document.getElementById('ruler');
+  ruler.querySelectorAll('.tick').forEach(e=>e.remove());
+  const TOP=0, BOT=-0.30;
+  const pos = x => 22 + (TOP - x)/(TOP-BOT) * (ruler.clientHeight - 44);
+  const ticks = [
+    {v:0,     t:'0%',   cls:'major'},
+    {v:-0.05, t:'−5%',  cls:''},
+    {v:EXIT,  t:'−11%', cls:'major exit'},
+    {v:ENTER, t:'−16%', cls:'major enter'},
+    {v:-0.22, t:'−22%', cls:''},
+    {v:-0.30, t:'−30%', cls:''},
+  ];
+  ticks.forEach(k=>{
+    const el = document.createElement('div');
+    el.className = 'tick '+k.cls;
+    el.style.top = pos(k.v)+'px';
+    el.innerHTML = `<span class="lbl">${k.t}</span><span class="bar"></span>`;
+    ruler.appendChild(el);
+  });
+  const m = document.getElementById('marker');
+  const clamped = Math.max(BOT, Math.min(TOP, dd));
+  m.style.top = pos(clamped)+'px';
+  m.style.color = color;
+  const mv = document.getElementById('markerVal');
+  mv.textContent = (dd*100).toFixed(1)+'%';
+  mv.style.color = color;
+}
+
+function setMsg(t, isErr){
+  const el = document.getElementById('msg');
+  el.textContent = t || '';
+  el.className = 'msg' + (isErr?' err':'');
+}
+
+document.getElementById('btnAdd').addEventListener('click', ()=>{
+  const d = document.getElementById('inDate').value;
+  const c = parseFloat(document.getElementById('inClose').value.replace(/,/g,''));
+  if(!d){ setMsg('날짜를 골라주세요.', true); return; }
+  if(!isFinite(c) || c<=0){ setMsg('종가를 숫자로 입력해주세요.', true); return; }
+  const i = rows.findIndex(r=>r.d===d);
+  if(i>=0) rows[i].c = c; else rows.push({d,c});
+  save(); render();
+  setMsg(d+' 기록됨');
+  document.getElementById('inClose').value='';
+});
+
+document.getElementById('inFile').addEventListener('change', ev=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = e=>{
+    try{
+      const lines = e.target.result.split(/\r?\n/).filter(x=>x.trim());
+      const head = lines[0].split(',').map(s=>s.trim().toLowerCase());
+      const di = head.indexOf('date'), ci = head.indexOf('close');
+      if(di<0 || ci<0){ setMsg('CSV에 Date, Close 열이 있어야 합니다.', true); return; }
+      const map = new Map(rows.map(r=>[r.d,r]));
+      let n=0;
+      for(let k=1;k<lines.length;k++){
+        const p = lines[k].split(',');
+        const d = (p[di]||'').trim().slice(0,10);
+        const c = parseFloat(p[ci]);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(d) || !isFinite(c) || c<=0) continue;
+        map.set(d, {d,c}); n++;
+      }
+      rows = [...map.values()];
+      save(); render();
+      setMsg(n.toLocaleString()+'행 불러옴 (총 '+rows.length.toLocaleString()+'행)');
+    }catch(err){ setMsg('CSV를 읽지 못했습니다. 형식을 확인해주세요.', true); }
+  };
+  rd.readAsText(f);
+  ev.target.value='';
+});
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  rows = []; save();
+  document.getElementById('tbl').hidden = true;
+  document.getElementById('verdict').textContent='—';
+  document.getElementById('verdict').style.color='var(--ink)';
+  document.getElementById('asof').textContent='데이터 없음';
+  ['fDd','fMax','fNext','fGap'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('changeBox').innerHTML='';
+  document.getElementById('ruler').querySelectorAll('.tick').forEach(e=>e.remove());
+  setMsg('전체 삭제됨');
+});
+
+document.getElementById('inDate').value = new Date().toISOString().slice(0,10);
+window.addEventListener('resize', ()=>render());
+
+// 서버에 자동 갱신된 signal.json이 있으면 그걸 우선 사용 (GitHub Pages 배포시)
+async function boot(){
+  try{
+    const res = await fetch('data/signal.json?t='+Date.now(), {cache:'no-store'});
+    if(!res.ok) throw 0;
+    const j = await res.json();
+    renderAuto(j);
+    return;
+  }catch(e){ /* 로컬 파일로 열었거나 아직 배포 전 — 수동 모드 */ }
+  load(); render();
+}
+
+function renderAuto(j){
+  document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + j.updated_at;
+  const isQld = j.state==='QLD';
+  const color = isQld ? 'var(--attack)' : 'var(--defend)';
+  const v = document.getElementById('verdict');
+  v.textContent = j.state; v.style.color = color;
+  document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
+  document.getElementById('product').innerHTML = isQld
+    ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
+    : '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
+  const box = document.getElementById('changeBox');
+  if(j.changed_today){
+    box.className = 'changed' + (isQld?' toattack':'');
+    box.innerHTML = isQld
+      ? '<b>오늘 전환 신호입니다.</b> 낙폭이 −11%보다 얕아졌습니다. 오늘 한국장에서 SCHD 전량 매도 → QLD 매수.'
+      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → SCHD 매수.';
+  } else { box.className=''; box.innerHTML=''; }
+  document.getElementById('fDd').textContent = j.dd.toFixed(2)+'%';
+  document.getElementById('fDd').style.color = color;
+  document.getElementById('fMax').textContent = j.high_252.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('fNext').textContent = j.next_line.toFixed(0)+'%';
+  document.getElementById('fGap').textContent = j.gap_pp.toFixed(1)+'%p';
+  drawRuler(j.dd/100, color);
+  const tbl=document.getElementById('tbl');
+  tbl.hidden=false;
+  document.getElementById('tbody').innerHTML = j.recent.map(r=>
+    `<tr><td>${r.d}</td><td>${r.c.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>`+
+    `<td>${r.dd.toFixed(2)}%</td><td class="${r.s==='QLD'?'s-qld':'s-schd'}">${r.s}</td></tr>`).join('');
+  // 자동 모드에서는 수동 입력 패널을 접어둠
+  const io=document.querySelector('.io');
+  if(io) io.style.display='none';
+  drawTrajectory(j.trajectories);
+}
+
+function drawTrajectory(tr){
+  const host=document.getElementById('trajBody');
+  if(!host||!tr) return;
+  const names=Object.keys(tr);
+  if(!names.length) return;
+  const W=680,H=240,PL=44,PR=14,PT=14,PB=26;
+  const maxLen=Math.max(...names.map(n=>tr[n].length));
+  const minV=Math.min(-5,...names.flatMap(n=>tr[n]));
+  const X=i=>PL+(i/(maxLen-1))*(W-PL-PR);
+  const Y=v=>PT+((0-v)/(0-minV))*(H-PT-PB);
+  const COL={'닷컴 2000':'#8E7CC3','GFC 2007':'#6AA84F','코로나 2020':'#E69138','2022 베어':'#999999','현재':'#0B5FD6'};
+  let g='';
+  for(const lv of [0,-10,-20,-30,-40,-50,-60,-70]){
+    if(lv<minV-5) continue;
+    g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="#E1E7EB"/>`+
+       `<text x="${PL-6}" y="${Y(lv)+3}" text-anchor="end" font-size="9" fill="#6B7A88" font-family="IBM Plex Mono,monospace">${lv}%</text>`;
+  }
+  for(const lv of [-11,-16]){
+    g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${lv===-11?'#0B5FD6':'#B8722A'}" stroke-dasharray="3 3" opacity=".55"/>`;
+  }
+  for(const n of names){
+    const d=tr[n].map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+    const cur=n==='현재';
+    g+=`<path d="${d}" fill="none" stroke="${COL[n]||'#888'}" stroke-width="${cur?2.6:1.4}" opacity="${cur?1:.75}"/>`;
+  }
+  let legend=names.map(n=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:11px">
+    <span style="width:14px;height:${n==='현재'?3:2}px;background:${COL[n]||'#888'};display:inline-block"></span>${n}</span>`).join('');
+  host.innerHTML=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:420px;height:auto">${g}
+    <text x="${PL}" y="${H-8}" font-size="9" fill="#6B7A88" font-family="IBM Plex Mono,monospace">고점 이후 경과일 →</text></svg></div>
+    <div style="margin-top:8px">${legend}</div>
+    <div class="hint">규칙(−16%/−11%)은 이 궤적 모양과 무관하게 낙폭 숫자만 봅니다 — 참고용입니다.
+    점선은 두 전환선.</div>`;
+}
+
+boot();
+</script>
+</body>
+</html>

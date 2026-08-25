@@ -1,0 +1,43 @@
+name: 일일 신호 갱신
+
+on:
+  schedule:
+    # 22:30 UTC = 한국시간 07:30 (다음날). 미국장 마감(20:00~21:00 UTC) 이후이고
+    # 한국장 개장(09:00 KST)보다 앞선다. 평일(UTC 기준 월~금)만 실행.
+    - cron: '30 22 * * 1-5'
+  workflow_dispatch:        # 수동 실행 버튼
+
+permissions:
+  contents: write           # 갱신 결과를 커밋하려면 필요
+
+concurrency:
+  group: daily-signal
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 의존성 설치
+        run: pip install pandas numpy
+
+      - name: 종가 받아 신호 갱신
+        run: python3 deploy/update_signal.py
+
+      - name: 변경분 커밋
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "변경 없음 (휴장일이거나 이미 최신)"
+          else
+            git commit -m "signal: $(date -u +%Y-%m-%d) 종가 반영"
+            git push
+          fi
