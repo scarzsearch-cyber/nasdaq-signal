@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    # daily-signal.yml이 기본 GITHUB_TOKEN으로 커밋/푸시하면 GitHub이 무한루프
+    # 방지를 위해 push 이벤트로 이 워크플로를 재트리거하지 않는다. 그래서
+    # daily-signal.yml 완료를 직접 구독해 재배포되게 한다.
+    workflows: ["일일 신호 갱신"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -16,6 +22,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
