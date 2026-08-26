@@ -93,12 +93,12 @@ def mix_monthly_from(parts, weights, idx, cost=0.0005):
     out = np.zeros(n)
     b = dict(frac)
     for i in range(n):
+        prev = sum(b.values())              # [v27 정정] 비용 차감 **전** 값 (hist_defasset 참고)
         if i > 0 and per[i] != per[i - 1]:
-            v = sum(b.values())
+            v = prev
             turn = sum(abs(b[k] / v - frac[k]) for k in frac) / 2.0
             v *= (1 - cost * 2 * turn)
             b = {k: v * frac[k] for k in frac}
-        prev = sum(b.values())
         for k in frac:
             b[k] *= (1 + np.nan_to_num(parts[k][i]))
         out[i] = sum(b.values()) / prev - 1.0

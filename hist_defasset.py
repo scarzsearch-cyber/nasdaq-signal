@@ -240,12 +240,12 @@ def mix_monthly_parts(idx, weights, parts, rebal='M', cost=0.0005):
     out = np.zeros(n)
     b = dict(frac)
     for i in range(n):
-        if i > 0 and per[i] != per[i - 1]:
-            v = sum(b.values())
+        prev = sum(b.values())              # [v27 정정] 재조정 비용을 물기 **전** 값이다.
+        if i > 0 and per[i] != per[i - 1]:  # prev 를 비용 뒤에 재면 비용이 비율에서 약분돼
+            v = prev                        # 사라진다 — v23~v26 은 5bp 를 실제로 안 물었다.
             turn = sum(abs(b[k] / v - frac[k]) for k in frac) / 2.0
             v *= (1 - cost * 2 * turn)
             b = {k: v * frac[k] for k in frac}
-        prev = sum(b.values())
         for k in frac:
             b[k] *= (1 + np.nan_to_num(parts[k][i]))
         out[i] = sum(b.values()) / prev - 1.0
