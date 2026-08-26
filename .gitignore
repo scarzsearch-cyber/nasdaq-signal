@@ -5,3 +5,6 @@ venv/
 .DS_Store
 Thumbs.db
 .claude/
+
+# French 원자료 추출본 — data/hist/ff_*.zip 에서 hist_defensive._ensure_ff() 가 자동 생성
+data/hist/ff_tmp/
