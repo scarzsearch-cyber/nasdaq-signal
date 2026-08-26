@@ -204,6 +204,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .basket .leg b{font-size:14px}
 .basket .code{opacity:.6;font-variant-numeric:tabular-nums;font-size:12px}
 .bsub{margin-top:6px;font-size:12px;opacity:.7}
+.standby{margin-top:10px;padding-top:9px;border-top:1px dashed var(--rule);opacity:.72}
+.standby .lbl{display:block;font-size:11px;letter-spacing:.04em;opacity:.8;margin-bottom:5px}
+.standby .basket .leg{font-size:12px;padding:4px 8px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -397,14 +400,29 @@ function scenOf(){
 function stratsOf(s){ return (defk==='div' && s.strategies_div) ? s.strategies_div : s.strategies; }
 function hasDefToggle(){ return !!(STATS && STATS.defensives && STATS.scenarios[0].strategies_div); }
 
-/* 도피 상태에서 보유할 방어 바스켓 */
+/* 방어 바스켓. 다리마다 종목은 딱 하나다(대안 병기 없음). */
+function basketLegs(){
+  const D = AUTO && AUTO.defensive;
+  if(!D || !D.legs) return '';
+  return D.legs.map(l=>
+    `<span class="leg"><b>${l.weight}%</b> ${l.name} <span class="code">${l.code}</span></span>`).join('');
+}
 function defHtml(){
   const D = AUTO && AUTO.defensive;
   if(!D) return '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
-  const legs = D.legs.map(l=>
-    `<span class="leg"><b>${l.weight}%</b> ${l.name} <span class="code">${l.code}</span></span>`).join('');
-  return `<div class="basket">${legs}</div>
+  return `<div class="basket">${basketLegs()}</div>
     <div class="bsub">${D.label} · ${D.rebalance}</div>`;
+}
+/* 공격 상태에서도 "전환되면 뭘 사야 하는지" 를 미리 보여준다 */
+function riskHtml(){
+  const R = AUTO && AUTO.risk;
+  const head = R
+    ? `나스닥100 <b>2배</b> · <span class="leg"><b>100%</b> ${R.name} <span class="code">${R.code}</span></span>`
+    : '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>';
+  const legs = basketLegs();
+  if(!legs) return head;
+  return `<div class="basket">${head}</div>
+    <div class="standby"><span class="lbl">전환되면 살 것</span><div class="basket">${legs}</div></div>`;
 }
 
 function drawPicker(){
@@ -511,9 +529,7 @@ function paintState(o){
   v.textContent = stateLabel(o.state); v.style.color = color;
   document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
   document.getElementById('ebRule').textContent = '규칙 ' + S.name;
-  document.getElementById('product').innerHTML = isQld
-    ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
-    : defHtml();
+  document.getElementById('product').innerHTML = isQld ? riskHtml() : defHtml();
 
   const box = document.getElementById('changeBox');
   if(o.changed_today){

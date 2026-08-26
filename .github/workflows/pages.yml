@@ -36,6 +36,7 @@ jobs:
           cp signal.html _site/index.html
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
           cp data/strategy_stats.json _site/data/ 2>/dev/null || echo "strategy_stats.json 없음 — 성과 패널만 숨겨짐"
+          cp data/kr_holidays.json _site/data/ 2>/dev/null || echo "kr_holidays.json 없음 — 시계가 주말만 반영"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

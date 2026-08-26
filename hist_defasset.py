@@ -214,17 +214,15 @@ def crosscheck():
 MIX_V23 = dict(div=0.40, ust5=0.40, gold=0.20)
 MIX_V23_ALT = dict(div=0.50, gold=0.50)      # 국채 없이 가는 대안 (§7)
 
+# 다리마다 종목은 **딱 하나**다. 대안을 병기하지 않는다 — 전략은 단순해야 지켜진다.
+# 왜 이 셋인가는 전략_v23.md §6, 전략_v25.md §1.2 (실측 괴리율) 참고.
 MIX_LEGS = [
     dict(kind='div',  weight=40, label='미국 배당다우존스',
-         code='458730', name='TIGER 미국배당다우존스', fx='환노출', alt=None),
+         code='458730', name='TIGER 미국배당다우존스', fx='환노출'),
     dict(kind='ust5', weight=40, label='미국 국채 (실효 5년)',
-         code='305080', name='TIGER 미국채10년선물', fx='환노출',
-         alt=dict(code='308620', name='KODEX 미국채10년선물',
-                  note='같은 사양(환노출·실효 5년). 거래대금은 305080 이 두 배')),
+         code='305080', name='TIGER 미국채10년선물', fx='환노출'),
     dict(kind='gold', weight=20, label='금 (KRX 금현물)',
-         code='411060', name='ACE KRX금현물', fx='환노출',
-         alt=dict(code='132030', name='KODEX 골드선물(H)',
-                  note='환헤지형이라 원화 완충을 못 받는다. 411060 이 낫다')),
+         code='411060', name='ACE KRX금현물', fx='환노출'),
 ]
 
 RISK_LEG = dict(code='418660', name='TIGER 미국나스닥100레버리지(합성)')
