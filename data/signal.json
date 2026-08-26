@@ -1,7 +1,7 @@
 {
  "as_of": "2026-08-25",
- "updated_at": "2026-08-26 18:11 KST",
- "updated_at_iso": "2026-08-26T09:11:40Z",
+ "updated_at": "2026-08-26 20:47 KST",
+ "updated_at_iso": "2026-08-26T11:47:16Z",
  "source": "yahoo",
  "close": 710.72,
  "high_252": 746.16,
@@ -162,7 +162,7 @@
   }
  ],
  "stats": {
-  "generated_at": "2026-08-26 09:11 UTC",
+  "generated_at": "2026-08-26 11:47 UTC",
   "strategies": {
    "B": {
     "name": "−16 / −16",

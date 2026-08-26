@@ -342,6 +342,7 @@ let scen = 'kr_1997';                            // 성과 표기 기준 시나�
 let defk = 'mix';                                // 방어자산: 'mix'(v23 채택) | 'div'(v21)
 let AUTO = null;                                 // signal.json (자동 모드)
 let STATS = null;                                // strategy_stats.json
+let KRHOL = null;                                // data/kr_holidays.json (deploy/kr_holidays.py 산출물)
 
 function load(){
   try{ const raw = localStorage.getItem(KEY); if(raw) rows = JSON.parse(raw); }catch(e){}
@@ -792,18 +793,24 @@ function usClock(now){
   }
   return null;
 }
-function krClock(now){                    // 09:00~15:30 KST. 공휴일은 반영하지 않는다.
+function krIso(y,m,d){ return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+function krHoliday(y,m,d){                // 공휴일이면 사유 문자열, 아니면 null
+  return (KRHOL && KRHOL[krIso(y,m,d)]) || null;
+}
+function krClock(now){                    // 09:00~15:30 KST. 공휴일 반영(kr_holidays.json).
   const p=tzParts(now,SEOUL);
-  const trade=(y,m,d)=>{const w=dow(y,m,d); return w!==0&&w!==6;};
+  const trade=(y,m,d)=>{const w=dow(y,m,d); return w!==0&&w!==6&&!krHoliday(y,m,d);};
   const today=trade(p.y,p.m,p.d);
+  const why=krHoliday(p.y,p.m,p.d);
   if(today){
     const o=wall(p.y,p.m,p.d,9,0,SEOUL), c=wall(p.y,p.m,p.d,15,30,SEOUL);
     if(now>=o&&now<c) return {state:'live', at:c};
     if(now<o) return {state:'pre', at:o};
   }
-  for(let i=1;i<=7;i++){ const n=ymdAdd(p.y,p.m,p.d,i);
+  for(let i=1;i<=30;i++){ const n=ymdAdd(p.y,p.m,p.d,i);
     if(trade(n.y,n.m,n.d))
-      return {state: today?'done':'closed', at:wall(n.y,n.m,n.d,9,0,SEOUL)}; }
+      return {state: today?'done':'closed', at:wall(n.y,n.m,n.d,9,0,SEOUL),
+              why: today?null:why, next:krIso(n.y,n.m,n.d)}; }
   return null;
 }
 function dur(ms){
@@ -842,7 +849,8 @@ function drawClock(){
   }
   if(kr){
     const note=kr.state==='live' ? '교체 주문 마감까지' : '다음 개장까지';
-    b=cell(kr.state==='live', KRNM[kr.state], note, dur(kr.at-now), 'KST '+kst(kr.at));
+    const nm = (kr.state==='closed' && kr.why) ? '한국장 휴장 · '+kr.why : KRNM[kr.state];
+    b=cell(kr.state==='live', nm, note, dur(kr.at-now), 'KST '+kst(kr.at));
   }
   host.innerHTML=a+b;
 }
@@ -865,6 +873,8 @@ async function boot(){
   try{ AUTO = await getJSON('data/signal.json'); }catch(e){ AUTO = null; }
   if(AUTO && AUTO.stats) STATS = AUTO.stats;
   if(!STATS){ try{ STATS = await getJSON('data/strategy_stats.json'); }catch(e){} }
+  // 한국 공휴일 표 — 없으면 주말만 반영하는 기존 동작으로 조용히 되돌아간다
+  try{ const kh = await getJSON('data/kr_holidays.json'); KRHOL = kh.holidays || null; }catch(e){ KRHOL = null; }
   if(STATS && !STATS.scenarios.some(s=>s.key===scen)) scen = STATS.scenarios[0].key;
   if(AUTO && AUTO.default && !localStorage.getItem(SKEY) && STRAT[AUTO.default]) sel = AUTO.default;
   if(!AUTO) load();
