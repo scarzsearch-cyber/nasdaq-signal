@@ -38,7 +38,7 @@ def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
         for leg in DA.MIX_LEGS:
             if leg['kind'] == 'div':
                 continue
-            g = DA.kr(leg['code'], 'Open')
+            g = DA.kr_tr_open(leg['code'])
             kr = kr.intersection(g.index)
             extra[leg['kind']] = g
     kr = kr[kr >= start]

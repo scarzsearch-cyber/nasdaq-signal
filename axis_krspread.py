@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
 """
+[v25] 괴리율·체결 마찰 — 실측 NAV 로 확인하고, 모형 이탈을 바로잡는다
+
+[v24 대비 정정 2건 — 둘 다 결론을 뒤집었다]
+  (1) DA.kr() 이 458730/133690/418660 의 **미조정 종가**를 읽고 있었다(AdjClose 무시).
+      배당 ETF 는 분배금이 통째로 빠져 연 -3%p 짜리 가짜 이탈이 생겼다.
+  (2) 레버리지 이론가에 c_daily 를 빼지 않아 **무비용 합성**과 비교했다.
+      원화 엔진이 실제로 쓰는 모형은 2x(지수+환) - c_daily 다.
+  둘을 고치면 레버리지 이탈은 -4.50%p 가 아니라 **+0.19%p** 다 — 모형이 정확하다.
+
 [v24] 괴리율·체결 마찰 상한 — iNAV 없이 얼마나 말할 수 있는가
 
 v21 부터 미결이던 과제다. **진짜 괴리율(시장가 − iNAV)은 KRX/발행사 iNAV 가 있어야
@@ -32,6 +41,7 @@ TARGETS = [
     ('411060', 'ACE KRX금현물', 'gold'),
     ('132030', 'KODEX 골드선물(H)', 'gold_h'),
     ('418660', 'TIGER 미국나스닥100레버리지', 'lev'),
+    ('133690', 'TIGER 미국나스닥100 (1배·대조군)', 'lev1'),
 ]
 
 
@@ -58,13 +68,24 @@ def theory(kind, idx):
         import hist_defensive as DF
         r = DF.defensive(idx, 'chain')
     elif kind == 'lev':
+        # [v25 정정] 원화 엔진이 실제로 쓰는 모형은 2x(지수+환) - c_daily 다.
+        # v24 는 c_daily 를 빼지 않은 무비용 합성과 비교해 이탈을 4.5%p 로 과대추정했다.
         import hist_data as H
-        qqq = H._stooq('qqq_us_d.csv').reindex(idx.union(H._stooq('qqq_us_d.csv').index))
-        qqq = qqq.ffill().reindex(idx)
+        import hist_defensive as DF
+        c = DF.build('chain')['c_daily']
+        qqq = H._stooq('qqq_us_d.csv')
+        qqq = qqq.reindex(idx.union(qqq.index)).ffill().reindex(idx)
         rq = qqq.pct_change().fillna(0).values
         rf = f.pct_change().fillna(0).values
-        r = 2 * ((1 + rq) * (1 + rf) - 1)
+        r = 2 * ((1 + rq) * (1 + rf) - 1) - c
         return pd.Series(np.cumprod(1 + r), index=idx)
+    elif kind == 'lev1':
+        import hist_data as H
+        qqq = H._stooq('qqq_us_d.csv')
+        qqq = qqq.reindex(idx.union(qqq.index)).ffill().reindex(idx)
+        rq = qqq.pct_change().fillna(0).values
+        rf = f.pct_change().fillna(0).values
+        return pd.Series(np.cumprod(1 + ((1 + rq) * (1 + rf) - 1)), index=idx)
     else:
         raise ValueError(kind)
     rf = f.pct_change().fillna(0).values
@@ -124,8 +145,8 @@ def run():
 
     print('\n===== ④ 모형 대비 연간 이탈 — 백테스트에 안 들어간 진짜 비용 =====')
     print('%-28s %10s %10s %10s %s' % ('상품', '실물 CAGR', '모형 CAGR', '연 이탈', '전략 영향'))
-    HOLD = {'div': 0.18, 'ust5': 0.18, 'gold': 0.18, 'gold_h': 0.18, 'lev': 0.82}
-    W = {'div': 0.40, 'ust5': 0.40, 'gold': 0.20, 'gold_h': 0.20, 'lev': 1.0}
+    HOLD = {'div': 0.18, 'ust5': 0.18, 'gold': 0.18, 'gold_h': 0.18, 'lev': 0.82, 'lev1': 0.0}
+    W = {'div': 0.40, 'ust5': 0.40, 'gold': 0.20, 'gold_h': 0.20, 'lev': 1.0, 'lev1': 0.0}
     for code, nm, kind in TARGETS:
         s_ = DA.kr(code)
         idx = s_.index
@@ -146,8 +167,12 @@ def run():
     print('  · ①의 표준편차는 전부 시차·추적오차·괴리가 섞인 상한이다.')
     print('  · ③에서 되돌림 beta 가 0 에 가까우면 갭이 정보(미국장 움직임)라는 뜻이고,')
     print('    실제로 물게 되는 마찰은 ①보다 훨씬 작다.')
-    print('  · 진짜 괴리율은 여전히 KRX/발행사 iNAV 가 있어야 계산할 수 있다.')
-    print('    이 스크립트는 "얼마나 나쁠 수 있는가"의 상한만 준다.')
+    print('  · ⑤ 의 실측 NAV 가 ①의 상한보다 한 자릿수 작다면, 잔차의 대부분이')
+    print('    괴리가 아니라 시차였다는 뜻이다(실제로 그렇다).')
+    print('  · ④ 에서 레버리지 이탈은 +0.19%p 다 — **백테스트 모형이 정확하다.**')
+    print('    v24 가 보고한 -4.50%p 는 무비용 합성과 비교한 오류였다.')
+    print('    1배 대조군의 -0.52%p 가 시차·추적오차의 바닥이고, 국채 다리의')
+    print('    -1.9~-2.6%p 는 거기에 선물 롤오버 비용이 더해진 것이다.')
     print('  · v21 §13.4 결론(체결 시각 고민은 무의미)은 여기서도 유지된다 —')
     print('    시초가 갭 표준편차가 편도비용 0.1% 보다 한 자릿수 크기 때문이다.')
 

@@ -55,7 +55,31 @@ def _csv(name, col='Close'):
 
 
 def kr(code, col='Close'):
-    return _csv('kr_%s_KS' % code, col)
+    """국내 ETF 시계열. **분배금 반영 종가를 우선한다.**
+
+    파일마다 컬럼 구성이 다르다 — 초기에 받은 3종(133690/418660/458730)은
+    Close(미조정) 과 AdjClose 를 따로 갖고 있고, hist_fetch.py 로 받은 나머지는
+    Close 자체가 이미 조정본이다. col='Close' 로 부르면 AdjClose 가 있는 파일은
+    AdjClose 를 준다 — 안 그러면 분배금 수익률이 통째로 빠진다
+    (458730 은 3.2년 누적 10.9%, 연 3.2%p 차이가 난다).
+    """
+    d = pd.read_csv('%s/kr_%s_KS.csv' % (DIR, code), parse_dates=['Date'])
+    if col == 'Close' and 'AdjClose' in d.columns:
+        col = 'AdjClose'
+    return d.set_index('Date')[col].astype(float).sort_index()
+
+
+def kr_tr_open(code):
+    """분배금 반영 시가. Open x (AdjClose/Close) — AdjOpen 이 없으므로 종가 조정비를 쓴다.
+
+    시가 체결 시뮬레이션(hist_krreal)에서 분배금이 빠지는 것을 막는다.
+    AdjClose 컬럼이 없는 파일(Close 가 이미 조정본)은 Open 을 그대로 돌려준다.
+    """
+    d = pd.read_csv('%s/kr_%s_KS.csv' % (DIR, code), parse_dates=['Date']).set_index('Date').sort_index()
+    o = d['Open'].astype(float)
+    if 'AdjClose' in d.columns:
+        o = o * (d['AdjClose'].astype(float) / d['Close'].astype(float))
+    return o.dropna()
 
 
 # ---------------------------------------------------------------- 국채
