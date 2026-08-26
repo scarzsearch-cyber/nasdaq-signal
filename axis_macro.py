@@ -6,6 +6,15 @@
 VIX·하이일드 스프레드 같은 신용/변동성 지표가 QQQ 낙폭보다 먼저 위기를
 감지해서 방어 진입을 앞당길 수 있는지를 검증한다.
 
+[v31 감사] 이 스크립트에는 아래 결함이 있었다. 정정본은 axis_macro3.py 다.
+  - §1 이 위기창 **안에서** 5% 분위를 재 순환논리가 됐다 -> 확장창 분위로 교체
+  - §2·§3 이 전표본 분위를 써 문턱 설정에 미래가 새어들었다 -> 확장창 분위로 교체
+  - §7 의 시차상관이 **자기상관 큰 수준끼리**라 항상 0일에서 최대가 된다(무의미)
+    -> axis_macro3.py [A4] 에서 변화량 기준으로 다시 쟀다. 결론은 더 강해졌다
+  - 플라시보가 날짜 흩뿌리기라 **뭉친 신호에 불리하게** 편향됐다. 다만 그 편향은
+    실제 신호에 유리한 방향이므로, 그래도 졌다는 사실은 기각을 더 강하게 만든다
+결론(전부 기각)은 위 정정 뒤에도 바뀌지 않는다.
+
 데이터: yahoo_VIX(1990~), yahoo_HYG·yahoo_IEF(HYG 2007-04~) — 미국 원천,
         QQQ 신호와 동일한 "미국 종가" 계열이라 v28에서 정한 원칙과 합치.
 HY 스프레드 대용치: HYG/IEF 비율의 63일 낙폭 (신용스프레드 확대 ≈ 회사채 ETF가
@@ -31,6 +40,12 @@ def load(path, datecol='Date', pricecol='Close'):
 
 def dd_from(px, lb):
     return (px / px.rolling(lb, min_periods=lb).max() - 1).fillna(0)
+
+
+def exp_q(a, q, minp=252):
+    """[v31 정정] 확장창 분위수 — 그날까지의 정보만 쓴다. 전표본 분위의 대체품."""
+    s = pd.Series(np.asarray(a, dtype=float)).reset_index(drop=True)
+    return s.expanding(min_periods=minp).quantile(q).shift(1).values
 
 
 def rule_w(ddv, enter, exit_, w0=1.0):
@@ -108,13 +123,14 @@ def main():
         '2022 긴축': ('2022-01-01', '2022-07-01'),
     }
     dates = idx
+    q5s = exp_q(dds, 0.05)
     for name, (s, e) in crises.items():
         m = (dates >= s) & (dates <= e)
         if m.sum() < 10:
             continue
         sub = np.where(m)[0]
         qtrig = sub[ddq[sub] <= -0.16]
-        strig = sub[dds[sub] <= np.nanpercentile(dds[m], 5)]   # 스프레드 하위5% = 급확대
+        strig = sub[dds[sub] <= q5s[sub]]                       # [v31] 확장창 분위 (구간내 분위는 순환논리)
         vtrig = sub[ddv_vix_z[sub] >= 1.5]                     # VIX 1.5시그마 이상
         qd = dates[qtrig[0]] if len(qtrig) else None
         sd = dates[strig[0]] if len(strig) else None
@@ -128,7 +144,7 @@ def main():
     # ---------------------------------------------------------- s2. 예측력 (단순 평균비교)
     print("\n[2] 신호 발생 시점 이후 21거래일 QQQ 수익률 — 신호군 vs 비신호군")
     fwd = pd.Series(qqqr).rolling(21).sum().shift(-21).values  # 근사 합산수익
-    for name, trig in [('HY스프레드 급확대(하위5%)', dds <= np.nanpercentile(dds, 5)),
+    for name, trig in [('HY스프레드 급확대(하위5%)', dds <= exp_q(dds, 0.05)),
                         ('VIX 1.5시그마', ddv_vix_z >= 1.5),
                         ('QQQ dd<=-16%(참고)', ddq <= -0.16)]:
         a = fwd[trig]
@@ -152,7 +168,7 @@ def main():
 
     print(f"  기존 (QQQ만): 최종배수={base_cum[-1]:.2f}배  CAGR={base_cagr*100:.2f}%  MDD={base_mdd*100:.2f}%  Calmar={base_cagr/abs(base_mdd):.2f}")
 
-    for sig_name, sig_val in [('HY스프레드 하위3%', dds <= np.nanpercentile(dds, 3)),
+    for sig_name, sig_val in [('HY스프레드 하위3%', dds <= exp_q(dds, 0.03)),
                                ('VIX 1.5시그마', ddv_vix_z >= 1.5)]:
         early = sig_val & (ddq <= -0.05)
         comb_ddv = np.where(early, -0.20, ddq)
@@ -171,7 +187,7 @@ def main():
     rng = np.random.default_rng(42)
 
     # HY스프레드 검증
-    early_hy = (dds <= np.nanpercentile(dds, 3)) & (ddq <= -0.05)
+    early_hy = (dds <= exp_q(dds, 0.03)) & (ddq <= -0.05)
     real_w_hy = rule_w(np.where(early_hy, -0.20, ddq), -0.16, -0.11)
     real_r_hy = bt(qqqr, qldr, defr, real_w_hy)
     real_cagr_hy = np.cumprod(1 + real_r_hy)[-1] ** (252 / len(real_r_hy)) - 1
@@ -389,17 +405,16 @@ def main():
 
     # ------------------------------------------------------ s7. 왜 실패하는가 — 동행성 측정
     print("\n[7] 실패 원인 — 이 지표들은 '선행'이 아니라 '동행'이다")
-    print("  QQQ 낙폭(수준) 대비 각 지표의 시차별 상관. lag<0 = 지표가 먼저 움직임(선행)")
-    ddq_s = pd.Series(ddq)
+    print("  [v31 정정] 수준끼리의 시차상관은 자기상관 탓에 항상 0일에서 최대가 된다.")
+    print("  변화량(1차차분)끼리 재야 선행/동행이 갈린다. lag<0 = 지표가 먼저 움직임")
+    dq = pd.Series(np.asarray(ddq, dtype=float)).diff()
     for nm, arr, flip in [('VIX z점수', ddv_vix_z, -1), ('HY스프레드', dds, 1), ('공포탐욕지수', fg_score, 1)]:
-        s = pd.Series(arr) * flip
-        rows = []
-        for lag in (-20, -10, -5, 0, 5, 10):
-            rows.append((lag, s.shift(-lag).corr(ddq_s)))
-        best = max(rows, key=lambda x: abs(x[1]))
+        sv = (pd.Series(np.asarray(arr, dtype=float)) * flip).diff()
+        rows = [(lag, sv.shift(-lag).corr(dq)) for lag in (-20, -10, -5, 0, 5, 10)]
+        best = max(rows, key=lambda x: abs(x[1]) if pd.notna(x[1]) else -1)
         txt = '  '.join(f"{l:+d}일={c:+.3f}" for l, c in rows)
         print(f"  {nm}: {txt}   ← 최대 {best[0]:+d}일")
-    print("  → 최대상관이 0일이면 선행지표가 아니라 주가와 같이 움직이는 동행지표다.")
+    print("  → 동시점 상관만 크고 시차 상관은 전부 0 근처다. 선행도 후행도 아니다.")
     print("  → 동행지표를 신호로 쓰면 새 정보 없이 전환 횟수만 늘어난다(비용↑, 톱니↑).")
 
     print("\n[8] 최종 결론")

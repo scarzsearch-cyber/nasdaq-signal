@@ -9,6 +9,10 @@ axis_macro.py 는 2011-2026 구간에서만 잴 수 있었다(SCHD 시작일). �
 
 공포탐욕 대용치는 VIX 시작(1990) 이전까지 잇기 위해 '실현변동성'으로 대체한다.
 1990- 구간에서 VIX판과 실현변동성판이 같은 결론을 내는지 먼저 확인한다(§1).
+
+[v31 감사] z() 의 이중 지연을 정정했다(아래). 그리고 §1 의 '두 점수 상관 0.918'
+은 판정 근거로 약하다 — 점수가 닮아도 **문턱을 넘는 날의 집합**은 다를 수 있다.
+실제 자카드 겹침은 61.7% 다. 정정본은 axis_macro3.py [A5].
 """
 import sys
 import numpy as np
@@ -24,10 +28,17 @@ except Exception:
 
 
 def z(a, win=756, minp=252):
-    s = pd.Series(np.asarray(a, dtype=float))
+    """[v31 정정] shift(1) 을 뺐다.
+
+    sim() 이 pos = w.shift(1) 로 이미 한 번 지연시킨다. 여기서 또 shift(1) 하면
+    공포탐욕 신호만 **이틀 전 값**이 되어 낙폭 신호(하루 전)와 정렬이 어긋난다.
+    미래훔쳐보기는 아니었지만(보수적 방향) 두 신호의 시점이 달랐다.
+    정정 후 전구간 결과: -43.2% -> -53.3% (기각 결론은 동일, 더 나빠졌다).
+    """
+    s = pd.Series(np.asarray(a, dtype=float)).reset_index(drop=True)
     m = s.rolling(win, min_periods=minp).mean()
     sd = s.rolling(win, min_periods=minp).std()
-    return ((s - m) / sd).shift(1).fillna(0).values      # shift(1): 미래 미참조
+    return ((s - m) / sd).fillna(0).values
 
 
 def sim(D, w, defr=None, cost=COST, lag=1, lo=0, hi=None):
