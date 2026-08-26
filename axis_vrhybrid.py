@@ -142,18 +142,16 @@ def baseline(D, enter=-0.16, exit_=-0.16, cost=COST, start=None, end=None):
 
 # --------------------------------------------------------------- 검증
 def check():
-    """band, pool_cap 극단값에서 하이브리드가 baseline 으로 수렴하는지 확인."""
+    """VR 사이클이 한 번도 발동하지 않는 조건(cycle이 구간 길이보다 김 + 낙폭신호도
+    안 걸리는 짧은 순구간)에서 하이브리드가 baseline 과 기계정밀도로 일치하는지 확인."""
     D = R.build()
-    b, _, _ = baseline(D)
-    # band=0 이 아니라 pool_cap=0, 즉시매도(G 작게)로 근사 확인은 생략하고,
-    # 대신 "리스크온 구간에 낙폭 신호가 한 번도 안 걸리는" 짧은 구간에서
-    # 밴드가 아주 넓으면(거래 없음) baseline 과 같아야 한다.
-    h, w, t = vr_hybrid(D, G=10, band=0.99, pool_cap=0.0, start='2003-01-01', end='2007-01-01')
-    b2, _, _ = baseline(D, start='2003-01-01', end='2007-01-01')
+    s, e = '2003-06-01', '2004-06-01'          # 이 구간엔 -16% 낙폭 없음(순수 상승)
+    h, w, t = vr_hybrid(D, G=10, band=0.15, pool_cap=0.5, cycle=100000, start=s, end=e)
+    b2, _, _ = baseline(D, start=s, end=e)
     err = abs(h.iloc[-1] / b2.iloc[-1] - 1)
-    print('검산  band=0.99,pool_cap=0 (거래사실상없음)  hybrid=%.4f  baseline=%.4f  오차=%.2e'
+    print('검산  cycle=100000(사실상 리밸런싱 없음)  hybrid=%.6f  baseline=%.6f  오차=%.2e'
           % (h.iloc[-1], b2.iloc[-1], err))
-    assert err < 0.02, '검산 실패 — 극단값에서 baseline 에 수렴하지 않는다'
+    assert err < 1e-9, '검산 실패 — 거래가 없는 조건에서도 baseline 과 어긋난다'
     print('검산 통과\n')
 
 
@@ -163,9 +161,9 @@ def main_grid(D, label, start=None, end=None):
     b, bw, bt = baseline(D, start=start, end=end)
     rows = []
     m = R.met(b)
+    bsw = int((np.abs(np.diff(bw.values)) > 1e-9).sum())
     rows.append(dict(설정='기존안(이진 100%)', 최종배수=m['final'], CAGR=m['cagr'] * 100,
-                     MDD=m['mdd'] * 100, Calmar=m['calmar'], Sharpe=m['sharpe'],
-                     전환=int((np.abs(np.diff(bw.values)) > 1e-9).sum()))
+                     MDD=m['mdd'] * 100, Calmar=m['calmar'], Sharpe=m['sharpe'], 전환=bsw))
     for G in (10, 15, 20, 30, 40):
         for band in (0.10, 0.15, 0.20):
             c, w, t = vr_hybrid(D, G=G, band=band, start=start, end=end)
