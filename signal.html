@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>오늘의 신호 — QLD / SCHD</title>
+<title>오늘의 신호 — QLD / 방어 바스켓</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -198,6 +198,12 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .clock{grid-template-columns:68px 1fr;}
   .opts{grid-template-columns:1fr;}
 }
+.basket{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.basket .leg{display:inline-flex;align-items:baseline;gap:6px;padding:5px 9px;border:1px solid var(--rule);
+  border-radius:8px;font-size:13px;background:rgba(127,127,127,.05)}
+.basket .leg b{font-size:14px}
+.basket .code{opacity:.6;font-variant-numeric:tabular-nums;font-size:12px}
+.bsub{margin-top:6px;font-size:12px;opacity:.7}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -291,7 +297,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
       표준편차가 레버리지 2.4%라 이 시간대 안에서 몇 분 차이는 비용(0.1%)보다 훨씬 큰 변동성에 묻힙니다 —
       즉 <b>몇 시에 넣을지 고민할 가치가 없고, 미루지 않는 것만 중요합니다.</b><br><br>
       <b>세금이 규칙 선택보다 큽니다</b> — 국내 상장 해외 ETF는 매도할 때마다 매매차익에 과세되고
-      배당소득은 손실 통산이 안 됩니다. 백테스트(원화 29.6년)에 15.4%를 넣으면 최종배수가
+      배당소득은 손실 통산이 안 됩니다. 백테스트(원화 29.6년, <b>배당100 방어자산 기준</b>)에 15.4%를 넣으면 최종배수가
       <b>2,705배 → 1,062배</b>로 줄어듭니다. 두 규칙의 차이(21.7% → 14.6%)보다 훨씬 큽니다.
       계좌 종류에 따라 이 부담이 달라지므로 세율·계좌 규정은 증권사나 세무 전문가에게
       직접 확인하세요. 이 화면의 성과표는 <b>전부 세전</b>입니다.<br><br>
@@ -320,6 +326,7 @@ const LOOKBACK = 252;
 const KEY = 'qqq_signal_v17';
 const SKEY = 'qqq_signal_strat';
 const CKEY = 'qqq_signal_scen';
+const DKEY = 'qqq_signal_def';
 
 const STRAT = {
   B: {key:'B', name:'−16 / −16', enter:-0.16, exit:-0.16, tag:'권고',
@@ -332,6 +339,7 @@ const ORDER = ['B','A'];
 let rows = [];                                   // {d:'YYYY-MM-DD', c:number}
 let sel  = 'B';                                  // 선택한 전략
 let scen = 'kr_1997';                            // 성과 표기 기준 시나리오
+let defk = 'mix';                                // 방어자산: 'mix'(v23 채택) | 'div'(v21)
 let AUTO = null;                                 // signal.json (자동 모드)
 let STATS = null;                                // strategy_stats.json
 
@@ -345,6 +353,7 @@ function loadPrefs(){
   try{
     const s = localStorage.getItem(SKEY); if(s && STRAT[s]) sel = s;
     const c = localStorage.getItem(CKEY); if(c) scen = c;
+    const dd = localStorage.getItem(DKEY); if(dd==='mix'||dd==='div') defk = dd;
   }catch(e){}
 }
 function savePrefs(){
@@ -372,6 +381,7 @@ function compute(exitLine){
 }
 
 function neg(s){ return String(s).replace(/-/g,'−'); }
+function stateLabel(x){ return x==='QLD' ? 'QLD' : '방어'; }   // 내부 상태는 SCHD, 화면은 방어
 function pct(x){ return neg((x*100).toFixed(2))+'%'; }
 function num(x){ return x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function nfmt(x){ return x>=1000 ? x.toLocaleString('en-US',{maximumFractionDigits:0})
@@ -383,13 +393,26 @@ function scenOf(){
   return STATS.scenarios.find(s=>s.key===scen) || STATS.scenarios[0];
 }
 
+function stratsOf(s){ return (defk==='div' && s.strategies_div) ? s.strategies_div : s.strategies; }
+function hasDefToggle(){ return !!(STATS && STATS.defensives && STATS.scenarios[0].strategies_div); }
+
+/* 도피 상태에서 보유할 방어 바스켓 */
+function defHtml(){
+  const D = AUTO && AUTO.defensive;
+  if(!D) return '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
+  const legs = D.legs.map(l=>
+    `<span class="leg"><b>${l.weight}%</b> ${l.name} <span class="code">${l.code}</span></span>`).join('');
+  return `<div class="basket">${legs}</div>
+    <div class="bsub">${D.label} · ${D.rebalance}</div>`;
+}
+
 function drawPicker(){
   const host = document.getElementById('opts');
   const s = scenOf();
   host.innerHTML = ORDER.map(k=>{
     const S = STRAT[k];
-    const m = s ? s.strategies[k] : null;
-    const o = s ? s.strategies[k==='B'?'A':'B'] : null;
+    const m = s ? stratsOf(s)[k] : null;
+    const o = s ? stratsOf(s)[k==='B'?'A':'B'] : null;
     const cell = (label, val, better) =>
       `<div><div class="k">${label}</div><div class="v${better?' win':''}">${val}</div></div>`;
     let mets = '';
@@ -415,10 +438,18 @@ function drawPicker(){
   if(STATS){
     sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.map(x=>
       `<button class="chip" type="button" data-s="${x.key}" aria-pressed="${x.key===scen}">${x.label}</button>`).join('');
-    sc.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{
+    if(hasDefToggle()){
+      sc.innerHTML += '<span class="lab" style="margin-left:14px">방어자산</span>' +
+        STATS.defensives.map(d=>
+          `<button class="chip" type="button" data-d="${d.key}" aria-pressed="${d.key===defk}">${d.label}</button>`).join('');
+    }
+    sc.querySelectorAll('.chip[data-s]').forEach(b=>b.addEventListener('click',()=>{
       scen = b.dataset.s; savePrefs(); redraw();
     }));
-    const cur = scenOf(), mm = cur.strategies[sel];
+    sc.querySelectorAll('.chip[data-d]').forEach(b=>b.addEventListener('click',()=>{
+      defk = b.dataset.d; savePrefs(); redraw();
+    }));
+    const cur = scenOf(), mm = stratsOf(cur)[sel];
     document.getElementById('scennote').innerHTML =
       `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b> (${mm.years}년)`;
   } else {
@@ -439,7 +470,7 @@ function drawPerf(){
   let body = '';
   STATS.scenarios.forEach((s,si)=>{
     ORDER.forEach((k,ki)=>{
-      const m = s.strategies[k];
+      const m = stratsOf(s)[k];
       const cls = (k===sel?'on':'off') + (ki===0 && si>0 ? ' grp' : '');
       body += `<tr class="${cls}">
         <td class="scen">${ki===0?s.label:''}</td>
@@ -457,6 +488,8 @@ function drawPerf(){
     `Calmar = CAGR ÷ |MDD|. Sortino = 연율 수익 ÷ 하방편차(무위험 0). 전환 = 실제 체결 횟수.
      「원화」 두 줄은 환노출 2배 구조와 슬리피지 0.1%를 반영한 값이고, 「달러」 두 줄은 미국 종가 체결 기준입니다.
      달러·54년 확장은 나스닥 종합/NDX/QQQ를 일간수익률로 이어붙인 대리 시계열이라 같은 자산이 아닙니다.
+     방어자산 <b style="color:var(--ink)">${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'}</b> 기준입니다 —
+     전략_v23 에서 채택안이 배당100에서 배당50/금50으로 바뀌었고, 두 안을 위 칩으로 비교할 수 있습니다.
      계산 시각 ${STATS.generated_at}.`;
 }
 
@@ -474,27 +507,27 @@ function paintState(o){
   const S = STRAT[sel];
 
   const v = document.getElementById('verdict');
-  v.textContent = o.state; v.style.color = color;
+  v.textContent = stateLabel(o.state); v.style.color = color;
   document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
   document.getElementById('ebRule').textContent = '규칙 ' + S.name;
   document.getElementById('product').innerHTML = isQld
     ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
-    : '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
+    : defHtml();
 
   const box = document.getElementById('changeBox');
   if(o.changed_today){
     const ex = (S.exit*100).toFixed(0);
     box.className = 'changed' + (isQld?' toattack':'');
     box.innerHTML = isQld
-      ? `<b>오늘 전환 신호입니다.</b> 낙폭이 −${Math.abs(ex)}%보다 얕아졌습니다. 오늘 한국장에서 SCHD 전량 매도 → QLD 매수.`
-      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → SCHD 매수.';
+      ? `<b>오늘 전환 신호입니다.</b> 낙폭이 −${Math.abs(ex)}%보다 얕아졌습니다. 오늘 한국장에서 방어 바스켓 전량 매도 → QLD 매수.`
+      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → 방어 바스켓 매수(아래 비중대로).';
   } else { box.className=''; box.innerHTML=''; }
 
   const dis = document.getElementById('disagreeBox');
   if(o.other_state && o.other_state !== o.state){
     const other = STRAT[sel==='B'?'A':'B'];
     dis.className = 'disagree';
-    dis.innerHTML = `지금은 두 규칙이 갈립니다 — <b>${other.name}</b> 규칙이었다면 <b>${o.other_state}</b>.
+    dis.innerHTML = `지금은 두 규칙이 갈립니다 — <b>${other.name}</b> 규칙이었다면 <b>${stateLabel(o.other_state)}</b>.
       회색지대(−16% ~ −11%)를 회복 중이라는 뜻입니다. 고른 규칙을 바꾸지 말고 그대로 가세요.`;
   } else { dis.className=''; dis.innerHTML=''; }
 
@@ -537,7 +570,7 @@ function render(){
   tbl.hidden = false;
   tbody.innerHTML = res.slice(-12).reverse().map(r=>
     `<tr><td>${r.d}</td><td>${num(r.c)}</td><td>${r.enough?pct(r.dd):'—'}</td>`+
-    `<td class="${r.state==='QLD'?'s-qld':'s-schd'}">${r.enough?r.state:'—'}</td></tr>`
+    `<td class="${r.state==='QLD'?'s-qld':'s-schd'}">${r.enough?stateLabel(r.state):'—'}</td></tr>`
   ).join('');
 
   if(!last.enough){
@@ -565,7 +598,7 @@ function renderAuto(j){
   document.getElementById('tbody').innerHTML = j.recent.map(r=>{
     const s = r[sel] || r.s;
     return `<tr><td>${r.d}</td><td>${num(r.c)}</td>`+
-      `<td>${neg(r.dd.toFixed(2))}%</td><td class="${s==='QLD'?'s-qld':'s-schd'}">${s}</td></tr>`;
+      `<td>${neg(r.dd.toFixed(2))}%</td><td class="${s==='QLD'?'s-qld':'s-schd'}">${stateLabel(s)}</td></tr>`;
   }).join('');
 
   const io=document.querySelector('.io');

@@ -177,5 +177,70 @@ def crosscheck():
             print('%-8s %-26s  로드 실패 %s' % (code, nm, e))
 
 
+
+# ---------------------------------------------------------------- v23 채택 바스켓
+# 전략_v23.md §7 채택안. 국내 상장 대응 상품까지 한 곳에 묶어 둔다.
+MIX_V23 = dict(div=0.50, gold=0.50)          # 국내 ISA 실전 채택안 (§7)
+MIX_V23_USD = dict(div=0.40, ust10=0.40, gold=0.20)  # 달러 기준 최적 (참고)
+
+MIX_LEGS = [
+    dict(kind='div',  weight=50, label='미국 배당다우존스',
+         code='458730', name='TIGER 미국배당다우존스', alt=None),
+    dict(kind='gold', weight=50, label='금 (KRX 금현물)',
+         code='411060', name='ACE KRX금현물',
+         alt=dict(code='132030', name='KODEX 골드선물(H)',
+                  note='환헤지형이라 원화 완충을 못 받는다. 411060 이 낫다')),
+]
+
+RISK_LEG = dict(code='418660', name='TIGER 미국나스닥100레버리지(합성)')
+
+
+def mix_monthly_parts(idx, weights, parts, rebal='M', cost=0.0005):
+    """이미 만들어진 성분 수익률들로 월초 재조정 바스켓의 일간수익을 만든다.
+
+    parts: {'div': ndarray, 'gold': ndarray, ...}  weights 의 키와 같아야 한다.
+    """
+    tot = float(sum(weights.values()))
+    frac = {k: v / tot for k, v in weights.items() if v > 0}
+    per = pd.Series(idx).dt.to_period(rebal).values
+    n = len(idx)
+    out = np.zeros(n)
+    b = dict(frac)
+    for i in range(n):
+        if i > 0 and per[i] != per[i - 1]:
+            v = sum(b.values())
+            turn = sum(abs(b[k] / v - frac[k]) for k in frac) / 2.0
+            v *= (1 - cost * 2 * turn)
+            b = {k: v * frac[k] for k in frac}
+        prev = sum(b.values())
+        for k in frac:
+            b[k] *= (1 + np.nan_to_num(parts[k][i]))
+        out[i] = sum(b.values()) / prev - 1.0
+    out[0] = 0.0
+    return out
+
+
+def mix_monthly(idx, weights, base, rebal='M', cost=0.0005):
+    """월초 재조정 바스켓의 일간 수익률 — 단일 시계열로 만든다.
+
+    엔진(reentry_lib.run / hist_korea.run_kr)은 방어자산을 '수익률 배열 하나'로 받는다.
+    그래서 도피 구간에 종속되지 않는 달력 기준 월간 재조정으로 정의한다.
+    도피 진입일의 첫 달 일부만 다르고, axis_defmix.sim_hold(rebal='M') 와 거의 같다
+    (54년 전구간에서 0.5% 이내 — hist_defasset.py 를 직접 실행하면 대조표가 나온다).
+
+    base: 'div' 성분에 쓸 배당체인 수익률 배열
+    """
+    parts = {}
+    for k, v in weights.items():
+        if v <= 0:
+            continue
+        parts[k] = np.asarray(base, dtype=float) if k == 'div' else {
+            'ust10': lambda: ust_tr(idx, 10, 'TNX'),
+            'ust30': lambda: ust_tr(idx, 30, 'TYX'),
+            'gold': lambda: gold_r(idx),
+        }[k]()
+    return mix_monthly_parts(idx, weights, parts, rebal=rebal, cost=cost)
+
+
 if __name__ == '__main__':
     crosscheck()

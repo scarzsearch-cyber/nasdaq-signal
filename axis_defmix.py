@@ -47,6 +47,8 @@ CANDS = [
     ('배당50 국채30 금20',        dict(div=0.5, ust10=0.3, gold=0.2)),
     ('배당40 국채40 금20',        dict(div=0.4, ust10=0.4, gold=0.2)),
     ('배당34 국채33 금33',        dict(div=0.34, ust10=0.33, gold=0.33)),
+    ('배당70 금30',               dict(div=0.7, gold=0.3)),
+    ('배당60 금40',               dict(div=0.6, gold=0.4)),
     ('배당50 금50',               dict(div=0.5, gold=0.5)),
     ('배당50 국채50',             dict(div=0.5, ust10=0.5)),
     ('국채50 금50 (주식0)',       dict(ust10=0.5, gold=0.5)),
@@ -74,6 +76,28 @@ def materials(D):
             'tbill': H.tbill_daily(idx)}
     comp['ust30'][idx < TYX_START] = np.nan             # 고시 이전은 쓰지 않는다
     return comp
+
+
+def mix_monthly_from(parts, weights, idx, cost=0.0005):
+    """이미 만들어진 성분 수익률들로 월초 재조정 바스켓을 만든다(§5 의 실전 규약)."""
+    tot = float(sum(weights.values()))
+    frac = {k: v / tot for k, v in weights.items() if v > 0}
+    per = pd.Series(idx).dt.to_period('M').values
+    n = len(idx)
+    out = np.zeros(n)
+    b = dict(frac)
+    for i in range(n):
+        if i > 0 and per[i] != per[i - 1]:
+            v = sum(b.values())
+            turn = sum(abs(b[k] / v - frac[k]) for k in frac) / 2.0
+            v *= (1 - cost * 2 * turn)
+            b = {k: v * frac[k] for k in frac}
+        prev = sum(b.values())
+        for k in frac:
+            b[k] *= (1 + np.nan_to_num(parts[k][i]))
+        out[i] = sum(b.values()) / prev - 1.0
+    out[0] = 0.0
+    return out
 
 
 def mix_r(comp, weights):
@@ -111,7 +135,11 @@ def sim_hold(D, w, comp, weights, riskr=None, cost=COST, lag=1, start=None, end=
 
     rebal : None  = 복귀까지 안 건드림 (가장 보수적)
             'M'/'Q' = 도피 구간 안에서 월/분기 리밸런싱 (실제로 하게 되는 것)
-    리밸런싱 자체에도 편도비용의 절반(회전분만)을 물린다.
+
+    [규약 정합] 하루의 순서는 sim_def / reentry_lib.run 과 정확히 같다:
+      ① 전일 신호(w[i-lag])대로 당일 시작에 포지션을 맞추고(전환비용)
+      ② 그 포지션으로 당일 수익을 받는다.
+    단일자산 바스켓이면 sim_def 와 오차 0 이어야 한다(check_hold() 가 검산).
     """
     idx = D['idx']
     n = len(idx)
@@ -125,30 +153,45 @@ def sim_hold(D, w, comp, weights, riskr=None, cost=COST, lag=1, start=None, end=
     per = None if rebal is None else pd.Series(idx).dt.to_period(rebal).values
 
     V = 1.0
-    buckets = None
     prev = w[lo]
+    buckets = None if prev >= 1 else {k: V * frac[k] for k in keys}
     out = []
     for i in range(lo, hi):
         pos = w[i - lag] if i - lag >= lo else w[lo]
-        if buckets is None:
-            V *= (1 + rr[i]) if pos >= 1 else 1.0
-        else:
-            for k in keys:
-                buckets[k] *= (1 + R[k][i])
-            V = sum(buckets.values())
-            if per is not None and i > lo and per[i] != per[i - 1]:
-                turn = sum(abs(buckets[k] / V - frac[k]) for k in keys) / 2.0
-                V *= (1 - rebal_cost * 2 * turn)
-                buckets = {k: V * frac[k] for k in keys}
-        if pos != prev:
+
+        if pos != prev:                                   # ① 당일 시작에 전환
             V *= (1 - cost)
-            if pos >= 1:
-                buckets = None
-            else:
-                buckets = {k: V * frac[k] for k in keys}
+            buckets = None if pos >= 1 else {k: V * frac[k] for k in keys}
             prev = pos
+        elif buckets is not None and per is not None and i > lo and per[i] != per[i - 1]:
+            turn = sum(abs(buckets[k] / V - frac[k]) for k in keys) / 2.0
+            V *= (1 - rebal_cost * 2 * turn)              # 구간 내 리밸런싱
+            buckets = {k: V * frac[k] for k in keys}
+
+        if i > lo:                                        # ② 당일 수익
+            if buckets is None:                           #   (첫날 수익은 0 — sim_def 규약)
+                V *= (1 + np.nan_to_num(rr[i]))
+            else:
+                for k in keys:
+                    buckets[k] *= (1 + R[k][i])
+                V = sum(buckets.values())
         out.append(V)
     return pd.Series(out, index=idx[lo:hi])
+
+
+def check_hold(D, comp):
+    """sim_hold 규약 검산 — 단일자산이면 sim_def 와 같아야 한다."""
+    wB = rule_w(D['ddv'], -0.16, -0.16)
+    ok = True
+    for s in (None, '2000-01-03'):
+        for k in ('div', 'ust10', 'gold'):
+            a = sim_hold(D, wB, comp, {k: 1.0}, start=s, rebal='M').iloc[-1]
+            b = sim_def(D, wB, np.nan_to_num(comp[k]), start=s).iloc[-1]
+            e = abs(a / b - 1)
+            ok = ok and e < 1e-10
+            print('검산 sim_hold %-6s %-12s %14s vs %14s  오차 %.1e'
+                  % (k, s or '1972-', format(a, ',.2f'), format(b, ',.2f'), e))
+    return ok
 
 
 # ---------------------------------------------------------------- 1) 진단
@@ -349,24 +392,30 @@ def krw(D, comp, pick, krd, start='1997-01-02', label='1997-2026'):
     from hyst_core import A, B
 
     def krw_def(weights, hedged):
-        """hedged=True 인 성분은 환효과 제거, False 인 성분은 (1+r)(1+fx)-1"""
-        tot = float(sum(weights.values()))
-        r = np.zeros(len(idx))
+        """hedged=True 인 성분은 환효과 제거, False 인 성분은 (1+r)(1+fx)-1.
+        바스켓은 §5 의 실전 규약대로 월초 재조정한다."""
+        parts = {}
         for k, w in weights.items():
             if w <= 0:
                 continue
             x = np.nan_to_num(comp[k])
-            r = r + (w / tot) * (x if hedged.get(k, False) else ((1 + x) * (1 + fr) - 1))
-        return r
+            parts[k] = x if hedged.get(k, False) else ((1 + x) * (1 + fr) - 1)
+        if len(parts) == 1:
+            return list(parts.values())[0]
+        return mix_monthly_from(parts, weights, idx)
 
     print('\n===== 7) 원화 실전 — 환노출 vs 환헤지 (%s, 한국 거래일, 슬리피지 0.1%%) =====' % label)
     print('%-34s %-12s %12s %8s %9s %8s  %s' %
           ('방어자산 구성', '전략', '최종배수', 'CAGR', 'MDD', 'Calmar', 'MDD시점'))
     SCEN = [
         ('배당100 환노출 (현행)', dict(div=1.0), {}),
-        (pick[0] + ' / 국채·금 환노출', pick[1], {}),
-        (pick[0] + ' / 국채·금 환헤지', pick[1], dict(ust10=True, gold=True)),
-        (pick[0] + ' / 국채만 환헤지', pick[1], dict(ust10=True)),
+        (pick[0] + ' / 이상: 전부 환노출', pick[1], {}),
+        (pick[0] + ' / [실제] 국채만 환헤지', pick[1], dict(ust10=True)),
+        (pick[0] + ' / 전부 환헤지', pick[1], dict(ust10=True, gold=True)),
+        # 국내에 '미국채 환노출형'이 없다 -> 환노출 상품이 있는 금만으로 가는 안
+        ('배당70 금30 (둘 다 환노출)', dict(div=0.7, gold=0.3), {}),
+        ('배당60 금40 (둘 다 환노출)', dict(div=0.6, gold=0.4), {}),
+        ('배당50 금50 (둘 다 환노출)', dict(div=0.5, gold=0.5), {}),
     ]
     out = {}
     for nm, wt, hd in SCEN:
@@ -532,6 +581,7 @@ if __name__ == '__main__':
           % (D['idx'][0].date(), D['idx'][-1].date(), len(D['idx']), COST * 100))
     assert check(D), '검산 실패'
     comp = materials(D)
+    assert check_hold(D, comp), 'sim_hold 규약 검산 실패'
 
     diagnose(D, comp)
     correlations(D, comp)
@@ -542,7 +592,11 @@ if __name__ == '__main__':
     rebal_convention(D, comp, None, '1972-2026')
     rebal_convention(D, comp, '2000-01-03', '2000-2026')
 
-    PICK = ('배당50 국채30 금20', dict(div=0.5, ust10=0.3, gold=0.2))
+    # 국내 ISA 실전 채택안. 국내에 '미국채 환노출형'이 없어 §7 에서 국채 다리가
+    # 이득을 잃는다 -> 환노출 상품이 있는 금만으로 간다. 달러 최적은 배당40/국채40/금20.
+    PICK = ('배당50 금50', dict(div=0.5, gold=0.5))
+    PICK_USD = ('배당40 국채40 금20', dict(div=0.4, ust10=0.4, gold=0.2))
+    gates(D, comp, PICK_USD)
     gates(D, comp, PICK)
     weight_plateau(D, comp, None, '1972-2026')
     weight_plateau(D, comp, '2000-01-03', '2000-2026')

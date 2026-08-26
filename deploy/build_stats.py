@@ -27,6 +27,7 @@ import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import hist_data as H                 # noqa: E402
+import hist_defasset as DA            # noqa: E402
 import hist_defensive as DF           # noqa: E402
 import hist_korea as K                # noqa: E402
 import hist_krfinal as KF             # noqa: E402
@@ -35,6 +36,19 @@ import reentry_lib as RL              # noqa: E402
 from reentry_lib import met, run      # noqa: E402
 
 OUT = os.path.join('data', 'strategy_stats.json')
+
+# 방어자산 2안 — 전략_v23 에서 채택안이 바뀌었다.
+DEFS = [
+    ('mix', '배당50 / 금50', '전략_v23 채택안. 도피 구간 안에서 월 1회 재조정.'),
+    ('div', '배당100 (v21)', '2026-08 이전 채택안. 비교용으로 남겨 둔다.'),
+]
+
+
+def defensive_r(idx, base, kind):
+    """kind='div' 면 배당체인 그대로, 'mix' 면 v23 바스켓(월간 재조정)."""
+    if kind == 'div':
+        return np.asarray(base, dtype=float)
+    return DA.mix_monthly(idx, DA.MIX_V23, base)
 
 STRATS = {
     'B': dict(enter=-0.16, exit=-0.16, name='−16 / −16', ladder=[(('dd', -0.16), 1.0, 0)]),
@@ -58,8 +72,9 @@ def pack(curve, turn):
     }
 
 
-def sc_us_2000():
-    D = RL.build()
+def sc_us_2000(kind):
+    D = dict(RL.build())
+    D['schdr'] = defensive_r(D['idx'], D['schdr'], kind)
     out = {}
     for k, S in STRATS.items():
         c, w, t = run(D, S['ladder'], enter=S['enter'])
@@ -67,8 +82,9 @@ def sc_us_2000():
     return out
 
 
-def sc_us_1972():
-    D = DF.build('chain')
+def sc_us_1972(kind):
+    D = dict(DF.build('chain'))
+    D['schdr'] = defensive_r(D['idx'], D['schdr'], kind)
     out = {}
     for k, S in STRATS.items():
         c, w, t = run(D, S['ladder'], enter=S['enter'])
@@ -76,10 +92,16 @@ def sc_us_1972():
     return out
 
 
-def sc_kr_1997():
+def sc_kr_1997(kind):
     D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     krd = K.kr_caldays()
-    Dx = dict(D); Dx['qldr'] = lev2; Dx['schdr'] = dfk
+    if kind == 'div':
+        sr = dfk
+    else:
+        # 국내 상품은 둘 다 환노출(TIGER 미국배당다우존스 / ACE KRX금현물)
+        parts = {'div': dfk, 'gold': (1 + DA.gold_r(idx)) * (1 + fr) - 1}
+        sr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
+    Dx = dict(D); Dx['qldr'] = lev2; Dx['schdr'] = sr
     out = {}
     for k, S in STRATS.items():
         c, w, t = K.run_kr(Dx, S, cost=0.001, slip=0.001, start=KF.ST, krdays=krd)
@@ -87,10 +109,10 @@ def sc_kr_1997():
     return out
 
 
-def sc_kr_real():
+def sc_kr_real(kind):
     out = {}
     for k, S in STRATS.items():
-        c, hold, dd = KR.run_real(S['exit'])
+        c, hold, dd = KR.run_real(S['exit'], defmix=(kind == 'mix'))
         turn = hold.shift(1).fillna(1.0).diff().abs().fillna(0).values
         out[k] = pack(c, turn)
     return out
@@ -109,13 +131,17 @@ def main():
         sys.exit('저장소 루트에서 실행해야 한다: python deploy/build_stats.py')
     scen = []
     for key, label, note, fn in SCENARIOS:
-        print('  계산 중 …', key, flush=True)
-        s = fn()
-        scen.append(dict(key=key, label=label, note=note, strategies=s))
+        row = dict(key=key, label=label, note=note)
+        for dk, dlabel, dnote in DEFS:
+            print('  계산 중 …', key, dk, flush=True)
+            row['strategies' if dk == 'mix' else 'strategies_' + dk] = fn(dk)
+        scen.append(row)
     payload = dict(
         generated_at=pd.Timestamp.now('UTC').strftime('%Y-%m-%d %H:%M UTC'),
         strategies={k: dict(name=v['name'], enter=round(v['enter'] * 100),
                             exit=round(v['exit'] * 100)) for k, v in STRATS.items()},
+        defensives=[dict(key=k, label=l, note=n) for k, l, n in DEFS],
+        defensive_legs=DA.MIX_LEGS,
         scenarios=scen,
     )
     with open(OUT, 'w', encoding='utf-8') as f:
@@ -127,10 +153,14 @@ def main():
     for s in scen:
         for k in ('B', 'A'):
             m = s['strategies'][k]
+            o = s['strategies_div'][k]
             print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %6d' % (
                 s['label'] if k == 'B' else '', STRATS[k]['name'], f"{m['final']:,.1f}",
                 m['cagr'], m['mdd'], m['calmar'],
                 '—' if m['sortino'] is None else f"{m['sortino']:.3f}", m['switches']))
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %6d   <- 배당100' % (
+                '', '', f"{o['final']:,.1f}", o['cagr'], o['mdd'], o['calmar'],
+                '—' if o['sortino'] is None else f"{o['sortino']:.3f}", o['switches']))
     print('\n→', OUT)
 
 

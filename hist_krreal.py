@@ -5,7 +5,7 @@
 신호는 QQQ 미국 종가 DD(252일). 체결은 그 다음 한국 거래일 시가(실제 Open).
 """
 import numpy as np, pandas as pd
-import hist_data as H, hist_tiger as TT, hist_korea as K
+import hist_data as H, hist_tiger as TT, hist_korea as K, hist_defasset as DA
 from reentry_lib import met
 
 LB, ENTER = 252, -0.16
@@ -27,12 +27,23 @@ def signals(exit_):
     return pd.Series(w), dd
 
 
-def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST):
+def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
+    """defmix=True 면 방어자산을 전략_v23 채택안(배당50 / ACE KRX금현물50)으로 바꾼다."""
     w, dd = signals(exit_)
     lev, div = TT.T['lev']['open'], TT.T['div']['open']
-    kr = lev.index.intersection(div.index); kr = kr[kr >= start]
+    kr = lev.index.intersection(div.index)
+    gold = None
+    if defmix:
+        g = DA.kr('411060', 'Open')
+        kr = kr.intersection(g.index)
+        gold = g
+    kr = kr[kr >= start]
     rl = lev.reindex(kr).pct_change().fillna(0)      # 시가->시가 (분배금 조정)
     rd = div.reindex(kr).pct_change().fillna(0)
+    if defmix:
+        rg = gold.reindex(kr).pct_change().fillna(0)
+        rd = pd.Series(DA.mix_monthly_parts(kr, DA.MIX_V23,
+                                            {'div': rd.values, 'gold': rg.values}), index=kr)
     pos, cur = [], 1.0
     for d in kr:
         s = w.loc[:d - pd.Timedelta(days=1)]         # d 개장 전에 확정된 마지막 신호

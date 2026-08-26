@@ -25,6 +25,21 @@ STRATS = [
 ]
 DEFAULT = "B"
 
+# 도피 상태에서 보유할 방어자산 (전략_v23 §7). 전부 국내 상장·ISA 편입 가능·환노출.
+DEFENSIVE = {
+    "version": "v23",
+    "label": "배당 50 / 금 50",
+    "rebalance": "도피 구간 안에서 월 1회 (5%p 이상 벌어졌을 때만 해도 됨)",
+    "note": "국내에 「미국 국채 환노출형」이 없어 국채 다리는 원화 기준 이득이 사라진다. "
+            "그래서 환노출 상품이 있는 금으로 간다. 전략_v23.md §5 참고.",
+    "legs": [
+        {"code": "458730", "name": "TIGER 미국배당다우존스", "weight": 50, "fx": "환노출"},
+        {"code": "411060", "name": "ACE KRX금현물", "weight": 50, "fx": "환노출",
+         "alt": "KODEX 골드선물(H) 132030 — 환헤지라 원화 기준 열위"},
+    ],
+}
+RISK = {"code": "418660", "name": "TIGER 미국나스닥100레버리지(합성)"}
+
 # stooq.com이 자동화 요청을 JS 챌린지로 차단해 Yahoo Finance chart API로 대체.
 SRC = "https://query1.finance.yahoo.com/v8/finance/chart/QQQ"
 OUT_DIR = "data"
@@ -176,6 +191,8 @@ def main():
         "high_252": round(float(roll_max.iloc[-1]), 2),
         "dd": round(d * 100, 2),
         "default": DEFAULT,
+        "defensive": DEFENSIVE,
+        "risk": RISK,
         "strategies": strategies,
         "recent": recent,
         "stats": load_stats(),
