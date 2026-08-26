@@ -35,13 +35,16 @@ import pandas as pd
 DIR = 'data/hist'
 
 # 국내 상장 실물 (전부 KRX, ISA 편입 가능)
+# 환 노출 여부와 실효 듀레이션은 **표기가 아니라 실측**이다 (axis_krspec.py 의 주간 회귀).
+#   r_ETF = a + b1·r_기초 + b2·r_환율   ->  b2≈1 이면 환노출, b2≈0 이면 환헤지
+#   b1 이 1 이 되는 합성만기 M 이 그 상품의 실효 듀레이션이다.
 KR_ETF = {
-    '132030': ('KODEX 골드선물(H)', '금', '환헤지'),
-    '411060': ('ACE KRX금현물', '금', '환노출'),
-    '305080': ('TIGER 미국채10년선물', '미국채10Y', '사실상 헤지(선물)'),
-    '308620': ('KODEX 미국채10년선물', '미국채10Y', '사실상 헤지(선물)'),
-    '453850': ('ACE 미국30년국채액티브(H)', '미국채30Y', '환헤지'),
-    '148070': ('KOSEF 국고채10년', '한국국채10Y', '원화자산'),
+    '132030': ('KODEX 골드선물(H)', '금', '환헤지', None),          # b2 = -0.083
+    '411060': ('ACE KRX금현물', '금', '환노출', None),              # b2 = +0.669
+    '305080': ('TIGER 미국채10년선물', '미국채', '환노출', 5),       # b2 = +0.810, M*≈5
+    '308620': ('KODEX 미국채10년선물', '미국채', '환노출', 5),       # b2 = +0.759, M*≈5
+    '453850': ('ACE 미국30년국채액티브(H)', '미국채', '환헤지', 20),  # b2 = -0.037, M*≈20
+    '148070': ('KOSEF 국고채10년', '한국국채', '원화자산', None),    # b2 = -0.071
 }
 
 
@@ -167,12 +170,14 @@ def crosscheck():
     print('    누적·변동성·MDD 가 맞으면 방어자산 용도로는 충분하다.')
 
     print('\n===== 국내 상장 실물 ETF (ISA 편입 가능) =====')
-    print('%-8s %-26s %-11s %-14s %-12s %s' % ('코드', '이름', '기초', '환', '상장', '거래일'))
-    for code, (nm, kind, fx) in KR_ETF.items():
+    print('%-8s %-26s %-9s %-9s %-7s %-12s %s'
+          % ('코드', '이름', '기초', '환(실측)', '실효만기', '상장', '거래일'))
+    for code, (nm, kind, fx, M) in KR_ETF.items():
         try:
             s = kr(code)
-            print('%-8s %-26s %-11s %-14s %-12s %d' %
-                  (code, nm, kind, fx, str(s.index[0].date()), len(s)))
+            print('%-8s %-26s %-9s %-9s %-7s %-12s %d' %
+                  (code, nm, kind, fx, '—' if M is None else '%gY' % M,
+                   str(s.index[0].date()), len(s)))
         except Exception as e:
             print('%-8s %-26s  로드 실패 %s' % (code, nm, e))
 
@@ -180,14 +185,20 @@ def crosscheck():
 
 # ---------------------------------------------------------------- v23 채택 바스켓
 # 전략_v23.md §7 채택안. 국내 상장 대응 상품까지 한 곳에 묶어 둔다.
-MIX_V23 = dict(div=0.50, gold=0.50)          # 국내 ISA 실전 채택안 (§7)
-MIX_V23_USD = dict(div=0.40, ust10=0.40, gold=0.20)  # 달러 기준 최적 (참고)
+# 채택안 — 국내 상품의 **실측 사양**(axis_krspec.py)으로 모형화한다:
+#   TIGER/KODEX 미국채10년선물 = 환노출, 실효만기 약 5년  -> ust5
+MIX_V23 = dict(div=0.40, ust5=0.40, gold=0.20)
+MIX_V23_ALT = dict(div=0.50, gold=0.50)      # 국채 없이 가는 대안 (§7)
 
 MIX_LEGS = [
-    dict(kind='div',  weight=50, label='미국 배당다우존스',
-         code='458730', name='TIGER 미국배당다우존스', alt=None),
-    dict(kind='gold', weight=50, label='금 (KRX 금현물)',
-         code='411060', name='ACE KRX금현물',
+    dict(kind='div',  weight=40, label='미국 배당다우존스',
+         code='458730', name='TIGER 미국배당다우존스', fx='환노출', alt=None),
+    dict(kind='ust5', weight=40, label='미국 국채 (실효 5년)',
+         code='305080', name='TIGER 미국채10년선물', fx='환노출',
+         alt=dict(code='308620', name='KODEX 미국채10년선물',
+                  note='같은 사양(환노출·실효 5년). 거래대금은 305080 이 두 배')),
+    dict(kind='gold', weight=20, label='금 (KRX 금현물)',
+         code='411060', name='ACE KRX금현물', fx='환노출',
          alt=dict(code='132030', name='KODEX 골드선물(H)',
                   note='환헤지형이라 원화 완충을 못 받는다. 411060 이 낫다')),
 ]
@@ -235,7 +246,9 @@ def mix_monthly(idx, weights, base, rebal='M', cost=0.0005):
         if v <= 0:
             continue
         parts[k] = np.asarray(base, dtype=float) if k == 'div' else {
+            'ust5': lambda: ust_tr(idx, 5, 'TNX'),
             'ust10': lambda: ust_tr(idx, 10, 'TNX'),
+            'ust20': lambda: ust_tr(idx, 20, 'TYX'),
             'ust30': lambda: ust_tr(idx, 30, 'TYX'),
             'gold': lambda: gold_r(idx),
         }[k]()

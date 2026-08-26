@@ -45,6 +45,9 @@ CANDS = [
     ('국채10Y 100',               dict(ust10=1.0)),
     ('금100',                     dict(gold=1.0)),
     ('배당50 국채30 금20',        dict(div=0.5, ust10=0.3, gold=0.2)),
+    ('배당40 국채5Y40 금20 [국내]', dict(div=0.4, ust5=0.4, gold=0.2)),
+    ('배당50 국채5Y30 금20 [국내]', dict(div=0.5, ust5=0.3, gold=0.2)),
+    ('배당34 국채5Y33 금33 [국내]', dict(div=0.34, ust5=0.33, gold=0.33)),
     ('배당40 국채40 금20',        dict(div=0.4, ust10=0.4, gold=0.2)),
     ('배당34 국채33 금33',        dict(div=0.34, ust10=0.33, gold=0.33)),
     ('배당70 금30',               dict(div=0.7, gold=0.3)),
@@ -70,11 +73,14 @@ def materials(D):
     idx = D['idx']
     base = D['schdr']                                   # 배당체인 (v21 자율규약2)
     comp = {'div': np.asarray(base, dtype=float),
+            'ust5': DA.ust_tr(idx, 5, 'TNX'),        # 국내 미국채10년선물 ETF 의 실효 사양
             'ust10': DA.ust_tr(idx, 10, 'TNX'),
+            'ust20': DA.ust_tr(idx, 20, 'TYX'),       # ACE 미국30년국채액티브(H) 의 실효 사양
             'ust30': DA.ust_tr(idx, 30, 'TYX'),
             'gold': DA.gold_r(idx),
             'tbill': H.tbill_daily(idx)}
-    comp['ust30'][idx < TYX_START] = np.nan             # 고시 이전은 쓰지 않는다
+    for k in ('ust20', 'ust30'):
+        comp[k][idx < TYX_START] = np.nan                # 30년 고시 이전은 쓰지 않는다
     return comp
 
 
@@ -407,15 +413,15 @@ def krw(D, comp, pick, krd, start='1997-01-02', label='1997-2026'):
     print('\n===== 7) 원화 실전 — 환노출 vs 환헤지 (%s, 한국 거래일, 슬리피지 0.1%%) =====' % label)
     print('%-34s %-12s %12s %8s %9s %8s  %s' %
           ('방어자산 구성', '전략', '최종배수', 'CAGR', 'MDD', 'Calmar', 'MDD시점'))
+    # [실측 반영] 국내 미국채10년선물 ETF 는 환노출이고 실효만기가 5년이다(axis_krspec.py).
     SCEN = [
         ('배당100 환노출 (현행)', dict(div=1.0), {}),
-        (pick[0] + ' / 이상: 전부 환노출', pick[1], {}),
-        (pick[0] + ' / [실제] 국채만 환헤지', pick[1], dict(ust10=True)),
-        (pick[0] + ' / 전부 환헤지', pick[1], dict(ust10=True, gold=True)),
-        # 국내에 '미국채 환노출형'이 없다 -> 환노출 상품이 있는 금만으로 가는 안
-        ('배당70 금30 (둘 다 환노출)', dict(div=0.7, gold=0.3), {}),
-        ('배당60 금40 (둘 다 환노출)', dict(div=0.6, gold=0.4), {}),
-        ('배당50 금50 (둘 다 환노출)', dict(div=0.5, gold=0.5), {}),
+        ('배당40 국채(5Y)40 금20  ← 국내 실제 사양', dict(div=0.4, ust5=0.4, gold=0.2), {}),
+        ('배당50 국채(5Y)30 금20', dict(div=0.5, ust5=0.3, gold=0.2), {}),
+        ('배당40 국채(10Y)40 금20  (이상)', dict(div=0.4, ust10=0.4, gold=0.2), {}),
+        ('배당40 국채(20Y,H)40 금20  453850', dict(div=0.4, ust20=0.4, gold=0.2), dict(ust20=True)),
+        ('배당50 금50 (국채 없음)', dict(div=0.5, gold=0.5), {}),
+        ('배당60 금40 (국채 없음)', dict(div=0.6, gold=0.4), {}),
     ]
     out = {}
     for nm, wt, hd in SCEN:
@@ -443,7 +449,7 @@ def real_kr(D, comp):
           ('코드', '이름', '겹침시작', 'CAGR', '변동성', 'MDD', '동일일상관', '1일시차'))
     print('  ※ 한국장은 15:30 KST 마감이라 미국 채권·금 시세를 하루 늦게 반영한다.')
     fxs = K.fx(D['idx'])
-    for code, (nm, kind, fx) in DA.KR_ETF.items():
+    for code, (nm, kind, fx, _M) in DA.KR_ETF.items():
         try:
             s = DA.kr(code)
         except Exception:
@@ -452,7 +458,7 @@ def real_kr(D, comp):
         if len(ii) < 250:
             continue
         rr = s.reindex(ii).pct_change().fillna(0).values
-        key = {'금': 'gold', '미국채10Y': 'ust10', '미국채30Y': 'ust30'}.get(kind)
+        key = {'금': 'gold', '미국채': 'ust5' if _M == 5 else 'ust20'}.get(kind)
         cor = lagc = np.nan
         if key:
             pos = D['idx'].searchsorted(ii)
@@ -562,7 +568,7 @@ def liquidity():
     """사용자 조건 — "필요할 때 매도 후 QLD 매수가 바로 되는가"의 정량화."""
     print('\n----- 유동성 (최근 1년 일간 거래대금) -----')
     print('  %-8s %-26s %12s %12s %10s' % ('코드', '이름', '일평균', '중앙값', '최소일'))
-    for code, (nm, kind, fx) in DA.KR_ETF.items():
+    for code, (nm, kind, fx, _M) in DA.KR_ETF.items():
         d = pd.read_csv('data/hist/kr_%s_KS.csv' % code, parse_dates=['Date'])
         if 'Volume' not in d.columns:
             continue
@@ -594,8 +600,8 @@ if __name__ == '__main__':
 
     # 국내 ISA 실전 채택안. 국내에 '미국채 환노출형'이 없어 §7 에서 국채 다리가
     # 이득을 잃는다 -> 환노출 상품이 있는 금만으로 간다. 달러 최적은 배당40/국채40/금20.
-    PICK = ('배당50 금50', dict(div=0.5, gold=0.5))
-    PICK_USD = ('배당40 국채40 금20', dict(div=0.4, ust10=0.4, gold=0.2))
+    PICK = ('배당40 국채5Y40 금20 [국내]', dict(div=0.4, ust5=0.4, gold=0.2))
+    PICK_USD = ('배당50 금50 (국채없음)', dict(div=0.5, gold=0.5))
     gates(D, comp, PICK_USD)
     gates(D, comp, PICK)
     weight_plateau(D, comp, None, '1972-2026')

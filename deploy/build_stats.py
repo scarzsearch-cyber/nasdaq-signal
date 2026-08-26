@@ -39,7 +39,7 @@ OUT = os.path.join('data', 'strategy_stats.json')
 
 # 방어자산 2안 — 전략_v23 에서 채택안이 바뀌었다.
 DEFS = [
-    ('mix', '배당50 / 금50', '전략_v23 채택안. 도피 구간 안에서 월 1회 재조정.'),
+    ('mix', '배당40 / 국채40 / 금20', '전략_v23 채택안. 국내 상품 실측 사양(환노출·실효 5년). 월 1회 재조정.'),
     ('div', '배당100 (v21)', '2026-08 이전 채택안. 비교용으로 남겨 둔다.'),
 ]
 
@@ -98,8 +98,13 @@ def sc_kr_1997(kind):
     if kind == 'div':
         sr = dfk
     else:
-        # 국내 상품은 둘 다 환노출(TIGER 미국배당다우존스 / ACE KRX금현물)
-        parts = {'div': dfk, 'gold': (1 + DA.gold_r(idx)) * (1 + fr) - 1}
+        # 채택안 3종은 전부 환노출이다 — axis_krspec.py 의 실측(b2≈0.8~1.0).
+        #   TIGER 미국배당다우존스 / TIGER 미국채10년선물(실효 5년) / ACE KRX금현물
+        raw = {'div': np.asarray(dfk, dtype=float),
+               'ust5': DA.ust_tr(idx, 5, 'TNX'),
+               'gold': DA.gold_r(idx)}
+        parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
+                 for k in DA.MIX_V23}
         sr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
     Dx = dict(D); Dx['qldr'] = lev2; Dx['schdr'] = sr
     out = {}

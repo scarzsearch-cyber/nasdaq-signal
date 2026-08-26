@@ -32,18 +32,23 @@ def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
     w, dd = signals(exit_)
     lev, div = TT.T['lev']['open'], TT.T['div']['open']
     kr = lev.index.intersection(div.index)
-    gold = None
+    extra = {}
     if defmix:
-        g = DA.kr('411060', 'Open')
-        kr = kr.intersection(g.index)
-        gold = g
+        # 채택안 3다리를 전부 국내 실물 시가로 잡는다 (전부 환노출)
+        for leg in DA.MIX_LEGS:
+            if leg['kind'] == 'div':
+                continue
+            g = DA.kr(leg['code'], 'Open')
+            kr = kr.intersection(g.index)
+            extra[leg['kind']] = g
     kr = kr[kr >= start]
     rl = lev.reindex(kr).pct_change().fillna(0)      # 시가->시가 (분배금 조정)
     rd = div.reindex(kr).pct_change().fillna(0)
     if defmix:
-        rg = gold.reindex(kr).pct_change().fillna(0)
-        rd = pd.Series(DA.mix_monthly_parts(kr, DA.MIX_V23,
-                                            {'div': rd.values, 'gold': rg.values}), index=kr)
+        parts = {'div': rd.values}
+        for k, g in extra.items():
+            parts[k] = g.reindex(kr).pct_change().fillna(0).values
+        rd = pd.Series(DA.mix_monthly_parts(kr, DA.MIX_V23, parts), index=kr)
     pos, cur = [], 1.0
     for d in kr:
         s = w.loc[:d - pd.Timedelta(days=1)]         # d 개장 전에 확정된 마지막 신호

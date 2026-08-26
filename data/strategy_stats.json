@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-08-26 08:37 UTC",
+ "generated_at": "2026-08-26 09:11 UTC",
  "strategies": {
   "B": {
    "name": "−16 / −16",
@@ -15,8 +15,8 @@
  "defensives": [
   {
    "key": "mix",
-   "label": "배당50 / 금50",
-   "note": "전략_v23 채택안. 도피 구간 안에서 월 1회 재조정."
+   "label": "배당40 / 국채40 / 금20",
+   "note": "전략_v23 채택안. 국내 상품 실측 사양(환노출·실효 5년). 월 1회 재조정."
   },
   {
    "key": "div",
@@ -27,18 +27,33 @@
  "defensive_legs": [
   {
    "kind": "div",
-   "weight": 50,
+   "weight": 40,
    "label": "미국 배당다우존스",
    "code": "458730",
    "name": "TIGER 미국배당다우존스",
+   "fx": "환노출",
    "alt": null
   },
   {
+   "kind": "ust5",
+   "weight": 40,
+   "label": "미국 국채 (실효 5년)",
+   "code": "305080",
+   "name": "TIGER 미국채10년선물",
+   "fx": "환노출",
+   "alt": {
+    "code": "308620",
+    "name": "KODEX 미국채10년선물",
+    "note": "같은 사양(환노출·실효 5년). 거래대금은 305080 이 두 배"
+   }
+  },
+  {
    "kind": "gold",
-   "weight": 50,
+   "weight": 20,
    "label": "금 (KRX 금현물)",
    "code": "411060",
    "name": "ACE KRX금현물",
+   "fx": "환노출",
    "alt": {
     "code": "132030",
     "name": "KODEX 골드선물(H)",
@@ -53,24 +68,24 @@
    "note": "QQQ 실물 · SCHD 상장 이전은 연 2% 현금. verify.py 와 같은 규약.",
    "strategies": {
     "B": {
-     "final": 175.148,
-     "cagr": 21.4,
-     "mdd": -49.72,
-     "calmar": 0.43,
-     "sortino": 0.925,
-     "sharpe": 0.736,
+     "final": 173.164,
+     "cagr": 21.35,
+     "mdd": -47.71,
+     "calmar": 0.447,
+     "sortino": 0.911,
+     "sharpe": 0.739,
      "years": 26.6,
      "switches": 52,
      "start": "2000-01-03",
      "end": "2026-08-24"
     },
     "A": {
-     "final": 161.553,
-     "cagr": 21.03,
-     "mdd": -48.06,
-     "calmar": 0.438,
-     "sortino": 0.918,
-     "sharpe": 0.735,
+     "final": 158.696,
+     "cagr": 20.95,
+     "mdd": -45.15,
+     "calmar": 0.464,
+     "sortino": 0.902,
+     "sharpe": 0.738,
      "years": 26.6,
      "switches": 22,
      "start": "2000-01-03",
@@ -110,24 +125,24 @@
    "note": "나스닥 3구간 체인 + 배당 실측 방어자산. 가장 긴 표본.",
    "strategies": {
     "B": {
-     "final": 273387.625,
-     "cagr": 25.8,
-     "mdd": -62.26,
-     "calmar": 0.414,
-     "sortino": 1.067,
-     "sharpe": 0.842,
+     "final": 259976.867,
+     "cagr": 25.68,
+     "mdd": -59.7,
+     "calmar": 0.43,
+     "sortino": 1.053,
+     "sharpe": 0.846,
      "years": 54.5,
      "switches": 140,
      "start": "1972-02-07",
      "end": "2026-08-24"
     },
     "A": {
-     "final": 149049.725,
-     "cagr": 24.41,
-     "mdd": -59.89,
-     "calmar": 0.408,
-     "sortino": 1.028,
-     "sharpe": 0.818,
+     "final": 162618.891,
+     "cagr": 24.61,
+     "mdd": -56.53,
+     "calmar": 0.435,
+     "sortino": 1.021,
+     "sharpe": 0.832,
      "years": 54.5,
      "switches": 54,
      "start": "1972-02-07",
@@ -167,11 +182,11 @@
    "note": "환노출 2배 + 한국 거래일 체결 + 슬리피지 0.1%. 국내 ETF 상장 이전은 원화 환산 시뮬레이션.",
    "strategies": {
     "B": {
-     "final": 3052.064,
-     "cagr": 31.09,
-     "mdd": -54.71,
-     "calmar": 0.568,
-     "sortino": 1.16,
+     "final": 2902.156,
+     "cagr": 30.87,
+     "mdd": -55.94,
+     "calmar": 0.552,
+     "sortino": 1.148,
      "sharpe": 0.855,
      "years": 29.6,
      "switches": 58,
@@ -179,12 +194,12 @@
      "end": "2026-08-24"
     },
     "A": {
-     "final": 2426.163,
-     "cagr": 30.08,
-     "mdd": -55.34,
-     "calmar": 0.544,
-     "sortino": 1.14,
-     "sharpe": 0.846,
+     "final": 2289.436,
+     "cagr": 29.82,
+     "mdd": -56.74,
+     "calmar": 0.526,
+     "sortino": 1.126,
+     "sharpe": 0.845,
      "years": 29.6,
      "switches": 28,
      "start": "1997-01-02",
@@ -224,24 +239,24 @@
    "note": "TIGER 3종이 모두 상장된 이후만. 실제 시가 체결.",
    "strategies": {
     "B": {
-     "final": 2.886,
-     "cagr": 39.5,
-     "mdd": -44.32,
-     "calmar": 0.891,
-     "sortino": 1.486,
-     "sharpe": 1.126,
+     "final": 2.854,
+     "cagr": 39.0,
+     "mdd": -44.94,
+     "calmar": 0.868,
+     "sortino": 1.488,
+     "sharpe": 1.121,
      "years": 3.2,
      "switches": 6,
      "start": "2023-06-20",
      "end": "2026-08-26"
     },
     "A": {
-     "final": 3.105,
-     "cagr": 42.74,
-     "mdd": -36.82,
-     "calmar": 1.161,
+     "final": 3.066,
+     "cagr": 42.17,
+     "mdd": -36.97,
+     "calmar": 1.141,
      "sortino": 1.609,
-     "sharpe": 1.206,
+     "sharpe": 1.2,
      "years": 3.2,
      "switches": 2,
      "start": "2023-06-20",
