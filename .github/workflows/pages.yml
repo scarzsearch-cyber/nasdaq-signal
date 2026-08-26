@@ -35,6 +35,7 @@ jobs:
           mkdir -p _site/data
           cp signal.html _site/index.html
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
+          cp data/strategy_stats.json _site/data/ 2>/dev/null || echo "strategy_stats.json 없음 — 성과 패널만 숨겨짐"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

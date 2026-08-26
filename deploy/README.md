@@ -78,10 +78,11 @@
 매일 22:30 UTC (= 한국 07:30)
   └ GitHub Actions 실행
       └ deploy/update_signal.py
-          ├ stooq에서 QQQ 전체 일별 종가 다운로드
+          ├ Yahoo Finance chart API에서 QQQ 전체 일별 종가 다운로드
           ├ data/qqq.csv 갱신 (기존 데이터와 병합)
-          ├ 252일 낙폭 계산 → 상태머신(−16%/−11%) 통과
-          └ data/signal.json 저장 (현재 상태 + 최근 12일 + 위기 궤적)
+          ├ 252일 낙폭 계산 → 두 상태머신(−16/−16, −16/−11)을 각각 통과
+          ├ data/strategy_stats.json 을 읽어 성과지표를 함께 실음
+          └ data/signal.json 저장 (두 전략 상태 + 최근 12일 + 위기 궤적 + 성과지표)
       └ 변경분 자동 커밋 & 푸시
           └ pages.yml이 트리거되어 사이트 재배포
 ```
@@ -109,10 +110,10 @@ gh run view --log
 gh workflow run daily-signal.yml
 ```
 
-**stooq가 403을 뱉으면** — 접속 차단이다. `deploy/update_signal.py`의 `SRC`를
-다른 소스로 바꿔야 한다. Claude Code에 "stooq가 막혔으니 대체 데이터 소스로
-바꿔줘"라고 하면 된다. 이 경우에도 `data/qqq.csv` 캐시가 있으면 스크립트는
-죽지 않고 캐시로 동작한다.
+**종가 소스가 막히면** — 원래 stooq를 썼는데 JS 챌린지로 자동화 요청을 막아
+지금은 Yahoo Finance chart API(`SRC`)를 쓴다. 이쪽도 막히면 `SRC`를 바꿔야 한다.
+어느 경우든 `data/qqq.csv` 캐시가 있으면 스크립트는 죽지 않고 캐시로 동작한다
+(`source` 필드가 `cache`로 찍힌다).
 
 **Actions가 커밋을 못 하면** — Settings > Actions > General >
 Workflow permissions 를 "Read and write permissions"로 바꾼다.
@@ -125,6 +126,51 @@ Workflow permissions 를 "Read and write permissions"로 바꾼다.
 ## 주의
 
 - 배포된 페이지는 **URL을 아는 사람이면 누구나** 볼 수 있다. 개인정보는 없지만
-  전략 문턱값(−16%/−11%)은 노출된다. 신경 쓰이면 GitHub Pro(유료)로 private
+  전략 문턱값(−16/−16, −16/−11)과 백테스트 성과가 노출된다. 신경 쓰이면 GitHub Pro(유료)로 private
   저장소를 쓰거나, 다른 정적 호스팅(Vercel/Netlify의 비공개 배포)을 검토한다.
 - 이 화면은 **판정만** 한다. 실제 매매는 직접 해야 한다.
+
+---
+
+## 두 전략 선택 (2026-08-26 추가)
+
+진입선은 −16%로 같고 **복귀선만 다른** 두 규칙을 화면에서 골라 쓴다.
+
+| 키 | 규칙 | 성격 |
+|---|---|---|
+| `B` | **−16 / −16** | 낙폭이 −16%를 회복하면 곧바로 QLD. 전략_v21 §11 권고안. 기본값 |
+| `A` | −16 / −11 | 낙폭이 −11%보다 얕아져야 QLD. v18~v20 채택안 |
+
+- `update_signal.py` 는 매일 **두 규칙을 모두** 판정해 `signal.json` 의
+  `strategies.B` / `strategies.A` 에 각각 넣는다. 화면의 선택은 `localStorage`
+  (`qqq_signal_strat`)에 남으므로 한 번 고르면 계속 유지된다.
+- 두 규칙의 판정이 갈리는 날(회색지대 −16%~−11% 회복 중)에는 화면에 그 사실이
+  따로 표시된다. **그때 규칙을 바꾸는 것이 가장 나쁜 수**다.
+- `signal.json` 에는 구버전 화면 호환용으로 `state` / `recent[].s` 등
+  A 기준 필드가 그대로 남아 있다. 캐시된 옛 화면이 깨지지 않게 하려는 것뿐이다.
+
+### 성과지표는 미리 굳혀둔다 — `deploy/build_stats.py`
+
+화면의 Calmar / MDD / Sortino 는 매일 계산하지 않는다. 확장 원자료
+(`data/hist/**`, 16MB)는 Actions 러너에 없기 때문에 **로컬에서 한 번 돌려
+결과 JSON만 커밋**한다.
+
+```bash
+python deploy/build_stats.py      # 반드시 저장소 루트에서
+git add data/strategy_stats.json && git commit -m "stats: 성과지표 갱신"
+```
+
+4개 기준(시나리오)을 계산한다.
+
+| 키 | 기준 | 내용 |
+|---|---|---|
+| `us_2000` | 미국 달러 기준 | QQQ 실물, SCHD 상장 이전은 연 2% 현금. `verify.py` 와 같은 규약 |
+| `us_1972` | 달러 · 54년 확장 | 나스닥 종합/NDX/QQQ 체인 + 배당 실측 방어자산 |
+| `kr_1997` | 원화 · 한국 체결 | 환노출 2배 + 한국 거래일 체결 + 슬리피지 0.1% |
+| `kr_real` | 원화 · 실물 TIGER | TIGER 3종 상장 이후만. 실제 시가 체결 |
+
+`data/strategy_stats.json` 이 없어도 `update_signal.py` 는 경고만 찍고 돈다
+(성과 패널이 숨겨질 뿐 신호 판정에는 영향 없음).
+
+**갱신 주기** — 지표는 표본이 1년쯤 늘어야 유의미하게 변한다. 매일 돌릴 필요 없고,
+데이터를 새로 받았거나 규약을 바꿨을 때만 다시 돌리면 된다.

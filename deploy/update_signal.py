@@ -1,20 +1,36 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 매일 QQQ 종가를 받아 신호를 계산하고 data/signal.json 을 갱신한다.
 GitHub Actions에서 매일 자동 실행된다. 로컬에서 수동 실행도 가능:  python3 deploy/update_signal.py
+
+두 전략을 함께 판정한다 (진입선은 -16%로 동일, 복귀선만 다름).
+  B  -16 / -16 : 낙폭이 -16%를 회복하면 곧바로 QLD.   전략_v21 §11 권고안.
+  A  -16 / -11 : 낙폭이 -11%보다 얕아져야 QLD.        기존 채택안.
+어느 쪽을 쓸지는 화면에서 고른다. 성과지표는 deploy/build_stats.py 가 미리 굳혀둔
+data/strategy_stats.json 을 그대로 실어 나른다.
 """
-import json, os, sys, io
+import json, os, sys
 import datetime
 import urllib.request
 import pandas as pd
 import numpy as np
 
-ENTER, EXIT, LOOKBACK = -0.16, -0.11, 252
+LOOKBACK = 252
+# 진입선은 공통 -16%. 복귀선만 전략별로 다르다.
+ENTER = -0.16
+STRATS = [
+    ("B", "−16 / −16", -0.16, -0.16),
+    ("A", "−16 / −11", -0.16, -0.11),
+]
+DEFAULT = "B"
+
 # stooq.com이 자동화 요청을 JS 챌린지로 차단해 Yahoo Finance chart API로 대체.
 SRC = "https://query1.finance.yahoo.com/v8/finance/chart/QQQ"
 OUT_DIR = "data"
 CSV_PATH = os.path.join(OUT_DIR, "qqq.csv")
 JSON_PATH = os.path.join(OUT_DIR, "signal.json")
+STATS_PATH = os.path.join(OUT_DIR, "strategy_stats.json")
 
 # 과거 4대 위기 (궤적 비교용) — 고점일 기준
 CRISES = [
@@ -47,20 +63,23 @@ def load_cached():
     return df.sort_index()
 
 
-def compute(px: pd.Series):
+def drawdown(px: pd.Series):
     roll_max = px.rolling(LOOKBACK, min_periods=60).max()
-    dd = (px / roll_max - 1)
-    state, cur = [], "QLD"
-    for i in range(len(px)):
-        d = dd.iloc[i]
+    return (px / roll_max - 1), roll_max
+
+
+def states(dd: pd.Series, enter: float, exit_: float):
+    """전량 전환 상태기계. 낙폭 <= enter -> SCHD, 낙폭 > exit -> QLD."""
+    out, cur = [], "QLD"
+    for d in dd.values:
         if pd.isna(d):
-            state.append(cur); continue
-        if cur == "QLD" and d <= ENTER:
+            out.append(cur); continue
+        if cur == "QLD" and d <= enter:
             cur = "SCHD"
-        elif cur == "SCHD" and d > EXIT:
+        elif cur == "SCHD" and d > exit_:
             cur = "QLD"
-        state.append(cur)
-    return dd, roll_max, pd.Series(state, index=px.index)
+        out.append(cur)
+    return pd.Series(out, index=dd.index)
 
 
 def trajectories(px: pd.Series, dd: pd.Series, days=400):
@@ -83,11 +102,19 @@ def trajectories(px: pd.Series, dd: pd.Series, days=400):
     return out
 
 
+def load_stats():
+    if not os.path.exists(STATS_PATH):
+        print(f"[경고] {STATS_PATH} 없음 — 성과지표 없이 진행", file=sys.stderr)
+        return None
+    with open(STATS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     try:
         px = fetch()
-        source = "stooq"
+        source = "yahoo"
     except Exception as e:
         print(f"[경고] 다운로드 실패({e}) — 캐시 사용", file=sys.stderr)
         px = load_cached()
@@ -102,40 +129,76 @@ def main():
 
     px.rename("Close").to_frame().to_csv(CSV_PATH, index_label="Date")
 
-    dd, roll_max, state = compute(px)
-    last_state = state.iloc[-1]
-    prev_state = state.iloc[-2] if len(state) > 1 else last_state
-    d = float(dd.iloc[-1])
-    next_line = ENTER if last_state == "QLD" else EXIT
+    now_utc = pd.Timestamp.now("UTC")
+    now_kst = now_utc.tz_convert("Asia/Seoul")
 
+    dd, roll_max = drawdown(px)
+    d = float(dd.iloc[-1])
+
+    st = {k: states(dd, en, ex) for k, _, en, ex in STRATS}
+
+    strategies = {}
+    for k, name, en, ex in STRATS:
+        s = st[k]
+        last, prev = s.iloc[-1], (s.iloc[-2] if len(s) > 1 else s.iloc[-1])
+        line = en if last == "QLD" else ex
+        strategies[k] = {
+            "key": k,
+            "name": name,
+            "enter": round(en * 100, 0),
+            "exit": round(ex * 100, 0),
+            "state": last,
+            "prev_state": prev,
+            "changed_today": bool(last != prev),
+            "next_line": round(line * 100, 0),
+            "gap_pp": round(abs(d - line) * 100, 1),
+        }
+
+    lo = max(0, len(px) - 12)
+    recent = [
+        {"d": px.index[i].strftime("%Y-%m-%d"),
+         "c": round(float(px.iloc[i]), 2),
+         "dd": round(float(dd.iloc[i]) * 100, 2),
+         **{k: st[k].iloc[i] for k, _, _, _ in STRATS},
+         "s": st["A"].iloc[i]}                       # 구버전 화면 호환
+        for i in range(lo, len(px))
+    ][::-1]
+
+    dflt = strategies[DEFAULT]
     payload = {
         "as_of": px.index[-1].strftime("%Y-%m-%d"),
-        "updated_at": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
+        # 화면은 updated_at_iso 를 받아 브라우저에서 한국시간으로 찍는다.
+        # updated_at 은 그게 없을 때의 대비(그리고 로그 가독성)용 KST 문자열.
+        "updated_at": now_kst.strftime("%Y-%m-%d %H:%M KST"),
+        "updated_at_iso": now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": source,
         "close": round(float(px.iloc[-1]), 2),
         "high_252": round(float(roll_max.iloc[-1]), 2),
         "dd": round(d * 100, 2),
-        "state": last_state,
-        "changed_today": bool(last_state != prev_state),
-        "prev_state": prev_state,
-        "next_line": round(next_line * 100, 0),
-        "gap_pp": round(abs(d - next_line) * 100, 1),
-        "enter": ENTER * 100,
-        "exit": EXIT * 100,
-        "recent": [
-            {"d": px.index[i].strftime("%Y-%m-%d"),
-             "c": round(float(px.iloc[i]), 2),
-             "dd": round(float(dd.iloc[i]) * 100, 2),
-             "s": state.iloc[i]}
-            for i in range(max(0, len(px) - 12), len(px))
-        ][::-1],
+        "default": DEFAULT,
+        "strategies": strategies,
+        "recent": recent,
+        "stats": load_stats(),
         "trajectories": trajectories(px, dd),
+        # --- 구버전 signal.html 호환용 미러 (A 기준) ---
+        "state": strategies["A"]["state"],
+        "prev_state": strategies["A"]["prev_state"],
+        "changed_today": strategies["A"]["changed_today"],
+        "next_line": strategies["A"]["next_line"],
+        "gap_pp": strategies["A"]["gap_pp"],
+        "enter": -16.0,
+        "exit": -11.0,
     }
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
 
-    print(f"{payload['as_of']}  종가 {payload['close']}  낙폭 {payload['dd']}%  →  {last_state}"
-          + ("   *** 전환 신호 ***" if payload["changed_today"] else ""))
+    line = f"{payload['as_of']}  종가 {payload['close']}  낙폭 {payload['dd']}%"
+    for k, name, _, _ in STRATS:
+        s = strategies[k]
+        line += f"   |  {name} → {s['state']}"
+        if s["changed_today"]:
+            line += " *** 전환 ***"
+    print(line)
 
 
 if __name__ == "__main__":

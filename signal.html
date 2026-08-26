@@ -27,11 +27,59 @@ body{padding:28px 20px 64px;}
 .wrap{max-width:920px;margin:0 auto;}
 
 .masthead{display:flex;justify-content:space-between;align-items:baseline;
-  border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:26px;}
+  border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:22px;}
 .masthead h1{font-family:'Archivo',sans-serif;font-weight:900;font-size:19px;
   letter-spacing:-0.02em;text-transform:uppercase;}
 .masthead .sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
   letter-spacing:0.06em;}
+
+/* ---- 시장 시계 ---- */
+.clockbar{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
+  border:1px solid var(--rule);border-radius:2px;margin-bottom:22px;overflow:hidden;}
+.mkt{background:var(--panel);padding:12px 15px;display:flex;align-items:baseline;
+  gap:10px;flex-wrap:wrap;}
+.mkt .nm{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;
+  color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.mkt .dot{width:7px;height:7px;border-radius:50%;background:var(--rule);flex:none;}
+.mkt.live .dot{background:#1F9D55;box-shadow:0 0 0 3px rgba(31,157,85,.16);}
+.mkt .cd{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;
+  letter-spacing:-0.01em;margin-left:auto;}
+.mkt .when{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+  width:100%;margin-top:-2px;}
+.mkt.live .cd{color:var(--attack);}
+
+/* ---- 전략 선택 ---- */
+.pick{margin-bottom:22px;}
+.pick h2{font-family:'Archivo',sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.opt{position:relative;text-align:left;background:var(--panel);border:1px solid var(--rule);
+  border-radius:2px;padding:15px 16px 13px;cursor:pointer;color:var(--ink);
+  font-family:inherit;transition:border-color .15s,box-shadow .15s;}
+.opt:hover{border-color:var(--muted);}
+.opt[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);}
+.opt .nm{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;
+  letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;}
+.opt .tag{font-family:'Pretendard Variable',Pretendard,sans-serif;font-size:10px;
+  font-weight:600;letter-spacing:.04em;padding:2px 6px;border-radius:2px;
+  background:#E6EBEF;color:var(--muted);}
+.opt[aria-pressed="true"] .tag{background:var(--ink);color:#fff;}
+.opt .desc{font-size:12px;color:var(--muted);line-height:1.5;margin:7px 0 12px;}
+.opt .mets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  border-top:1px solid #E8ECEF;padding-top:10px;}
+.opt .mets .k{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);
+  letter-spacing:.06em;margin-bottom:2px;}
+.opt .mets .v{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;}
+.opt .mets .v.win{color:var(--attack);}
+.scen{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:11px;}
+.scen .lab{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+  letter-spacing:.06em;margin-right:2px;}
+.chip{font-family:'Pretendard Variable',Pretendard,sans-serif;font-size:11px;font-weight:600;
+  padding:5px 10px;border:1px solid var(--rule);background:var(--panel);color:var(--muted);
+  border-radius:999px;cursor:pointer;transition:all .15s;}
+.chip:hover{border-color:var(--muted);color:var(--ink);}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff;}
+.scennote{font-size:11px;color:var(--muted);line-height:1.55;margin-top:8px;}
 
 /* ---- 신호 패널 ---- */
 .signal{display:grid;grid-template-columns:132px 1fr;gap:0;background:var(--panel);
@@ -50,6 +98,8 @@ body{padding:28px 20px 64px;}
 .tick.enter .lbl{background:none;font-weight:600;}
 .tick.exit .lbl,.tick.exit .bar{color:var(--attack);background:var(--attack);}
 .tick.exit .lbl{background:none;font-weight:600;}
+.tick.both .bar{background:linear-gradient(90deg,var(--defend),var(--attack));height:2px;}
+.tick.both .lbl{color:var(--ink);font-weight:600;}
 .marker{position:absolute;left:0;right:0;display:flex;align-items:center;
   transition:top .5s cubic-bezier(.2,.7,.3,1);}
 .marker .dot{width:11px;height:11px;border-radius:50%;margin-left:calc(50% - 5.5px);
@@ -60,7 +110,9 @@ body{padding:28px 20px 64px;}
 /* 상태 카드 */
 .state{padding:26px 28px;display:flex;flex-direction:column;}
 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;
-  text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  text-transform:uppercase;color:var(--muted);margin-bottom:10px;
+  display:flex;justify-content:space-between;gap:10px;}
+.eyebrow .rule{letter-spacing:0.06em;}
 .verdict{font-family:'Archivo',sans-serif;font-weight:900;font-size:clamp(34px,7vw,52px);
   line-height:0.98;letter-spacing:-0.035em;margin-bottom:4px;}
 .product{font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:20px;}
@@ -73,6 +125,9 @@ body{padding:28px 20px 64px;}
 .changed{background:#FFF4E0;border-left:3px solid var(--defend);padding:11px 14px;
   font-size:13px;margin-bottom:18px;line-height:1.5;}
 .changed.toattack{background:#EAF2FE;border-left-color:var(--attack);}
+.disagree{background:#F4F6F8;border-left:3px solid var(--muted);padding:10px 13px;
+  font-size:12px;line-height:1.55;color:var(--muted);margin-bottom:16px;}
+.disagree b{color:var(--ink);}
 
 /* ---- 입력 ---- */
 .io{margin-top:22px;background:var(--panel);border:1px solid var(--rule);
@@ -89,6 +144,8 @@ button{font-family:'Pretendard Variable',Pretendard,sans-serif;font-size:13px;fo
   border-radius:2px;cursor:pointer;transition:opacity .15s;}
 button:hover{opacity:.82}
 button.ghost{background:transparent;color:var(--ink);}
+button.opt,button.chip{opacity:1;}
+button.opt:hover,button.chip:hover{opacity:1;}
 button:focus-visible,input:focus-visible,label.file:focus-within{outline:2px solid var(--attack);
   outline-offset:2px;}
 label.file{display:inline-block;font-size:13px;font-weight:600;padding:9px 16px;
@@ -106,6 +163,19 @@ td{padding:6px 8px;border-bottom:1px solid #E8ECEF;}
 td.s-qld{color:var(--attack);font-weight:600;}
 td.s-schd{color:var(--defend);font-weight:600;}
 
+/* ---- 성과표 ---- */
+.perf{overflow-x:auto;}
+.perf table{min-width:600px;margin-top:0;}
+.perf th{white-space:nowrap;}
+.perf td{white-space:nowrap;}
+.perf td.num{text-align:right;}
+.perf tr.on td{background:#F2F6FB;font-weight:600;}
+.perf tr.on td.strat{color:var(--attack);}
+.perf tr.off td{color:var(--muted);}
+.perf td.scen{font-family:'Pretendard Variable',Pretendard,sans-serif;font-weight:600;
+  font-size:11px;}
+.perf tr.grp td{border-top:1px solid var(--rule);}
+
 /* ---- 운용 안내 ---- */
 .guide{margin-top:22px;background:var(--panel);border:1px solid var(--rule);
   border-radius:2px;padding:20px 22px;}
@@ -119,11 +189,14 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .rules{font-size:13px;line-height:1.7;color:var(--muted);margin-top:16px;
   padding-top:14px;border-top:1px solid var(--rule);}
 .rules b{color:var(--ink);}
+.foot{margin-top:20px;font-size:11px;color:var(--muted);line-height:1.6;}
 
 @media(max-width:600px){
+  .clockbar{grid-template-columns:1fr;}
   .signal{grid-template-columns:1fr;}
   .ruler{height:180px;border-right:none;border-bottom:1px solid var(--rule);}
   .clock{grid-template-columns:68px 1fr;}
+  .opts{grid-template-columns:1fr;}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -136,6 +209,15 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <div class="sub" id="asof">데이터 없음</div>
   </div>
 
+  <div class="clockbar" id="clockbar"></div>
+
+  <div class="pick">
+    <h2>전략 선택</h2>
+    <div class="opts" id="opts"></div>
+    <div class="scen" id="scen"></div>
+    <div class="scennote" id="scennote"></div>
+  </div>
+
   <div class="signal">
     <div class="ruler" id="ruler">
       <div class="track"></div>
@@ -145,10 +227,11 @@ td.s-schd{color:var(--defend);font-weight:600;}
       </div>
     </div>
     <div class="state">
-      <div class="eyebrow" id="eyebrow">보유할 자산</div>
+      <div class="eyebrow"><span id="eyebrow">보유할 자산</span><span class="rule" id="ebRule"></span></div>
       <div class="verdict" id="verdict">—</div>
       <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
       <div id="changeBox"></div>
+      <div id="disagreeBox"></div>
       <div class="facts">
         <div class="fact"><div class="k">현재 낙폭</div><div class="v" id="fDd">—</div></div>
         <div class="fact"><div class="k">QQQ 종가</div><div class="v" id="fClose">—</div></div>
@@ -180,6 +263,12 @@ td.s-schd{color:var(--defend);font-weight:600;}
     </table>
   </div>
 
+  <div class="guide" id="perfPanel" hidden>
+    <h2>두 전략 성과 비교</h2>
+    <div class="perf" id="perfBody"></div>
+    <div class="hint" id="perfNote"></div>
+  </div>
+
   <div class="guide">
     <h2>한국장 실행 시각</h2>
     <dl class="clock">
@@ -195,10 +284,21 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <b>왜 같은 날인가</b> — 미국 종가는 한국 새벽에 확정되고 한국장은 그로부터 3~4시간 뒤에 열립니다.
       백테스트는 "신호 다음날 미국 종가 체결"을 가정했는데, 한국장 실행은 그보다 오히려 반나절 빠릅니다.
       체결이 늦어질수록 성과가 떨어지므로(1일 지연 126배 → 3일 지연 102배) 미루지 않는 게 좋습니다.<br><br>
-      <b>한국 휴장일에 신호가 뜨면</b> — 다음 개장일에 실행합니다. 2~3일 밀려도 전략은 무너지지 않습니다.<br><br>
-      <b>환율</b> — TIGER 레버리지는 환노출형이라 지수뿐 아니라 환변동도 2배로 반영됩니다.
-      위기 때 원화가 약해지면 완충이 되는 방향이라, 실제 낙폭은 달러 기준 백테스트보다 얕을 수 있습니다.
-      다만 이 효과는 백테스트에 반영돼 있지 않습니다.
+      <b>한국 휴장일에 신호가 뜨면</b> — 다음 개장일에 실행합니다. 미국 신호일의 94.9%는 지연 없이
+      같은 세션에 체결되고, 2~3일 밀려도 전략은 무너지지 않습니다.<br><br>
+      <b>체결 시각</b> — 국내 ETF는 개장 직후와 종가 단일가 구간에 유동성공급자(LP) 호가 제출
+      의무가 없어 스프레드가 벌어집니다. <b>09:05~15:20 사이</b>가 무난합니다. 시초가 갭(전일 종가→시가)
+      표준편차가 레버리지 2.4%라 이 시간대 안에서 몇 분 차이는 비용(0.1%)보다 훨씬 큰 변동성에 묻힙니다 —
+      즉 <b>몇 시에 넣을지 고민할 가치가 없고, 미루지 않는 것만 중요합니다.</b><br><br>
+      <b>세금이 규칙 선택보다 큽니다</b> — 국내 상장 해외 ETF는 매도할 때마다 매매차익에 과세되고
+      배당소득은 손실 통산이 안 됩니다. 백테스트(원화 29.6년)에 15.4%를 넣으면 최종배수가
+      <b>2,705배 → 1,062배</b>로 줄어듭니다. 두 규칙의 차이(21.7% → 14.6%)보다 훨씬 큽니다.
+      계좌 종류에 따라 이 부담이 달라지므로 세율·계좌 규정은 증권사나 세무 전문가에게
+      직접 확인하세요. 이 화면의 성과표는 <b>전부 세전</b>입니다.<br><br>
+      <b>환율</b> — TIGER 레버리지는 <b>원화 환산 지수를 2배</b>로 추종합니다(실측 베타 1.98).
+      지수뿐 아니라 환변동도 2배로 실립니다. 위기 때 원화가 약해지면 완충이 되는 방향이라
+      원화 기준 낙폭은 달러 기준보다 얕게 나오는 경우가 많습니다. 위 성과표의 「원화」 시나리오는
+      이 구조를 반영한 값입니다.
     </div>
   </div>
 
@@ -209,25 +309,50 @@ td.s-schd{color:var(--defend);font-weight:600;}
     </div>
   </div>
 
+  <div class="foot">
+    성과 수치는 과거 데이터 백테스트 결과이며 미래 수익을 보장하지 않습니다. 투자 자문이 아닙니다.
+  </div>
+
 </div>
 
 <script>
-const ENTER = -0.16, EXIT = -0.11, LOOKBACK = 252;
+const LOOKBACK = 252;
 const KEY = 'qqq_signal_v17';
+const SKEY = 'qqq_signal_strat';
+const CKEY = 'qqq_signal_scen';
 
-let rows = [];   // {d:'YYYY-MM-DD', c:number}
+const STRAT = {
+  B: {key:'B', name:'−16 / −16', enter:-0.16, exit:-0.16, tag:'권고',
+      desc:'낙폭이 −16%를 회복하면 곧바로 공격으로 돌아갑니다. 회복 초입을 놓치지 않는 대신 톱니 구간에서 잔전환이 잦습니다.'},
+  A: {key:'A', name:'−16 / −11', enter:-0.16, exit:-0.11, tag:'기존',
+      desc:'낙폭이 −11%보다 얕아져야 공격으로 돌아갑니다. 톱니에 강한 대신 2000–2003형 장기 하락이 아니면 회복 구간을 상당히 흘립니다.'},
+};
+const ORDER = ['B','A'];
+
+let rows = [];                                   // {d:'YYYY-MM-DD', c:number}
+let sel  = 'B';                                  // 선택한 전략
+let scen = 'kr_1997';                            // 성과 표기 기준 시나리오
+let AUTO = null;                                 // signal.json (자동 모드)
+let STATS = null;                                // strategy_stats.json
 
 function load(){
-  try{
-    const raw = localStorage.getItem(KEY);
-    if(raw) rows = JSON.parse(raw);
-  }catch(e){ /* 저장 불가 환경 — 세션 내에서만 동작 */ }
+  try{ const raw = localStorage.getItem(KEY); if(raw) rows = JSON.parse(raw); }catch(e){}
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(rows)); }catch(e){}
 }
+function loadPrefs(){
+  try{
+    const s = localStorage.getItem(SKEY); if(s && STRAT[s]) sel = s;
+    const c = localStorage.getItem(CKEY); if(c) scen = c;
+  }catch(e){}
+}
+function savePrefs(){
+  try{ localStorage.setItem(SKEY, sel); localStorage.setItem(CKEY, scen); }catch(e){}
+}
 
-function compute(){
+/* ---------------- 계산 (수동 모드) ---------------- */
+function compute(exitLine){
   rows.sort((a,b)=> a.d < b.d ? -1 : 1);
   const out = [];
   let state = 'QLD';
@@ -238,71 +363,177 @@ function compute(){
     const dd = rows[i].c/mx - 1;
     const enough = (i-from+1) >= 60;
     if(enough){
-      if(state==='QLD' && dd<=ENTER) state='SCHD';
-      else if(state==='SCHD' && dd>EXIT) state='QLD';
+      if(state==='QLD' && dd<=STRAT[sel].enter) state='SCHD';
+      else if(state==='SCHD' && dd>exitLine) state='QLD';
     }
     out.push({d:rows[i].d, c:rows[i].c, dd, mx, state, enough});
   }
   return out;
 }
 
-function pct(x){ return (x*100).toFixed(2)+'%'; }
+function neg(s){ return String(s).replace(/-/g,'−'); }
+function pct(x){ return neg((x*100).toFixed(2))+'%'; }
 function num(x){ return x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function nfmt(x){ return x>=1000 ? x.toLocaleString('en-US',{maximumFractionDigits:0})
+                                 : x.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1}); }
+
+/* ---------------- 전략 선택 UI ---------------- */
+function scenOf(){
+  if(!STATS) return null;
+  return STATS.scenarios.find(s=>s.key===scen) || STATS.scenarios[0];
+}
+
+function drawPicker(){
+  const host = document.getElementById('opts');
+  const s = scenOf();
+  host.innerHTML = ORDER.map(k=>{
+    const S = STRAT[k];
+    const m = s ? s.strategies[k] : null;
+    const o = s ? s.strategies[k==='B'?'A':'B'] : null;
+    const cell = (label, val, better) =>
+      `<div><div class="k">${label}</div><div class="v${better?' win':''}">${val}</div></div>`;
+    let mets = '';
+    if(m){
+      mets =
+        cell('MDD', neg(m.mdd.toFixed(1))+'%', o && m.mdd > o.mdd) +
+        cell('CALMAR', m.calmar.toFixed(3), o && m.calmar > o.calmar) +
+        cell('SORTINO', m.sortino==null?'—':m.sortino.toFixed(3), o && m.sortino!=null && o.sortino!=null && m.sortino > o.sortino);
+    } else {
+      mets = cell('MDD','—') + cell('CALMAR','—') + cell('SORTINO','—');
+    }
+    return `<button class="opt" type="button" data-k="${k}" aria-pressed="${k===sel}">
+      <div class="nm">${S.name}<span class="tag">${S.tag}</span></div>
+      <div class="desc">${S.desc}</div>
+      <div class="mets">${mets}</div>
+    </button>`;
+  }).join('');
+  host.querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{
+    sel = b.dataset.k; savePrefs(); redraw();
+  }));
+
+  const sc = document.getElementById('scen');
+  if(STATS){
+    sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.map(x=>
+      `<button class="chip" type="button" data-s="${x.key}" aria-pressed="${x.key===scen}">${x.label}</button>`).join('');
+    sc.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{
+      scen = b.dataset.s; savePrefs(); redraw();
+    }));
+    const cur = scenOf(), mm = cur.strategies[sel];
+    document.getElementById('scennote').innerHTML =
+      `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b> (${mm.years}년)`;
+  } else {
+    sc.innerHTML = '';
+    document.getElementById('scennote').textContent = '';
+  }
+}
+
+/* ---------------- 성과 비교표 ---------------- */
+function drawPerf(){
+  const panel = document.getElementById('perfPanel');
+  if(!STATS){ panel.hidden = true; return; }
+  panel.hidden = false;
+  const head = `<tr><th>기준</th><th>전략</th><th style="text-align:right">최종배수</th>
+    <th style="text-align:right">CAGR</th><th style="text-align:right">MDD</th>
+    <th style="text-align:right">Calmar</th><th style="text-align:right">Sortino</th>
+    <th style="text-align:right">전환</th></tr>`;
+  let body = '';
+  STATS.scenarios.forEach((s,si)=>{
+    ORDER.forEach((k,ki)=>{
+      const m = s.strategies[k];
+      const cls = (k===sel?'on':'off') + (ki===0 && si>0 ? ' grp' : '');
+      body += `<tr class="${cls}">
+        <td class="scen">${ki===0?s.label:''}</td>
+        <td class="strat">${STRAT[k].name}</td>
+        <td class="num">${nfmt(m.final)}배</td>
+        <td class="num">${neg(m.cagr.toFixed(2))}%</td>
+        <td class="num">${neg(m.mdd.toFixed(2))}%</td>
+        <td class="num">${m.calmar.toFixed(3)}</td>
+        <td class="num">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
+        <td class="num">${m.switches}</td></tr>`;
+    });
+  });
+  document.getElementById('perfBody').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  document.getElementById('perfNote').innerHTML =
+    `Calmar = CAGR ÷ |MDD|. Sortino = 연율 수익 ÷ 하방편차(무위험 0). 전환 = 실제 체결 횟수.
+     「원화」 두 줄은 환노출 2배 구조와 슬리피지 0.1%를 반영한 값이고, 「달러」 두 줄은 미국 종가 체결 기준입니다.
+     달러·54년 확장은 나스닥 종합/NDX/QQQ를 일간수익률로 이어붙인 대리 시계열이라 같은 자산이 아닙니다.
+     계산 시각 ${STATS.generated_at}.`;
+}
+
+/* ---------------- 메인 렌더 ---------------- */
+function redraw(){
+  drawPicker();
+  drawPerf();
+  if(AUTO) renderAuto(AUTO); else render();
+}
+
+function paintState(o){
+  // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp, other_state}
+  const isQld = o.state==='QLD';
+  const color = isQld ? 'var(--attack)' : 'var(--defend)';
+  const S = STRAT[sel];
+
+  const v = document.getElementById('verdict');
+  v.textContent = o.state; v.style.color = color;
+  document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
+  document.getElementById('ebRule').textContent = '규칙 ' + S.name;
+  document.getElementById('product').innerHTML = isQld
+    ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
+    : '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
+
+  const box = document.getElementById('changeBox');
+  if(o.changed_today){
+    const ex = (S.exit*100).toFixed(0);
+    box.className = 'changed' + (isQld?' toattack':'');
+    box.innerHTML = isQld
+      ? `<b>오늘 전환 신호입니다.</b> 낙폭이 −${Math.abs(ex)}%보다 얕아졌습니다. 오늘 한국장에서 SCHD 전량 매도 → QLD 매수.`
+      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → SCHD 매수.';
+  } else { box.className=''; box.innerHTML=''; }
+
+  const dis = document.getElementById('disagreeBox');
+  if(o.other_state && o.other_state !== o.state){
+    const other = STRAT[sel==='B'?'A':'B'];
+    dis.className = 'disagree';
+    dis.innerHTML = `지금은 두 규칙이 갈립니다 — <b>${other.name}</b> 규칙이었다면 <b>${o.other_state}</b>.
+      회색지대(−16% ~ −11%)를 회복 중이라는 뜻입니다. 고른 규칙을 바꾸지 말고 그대로 가세요.`;
+  } else { dis.className=''; dis.innerHTML=''; }
+
+  document.getElementById('fDd').textContent = neg(o.dd.toFixed(2))+'%';
+  document.getElementById('fDd').style.color = color;
+  document.getElementById('fClose').textContent = num(o.close);
+  document.getElementById('fMax').textContent = num(o.high);
+  document.getElementById('fNext').textContent = neg(o.next_line.toFixed(0))+'%';
+  document.getElementById('fGap').textContent = o.gap_pp.toFixed(1)+'%p';
+
+  drawRuler(o.dd/100, color);
+}
 
 function render(){
-  const res = compute();
+  const S = STRAT[sel];
+  const res = compute(S.exit);
   const tbody = document.getElementById('tbody');
   const tbl = document.getElementById('tbl');
 
   if(res.length===0){
     document.getElementById('asof').textContent = '데이터 없음';
     tbl.hidden = true;
+    drawRuler(0, 'var(--ink)');
     return;
   }
+  const other = STRAT[sel==='B'?'A':'B'];
+  const oth = compute(other.exit);
   const last = res[res.length-1];
   const prev = res.length>1 ? res[res.length-2] : null;
+  const line = last.state==='QLD' ? S.enter : S.exit;
 
   document.getElementById('asof').textContent = last.d + ' 종가 기준';
+  paintState({
+    state:last.state, changed_today: !!(prev && prev.state!==last.state),
+    dd:last.dd*100, close:last.c, high:last.mx,
+    next_line: line*100, gap_pp: Math.abs(last.dd-line)*100,
+    other_state: oth.length ? oth[oth.length-1].state : null,
+  });
 
-  const isQld = last.state==='QLD';
-  const color = isQld ? 'var(--attack)' : 'var(--defend)';
-
-  const v = document.getElementById('verdict');
-  v.textContent = isQld ? 'QLD' : 'SCHD';
-  v.style.color = color;
-
-  document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
-
-  document.getElementById('product').innerHTML = isQld
-    ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
-    : '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
-
-  // 상태 변화 안내
-  const box = document.getElementById('changeBox');
-  if(prev && prev.state!==last.state){
-    box.className = 'changed' + (isQld?' toattack':'');
-    box.innerHTML = isQld
-      ? '<b>오늘 전환 신호입니다.</b> 낙폭이 −11%보다 얕아졌습니다. 오늘 한국장에서 SCHD 전량 매도 → QLD 매수.'
-      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → SCHD 매수.';
-  } else {
-    box.className = '';
-    box.innerHTML = '';
-  }
-
-  document.getElementById('fDd').textContent = pct(last.dd);
-  document.getElementById('fDd').style.color = color;
-  document.getElementById('fClose').textContent = num(last.c);
-  document.getElementById('fMax').textContent = num(last.mx);
-
-  const nextLine = isQld ? ENTER : EXIT;
-  document.getElementById('fNext').textContent = (nextLine*100).toFixed(0)+'%';
-  const gap = Math.abs(last.dd - nextLine)*100;
-  document.getElementById('fGap').textContent = gap.toFixed(1)+'%p';
-
-  // 눈금자
-  drawRuler(last.dd, color);
-
-  // 최근 12일
   tbl.hidden = false;
   tbody.innerHTML = res.slice(-12).reverse().map(r=>
     `<tr><td>${r.d}</td><td>${num(r.c)}</td><td>${r.enough?pct(r.dd):'—'}</td>`+
@@ -314,19 +545,52 @@ function render(){
   }
 }
 
+function renderAuto(j){
+  const S = STRAT[sel];
+  const st = (j.strategies && j.strategies[sel]) ? j.strategies[sel] : null;
+  if(!st){                                   // 구버전 signal.json — A 필드만 있음
+    AUTO = null; load(); render(); return;
+  }
+  const ok = j.strategies[sel==='B'?'A':'B'];
+  document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
+  paintState({
+    state:st.state, changed_today:st.changed_today,
+    dd:j.dd, close:j.close, high:j.high_252,
+    next_line:st.next_line, gap_pp:st.gap_pp,
+    other_state: ok ? ok.state : null,
+  });
+
+  const tbl=document.getElementById('tbl');
+  tbl.hidden=false;
+  document.getElementById('tbody').innerHTML = j.recent.map(r=>{
+    const s = r[sel] || r.s;
+    return `<tr><td>${r.d}</td><td>${num(r.c)}</td>`+
+      `<td>${neg(r.dd.toFixed(2))}%</td><td class="${s==='QLD'?'s-qld':'s-schd'}">${s}</td></tr>`;
+  }).join('');
+
+  const io=document.querySelector('.io');
+  if(io) io.style.display='none';            // 자동 모드에서는 수동 입력 패널을 접어둠
+  drawTrajectory(j.trajectories);
+}
+
 function drawRuler(dd, color){
   const ruler = document.getElementById('ruler');
   ruler.querySelectorAll('.tick').forEach(e=>e.remove());
+  const S = STRAT[sel];
   const TOP=0, BOT=-0.30;
   const pos = x => 22 + (TOP - x)/(TOP-BOT) * (ruler.clientHeight - 44);
   const ticks = [
     {v:0,     t:'0%',   cls:'major'},
     {v:-0.05, t:'−5%',  cls:''},
-    {v:EXIT,  t:'−11%', cls:'major exit'},
-    {v:ENTER, t:'−16%', cls:'major enter'},
-    {v:-0.22, t:'−22%', cls:''},
-    {v:-0.30, t:'−30%', cls:''},
   ];
+  if(S.exit === S.enter){
+    ticks.push({v:S.enter, t:'−16%', cls:'major both'});
+  } else {
+    ticks.push({v:S.exit,  t:neg((S.exit*100).toFixed(0))+'%',  cls:'major exit'});
+    ticks.push({v:S.enter, t:neg((S.enter*100).toFixed(0))+'%', cls:'major enter'});
+  }
+  ticks.push({v:-0.22, t:'−22%', cls:''});
+  ticks.push({v:-0.30, t:'−30%', cls:''});
   ticks.forEach(k=>{
     const el = document.createElement('div');
     el.className = 'tick '+k.cls;
@@ -339,7 +603,7 @@ function drawRuler(dd, color){
   m.style.top = pos(clamped)+'px';
   m.style.color = color;
   const mv = document.getElementById('markerVal');
-  mv.textContent = (dd*100).toFixed(1)+'%';
+  mv.textContent = neg((dd*100).toFixed(1))+'%';
   mv.style.color = color;
 }
 
@@ -349,6 +613,7 @@ function setMsg(t, isErr){
   el.className = 'msg' + (isErr?' err':'');
 }
 
+/* ---------------- 입력 핸들러 ---------------- */
 document.getElementById('btnAdd').addEventListener('click', ()=>{
   const d = document.getElementById('inDate').value;
   const c = parseFloat(document.getElementById('inClose').value.replace(/,/g,''));
@@ -397,58 +662,181 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   document.getElementById('asof').textContent='데이터 없음';
   ['fDd','fClose','fMax','fNext','fGap'].forEach(id=>document.getElementById(id).textContent='—');
   document.getElementById('changeBox').innerHTML='';
+  document.getElementById('disagreeBox').innerHTML='';
   document.getElementById('ruler').querySelectorAll('.tick').forEach(e=>e.remove());
   setMsg('전체 삭제됨');
 });
 
 document.getElementById('inDate').value = new Date().toISOString().slice(0,10);
-window.addEventListener('resize', ()=>render());
+window.addEventListener('resize', ()=>{ if(AUTO) renderAuto(AUTO); else render(); });
 
-// 서버에 자동 갱신된 signal.json이 있으면 그걸 우선 사용 (GitHub Pages 배포시)
-async function boot(){
-  try{
-    const res = await fetch('data/signal.json?t='+Date.now(), {cache:'no-store'});
-    if(!res.ok) throw 0;
-    const j = await res.json();
-    renderAuto(j);
-    return;
-  }catch(e){ /* 로컬 파일로 열었거나 아직 배포 전 — 수동 모드 */ }
-  load(); render();
+/* ---------------- 시장 시계 ----------------
+   미국장 마감(=신호 확정)까지 남은 시간을 한국시간 기준으로 보여준다.
+   서머타임은 Intl 의 IANA 타임존이 알아서 처리한다(하드코딩 없음).
+   미국 휴장일·반장(13:00 ET 조기마감)은 NYSE 규칙대로 계산한다.          */
+const NY='America/New_York', SEOUL='Asia/Seoul';
+
+function tzParts(d, tz){
+  const f=new Intl.DateTimeFormat('en-CA',{timeZone:tz,hour12:false,
+    year:'numeric',month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const p={}; for(const x of f.formatToParts(d)) if(x.type!=='literal') p[x.type]=x.value;
+  return {y:+p.year,m:+p.month,d:+p.day,hh:(+p.hour)%24,mm:+p.minute,ss:+p.second};
+}
+// 벽시계(y,m,d,hh,mm)가 tz 에서 가리키는 실제 시각(ms). 오프셋을 두 번 접어 수렴시킨다.
+function wall(y,m,d,hh,mm,tz){
+  let t=Date.UTC(y,m-1,d,hh,mm);
+  for(let i=0;i<3;i++){
+    const p=tzParts(new Date(t),tz);
+    const off=Date.UTC(p.y,p.m-1,p.d,p.hh,p.mm,p.ss)-Math.floor(t/1000)*1000;
+    t=Date.UTC(y,m-1,d,hh,mm)-off;
+  }
+  return t;
+}
+function ymdAdd(y,m,d,n){ const t=new Date(Date.UTC(y,m-1,d+n));
+  return {y:t.getUTCFullYear(),m:t.getUTCMonth()+1,d:t.getUTCDate()}; }
+function dow(y,m,d){ return new Date(Date.UTC(y,m-1,d)).getUTCDay(); }   // 0=일
+function nthDow(y,m,dw,n){ let c=0;
+  for(let d=1;d<=31;d++){ const t=new Date(Date.UTC(y,m-1,d));
+    if(t.getUTCMonth()!==m-1) break;
+    if(t.getUTCDay()===dw && ++c===n) return d; } return null; }
+function lastDow(y,m,dw){ let last=null;
+  for(let d=1;d<=31;d++){ const t=new Date(Date.UTC(y,m-1,d));
+    if(t.getUTCMonth()!==m-1) break;
+    if(t.getUTCDay()===dw) last=d; } return last; }
+function easter(y){                       // Meeus/Jones/Butcher
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,
+        f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+        h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+        l=(32+2*e+2*i-h-k)%7,mm=Math.floor((a+11*h+22*l)/451),
+        mo=Math.floor((h+l-7*mm+114)/31),da=((h+l-7*mm+114)%31)+1;
+  return {y, m:mo, d:da};
+}
+function observed(y,m,d){ const w=dow(y,m,d);
+  return w===6?ymdAdd(y,m,d,-1):w===0?ymdAdd(y,m,d,1):{y,m,d}; }
+const _hol={};
+function usHolidays(y){
+  if(_hol[y]) return _hol[y];
+  const S=new Set(), add=o=>S.add(o.y+'-'+o.m+'-'+o.d);
+  const w=dow(y,1,1);                     // 신정: 토요일이면 앞당기지 않는다(NYSE 규칙)
+  if(w===0) add(ymdAdd(y,1,1,1)); else if(w!==6) add({y,m:1,d:1});
+  add({y,m:1,d:nthDow(y,1,1,3)});                 // Martin Luther King Jr.
+  add({y,m:2,d:nthDow(y,2,1,3)});                 // Presidents' Day
+  const e=easter(y); add(ymdAdd(e.y,e.m,e.d,-2)); // Good Friday
+  add({y,m:5,d:lastDow(y,5,1)});                  // Memorial Day
+  add(observed(y,6,19));                          // Juneteenth
+  add(observed(y,7,4));                           // Independence Day
+  add({y,m:9,d:nthDow(y,9,1,1)});                 // Labor Day
+  add({y,m:11,d:nthDow(y,11,4,4)});               // Thanksgiving
+  add(observed(y,12,25));                         // Christmas
+  return _hol[y]=S;
+}
+function usEarly(y,m,d){                  // 13:00 ET 조기마감
+  const w=dow(y,m,d); if(w===0||w===6) return false;
+  if(m===7&&d===3){ const j4=dow(y,7,4); if(j4>=1&&j4<=5) return true; }
+  if(m===11&&d===nthDow(y,11,4,4)+1) return true;          // 추수감사절 다음날
+  if(m===12&&d===24){ const c=dow(y,12,25); if(c>=1&&c<=5) return true; }
+  return false;
+}
+function usSession(y,m,d){
+  const w=dow(y,m,d);
+  if(w===0||w===6) return null;
+  if(usHolidays(y).has(y+'-'+m+'-'+d)) return null;
+  return {o:[9,30], c: usEarly(y,m,d)?[13,0]:[16,0]};
+}
+function usClock(now){
+  const p=tzParts(now,NY);
+  const s=usSession(p.y,p.m,p.d);
+  if(s){
+    const o=wall(p.y,p.m,p.d,s.o[0],s.o[1],NY), c=wall(p.y,p.m,p.d,s.c[0],s.c[1],NY);
+    if(now>=o&&now<c) return {state:'live', close:c, early:s.c[0]===13};
+    if(now<o) return {state:'pre', close:c, open:o, early:s.c[0]===13};
+  }
+  for(let i=1;i<=12;i++){
+    const n=ymdAdd(p.y,p.m,p.d,i), ss=usSession(n.y,n.m,n.d);
+    if(ss) return {state:'closed', close:wall(n.y,n.m,n.d,ss.c[0],ss.c[1],NY),
+                   open:wall(n.y,n.m,n.d,ss.o[0],ss.o[1],NY), early:ss.c[0]===13};
+  }
+  return null;
+}
+function krClock(now){                    // 09:00~15:30 KST. 공휴일은 반영하지 않는다.
+  const p=tzParts(now,SEOUL);
+  const trade=(y,m,d)=>{const w=dow(y,m,d); return w!==0&&w!==6;};
+  const today=trade(p.y,p.m,p.d);
+  if(today){
+    const o=wall(p.y,p.m,p.d,9,0,SEOUL), c=wall(p.y,p.m,p.d,15,30,SEOUL);
+    if(now>=o&&now<c) return {state:'live', at:c};
+    if(now<o) return {state:'pre', at:o};
+  }
+  for(let i=1;i<=7;i++){ const n=ymdAdd(p.y,p.m,p.d,i);
+    if(trade(n.y,n.m,n.d))
+      return {state: today?'done':'closed', at:wall(n.y,n.m,n.d,9,0,SEOUL)}; }
+  return null;
+}
+function dur(ms){
+  const t=Math.max(0,Math.round(ms/1000));
+  const h=Math.floor(t/3600), m=Math.floor(t%3600/60), s2=t%60;
+  if(h>=24) return Math.floor(h/24)+'일 '+(h%24)+'시간';
+  if(h>0)   return h+'시간 '+String(m).padStart(2,'0')+'분';
+  if(m>0)   return m+'분 '+String(s2).padStart(2,'0')+'초';
+  return s2+'초';
+}
+function kst(ms){
+  const p=tzParts(new Date(ms),SEOUL);
+  return p.m+'/'+p.d+' '+String(p.hh).padStart(2,'0')+':'+String(p.mm).padStart(2,'0');
+}
+function stamp(j){
+  if(!j.updated_at_iso) return j.updated_at || '';
+  const t=Date.parse(j.updated_at_iso);
+  if(!isFinite(t)) return j.updated_at || '';
+  const p=tzParts(new Date(t),SEOUL);
+  return p.m+'/'+p.d+' '+String(p.hh).padStart(2,'0')+':'+String(p.mm).padStart(2,'0')+' KST';
+}
+function drawClock(){
+  const host=document.getElementById('clockbar');
+  if(!host) return;
+  const now=Date.now();
+  const us=usClock(now), kr=krClock(now);
+  const cell=(cls,nm,note,cd,when)=>
+    `<div class="mkt${cls?' live':''}"><span class="nm"><span class="dot"></span>${nm}</span>
+     <span class="cd">${cd}</span><span class="when">${note}${when?' · '+when:''}</span></div>`;
+  const USNM={live:'미국장 개장 중', pre:'미국장 개장 전', closed:'미국장 휴장'};
+  const KRNM={live:'한국장 개장 중', pre:'한국장 개장 전', done:'한국장 마감', closed:'한국장 휴장'};
+  let a='',b='';
+  if(us){
+    const note=(us.state==='live'?'종가 확정까지':'다음 종가 확정까지')+(us.early?' · 조기마감':'');
+    a=cell(us.state==='live', USNM[us.state], note, dur(us.close-now), 'KST '+kst(us.close));
+  }
+  if(kr){
+    const note=kr.state==='live' ? '교체 주문 마감까지' : '다음 개장까지';
+    b=cell(kr.state==='live', KRNM[kr.state], note, dur(kr.at-now), 'KST '+kst(kr.at));
+  }
+  host.innerHTML=a+b;
+}
+let _clockTimer=null;
+function startClock(){
+  drawClock();
+  if(_clockTimer) clearInterval(_clockTimer);
+  _clockTimer=setInterval(drawClock, 1000);
 }
 
-function renderAuto(j){
-  document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + j.updated_at;
-  const isQld = j.state==='QLD';
-  const color = isQld ? 'var(--attack)' : 'var(--defend)';
-  const v = document.getElementById('verdict');
-  v.textContent = j.state; v.style.color = color;
-  document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
-  document.getElementById('product').innerHTML = isQld
-    ? '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>'
-    : '미국 배당다우존스 · 국내 매매는 <b>TIGER 미국배당다우존스</b>';
-  const box = document.getElementById('changeBox');
-  if(j.changed_today){
-    box.className = 'changed' + (isQld?' toattack':'');
-    box.innerHTML = isQld
-      ? '<b>오늘 전환 신호입니다.</b> 낙폭이 −11%보다 얕아졌습니다. 오늘 한국장에서 SCHD 전량 매도 → QLD 매수.'
-      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → SCHD 매수.';
-  } else { box.className=''; box.innerHTML=''; }
-  document.getElementById('fDd').textContent = j.dd.toFixed(2)+'%';
-  document.getElementById('fDd').style.color = color;
-  document.getElementById('fClose').textContent = j.close.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  document.getElementById('fMax').textContent = j.high_252.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  document.getElementById('fNext').textContent = j.next_line.toFixed(0)+'%';
-  document.getElementById('fGap').textContent = j.gap_pp.toFixed(1)+'%p';
-  drawRuler(j.dd/100, color);
-  const tbl=document.getElementById('tbl');
-  tbl.hidden=false;
-  document.getElementById('tbody').innerHTML = j.recent.map(r=>
-    `<tr><td>${r.d}</td><td>${r.c.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>`+
-    `<td>${r.dd.toFixed(2)}%</td><td class="${r.s==='QLD'?'s-qld':'s-schd'}">${r.s}</td></tr>`).join('');
-  // 자동 모드에서는 수동 입력 패널을 접어둠
-  const io=document.querySelector('.io');
-  if(io) io.style.display='none';
-  drawTrajectory(j.trajectories);
+/* ---------------- 부팅 ---------------- */
+async function getJSON(p){
+  const res = await fetch(p+'?t='+Date.now(), {cache:'no-store'});
+  if(!res.ok) throw 0;
+  return res.json();
+}
+
+async function boot(){
+  loadPrefs();
+  try{ AUTO = await getJSON('data/signal.json'); }catch(e){ AUTO = null; }
+  if(AUTO && AUTO.stats) STATS = AUTO.stats;
+  if(!STATS){ try{ STATS = await getJSON('data/strategy_stats.json'); }catch(e){} }
+  if(STATS && !STATS.scenarios.some(s=>s.key===scen)) scen = STATS.scenarios[0].key;
+  if(AUTO && AUTO.default && !localStorage.getItem(SKEY) && STRAT[AUTO.default]) sel = AUTO.default;
+  if(!AUTO) load();
+  redraw();
+  startClock();
 }
 
 function drawTrajectory(tr){
@@ -456,6 +844,7 @@ function drawTrajectory(tr){
   if(!host||!tr) return;
   const names=Object.keys(tr);
   if(!names.length) return;
+  const S=STRAT[sel];
   const W=680,H=240,PL=44,PR=14,PT=14,PB=26;
   const maxLen=Math.max(...names.map(n=>tr[n].length));
   const minV=Math.min(-5,...names.flatMap(n=>tr[n]));
@@ -468,8 +857,9 @@ function drawTrajectory(tr){
     g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="#E1E7EB"/>`+
        `<text x="${PL-6}" y="${Y(lv)+3}" text-anchor="end" font-size="9" fill="#6B7A88" font-family="IBM Plex Mono,monospace">${lv}%</text>`;
   }
-  for(const lv of [-11,-16]){
-    g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${lv===-11?'#0B5FD6':'#B8722A'}" stroke-dasharray="3 3" opacity=".55"/>`;
+  const lines = S.exit===S.enter ? [[-16,'#16202B']] : [[S.exit*100,'#0B5FD6'],[S.enter*100,'#B8722A']];
+  for(const [lv,col] of lines){
+    g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${col}" stroke-dasharray="3 3" opacity=".6"/>`;
   }
   for(const n of names){
     const d=tr[n].map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join('');
@@ -481,8 +871,8 @@ function drawTrajectory(tr){
   host.innerHTML=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:420px;height:auto">${g}
     <text x="${PL}" y="${H-8}" font-size="9" fill="#6B7A88" font-family="IBM Plex Mono,monospace">고점 이후 경과일 →</text></svg></div>
     <div style="margin-top:8px">${legend}</div>
-    <div class="hint">규칙(−16%/−11%)은 이 궤적 모양과 무관하게 낙폭 숫자만 봅니다 — 참고용입니다.
-    점선은 두 전환선.</div>`;
+    <div class="hint">규칙(${S.name})은 이 궤적 모양과 무관하게 낙폭 숫자만 봅니다 — 참고용입니다.
+    점선은 ${S.exit===S.enter?'전환선 −16%(진입·복귀 공통)':'두 전환선'}.</div>`;
 }
 
 boot();

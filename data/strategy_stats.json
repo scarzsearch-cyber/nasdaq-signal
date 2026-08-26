@@ -1,0 +1,141 @@
+{
+ "generated_at": "2026-08-26 06:31 UTC",
+ "strategies": {
+  "B": {
+   "name": "−16 / −16",
+   "enter": -16,
+   "exit": -16
+  },
+  "A": {
+   "name": "−16 / −11",
+   "enter": -16,
+   "exit": -11
+  }
+ },
+ "scenarios": [
+  {
+   "key": "us_2000",
+   "label": "미국 달러 기준",
+   "note": "QQQ 실물 · SCHD 상장 이전은 연 2% 현금. verify.py 와 같은 규약.",
+   "strategies": {
+    "B": {
+     "final": 151.272,
+     "cagr": 20.73,
+     "mdd": -49.03,
+     "calmar": 0.423,
+     "sortino": 0.865,
+     "sharpe": 0.719,
+     "years": 26.6,
+     "switches": 52,
+     "start": "2000-01-03",
+     "end": "2026-08-24"
+    },
+    "A": {
+     "final": 138.478,
+     "cagr": 20.33,
+     "mdd": -46.62,
+     "calmar": 0.436,
+     "sortino": 0.852,
+     "sharpe": 0.717,
+     "years": 26.6,
+     "switches": 22,
+     "start": "2000-01-03",
+     "end": "2026-08-24"
+    }
+   }
+  },
+  {
+   "key": "us_1972",
+   "label": "달러 · 54년 확장",
+   "note": "나스닥 3구간 체인 + 배당 실측 방어자산. 가장 긴 표본.",
+   "strategies": {
+    "B": {
+     "final": 242267.176,
+     "cagr": 25.52,
+     "mdd": -68.12,
+     "calmar": 0.375,
+     "sortino": 1.056,
+     "sharpe": 0.822,
+     "years": 54.5,
+     "switches": 140,
+     "start": "1972-02-07",
+     "end": "2026-08-24"
+    },
+    "A": {
+     "final": 176924.953,
+     "cagr": 24.8,
+     "mdd": -68.72,
+     "calmar": 0.361,
+     "sortino": 1.036,
+     "sharpe": 0.814,
+     "years": 54.5,
+     "switches": 54,
+     "start": "1972-02-07",
+     "end": "2026-08-24"
+    }
+   }
+  },
+  {
+   "key": "kr_1997",
+   "label": "원화 · 한국 체결",
+   "note": "환노출 2배 + 한국 거래일 체결 + 슬리피지 0.1%. 국내 ETF 상장 이전은 원화 환산 시뮬레이션.",
+   "strategies": {
+    "B": {
+     "final": 2705.259,
+     "cagr": 30.56,
+     "mdd": -54.98,
+     "calmar": 0.556,
+     "sortino": 1.157,
+     "sharpe": 0.832,
+     "years": 29.6,
+     "switches": 58,
+     "start": "1997-01-02",
+     "end": "2026-08-24"
+    },
+    "A": {
+     "final": 2222.595,
+     "cagr": 29.69,
+     "mdd": -55.67,
+     "calmar": 0.533,
+     "sortino": 1.141,
+     "sharpe": 0.824,
+     "years": 29.6,
+     "switches": 28,
+     "start": "1997-01-02",
+     "end": "2026-08-24"
+    }
+   }
+  },
+  {
+   "key": "kr_real",
+   "label": "원화 · 실물 TIGER",
+   "note": "TIGER 3종이 모두 상장된 이후만. 실제 시가 체결.",
+   "strategies": {
+    "B": {
+     "final": 2.939,
+     "cagr": 40.3,
+     "mdd": -44.2,
+     "calmar": 0.912,
+     "sortino": 1.502,
+     "sharpe": 1.139,
+     "years": 3.2,
+     "switches": 6,
+     "start": "2023-06-20",
+     "end": "2026-08-26"
+    },
+    "A": {
+     "final": 2.976,
+     "cagr": 40.84,
+     "mdd": -38.83,
+     "calmar": 1.052,
+     "sortino": 1.549,
+     "sharpe": 1.162,
+     "years": 3.2,
+     "switches": 2,
+     "start": "2023-06-20",
+     "end": "2026-08-26"
+    }
+   }
+  }
+ ]
+}
