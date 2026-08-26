@@ -265,6 +265,84 @@ def main():
                   f"   Calmar개선 {(b>0).sum()}/{len(b)} 중앙 {np.median(b):+.3f}")
         print("    -> 고정이 선택보다 나으면 '최적화하지 말고 못박으라'는 뜻이다.")
 
+    # ---------------------------------------------------------------- 8. 적립식
+    print("\n" + "=" * 108)
+    print("8. **결정적** — 적립식(ISA 실제 조건: 월 정액 60개월 납입 후 보유)")
+    print("   1~7 은 전부 거치식이다. 사용자는 5년 적립 후 보유한다. 적립식에서는")
+    print("   낙폭이 '싸게 사는 기회' 라 MDD 의 의미가 뒤집힌다.")
+    print("=" * 108)
+    MONTH = pd.Series(kidx).dt.to_period('M').values
+    CT = 0.002                                   # 편도 0.1% + 슬리피지 0.1% (axis_isa 규약)
+
+    def accum(rr, dfr, w, lo, hi, mp=60, cost=CT):
+        R = C = paid = 0.0
+        prev = w[lo]
+        vals = []
+        mi = -1
+        for i in range(lo, hi):
+            R *= (1 + rr[i])
+            C *= (1 + dfr[i])
+            pos = w[i - 1] if i > lo else w[lo]
+            if pos != prev:
+                if pos >= 1:
+                    R += C * (1 - cost); C = 0.0
+                else:
+                    C += R * (1 - cost); R = 0.0
+                prev = pos
+            if i > lo and MONTH[i] != MONTH[i - 1]:
+                mi += 1
+                if mi < mp:
+                    paid += 1.0
+                    if pos >= 1:
+                        R += 1.0
+                    else:
+                        C += 1.0
+            vals.append(R + C)
+        v = np.array(vals)
+        v = v[v > 0]
+        if paid <= 0 or len(v) < 2:
+            return 0, 0, 0
+        return paid, v[-1], float((v / np.maximum.accumulate(v) - 1).min())
+
+    FIX2 = {'(14,p90,-2%)': (14, 0.90, -0.02), '(10,p92.5,-3%)': (10, 0.925, -0.03)}
+    G2 = {}
+    for nm, (lb, q, g) in FIX2.items():
+        r_ = zc(D['px'].pct_change().rolling(lb, min_periods=lb).std().values)
+        t_ = r_ >= exp_q(r_, q)
+        G2[nm] = {'A': guard_w(ddq, t_, -0.16, -0.11, gate=g),
+                  'B': guard_w(ddq, t_, -0.16, -0.16, gate=g)}
+    BW2 = {'A': rule_w(ddq, -0.16, -0.11), 'B': rule_w(ddq, -0.16, -0.16)}
+    fxs = int(kidx.searchsorted(FXS))
+    print("  납입 60 단위 대비 최종 배수. 경로MDD = 실제로 겪는 계좌 낙폭")
+    for rule in ('A', 'B'):
+        print("\n  ##### 규칙 %s (%s) #####" % (rule, '-16/-11' if rule == 'A' else '-16/-16'))
+        for yrs in (10, 15, 20):
+            L = yrs * 252
+            res = {'기준': []}
+            for n_ in FIX2:
+                res[n_] = []
+            for s0 in range(fxs, len(kidx) - L, 126):
+                p_, v_, m_ = accum(lev2, kdefr, BW2[rule], s0, s0 + L)
+                res['기준'].append((v_ / p_, m_))
+                for n_ in FIX2:
+                    p_, v_, m_ = accum(lev2, kdefr, G2[n_][rule], s0, s0 + L)
+                    res[n_].append((v_ / p_, m_))
+            b = np.array([x[0] for x in res['기준']])
+            bm = np.array([x[1] for x in res['기준']])
+            print(f"  --- {yrs}년 창 n={len(b)} ---")
+            print(f"  {'방식':<17}{'중앙':>9}{'5분위':>8}{'최악':>8}{'승률':>8}  "
+                  f"{'MDD중앙':>9}{'MDD최악':>9}{'MDD개선':>8}")
+            print(f"  {'기준':<17}{np.median(b):9.2f}{np.percentile(b,5):8.2f}{b.min():8.2f}"
+                  f"{'-':>8}  {np.median(bm)*100:8.1f}%{bm.min()*100:8.1f}%{'-':>8}")
+            for n_ in FIX2:
+                a = np.array([x[0] for x in res[n_]])
+                am = np.array([x[1] for x in res[n_]])
+                print(f"  {n_:<17}{np.median(a):9.2f}{np.percentile(a,5):8.2f}{a.min():8.2f}"
+                      f"{(a>b).mean()*100:7.1f}%  {np.median(am)*100:8.1f}%{am.min()*100:8.1f}%"
+                      f"{(np.abs(am)<np.abs(bm)).mean()*100:7.1f}%")
+    print("\n  -> 적립식 20년 창에서 승률 2~29%, 중앙값 19~50% 하락.")
+    print("     적립 중에는 낙폭이 매수 기회이므로 조기방어가 그 기회를 없앤다.")
+
     print("\n[판정] 전략_v32.md 에 기록")
 
 
