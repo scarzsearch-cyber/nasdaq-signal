@@ -28,16 +28,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
       - name: 사이트 파일 모으기
         run: |
           mkdir -p _site/data
           cp signal.html _site/index.html
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
           cp data/strategy_stats.json _site/data/ 2>/dev/null || echo "strategy_stats.json 없음 — 성과 패널만 숨겨짐"
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
