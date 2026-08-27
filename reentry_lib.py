@@ -141,11 +141,16 @@ def ulcer_uw(c):
       최장 회복기간  전고점에서 그 전고점을 되찾을 때까지의 최장 달력일수.
                     끝까지 못 되찾았으면 마지막 날까지 세고 open=True 로 표시한다.
 
-    반환 (ulcer_pct, worst_days, worst_open).
+    반환 (ulcer_pct, worst_days, worst_open, mean_dd_pct).
+
+    [v62] 평균 낙폭도 같이 준다. Ulcer 는 제곱평균이라 깊은 구간에 가중이 실려
+    '평균 몇 % 물속이었나'와 정확히 같지는 않다(원화 29.6년: Ulcer 20.6 / 평균 16.0).
+    화면에서 체감값으로 쓰려면 **평균 쪽**을 보여줘야 정확하다.
     """
     v = np.asarray(c.values, dtype=float)
     dd = v / np.maximum.accumulate(v) - 1.0
     ulcer = float(np.sqrt(np.mean(dd ** 2)) * 100)
+    mean_dd = float(-np.mean(dd) * 100)
 
     at_peak = dd >= -1e-12                      # dd[0] == 0 이므로 항상 True 로 시작
     ix = np.arange(len(v))
@@ -156,7 +161,7 @@ def ulcer_uw(c):
     # 마지막까지 물속이고 그 구간이 최장과 같으면 '아직 진행 중'이다.
     # 동률도 True 다 — 이미 최악과 같은 길이인데 내일 더 길어질 구간이므로.
     worst_open = bool(not at_peak[-1] and int(spans[-1]) == worst)
-    return ulcer, worst, worst_open
+    return ulcer, worst, worst_open, mean_dd
 
 
 def bench(D):

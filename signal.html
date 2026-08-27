@@ -94,12 +94,17 @@ body{padding:28px 20px 64px;}
 .scennote{font-size:15px;color:var(--muted);line-height:1.55;margin-top:8px;}
 /* [v60] 카드 지표 6개가 각각 뭔지. 비교표 각주는 화면 한참 아래라 여기서 한 번 준다.
    한 줄 문장으로 두니 폰에서 188px 를 먹었다 — 한 줄에 하나씩 격자로 놓는다. */
-.metkey{display:grid;grid-template-columns:repeat(3,1fr);gap:1px 20px;
-  font-size:14px;color:var(--muted);line-height:1.6;margin-top:11px;}
+.metkey{font-size:14px;color:var(--muted);line-height:1.55;margin-top:11px;}
 .metkey b{color:var(--ink);font-weight:600;}
-.metkey .dir{grid-column:1/-1;margin-top:5px;padding-top:5px;border-top:1px solid #E8ECEF;}
-@media(max-width:900px){ .metkey{grid-template-columns:1fr 1fr;} }
-@media(max-width:600px){ .metkey{grid-template-columns:1fr;gap:0 0;} }
+.metkey .mk{padding:3px 0;}
+.metkey .mk>b:first-child{display:inline-block;min-width:74px;}
+/* 풀이 — 정의 뒤에 붙는 '그래서 얼마냐' */
+.metkey .rd{display:block;margin:1px 0 0 74px;color:var(--ink);}
+.metkey .dir{margin-top:7px;padding-top:6px;border-top:1px solid #E8ECEF;}
+@media(max-width:600px){
+  .metkey .mk>b:first-child{min-width:0;display:block;}
+  .metkey .rd{margin-left:0;}
+}
 
 /* ---- 신호 패널 ---- */
 .signal{display:grid;grid-template-columns:156px 1fr;gap:0;background:var(--panel);
@@ -339,19 +344,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
   <div class="pick">
     <h2>규칙</h2>
     <div class="opts" id="opts"></div>
-    <div class="metkey">
-      <div><b>최종배수</b> 시작 1원이 얼마가 됐나</div>
-      <div><b>MDD</b> 고점 대비 최악의 낙폭</div>
-      <div><b>CALMAR</b> 연수익 ÷ |MDD| — 낙폭 대비 효율</div>
-      <div><b>SORTINO</b> 연수익 ÷ 하락 변동성</div>
-      <div><b>회복기간</b> 전고점 되찾기까지 최장</div>
-      <div><b>ULCER</b> 낙폭의 제곱평균 — 평균적 고통</div>
-      <div class="dir"><b>최종배수·CALMAR·SORTINO</b> 는 클수록 ·
-        <b>MDD·회복기간·ULCER</b> 은 작을수록 좋습니다.
-        MDD 가 최악의 <b>한 점</b>이라면 ULCER 은 <b>전 구간 평균</b>입니다.
-        <br>각 값 아래 <b>회색 숫자</b>는 같은 기간 <b>2배 그냥 보유</b>(전략을 안 썼을 때)입니다 —
-        눈금으로 쓰세요. 파란 값은 그보다 나은 것입니다.</div>
-    </div>
+    <div class="metkey" id="metkey"></div>
     <div class="scen" id="scen"></div>
     <div class="scennote" id="scennote"></div>
   </div>
@@ -478,13 +471,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
 
     <div class="rules">
       <b>놓치기 쉬운 것</b><br>
-      · <b>중개형</b>이어야 ETF를 직접 매매합니다. 신탁형·일임형은 불가합니다.<br>
       · 비과세 400만원은 이 규모에서 사실상 의미가 없습니다 — 실효세율은 <b>9.9%로 수렴</b>합니다.
         ISA의 값어치는 비과세가 아니라 <b>과세이연</b>에서 나옵니다(이득의 80%).<br>
-      · 3년 의무보유. 그 전에 해지하면 세제혜택이 사라집니다.<br>
-      · 일반계좌라면 금융소득종합과세(연 2,000만원 초과) 대상이지만, ISA는 분리과세라 제외됩니다.<br>
-      · 서민형 자격(총급여·종합소득 기준)과 세율·한도는 <b>가입 전 증권사·국세청에서 직접 확인</b>하세요.
-        이 표는 위 조건을 그대로 넣고 계산한 백테스트 결과이며 세무 자문이 아닙니다.
+      · 3년 의무보유. 그 전에 해지하면 세제혜택이 사라집니다.
     </div>
   </div>
 
@@ -497,42 +486,36 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <dd>종가를 이 화면에 입력. 신호가 바뀌었는지 확인.</dd>
       <dt>09:00~15:30</dt>
       <dd>같은 날 한국장에서 교체 주문. 개장 직후·마감 동시호가는 호가가 벌어지니
-          <b>09:30~15:00 사이</b>가 무난합니다.</dd>
+          <b>09:05~15:20 사이</b>에 넣습니다.</dd>
     </dl>
     <div class="rules">
-      <b>왜 같은 날인가</b> — 미국 종가는 한국 새벽에 확정되고 한국장은 그로부터 3~4시간 뒤에 열립니다.
-      백테스트는 "신호 다음날 미국 종가 체결"을 가정했는데, 한국장 실행은 그보다 오히려 반나절 빠릅니다.
-      체결이 늦어질수록 성과가 떨어지므로(1일 지연 126배 → 3일 지연 102배) 미루지 않는 게 좋습니다.<br><br>
-      <b>한국 휴장일에 신호가 뜨면</b> — 다음 개장일에 실행합니다. 미국 신호일의 94.9%는 지연 없이
-      같은 세션에 체결되고, 2~3일 밀려도 전략은 무너지지 않습니다.<br><br>
-      <b>체결 시각</b> — 국내 ETF는 개장 직후와 종가 단일가 구간에 유동성공급자(LP) 호가 제출
-      의무가 없어 스프레드가 벌어집니다. <b>09:05~15:20 사이</b>가 무난합니다. 시초가 갭(전일 종가→시가)
-      표준편차가 레버리지 2.4%라 이 시간대 안에서 몇 분 차이는 비용(0.1%)보다 훨씬 큰 변동성에 묻힙니다 —
-      즉 <b>몇 시에 넣을지 고민할 가치가 없고, 미루지 않는 것만 중요합니다.</b><br><br>
-      <b>방어 바스켓은 고르지 않습니다</b> — 어느 쪽이 우상향 중인지 보고 하나를 고르는 규칙 11종을
-      전부 시험했고 전부 기각됐습니다(스윕 첨탑 · 워크포워드 3전 3패). 섞어 두는 이유는
-      수익이 아니라 <b>낙폭</b>입니다 — MDD −60.5% vs 배당100 −68.1%, 2008 위기에
-      <b>+9.0% vs −22.7%</b>. 방어로 들어가면 40/40/20으로
-      그냥 사고, 월 1회만 비율을 맞춥니다.<br><br>
-      <b>국채 다리는 선물형입니다</b> — TIGER 미국채10년선물은 현물 채권이 아니라
-      선물을 굴립니다. 선물 가격에는 조달비용(미국 단기금리)이 이미 들어 있어서
-      보유자는 현물 총수익이 아니라 <b>그만큼 뺀 수익</b>을 받습니다. 백테스트도 그렇게
-      맞췄습니다(실물 대비 연 −0.18%). 금리가 높을수록 이 다리의 기여가 줄어듭니다.<br><br>
-      <b>VIX·공포탐욕지수는 보지 않습니다</b> — 하이일드 스프레드, VIX, 공포탐욕지수를
-      조기경보로 붙이는 방식을 전부 시험했고 전부 기각됐습니다. 셋 다 낙폭과 <b>같은 날
-      같이</b> 움직이는 동행지표라(하루만 시차를 둬도 상관이 0으로 사라집니다) 새 정보가
-      없고, 전환 횟수만 12회에서 74회로 늘어납니다. 짧은 구간에서 통과한 규칙 하나도
-      닷컴 구간을 넣자 <b>−50%p</b>였습니다. 장단기 금리차는 실제로 위기를 앞서지만
-      (11번 중 11번, 중앙값 174일) 그 시차가 7일~533일로 흩어져 타이밍에 못 씁니다.<br><br>
-      <b>세금이 규칙 선택보다 큽니다</b> — 국내 상장 해외 ETF는 매도할 때마다 매매차익에 과세되고
-      배당소득은 손실 통산이 안 됩니다. 이 전략은 연 2.1회 전량 전환하므로 그 부담이 특히 큽니다 —
-      일반계좌 세후는 ISA 대비 <b>−33%</b>(20년 창 중앙값)로, 두 규칙의 차이보다 훨씬 큽니다.
-      계좌별 비교는 위 <b>「계좌 — ISA 중개형·서민형 기준」</b>을 보세요. 이 화면의 다른 성과표는
-      <b>전부 세전</b>입니다.<br><br>
+      <b>왜 같은 날인가</b> — 백테스트는 「신호 다음날 미국 종가 체결」을 가정했고,
+      한국장 실행은 그보다 <b>반나절 빠릅니다</b>. 늦어질수록 성과가 떨어지므로
+      (1일 지연 126배 → 3일 지연 102배) <b>미루지 않는 것만 중요합니다</b>.
+      한국 휴장일이면 다음 개장일에 하면 됩니다 — 신호의 94.9%는 지연 없이 체결되고
+      2~3일 밀려도 무너지지 않습니다.<br><br>
+
+      <b>몇 시에 넣을지는 고민할 가치가 없습니다</b> — 국내 ETF는 개장 직후와 종가 단일가
+      구간에 LP 호가 의무가 없어 스프레드만 벌어집니다. 그 구간만 피해
+      <b>09:05~15:20</b> 안이면 됩니다. 시초가 갭 표준편차가 레버리지 2.4%라
+      이 안에서 몇 분 차이는 비용(0.1%)에 묻힙니다.<br><br>
+
+      <b>방어 바스켓은 고르지 않습니다</b> — 셋 중 우상향인 것을 골라 타는 규칙 11종을
+      전부 시험했고 전부 기각됐습니다. 섞는 이유는 수익이 아니라 <b>낙폭</b>입니다 —
+      MDD −60.5% vs 배당100 −68.1%, 2008 위기에 <b>+9.0% vs −22.7%</b>.
+      <b>40/40/20으로 그냥 사고 월 1회만 비율을 맞춥니다.</b><br><br>
+
+      <b>국채 다리는 선물형입니다</b> — TIGER 미국채10년선물은 현물이 아니라 선물을 굴립니다.
+      선물 가격에 조달비용(미국 단기금리)이 들어 있어 보유자는 <b>그만큼 뺀 수익</b>을 받습니다.
+      백테스트도 그렇게 맞췄습니다(실물 대비 연 −0.18%). 금리가 높을수록 기여가 줄어듭니다.<br><br>
+
+      <b>세금이 규칙 선택보다 큽니다</b> — 연 2.1회 전량 전환하는 전략이라 매도 과세 부담이 큽니다.
+      일반계좌 세후는 ISA 대비 <b>−33%</b>(20년 창 중앙값)로, 규칙을 바꿔서 얻을 수 있는
+      차이보다 훨씬 큽니다. 이 화면의 다른 성과표는 <b>전부 세전</b>입니다.<br><br>
+
       <b>환율</b> — TIGER 레버리지는 <b>원화 환산 지수를 2배</b>로 추종합니다(실측 베타 1.98).
-      지수뿐 아니라 환변동도 2배로 실립니다. 위기 때 원화가 약해지면 완충이 되는 방향이라
-      원화 기준 낙폭은 달러 기준보다 얕게 나오는 경우가 많습니다. 위 성과표의 「원화」 시나리오는
-      이 구조를 반영한 값입니다.
+      지수뿐 아니라 <b>환변동도 2배</b>로 실립니다. 위기 때 원화가 약해지면 완충이 되는 방향이라
+      원화 기준 낙폭이 달러 기준보다 얕게 나오는 경우가 많습니다.
     </div>
   </div>
 
@@ -565,7 +548,13 @@ const STRAT = {
 //       있고(전략_v43 §1), verify_all.py I5 가 B>A 를 원자료로 계속 재확인한다.
 const ORDER = ['B'];
 // 지표 눈금 — 같은 기간 같은 재료로 잰 두 벤치마크. 숫자만으로는 체감이 안 된다.
-const BENCH = {lev:'2배 그냥 보유', def:'방어 바스켓 단독'};
+const BENCH = {lev:'2배 그냥 보유', def:'방어 단독'};
+// [v62] 방어 줄은 실제 구성(배당40 / 국채40 / 금20)을 그대로 쓴다 — 칩에 따라 바뀐다.
+function benchLabel(k){
+  if(k !== 'def') return BENCH[k];
+  const d = (STATS && STATS.defensives || []).find(x=>x.key===defk);
+  return d ? d.label + ' 단독' : '방어 단독';
+}
 
 let rows = [];                                   // {d:'YYYY-MM-DD', c:number}
 let sel  = 'B';                                  // 선택한 전략
@@ -746,6 +735,8 @@ function drawPicker(){
     </div>`;
   }).join('');
 
+  paintMetKey(s);
+
   const sc = document.getElementById('scen');
   if(STATS){
     sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.map(x=>
@@ -782,6 +773,47 @@ function drawPicker(){
   }
 }
 
+/* [v62] 지표 풀이 — 정의만 주면 0.547 이 좋은 건지 알 수 없다.
+   각 지표를 **지금 값이 실제로 뜻하는 것**으로 번역해 옆에 붙인다. */
+function paintMetKey(sc){
+  const el = document.getElementById('metkey');
+  if(!el) return;
+  const m = sc ? stratsOf(sc)[sel] : null;
+  const bv = sc ? benchOf(sc, 'lev') : null;
+  const row = (nm, def, read) =>
+    `<div class="mk"><b>${nm}</b> ${def}${read?`<span class="rd">${read}</span>`:''}</div>`;
+  if(!m){ el.innerHTML = ''; return; }
+
+  // MDD → 원금이 얼마가 되나. 백분율보다 금액이 훨씬 빨리 읽힌다. (단위: 만원)
+  const won = x => Math.round(1000 * (1 + x/100));
+  // 만원 단위를 억·조로 접는다 — '2,761,328만원' 은 아무도 못 읽는다
+  const money = w => w >= 1e8 ? (w/1e8).toFixed(1)+'조원'
+                   : w >= 1e4 ? Math.round(w/1e4).toLocaleString('en-US')+'억원'
+                              : Math.round(w).toLocaleString('en-US')+'만원';
+  // Calmar 의 역수 = 최악의 낙폭을 메우는 데 필요한 '연수익 몇 년치'
+  const yrs = x => (1/x).toFixed(1);
+
+  el.innerHTML =
+    row('최종배수', '시작 1원이 얼마가 됐나',
+        `1,000만원 → <b>${money(m.final*1000)}</b>`) +
+    row('MDD', '고점 대비 <b>최악의 한 점</b>. 한 번은 겪는 값',
+        `1,000만원이 <b>${won(m.mdd)}만원</b>까지` +
+        (bv?` · 2배 보유는 ${won(bv.mdd)}만원`:'')) +
+    row('회복기간', '전고점을 되찾기까지 걸린 <b>최장</b> 기간',
+        `<b>${uwfmt(m)}</b>` + (bv?` · 2배 보유는 ${uwfmt(bv)}`:'')) +
+    row('CALMAR', '낙폭 대비 효율 — <b>일시적 대폭락</b> 위험을 본다. <b>클수록 좋음</b>',
+        `${m.calmar.toFixed(3)} = 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움` +
+        (bv?` · 2배 보유는 ${yrs(bv.calmar)}년치`:'')) +
+    row('SORTINO', '하락 변동성 대비 수익 — <b>지속적 손실</b> 위험을 본다. <b>클수록 좋음</b>',
+        (m.sortino==null?'—':`${m.sortino.toFixed(3)} · 통상 <b>1 이상 무난 / 1.5 이상 우수</b>`) +
+        (bv&&bv.sortino!=null?` · 2배 보유는 ${bv.sortino.toFixed(2)}`:'')) +
+    row('ULCER', '<b>늘 얼마나 물속이었나</b> — 낙폭의 제곱평균. <b>작을수록 좋음</b>',
+        (m.dd_mean==null?'—':`평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b>에서 지냄`) +
+        (bv&&bv.dd_mean!=null?` · 2배 보유는 −${bv.dd_mean.toFixed(1)}%`:'')) +
+    `<div class="dir">각 값 아래 <b>회색 숫자</b>는 같은 기간 <b>2배 그냥 보유</b>(전략을 안 썼을 때).
+      <b>파란 값</b>은 그보다 나은 것입니다.</div>`;
+}
+
 /* ---------------- 성과 비교표 ---------------- */
 function drawPerf(){
   const panel = document.getElementById('perfPanel');
@@ -812,44 +844,31 @@ function drawPerf(){
       if(!b) return;
       body += `<tr class="bench">
         <td class="scen"></td>
-        <td class="strat">${BENCH[bk]}</td>${cols(b)}
+        <td class="strat">${benchLabel(bk)}</td>${cols(b)}
         <td class="num">—</td></tr>`;
     });
   });
   document.getElementById('perfBody').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
   // [v60] 각주를 문단으로 끊는다. 한 덩어리로 이어 쓰면 아무도 안 읽는다.
   //       ① 지표 뜻 ② 왜 두 지표를 더 두나 ③ 읽을 때의 함정 ④ 각 줄의 전제 ⑤ 계산 조건
+  // [v62] 요점만. 길게 풀어 쓰면 안 읽힌다 — 자세한 것은 카드 아래 지표 풀이에 있다.
   document.getElementById('perfNote').innerHTML =
-    `<p><span class="lead">지표</span> — Calmar = CAGR ÷ |MDD| (낙폭 대비 효율).
-       Sortino = 연율 수익 ÷ 하방편차(무위험 0). 전환 = 실제 체결 횟수.
-       회복기간 = 전고점을 되찾기까지 가장 오래 걸린 기간(<b>+</b>는 아직 못 되찾은 상태).
-       Ulcer = 전 구간 낙폭의 제곱평균(√mean dd²).
-       <b style="color:var(--ink)">회복기간과 Ulcer 는 낮을수록 좋습니다.</b></p>
+    `<p><span class="lead">지표</span> — Calmar·Sortino 는 <b>클수록</b>,
+       MDD·회복기간·Ulcer 는 <b>작을수록</b> 좋습니다. 전환 = 실제 체결 횟수.
+       회복기간의 <b>+</b>는 아직 전고점을 못 되찾은 상태입니다.</p>
 
-     <p><span class="lead">왜 둘을 더 두나</span> — MDD 는 최악의 <b>한 점</b>만 잽니다.
-       그래서 「얕지만 몇 년을 끄는 곡선」과 「깊지만 반년에 되찾는 곡선」을 구분하지 못합니다.
-       그 둘을 회복기간(가장 오래)과 Ulcer(평균적 고통)가 나눕니다.</p>
+     <p><span class="lead">눈금</span> — 기준마다 <b>2배 그냥 보유</b>(전략을 안 썼을 때)와
+       <b>${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'} 단독</b>(공격을 안 했을 때)을
+       흐린 줄로 붙였습니다. 같은 기간·같은 재료·같은 달력입니다.</p>
 
-     <p><span class="lead">눈금</span> — 지표 숫자만으로는 좋고 나쁨을 알 수 없습니다.
-       그래서 각 기준마다 <b style="color:var(--ink)">2배 그냥 보유</b>(전략을 안 썼을 때)와
-       <b style="color:var(--ink)">방어 바스켓 단독</b>(공격을 아예 안 했을 때)을 같은 줄에 놓았습니다.
-       <b>같은 기간·같은 재료·같은 달력</b>으로 잰 값입니다.</p>
-
-     <p><span class="lead">읽을 때 주의</span> —
+     <p><span class="lead">주의</span> —
        <b style="color:var(--ink)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다.</b>
-       달러 26.6년 165배와 원화 29.6년 2,761배는 같은 26.6년으로 맞추면 165 vs 169 로 거의 같습니다.
-       기준끼리의 비교는 <b>CAGR 열</b>로 하세요.</p>
+       달러 26.6년 165배와 원화 29.6년 2,761배도 같은 26.6년으로 맞추면 165 vs 169 입니다.
+       기준끼리는 <b>CAGR 열</b>로 보세요.</p>
 
-     <p><span class="lead">각 줄의 전제</span> —
-       「원화」 두 줄은 환노출 2배 구조와 슬리피지 0.1%를 반영한 값이고,
-       「달러」 두 줄은 미국 종가 체결 기준입니다.
-       달러·54년 확장은 나스닥 종합/NDX/QQQ를 일간수익률로 이어붙인 대리 시계열이라
-       같은 자산이 아닙니다.</p>
-
-     <p class="meta">위 표는 방어자산
-       <b style="color:var(--ink)">${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'}</b>
-       기준입니다. 채택안은 배당40/국채40/금20(전략_v23)이고 배당100 은 그 이전 안입니다 —
-       위 칩으로 둘을 바꿔가며 볼 수 있습니다. 계산 시각 ${STATS.generated_at}.</p>`;
+     <p><span class="lead">전제</span> — 「원화」는 환노출 2배 + 슬리피지 0.1%,
+       「달러」는 미국 종가 체결. 달러·54년은 나스닥 종합/NDX/QQQ를 이어붙인 대리 시계열이라
+       같은 자산이 아닙니다.</p>`;
 }
 
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */

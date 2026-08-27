@@ -226,8 +226,18 @@ def i5_decisions(D):
             ok("화면: %s 를 보여준다" % lab,
                ("row('%s'" % lab) in h or ("cell('%s'" % lab) in h,
                '지표 6종')
-        ok("화면: 지표 설명이 카드 옆에 있다", 'class="metkey"' in h,
+        ok("화면: 지표 설명이 카드 옆에 있다", 'id="metkey"' in h and 'function paintMetKey' in h,
            'CALMAR·ULCER 가 뭔지 비교표 각주까지 안 내려가도 알 수 있게')
+        # [v62] 정의만 주면 0.547 이 좋은 건지 알 수 없다. 체감 풀이가 붙는가.
+        for k, why in (('yrs(m.calmar)', 'Calmar → 낙폭을 메우는 연수익 몇 년치'),
+                       ('m.dd_mean', 'Ulcer → 평균 몇 % 물속'),
+                       ('1.5 이상 우수', 'Sortino → 통상 눈금'),
+                       ('won(m.mdd)', 'MDD → 원금이 얼마가 되나')):
+            ok('화면: %s' % why, k in h, '지표 체감 풀이')
+        # 체결 시각이 한 화면에서 두 값으로 갈리면 안 된다 (v18 잔재)
+        ok("화면: 체결 시각이 하나로 통일돼 있다",
+           '09:30~15:00' not in h and h.count('09:05~15:20') >= 2,
+           'LP 호가 의무 시간대 — 전략_v21 §13.4')
         ok("화면: 비교표 각주가 문단으로 끊겨 있다", h.count('<p><span class="lead">') >= 4,
            '한 덩어리로 이어 쓰면 아무도 안 읽는다')
         # [v60] I9 는 docs 만 훑는다. 화면 문구에 폐기된 방어자산 조합이 남아 있었다.
@@ -315,7 +325,7 @@ def i6_live():
                 ok(f"내장 {sc['key']} {k} 최종배수 일치",
                    abs(v1 / v0 - 1) < 1e-6, f'{v1:,.1f} vs {v0:,.1f}')
                 # [v60] 새 지표도 사본에 실려야 한다. 없으면 화면이 '—' 만 뜬다.
-                for fld in ('ulcer', 'uw_months'):
+                for fld in ('ulcer', 'uw_months', 'dd_mean'):
                     a = sc['strategies'][k].get(fld)
                     b = e[0]['strategies'][k].get(fld)
                     ok(f"내장 {sc['key']} {k} {fld} 일치",

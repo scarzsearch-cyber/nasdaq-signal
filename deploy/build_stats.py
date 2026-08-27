@@ -64,7 +64,7 @@ STRATS = {
 
 def pack(curve, turn):
     m = met(curve)
-    ui, uwd, uwo = ulcer_uw(curve)
+    ui, uwd, uwo, dmean = ulcer_uw(curve)
     return {
         'final': round(float(m['final']), 3),
         'cagr': round(float(m['cagr']) * 100, 2),
@@ -75,6 +75,7 @@ def pack(curve, turn):
         'years': round(float(m['years']), 1),
         # [v60] MDD 는 최악의 한 점이라 '얼마나 오래 물속이었나'를 못 잰다.
         'ulcer': round(float(ui), 2),
+        'dd_mean': round(float(dmean), 2),   # [v62] '평균 몇 % 물속' 체감값
         'uw_months': round(uwd / 30.4375, 1),
         'uw_open': bool(uwo),
         'switches': int(np.sum(np.asarray(turn) > 1e-9)),
