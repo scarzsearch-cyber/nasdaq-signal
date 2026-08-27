@@ -29,11 +29,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0          # signal.html 의 마지막 커밋 날짜를 읽으려면 전체 이력이 필요하다
       - uses: actions/configure-pages@v6
       - name: 사이트 파일 모으기
         run: |
           mkdir -p _site/data
           cp signal.html _site/index.html
+          # [v46] 화면(전략 로직) 자체의 개정 시점을 박는다. 종가 갱신과 별개다.
+          python3 deploy/stamp_rev.py _site/index.html
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
           cp data/strategy_stats.json _site/data/ 2>/dev/null || echo "strategy_stats.json 없음 — 성과 패널만 숨겨짐"
           cp data/kr_holidays.json _site/data/ 2>/dev/null || echo "kr_holidays.json 없음 — 시계가 주말만 반영"

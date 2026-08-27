@@ -220,6 +220,16 @@ def i5_decisions(D):
            "cell('최종배수'" in h,
            'MDD·CALMAR·SORTINO 만 보이면 실물구간에서 A 가 3개 다 이긴다')
 
+        # [v46] 화면 개정 시점 주입 자리. 없으면 배포 때 stamp_rev.py 가 실패한다.
+        MARK = "const HTML_REV = '__HTML' + '_REV__';"
+        ok('화면: 개정 시점 주입 자리가 있다', MARK in h,
+           'deploy/stamp_rev.py 가 이 문자열을 찾는다')
+        ok('화면: 개정 표시가 종가일과 분리돼 있다',
+           "id=\"htmlRev\"" in h and "id=\"asof\"" in h, '두 자리 모두 존재')
+        # 안 쓰는 글꼴을 참조하면 대체글꼴로 떨어진다 (v46 에서 전부 Pretendard 로 바꿨다)
+        for f in ('IBM Plex Mono', 'Archivo'):
+            ok('화면: %s 참조 없음' % f, f not in h, '전부 Pretendard')
+
 
 # ------------------------------------------------------------------ I6
 def i6_live():
