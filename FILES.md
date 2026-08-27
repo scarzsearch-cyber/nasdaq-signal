@@ -322,6 +322,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/axis_selbias_disjoint.py` | v56 T3 정정 — 비중첩 창 (v57) | 0/4, −6~37% |
 | `research/axis_meta.py` | Meta-Strategy 7종 + Oracle (v58) | 상한의 0% 이하 |
 | `research/axis_meta_crisis.py` | 메타가 왜 못 고르는가 (v58) | 직전1등 일치 1/4 |
+| `research/axis_forward.py` | 미래위험·CVaR·변화점·episode·반등의질 (v59) | Oracle +1030%, 포착 0 이하 |
 
 ## 7. 동결 (v57) — 건드리지 말 것
 
