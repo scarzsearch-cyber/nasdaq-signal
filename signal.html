@@ -343,7 +343,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <div class="hint" id="perfNote"></div>
   </div>
 
-  <!-- 수치 출처: axis_isa.py (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
+  <!-- 수치 출처: axis_isa.py [v33 정정 반영] (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
        갱신하려면  python axis_isa.py --emit  후 아래 표를 맞춰 쓸 것. -->
   <div class="guide" id="taxPanel">
     <h2>계좌 — ISA 중개형 · 서민형 기준</h2>
@@ -352,17 +352,17 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <div>
         <div class="k">ISA 실효세율</div>
         <div class="v good">9.9%</div>
-        <div class="s">일반계좌 15.4~16.5%</div>
+        <div class="s">일반계좌 15.2~16.9%</div>
       </div>
       <div>
         <div class="k">일반계좌 대비</div>
-        <div class="v good">+43.2%</div>
+        <div class="v good">+49.7%</div>
         <div class="s">20년 창 중앙값 · 세후</div>
       </div>
       <div>
         <div class="k">이득의 출처</div>
-        <div class="v">과세이연 80%</div>
-        <div class="s">세율 인하 15% · 비과세 400만 0%</div>
+        <div class="v">과세이연 82%</div>
+        <div class="s">세율 인하 13% · 비과세 400만 0%</div>
       </div>
     </div>
 
@@ -372,16 +372,16 @@ td.s-schd{color:var(--defend);font-weight:600;}
           <th class="num">20년</th><th class="num">실효세율</th></tr></thead>
         <tbody>
           <tr class="best"><td class="acct">ISA · 만기 연장해 계속 보유</td>
-            <td class="num">5.79배</td><td class="num">25.5배</td><td class="num">120.0배</td>
+            <td class="num">6.27배</td><td class="num">28.5배</td><td class="num">143.3배</td>
             <td class="num">9.9%</td></tr>
           <tr><td class="acct">ISA · 3년마다 해지·재가입</td>
-            <td class="num">5.53배</td><td class="num">22.3배</td><td class="num">101.5배</td>
+            <td class="num">5.96배</td><td class="num">25.2배</td><td class="num">120.5배</td>
             <td class="num">10.7%</td></tr>
           <tr><td class="acct">일반계좌 · 전환마다 15.4%</td>
-            <td class="num">5.24배</td><td class="num">19.8배</td><td class="num">83.8배</td>
-            <td class="num">16.5%</td></tr>
+            <td class="num">5.98배</td><td class="num">23.6배</td><td class="num">95.7배</td>
+            <td class="num">16.9%</td></tr>
           <tr class="ref"><td class="acct">세전 (참고)</td>
-            <td class="num">6.31배</td><td class="num">28.2배</td><td class="num">133.0배</td>
+            <td class="num">6.84배</td><td class="num">31.5배</td><td class="num">159.0배</td>
             <td class="num">—</td></tr>
         </tbody>
       </table>
@@ -407,7 +407,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <div class="p"><div class="n">3</div><div class="t">
         <b>3년 만기가 오면 — 해지하지 말고 연장합니다.</b>
         해지하면 불어난 돈을 다시 넣을 수 없습니다(재납입도 연 2,000만원 한도).
-        <em>20년 기준으로 연장이 3년마다 해지보다 약 15% 앞섭니다(120.0배 vs 101.5배).</em>
+        <em>20년 기준으로 연장이 3년마다 해지보다 약 19% 앞섭니다(143.3배 vs 120.5배).</em>
       </div></div>
     </div>
 
@@ -456,7 +456,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
       (11번 중 11번, 중앙값 174일) 그 시차가 7일~533일로 흩어져 타이밍에 못 씁니다.<br><br>
       <b>세금이 규칙 선택보다 큽니다</b> — 국내 상장 해외 ETF는 매도할 때마다 매매차익에 과세되고
       배당소득은 손실 통산이 안 됩니다. 이 전략은 연 2.1회 전량 전환하므로 그 부담이 특히 큽니다 —
-      일반계좌 세후는 ISA 대비 <b>−30%</b>(20년 창 중앙값)로, 두 규칙의 차이보다 훨씬 큽니다.
+      일반계좌 세후는 ISA 대비 <b>−33%</b>(20년 창 중앙값)로, 두 규칙의 차이보다 훨씬 큽니다.
       계좌별 비교는 위 <b>「계좌 — ISA 중개형·서민형 기준」</b>을 보세요. 이 화면의 다른 성과표는
       <b>전부 세전</b>입니다.<br><br>
       <b>환율</b> — TIGER 레버리지는 <b>원화 환산 지수를 2배</b>로 추종합니다(실측 베타 1.98).

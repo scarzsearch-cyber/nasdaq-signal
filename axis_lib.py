@@ -108,8 +108,11 @@ def accumulate(D, k, w, lo, hi, park=None, dip=None, cost=COST):
     prev = w[lo]
     vals = []
     for i in range(lo, hi):
-        R *= (1 + rk[i])
-        C *= (1 + dfr[i])
+        # [v33 정정] 전환을 그날 수익 적용 **전에** 한다.
+        # 기존 순서(수익 -> 전환)는 전일 종가 신호가 하루 더 늦게 반영되는
+        # 실질 2일 지연이었다. 규약은 pos = w.shift(1) = 1일 지연이며
+        # reentry_lib.run / sim() 이 그렇게 돈다.
+        # 검산: 납입 1회로 두면 거치식 sim() 과 오차 0 이어야 한다.
         pos = w[i - 1] if i > lo else w[lo]
 
         if pos != prev:                                    # 전략 전환
@@ -118,6 +121,9 @@ def accumulate(D, k, w, lo, hi, park=None, dip=None, cost=COST):
             else:
                 C += R * (1 - cost); R = 0.0
             prev = pos
+
+        R *= (1 + rk[i])
+        C *= (1 + dfr[i])
 
         if i > lo and months[i] != months[i - 1]:           # 월초 납입
             paid += 1.0
@@ -204,6 +210,48 @@ def after_tax_annual(D, k, w, rate=0.22, cost=COST, start=None, end=None):
 
 
 # ------------------------------------------------------------------ 검산·출력
+def check_accum(D):
+    """[v33 신설] 적립 시뮬레이터 규약 검산 — 납입 1회면 거치식과 같아야 한다.
+
+    v29~v32 까지 accumulate()/accum()/accum_tax() 가 '그날 수익 -> 전환' 순서라
+    전일 종가 신호가 하루 더 늦게 반영되는 **실질 2일 지연**이었다. 이 검산이
+    있었으면 바로 잡혔다. 새 적립 함수를 만들 때마다 이걸 통과시켜라.
+    """
+    lo = 3000
+    hi = lo + 12 * 252
+    w = rule_w(D['ddv'], -0.16, -0.16)
+    months = pd.Series(D['idx']).dt.to_period('M').values
+    k = int(np.where(months[lo:hi] != np.r_[months[lo], months[lo:hi - 1]])[0][0])
+    paid, fin, _ = accumulate(D, 2.0, w, lo, hi)          # 여기선 60회 납입
+    # 납입 1회짜리를 직접 만든다
+    rk = lev_r(D, 2.0)
+    dfr = D['schdr']
+    R = C = 0.0
+    prev = w[lo]
+    first = None
+    for i in range(lo, hi):
+        pos = w[i - 1] if i > lo else w[lo]
+        if pos != prev:
+            if pos >= 1:
+                R += C * (1 - COST); C = 0.0
+            else:
+                C += R * (1 - COST); R = 0.0
+            prev = pos
+        R *= (1 + rk[i]); C *= (1 + dfr[i])
+        if i > lo and months[i] != months[i - 1] and first is None:
+            first = i
+            if pos >= 1:
+                R += 1.0
+            else:
+                C += 1.0
+    got = R + C
+    c, _ = sim(D, w, rk, start=D['idx'][first], end=D['idx'][hi - 1])
+    exp = float(c.iloc[-1])
+    err = abs(got / exp - 1)
+    print('검산 적립(1회납입) vs 거치식  %.6f vs %.6f  오차=%.1e' % (got, exp, err))
+    return err < 1e-9
+
+
 def check(D):
     """reentry_lib.run() 대비 오차 0 확인. 모든 스크립트가 시작할 때 부른다."""
     from reentry_lib import run
@@ -222,6 +270,7 @@ def check(D):
     err = abs(v / c.iloc[-1] - 1)
     ok = ok and err < 1e-6
     print('검산 after_tax(세율0)  %.4f  vs sim %.4f  오차=%.1e' % (v, c.iloc[-1], err))
+    ok = ok and check_accum(D)                          # [v33] 적립 규약도 함께 본다
     return ok
 
 

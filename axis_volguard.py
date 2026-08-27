@@ -280,8 +280,7 @@ def main():
         vals = []
         mi = -1
         for i in range(lo, hi):
-            R *= (1 + rr[i])
-            C *= (1 + dfr[i])
+            # [v33 정정] 전환을 그날 수익 적용 전에. 규약 pos = w.shift(1).
             pos = w[i - 1] if i > lo else w[lo]
             if pos != prev:
                 if pos >= 1:
@@ -289,6 +288,8 @@ def main():
                 else:
                     C += R * (1 - cost); R = 0.0
                 prev = pos
+            R *= (1 + rr[i])
+            C *= (1 + dfr[i])
             if i > lo and MONTH[i] != MONTH[i - 1]:
                 mi += 1
                 if mi < mp:

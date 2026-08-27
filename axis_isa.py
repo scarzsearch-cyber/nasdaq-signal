@@ -64,10 +64,11 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
     prev = w[lo]
     dtax = DIV_YIELD * GEN_RATE / 252.0 if mode == 'gen' else 0.0
     for i in range(lo, hi):
-        R *= (1 + rr[i])
-        C *= (1 + dfr[i])
-        if dtax and C > 0:
-            C *= (1 - dtax)
+        # [v33 정정] 전환을 **그날 수익 적용 전에** 한다.
+        # 기존 순서(수익 -> 전환)는 전일 종가 신호가 하루 더 늦게 반영되는
+        # 실질 2일 지연이었다. 프로젝트 규약은 pos = w.shift(1) = 1일 지연이고
+        # reentry_lib.run / axis_lib.sim 이 그렇게 돈다.
+        # 검산: 납입 1회(mp=1) 로 두면 거치식 sim() 과 오차 0 이어야 한다.
         pos = w[i - 1] if i > lo else w[lo]
 
         if pos != prev:                                    # 전량 전환
@@ -84,6 +85,11 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
                 R, C = 0.0, v
             prev = pos
             nsw += 1
+
+        R *= (1 + rr[i])
+        C *= (1 + dfr[i])
+        if dtax and C > 0:
+            C *= (1 - dtax)
 
         if i > lo and MONTH[i] != MONTH[i - 1]:             # 월초 납입
             mi += 1
