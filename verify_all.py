@@ -223,6 +223,14 @@ def i5_decisions(D):
         for lab in ("회복기간", "ULCER"):
             ok("화면: %s 를 보여준다" % lab, "cell('%s'" % lab in h,
                'MDD 가 못 재는 낙폭의 넓이')
+        ok("화면: 지표 설명이 카드 옆에 있다", 'class="metkey"' in h,
+           'CALMAR·ULCER 가 뭔지 비교표 각주까지 안 내려가도 알 수 있게')
+        ok("화면: 비교표 각주가 문단으로 끊겨 있다", h.count('<p><span class="lead">') >= 4,
+           '한 덩어리로 이어 쓰면 아무도 안 읽는다')
+        # [v60] I9 는 docs 만 훑는다. 화면 문구에 폐기된 방어자산 조합이 남아 있었다.
+        for bad in ('배당50/금50', '배당50 / 금50'):
+            ok("화면: 폐기 조합 '%s' 없음" % bad, bad not in h,
+               'v23 채택안은 배당40/국채40/금20')
         ok("화면: 기준 설명줄에 CAGR 이 있다", '연 ${neg(mm.cagr.toFixed(1))}%' in h,
            '최종배수는 기간이 다르면 비교 불가 — 정규화 수치를 함께 준다')
 

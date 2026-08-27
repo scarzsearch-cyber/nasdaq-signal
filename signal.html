@@ -90,6 +90,14 @@ body{padding:28px 20px 64px;}
 .chip:hover{border-color:var(--muted);color:var(--ink);}
 .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff;}
 .scennote{font-size:15px;color:var(--muted);line-height:1.55;margin-top:8px;}
+/* [v60] 카드 지표 6개가 각각 뭔지. 비교표 각주는 화면 한참 아래라 여기서 한 번 준다.
+   한 줄 문장으로 두니 폰에서 188px 를 먹었다 — 한 줄에 하나씩 격자로 놓는다. */
+.metkey{display:grid;grid-template-columns:repeat(3,1fr);gap:1px 20px;
+  font-size:14px;color:var(--muted);line-height:1.6;margin-top:11px;}
+.metkey b{color:var(--ink);font-weight:600;}
+.metkey .dir{grid-column:1/-1;margin-top:5px;padding-top:5px;border-top:1px solid #E8ECEF;}
+@media(max-width:900px){ .metkey{grid-template-columns:1fr 1fr;} }
+@media(max-width:600px){ .metkey{grid-template-columns:1fr;gap:0 0;} }
 
 /* ---- 신호 패널 ---- */
 .signal{display:grid;grid-template-columns:156px 1fr;gap:0;background:var(--panel);
@@ -162,6 +170,11 @@ label.file{display:inline-block;font-size:17px;font-weight:600;padding:9px 16px;
   border:1px solid var(--ink);border-radius:2px;cursor:pointer;}
 label.file input{position:absolute;opacity:0;width:0;height:0;}
 .hint{font-size:16px;color:var(--muted);margin-top:10px;line-height:1.6;}
+/* [v60] 각주가 한 덩어리로 붙어 있어 읽히지 않았다. 문단으로 끊는다. */
+.hint p{margin:0 0 9px;}
+.hint p:last-child{margin-bottom:0;}
+.hint p .lead{color:var(--ink);font-weight:600;}
+.hint p.meta{font-size:14px;padding-top:8px;border-top:1px solid #E8ECEF;margin-top:11px;}
 .msg{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:16px;margin-top:10px;}
 .msg.err{color:var(--warn);}
 
@@ -318,6 +331,17 @@ td.s-schd{color:var(--defend);font-weight:600;}
   <div class="pick">
     <h2>규칙</h2>
     <div class="opts" id="opts"></div>
+    <div class="metkey">
+      <div><b>최종배수</b> 시작 1원이 얼마가 됐나</div>
+      <div><b>MDD</b> 고점 대비 최악의 낙폭</div>
+      <div><b>CALMAR</b> 연수익 ÷ |MDD| — 낙폭 대비 효율</div>
+      <div><b>SORTINO</b> 연수익 ÷ 하락 변동성</div>
+      <div><b>회복기간</b> 전고점 되찾기까지 최장</div>
+      <div><b>ULCER</b> 낙폭의 제곱평균 — 평균적 고통</div>
+      <div class="dir"><b>최종배수·CALMAR·SORTINO</b> 는 클수록 ·
+        <b>MDD·회복기간·ULCER</b> 은 작을수록 좋습니다.
+        MDD 가 최악의 <b>한 점</b>이라면 ULCER 은 <b>전 구간 평균</b>입니다.</div>
+    </div>
     <div class="scen" id="scen"></div>
     <div class="scennote" id="scennote"></div>
   </div>
@@ -768,20 +792,34 @@ function drawPerf(){
     });
   });
   document.getElementById('perfBody').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  // [v60] 각주를 문단으로 끊는다. 한 덩어리로 이어 쓰면 아무도 안 읽는다.
+  //       ① 지표 뜻 ② 왜 두 지표를 더 두나 ③ 읽을 때의 함정 ④ 각 줄의 전제 ⑤ 계산 조건
   document.getElementById('perfNote').innerHTML =
-    `Calmar = CAGR ÷ |MDD|. Sortino = 연율 수익 ÷ 하방편차(무위험 0). 전환 = 실제 체결 횟수.
-     <b style="color:var(--ink)">회복기간</b>은 전고점을 되찾기까지 가장 오래 걸린 기간이고
-     (<b>+</b>는 아직 못 되찾은 상태), <b style="color:var(--ink)">Ulcer</b>는 전 구간 낙폭의
-     제곱평균(√mean dd²)입니다 — <b>둘 다 낮을수록 좋습니다.</b>
-     MDD 는 최악의 한 점만 재기 때문에 「얕지만 몇 년을 끄는 곡선」과
-     「깊지만 반년에 되찾는 곡선」을 구분하지 못합니다. 그 둘을 이 두 지표가 나눕니다.
-     <b style="color:var(--ink)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b> —
-     그 비교는 CAGR 열로 하세요.
-     「원화」 두 줄은 환노출 2배 구조와 슬리피지 0.1%를 반영한 값이고, 「달러」 두 줄은 미국 종가 체결 기준입니다.
-     달러·54년 확장은 나스닥 종합/NDX/QQQ를 일간수익률로 이어붙인 대리 시계열이라 같은 자산이 아닙니다.
-     방어자산 <b style="color:var(--ink)">${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'}</b> 기준입니다 —
-     전략_v23 에서 채택안이 배당100에서 배당50/금50으로 바뀌었고, 두 안을 위 칩으로 비교할 수 있습니다.
-     계산 시각 ${STATS.generated_at}.`;
+    `<p><span class="lead">지표</span> — Calmar = CAGR ÷ |MDD| (낙폭 대비 효율).
+       Sortino = 연율 수익 ÷ 하방편차(무위험 0). 전환 = 실제 체결 횟수.
+       회복기간 = 전고점을 되찾기까지 가장 오래 걸린 기간(<b>+</b>는 아직 못 되찾은 상태).
+       Ulcer = 전 구간 낙폭의 제곱평균(√mean dd²).
+       <b style="color:var(--ink)">회복기간과 Ulcer 는 낮을수록 좋습니다.</b></p>
+
+     <p><span class="lead">왜 둘을 더 두나</span> — MDD 는 최악의 <b>한 점</b>만 잽니다.
+       그래서 「얕지만 몇 년을 끄는 곡선」과 「깊지만 반년에 되찾는 곡선」을 구분하지 못합니다.
+       그 둘을 회복기간(가장 오래)과 Ulcer(평균적 고통)가 나눕니다.</p>
+
+     <p><span class="lead">읽을 때 주의</span> —
+       <b style="color:var(--ink)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다.</b>
+       달러 26.6년 165배와 원화 29.6년 2,761배는 같은 26.6년으로 맞추면 165 vs 169 로 거의 같습니다.
+       기준끼리의 비교는 <b>CAGR 열</b>로 하세요.</p>
+
+     <p><span class="lead">각 줄의 전제</span> —
+       「원화」 두 줄은 환노출 2배 구조와 슬리피지 0.1%를 반영한 값이고,
+       「달러」 두 줄은 미국 종가 체결 기준입니다.
+       달러·54년 확장은 나스닥 종합/NDX/QQQ를 일간수익률로 이어붙인 대리 시계열이라
+       같은 자산이 아닙니다.</p>
+
+     <p class="meta">위 표는 방어자산
+       <b style="color:var(--ink)">${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'}</b>
+       기준입니다. 채택안은 배당40/국채40/금20(전략_v23)이고 배당100 은 그 이전 안입니다 —
+       위 칩으로 둘을 바꿔가며 볼 수 있습니다. 계산 시각 ${STATS.generated_at}.</p>`;
 }
 
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */
