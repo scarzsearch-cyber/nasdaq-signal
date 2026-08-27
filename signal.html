@@ -193,6 +193,11 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .foot{margin-top:20px;font-size:11px;color:var(--muted);line-height:1.6;}
 
 /* ---- 상단 고정 요약 (스크롤 시) ---- */
+.stale{margin:0 0 14px;padding:12px 14px;border-radius:2px;font-size:14px;line-height:1.6;}
+.stale.warn{background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;}
+.stale.bad{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;}
+.stale b{font-weight:800;}
+.stale a{color:inherit;}
 .minibar{position:sticky;top:0;z-index:20;display:none;align-items:center;gap:10px;
   background:var(--panel);border:1px solid var(--ink);border-radius:2px;
   padding:9px 13px;margin-bottom:14px;box-shadow:0 3px 12px rgba(22,32,43,.10);}
@@ -275,6 +280,10 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <h1>오늘의 신호</h1>
     <div class="sub" id="asof">데이터 없음</div>
   </div>
+
+  <!-- [v37] 신호 신선도 경고. 자동갱신이 실패해도 사용자가 모르는 문제를 막는다.
+       GitHub 예약 실행은 부하가 걸리면 통째로 건너뛴다(2026-08-26 실제 발생). -->
+  <div class="stale" id="stale" hidden></div>
 
   <div class="minibar" id="minibar">
     <span class="st" id="mbState">—</span>
@@ -674,6 +683,41 @@ function drawPerf(){
 }
 
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */
+// [v37] 신호가 얼마나 낡았는지 알린다.
+// 미국장 기준 경과 '거래일'로 센다(주말에 잘못 경고하지 않도록).
+function bizDaysSince(iso){
+  const d0 = new Date(iso + 'T00:00:00Z');
+  const now = new Date();
+  const d1 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  let n = 0;
+  for(let t = new Date(d0); t < d1; t.setUTCDate(t.getUTCDate() + 1)){
+    const w = t.getUTCDay();
+    if(w !== 0 && w !== 6) n++;
+  }
+  return n;
+}
+
+function showStale(asOf){
+  const el = document.getElementById('stale');
+  if(!el || !asOf) return;
+  const n = bizDaysSince(asOf);
+  const RUN = 'https://github.com/scarzsearch-cyber/nasdaq-signal/actions/workflows/daily-signal.yml';
+  if(n <= 2){ el.hidden = true; return; }
+  el.hidden = false;
+  if(n <= 4){
+    el.className = 'stale warn';
+    el.innerHTML = '<b>신호가 ' + n + '거래일 지났습니다.</b> 자동갱신이 밀렸을 수 있습니다. '
+      + '미국 휴장이 겹쳤다면 정상입니다. 계속 밀리면 '
+      + '<a href="' + RUN + '" target="_blank" rel="noopener">Actions에서 수동 실행</a>하세요.';
+  } else {
+    el.className = 'stale bad';
+    el.innerHTML = '<b>⚠ 신호가 ' + n + '거래일째 갱신되지 않았습니다.</b> '
+      + '아래 낙폭·상태는 <b>' + asOf + ' 종가 기준</b>이라 지금과 다를 수 있습니다.<br>'
+      + '<a href="' + RUN + '" target="_blank" rel="noopener">Actions → 일일 신호 갱신 → Run workflow</a>'
+      + ' 를 눌러 갱신하세요.';
+  }
+}
+
 function watchMinibar(){
   const panel = document.querySelector('.signal');
   const bar = document.getElementById('minibar');
@@ -784,6 +828,7 @@ function renderAuto(j){
   }
   const ok = j.strategies[sel==='B'?'A':'B'];
   document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
+  showStale(j.as_of);
   paintState({
     state:st.state, changed_today:st.changed_today,
     dd:j.dd, close:j.close, high:j.high_252,

@@ -1,0 +1,74 @@
+name: 검증
+
+# [v37] 사용자는 파이썬을 직접 돌리지 않는다. 그래서 검증이 자동으로 돌아야 하고
+# 실패하면 여기서 막아야 한다. 2026-08-27 에 12건의 오류를 찾고 나서 만들었다.
+#
+#   - push/PR 마다: 빠른 검증(엔진 동치·미래참조·라이브 정합). 몇 초.
+#   - 매일 신호 갱신 뒤: 전체 검증(모형 대 실물·채택 결정·공표 수치).
+#   - 실패하면 이슈를 자동으로 연다 — 사람이 안 봐도 알림이 간다.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 1 * * 1-5'          # 10:00 KST — 신호 갱신 뒤 전체 검증
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 의존성 설치
+        run: pip install pandas numpy
+
+      - name: 빠른 검증 (엔진 동치 · 미래참조 · 라이브 정합)
+        run: python3 verify_all.py --fast
+
+      - name: 전체 검증 (예약 실행·수동 실행만)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python3 verify_all.py
+
+      - name: 전수조사 (예약 실행·수동 실행만)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python3 audit_full.py
+
+      - name: 실패하면 이슈 열기
+        if: failure() && (github.event_name == 'schedule' || github.event_name == 'push')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `검증 실패 — ${new Date().toISOString().slice(0,10)}`;
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'verify-fail'
+            });
+            const body = [
+              '`verify_all.py` 또는 `audit_full.py` 가 실패했습니다.',
+              '',
+              `로그: ${url}`,
+              '',
+              '**전략을 그대로 두고** 먼저 원인을 확인하세요.',
+              '검증이 실패한 상태에서는 화면의 수치를 신뢰하면 안 됩니다.',
+              '(신호 자체는 `deploy/update_signal.py` 가 따로 만들므로 별개입니다.)'
+            ].join('\n');
+            if (open.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['verify-fail']
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open[0].number, body
+              });
+            }
