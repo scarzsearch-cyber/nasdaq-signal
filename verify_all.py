@@ -207,22 +207,25 @@ def i5_decisions(D):
     # 고를 수 있게 두고 있었다. 문서와 화면이 어긋나는 걸 아무도 안 보고 있었다.
     if os.path.exists('signal.html'):
         h = io.open('signal.html', encoding='utf-8').read()
-        ok("화면: A 가 참조로 표시된다 (ref:true)",
-           "tag:'참조', ref:true" in h, 'signal.html STRAT.A')
-        ok("화면: 참조 규칙에 클릭 핸들러가 안 붙는다",
-           "host.querySelectorAll('button.opt')" in h and
-           "host.querySelectorAll('.opt')" not in h,
-           "선택자가 button.opt 여야 한다")
+        # [v61] A 를 화면에서 완전히 뺐다. 판정 근거는 위 B>A 재계산이 계속 지킨다.
+        ok("화면: A(-16/-11) 가 없다",
+           "'−16 / −11'" not in h and "const ORDER = ['B'];" in h,
+           'signal.html STRAT · ORDER')
         ok("화면: 기본 규칙이 B 다", "let sel  = 'B';" in h, 'signal.html sel')
-        ok("화면: 저장된 참조 선택을 되돌린다",
-           "!STRAT[s].ref" in h, 'localStorage 마이그레이션')
-        ok("화면: 최종배수를 함께 보여준다",
-           "cell('최종배수'" in h,
-           'MDD·CALMAR·SORTINO 만 보이면 실물구간에서 A 가 3개 다 이긴다')
-        # [v60] MDD 는 최악의 한 점만 잰다. 낙폭의 '넓이'를 재는 두 지표를 같이 둔다.
-        for lab in ("회복기간", "ULCER"):
-            ok("화면: %s 를 보여준다" % lab, "cell('%s'" % lab in h,
-               'MDD 가 못 재는 낙폭의 넓이')
+        ok("화면: 저장된 옛 선택값을 지운다",
+           "localStorage.removeItem(SKEY)" in h, 'localStorage 마이그레이션')
+        # [v61] 지표에 눈금이 붙는가 — 숫자만으로는 체감이 안 된다
+        ok("화면: 지표에 벤치마크 눈금이 붙는다",
+           "function benchOf" in h and "benchOf(s, 'lev')" in h,
+           '값 아래 회색 = 같은 기간 2배 그냥 보유')
+        ok("화면: 비교표에 벤치마크 줄이 있다",
+           "tr class=\"bench\"" in h, '2배 보유 · 방어 단독')
+        # [v60] 6개를 다 그리는가. 최종배수를 빼면 실물 3.2년 구간이 왜곡돼 보인다.
+        # [v61] 렌더가 cell(...) 에서 row(...) 로 바뀌었다 — 둘 다 허용한다.
+        for lab in ('최종배수', 'MDD', 'CALMAR', 'SORTINO', '회복기간', 'ULCER'):
+            ok("화면: %s 를 보여준다" % lab,
+               ("row('%s'" % lab) in h or ("cell('%s'" % lab) in h,
+               '지표 6종')
         ok("화면: 지표 설명이 카드 옆에 있다", 'class="metkey"' in h,
            'CALMAR·ULCER 가 뭔지 비교표 각주까지 안 내려가도 알 수 있게')
         ok("화면: 비교표 각주가 문단으로 끊겨 있다", h.count('<p><span class="lead">') >= 4,
@@ -318,6 +321,13 @@ def i6_live():
                     ok(f"내장 {sc['key']} {k} {fld} 일치",
                        a is not None and b is not None and abs(b - a) < 1e-9,
                        f'{b} vs {a}')
+            # [v61] 화면 눈금이 되는 벤치마크도 사본에 있어야 한다
+            for bk in ('lev', 'def'):
+                a = (sc.get('benchmarks') or {}).get(bk, {}).get('ulcer')
+                b = (e[0].get('benchmarks') or {}).get(bk, {}).get('ulcer')
+                ok(f"내장 {sc['key']} 벤치 {bk} 있음",
+                   a is not None and b is not None and abs(b - a) < 1e-9,
+                   f'{b} vs {a}')
     for k, en, ex in (('B', -0.16, -0.16), ('A', -0.16, -0.11)):
         cur = 'QLD'
         for v in dd.values:
@@ -350,6 +360,24 @@ def i7_stats(D):
     now = float(sim_def(D, rule_w(D['ddv'], -0.16, -0.16), defr).iloc[-1])
     ok('us_1972 B 가 현재 코드와 일치 (±1%)', abs(now / live - 1) < 0.01,
        f'json {live:,.0f} vs 재계산 {now:,.0f}')
+    # [v61] 화면 눈금이 되는 '2배 그냥 보유'가 실제로 2배 보유인가.
+    #       I10 P1 이 재는 MDD(-90% 이하)와 같은 성질을 공표값에서 확인한다.
+    for x in j['scenarios']:
+        b = (x.get('benchmarks') or {}).get('lev')
+        if not b:
+            ok(f"{x['key']} 벤치 lev 존재", False, '없음'); continue
+        st = x['strategies']['B']
+        ok(f"{x['key']} 벤치가 전략과 같은 기간", abs(b['years'] - st['years']) < 0.05,
+           f"{b['years']}년 vs {st['years']}년")
+        # 장기 표본에서만 건다. kr_real(3.2년)은 2배 보유 MDD -41.0% 가 전략
+        # -44.9% 보다 **얕다** — 그 구간엔 큰 폭락이 없어 잔전환 손실이 더 컸다.
+        # 이건 버그가 아니라 표본이 얇다는 뜻이고, 화면도 그렇게 경고하고 있다.
+        if st['years'] >= 20:
+            ok(f"{x['key']} 벤치 lev 가 전략보다 깊게 빠진다", b['mdd'] < st['mdd'],
+               f"{b['mdd']:.1f}% vs {st['mdd']:.1f}%")
+        else:
+            ok(f"{x['key']} 벤치 MDD 비교는 건너뜀 (표본 {st['years']}년)", True,
+               f"{b['mdd']:.1f}% vs {st['mdd']:.1f}% — 얇은 표본", warn=True)
 
 
 # ------------------------------------------------------------------ I8

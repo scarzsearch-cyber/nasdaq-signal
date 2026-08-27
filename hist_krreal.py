@@ -27,9 +27,12 @@ def signals(exit_):
     return pd.Series(w), dd
 
 
-def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
-    """defmix=True 면 방어자산을 전략_v23 채택안(DA.MIX_V23 = 배당40/국채40/금20)으로 바꾼다."""
-    w, dd = signals(exit_)
+def legs_real(start='2023-06-20', defmix=False):
+    """[v61] 실물 TIGER 시가 기준 공격·방어 일간수익.
+
+    run_real() 이 쓰던 재료를 그대로 꺼낸다. 벤치마크(2배 그냥 보유 / 방어 단독)를
+    **전략과 완전히 같은 재료·같은 달력**으로 재기 위해 분리했다.
+    """
     lev, div = TT.T['lev']['open'], TT.T['div']['open']
     kr = lev.index.intersection(div.index)
     extra = {}
@@ -49,6 +52,13 @@ def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
         for k, g in extra.items():
             parts[k] = g.reindex(kr).pct_change().fillna(0).values
         rd = pd.Series(DA.mix_monthly_parts(kr, DA.MIX_V23, parts), index=kr)
+    return kr, rl, rd
+
+
+def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
+    """defmix=True 면 방어자산을 전략_v23 채택안(DA.MIX_V23 = 배당40/국채40/금20)으로 바꾼다."""
+    w, dd = signals(exit_)
+    kr, rl, rd = legs_real(start, defmix)
     pos, cur = [], 1.0
     for d in kr:
         s = w.loc[:d - pd.Timedelta(days=1)]         # d 개장 전에 확정된 마지막 신호

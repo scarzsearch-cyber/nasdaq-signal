@@ -35,7 +35,7 @@ audit/      (4)  audit_all · audit_full · verify · verify_volguard
 research/   (46) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
 deploy/     (6) 라이브 파이프라인 — 건드리지 말 것
 data/       (9) 화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
-docs/       (39) 전략_v*.md · raw/ · HANDOFF_전체이력
+docs/       (40) 전략_v*.md · raw/ · HANDOFF_전체이력
 archive/    (4)  v19~v20 폐기본
 ```
 
@@ -199,7 +199,8 @@ v22 §5.1 이 최우선 과제로 지목한 것. 방어자산을 배당 100% 에
 
 | 파일 | 역할 |
 |---|---|
-| `docs/전략_v60.md` | **최신.** 165 vs 2,761 분해(전부 그 3년) + 회복기간·Ulcer 화면 반영. **규칙 변경 없음** |
+| `docs/전략_v61.md` | **최신.** A(−16/−11) 화면 제거 + 지표에 눈금(2배 보유·방어 단독). **규칙 변경 없음** |
+| `docs/전략_v60.md` | 165 vs 2,761 분해(전부 그 3년) + 회복기간·Ulcer 화면 반영 |
 | `docs/전략_v37.md` ~ `v59.md` | 기각 축 14차수 · 동결(v57) · 감사. §6 표 참조 |
 | `docs/전략_v36.md` | 국채 다리 선물형 정정 — 드리프트 +2.84%→−0.18%. 채택 결정 유지, 공표수치 −18.6% |
 | `docs/전략_v35.md` | 전수조사(59파일, HIGH 0건 · 시점별 재계산 0/40) + 라이브 종가 미갱신 수정 |
@@ -334,6 +335,9 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `deploy/build_stats.py` | 위 두 지표를 `strategy_stats.json` 에 넣는다. **사본 갱신을 요약 출력 앞으로** (출력이 죽어도 사본이 옛 판으로 안 남게) |
 | `signal.html` | 카드 지표 4→6개, 기준 설명줄에 CAGR, 비교표 2열 추가 |
 | `verify_all.py` | I5 +3(화면 대조) · I6 +16(내장 사본 대조) |
+| `hist_krreal.legs_real()` | **신규(v61).** 실물 TIGER 공격·방어 일간수익 분리 — 벤치마크가 전략과 **같은 달력**을 쓰게 |
+| `deploy/build_stats.py` | **(v61)** 기준마다 벤치마크 2종(2배 보유·방어 단독)을 같이 굳힌다 |
+| `signal.html` | **(v61)** A 제거 · 카드 전체 폭 · 값 아래 눈금 · 비교표 벤치 2줄 |
 
 ## 7. 동결 (v57) — 건드리지 말 것
 

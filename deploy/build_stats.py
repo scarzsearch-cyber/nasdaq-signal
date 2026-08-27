@@ -83,24 +83,53 @@ def pack(curve, turn):
     }
 
 
+def seg_of(D, curve):
+    """전략 곡선이 차지하는 구간을 D 의 전체 인덱스 위에서 찾는다."""
+    lo = D['idx'].searchsorted(curve.index[0])
+    return slice(lo, lo + len(curve))
+
+
+def bench_pack(curve, rlev, rdef):
+    """[v61] 전략과 **같은 구간·같은 재료**로 잰 두 벤치마크.
+
+    지표 숫자만으로는 좋고 나쁨을 체감할 수 없다(Ulcer 22 는 어느 정도인가?).
+    비교 대상이 있어야 읽힌다:
+      lev  2배 그냥 보유  — 전략을 안 썼을 때. 이 전략이 존재하는 이유
+      def  방어 단독      — 공격을 아예 안 했을 때. 아래쪽 경계
+    """
+    z = np.zeros(len(curve))
+    out = {}
+    for key, r in (('lev', rlev), ('def', rdef)):
+        rr = np.nan_to_num(np.asarray(r, dtype=float)).copy()
+        rr[0] = 0.0
+        out[key] = pack(pd.Series(np.cumprod(1 + rr), index=curve.index), z)
+    return out
+
+
 def sc_us_2000(kind):
     D = dict(RL.build())
     D['schdr'] = defensive_r(D['idx'], D['schdr'], kind)
-    out = {}
+    out, bm = {}, None
     for k, S in STRATS.items():
         c, w, t = run(D, S['ladder'], enter=S['enter'])
         out[k] = pack(c, t)
-    return out
+        if bm is None:
+            sg = seg_of(D, c)
+            bm = bench_pack(c, D['qldr'][sg], D['schdr'][sg])
+    return out, bm
 
 
 def sc_us_1972(kind):
     D = dict(DF.build('chain'))
     D['schdr'] = defensive_r(D['idx'], D['schdr'], kind)
-    out = {}
+    out, bm = {}, None
     for k, S in STRATS.items():
         c, w, t = run(D, S['ladder'], enter=S['enter'])
         out[k] = pack(c, t)
-    return out
+        if bm is None:
+            sg = seg_of(D, c)
+            bm = bench_pack(c, D['qldr'][sg], D['schdr'][sg])
+    return out, bm
 
 
 def sc_kr_1997(kind):
@@ -119,20 +148,27 @@ def sc_kr_1997(kind):
                  for k in DA.MIX_V23}
         sr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
     Dx = dict(D); Dx['qldr'] = lev2; Dx['schdr'] = sr
-    out = {}
+    out, bm = {}, None
     for k, S in STRATS.items():
         c, w, t = K.run_kr(Dx, S, cost=0.001, slip=0.001, start=KF.ST, krdays=krd)
         out[k] = pack(c, t)
-    return out
+        if bm is None:
+            sg = seg_of(Dx, c)
+            bm = bench_pack(c, np.asarray(Dx['qldr'])[sg], np.asarray(Dx['schdr'])[sg])
+    return out, bm
 
 
 def sc_kr_real(kind):
-    out = {}
+    out, bm = {}, None
     for k, S in STRATS.items():
         c, hold, dd = KR.run_real(S['exit'], defmix=(kind == 'mix'))
         turn = hold.shift(1).fillna(1.0).diff().abs().fillna(0).values
         out[k] = pack(c, turn)
-    return out
+        if bm is None:
+            kr, rl, rd = KR.legs_real(defmix=(kind == 'mix'))
+            assert kr.equals(c.index), '벤치마크 달력이 전략과 다르다'
+            bm = bench_pack(c, rl.values, rd.values)
+    return out, bm
 
 
 SCENARIOS = [
@@ -151,7 +187,9 @@ def main():
         row = dict(key=key, label=label, note=note)
         for dk, dlabel, dnote in DEFS:
             print('  계산 중 …', key, dk, flush=True)
-            row['strategies' if dk == 'mix' else 'strategies_' + dk] = fn(dk)
+            st, bm = fn(dk)
+            row['strategies' if dk == 'mix' else 'strategies_' + dk] = st
+            row['benchmarks' if dk == 'mix' else 'benchmarks_' + dk] = bm
         scen.append(row)
     payload = dict(
         generated_at=pd.Timestamp.now('UTC').strftime('%Y-%m-%d %H:%M UTC'),
@@ -199,6 +237,13 @@ def main():
                 '', '', f"{o['final']:,.1f}", o['cagr'], o['mdd'], o['calmar'],
                 '—' if o['sortino'] is None else f"{o['sortino']:.3f}",
                 uw(o), o['ulcer'], o['switches']))
+        for bk, blab in (('lev', '2배 보유'), ('def', '방어 단독')):
+            b = s['benchmarks'][bk]
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %9s %7.2f %6s   <- 벤치' % (
+                '', blab, f"{b['final']:,.1f}", b['cagr'], b['mdd'], b['calmar'],
+                '—' if b['sortino'] is None else f"{b['sortino']:.3f}",
+                '%.1f개월%s' % (b['uw_months'], '+' if b['uw_open'] else ''),
+                b['ulcer'], '-'))
     print('\n→', OUT)
 
 

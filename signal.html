@@ -58,29 +58,31 @@ body{padding:28px 20px 64px;}
 .pick{margin-bottom:22px;}
 .pick h2{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-size:16px;font-weight:700;
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
-.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* [v61] 규칙이 하나가 되면서 카드가 전체 폭을 쓴다 */
+.opts{display:grid;grid-template-columns:1fr;gap:10px;}
 .opt{position:relative;text-align:left;background:var(--panel);border:1px solid var(--rule);
   border-radius:2px;padding:15px 16px 13px;cursor:pointer;color:var(--ink);
   font-family:inherit;transition:border-color .15s,box-shadow .15s;}
 .opt:hover{border-color:var(--muted);}
-.opt.ref{cursor:default;background:transparent;border-style:dashed;opacity:.72;}
-.opt.ref:hover{border-color:var(--rule);}
-.opt.ref .nm{color:var(--muted);}
-.opt[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);}
+.opt.only{cursor:default;border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);}
+.opt.only:hover{border-color:var(--ink);}
 .opt .nm{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:23px;font-weight:600;
   letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;}
 .opt .tag{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-size:14px;
   font-weight:600;letter-spacing:.04em;padding:2px 6px;border-radius:2px;
   background:#E6EBEF;color:var(--muted);}
-.opt[aria-pressed="true"] .tag{background:var(--ink);color:#fff;}
+.opt.only .tag{background:var(--ink);color:#fff;}
 .opt .desc{font-size:16px;color:var(--muted);line-height:1.5;margin:7px 0 12px;}
-/* [v60] 지표 6개 — 3칸 x 2줄. 폰·태블릿은 아래에서 2칸 x 3줄로 접는다 */
-.opt .mets{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 8px;
+/* [v61] 카드가 전체 폭을 쓰므로 지표 6개를 한 줄에 편다. 폰은 아래에서 접는다 */
+.opt .mets{display:grid;grid-template-columns:repeat(6,1fr);gap:10px 8px;
   border-top:1px solid #E8ECEF;padding-top:10px;}
 .opt .mets .k{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);
   letter-spacing:.06em;margin-bottom:2px;}
 .opt .mets .v{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;}
 .opt .mets .v.win{color:var(--attack);}
+/* [v61] 값 아래 회색 눈금 = 같은 기간 2배 그냥 보유 */
+.opt .mets .b{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
+  font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);margin-top:2px;}
 .scen{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:11px;}
 .scen .lab{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);
   letter-spacing:.06em;margin-right:2px;}
@@ -162,8 +164,8 @@ button{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans
   border-radius:2px;cursor:pointer;transition:opacity .15s;}
 button:hover{opacity:.82}
 button.ghost{background:transparent;color:var(--ink);}
-button.opt,button.chip{opacity:1;}
-button.opt:hover,button.chip:hover{opacity:1;}
+button.chip{opacity:1;}
+button.chip:hover{opacity:1;}
 button:focus-visible,input:focus-visible,label.file:focus-within{outline:2px solid var(--attack);
   outline-offset:2px;}
 label.file{display:inline-block;font-size:17px;font-weight:600;padding:9px 16px;
@@ -189,6 +191,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
 /* ---- 성과표 ---- */
 .perf{overflow-x:auto;}
 .perf table{min-width:860px;margin-top:0;}   /* [v60] 회복기간·Ulcer 두 칸 추가 */
+/* [v61] 벤치마크 줄 — 규칙 줄과 구분되게 흐리게 */
+.perf tr.bench td{color:var(--muted);}
+.perf tr.bench td.strat{font-weight:400;}
 .perf th{white-space:nowrap;}
 .perf td{white-space:nowrap;}
 .perf td.num{text-align:right;}
@@ -287,7 +292,10 @@ td.s-schd{color:var(--defend);font-weight:600;}
 }
 /* [v46] 태블릿 — 지표 4칸이 빠듯해지는 구간 */
 @media(min-width:601px) and (max-width:900px){
-  .opt .mets{grid-template-columns:repeat(2,1fr);gap:11px 8px;}
+  .opt .mets{grid-template-columns:repeat(3,1fr);gap:11px 8px;}
+}
+@media(min-width:901px) and (max-width:1080px){
+  .opt .mets{grid-template-columns:repeat(3,1fr);gap:11px 8px;}
 }
 @media(min-width:601px) and (max-width:820px){
   .taxhero{grid-template-columns:1fr 1fr;}
@@ -340,7 +348,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <div><b>ULCER</b> 낙폭의 제곱평균 — 평균적 고통</div>
       <div class="dir"><b>최종배수·CALMAR·SORTINO</b> 는 클수록 ·
         <b>MDD·회복기간·ULCER</b> 은 작을수록 좋습니다.
-        MDD 가 최악의 <b>한 점</b>이라면 ULCER 은 <b>전 구간 평균</b>입니다.</div>
+        MDD 가 최악의 <b>한 점</b>이라면 ULCER 은 <b>전 구간 평균</b>입니다.
+        <br>각 값 아래 <b>회색 숫자</b>는 같은 기간 <b>2배 그냥 보유</b>(전략을 안 썼을 때)입니다 —
+        눈금으로 쓰세요. 파란 값은 그보다 나은 것입니다.</div>
     </div>
     <div class="scen" id="scen"></div>
     <div class="scennote" id="scennote"></div>
@@ -549,10 +559,13 @@ const DKEY = 'qqq_signal_def';
 const STRAT = {
   B: {key:'B', name:'−16 / −16', enter:-0.16, exit:-0.16, tag:'권고',
       desc:'낙폭이 −16%를 회복하면 곧바로 공격으로 돌아갑니다. 회복 초입을 놓치지 않는 대신 톱니 구간에서 잔전환이 잦습니다.'},
-  A: {key:'A', name:'−16 / −11', enter:-0.16, exit:-0.11, tag:'참조', ref:true,
-      desc:'낙폭이 −11%보다 얕아져야 공격으로 돌아갑니다. <b>고를 수 없습니다 — 비교 참조용입니다.</b> v18~v21 이 이 규칙을 권했지만 근거 두 개가 틀렸고(전략_v43 §1), 한국 거래일 체결·슬리피지·시초가 갭 분산을 모두 반영해도 −16/−16이 1.26~1.28배 앞섭니다.'},
 };
-const ORDER = ['B','A'];
+// [v61] −16/−11(A) 을 화면에서 완전히 뺐다. 단일 규칙으로 운용하는데 화면에
+//       두 규칙이 있으면 '고를 수 있는 것'처럼 읽힌다. 판정 근거는 문서에 남아
+//       있고(전략_v43 §1), verify_all.py I5 가 B>A 를 원자료로 계속 재확인한다.
+const ORDER = ['B'];
+// 지표 눈금 — 같은 기간 같은 재료로 잰 두 벤치마크. 숫자만으로는 체감이 안 된다.
+const BENCH = {lev:'2배 그냥 보유', def:'방어 바스켓 단독'};
 
 let rows = [];                                   // {d:'YYYY-MM-DD', c:number}
 let sel  = 'B';                                  // 선택한 전략
@@ -571,10 +584,8 @@ function save(){
 }
 function loadPrefs(){
   try{
-    // [v45] 참조 규칙(A)은 고를 수 없다. 예전에 눌러 저장된 값은 권고안으로 되돌린다.
-    const s = localStorage.getItem(SKEY);
-    if(s && STRAT[s] && !STRAT[s].ref) sel = s;
-    else if(s) localStorage.removeItem(SKEY);
+    // [v61] 규칙은 하나뿐이다. 예전에 저장된 선택값은 지운다.
+    if(localStorage.getItem(SKEY) !== 'B') localStorage.removeItem(SKEY);
     const c = localStorage.getItem(CKEY); if(c) scen = c;
     const dd = localStorage.getItem(DKEY); if(dd==='mix'||dd==='div') defk = dd;
   }catch(e){}
@@ -645,6 +656,14 @@ function uwfmt(m){
 function nfmt(x){ return x>=1000 ? x.toLocaleString('en-US',{maximumFractionDigits:0})
                                  : x.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1}); }
 
+/* [v61] 지표 옆에 붙일 눈금 — 같은 기간·같은 재료로 잰 벤치마크.
+   'Ulcer 22' 만 보면 좋은지 나쁜지 알 수 없다. 비교 대상이 있어야 읽힌다. */
+function benchOf(sc, which){
+  if(!sc) return null;
+  const b = (defk==='div' && sc.benchmarks_div) ? sc.benchmarks_div : sc.benchmarks;
+  return b ? b[which] : null;
+}
+
 /* ---------------- 전략 선택 UI ---------------- */
 function scenOf(){
   if(!STATS) return null;
@@ -685,47 +704,47 @@ function drawPicker(){
   const s = scenOf();
   host.innerHTML = ORDER.map(k=>{
     const S = STRAT[k];
-    const m = s ? stratsOf(s)[k] : null;
-    const o = s ? stratsOf(s)[k==='B'?'A':'B'] : null;
-    const cell = (label, val, better) =>
-      `<div><div class="k">${label}</div><div class="v${better?' win':''}">${val}</div></div>`;
+    const m  = s ? stratsOf(s)[k] : null;
+    const bv = s ? benchOf(s, 'lev') : null;      // 눈금 = 같은 기간 2배 그냥 보유
+
+    // [v61] 값 밑에 벤치마크를 회색으로 붙인다. 강조색은 '벤치마크보다 나음'을 뜻한다.
+    const cell = (label, val, ref, good) =>
+      `<div><div class="k">${label}</div>` +
+      `<div class="v${good===true?' win':''}">${val}</div>` +
+      `<div class="b">${ref==null?'&nbsp;':ref}</div></div>`;
     let mets = '';
     if(m){
-      // [v45] 최종배수를 맨 앞에 둔다. 이걸 빼고 MDD·CALMAR·SORTINO 만 보이면
-      //       실물 TIGER 3.2년 구간에서 A 가 3개 다 이겨 '더 나은 선택'처럼 보인다.
-      // [v60] 뒤 두 개는 MDD 가 못 재는 것을 잰다. MDD 는 최악의 '한 점'이라
-      //       얕지만 몇 년을 끄는 곡선과 깊지만 반년에 되찾는 곡선을 구분 못 한다.
-      //       회복기간·Ulcer 는 낮을수록 좋다 — 비교 방향이 반대다.
-      const lo = (a,b) => a!=null && b!=null && a < b;
-      mets =
-        cell('최종배수', nfmt(m.final), o && m.final > o.final) +
-        cell('MDD', neg(m.mdd.toFixed(1))+'%', o && m.mdd > o.mdd) +
-        cell('CALMAR', m.calmar.toFixed(3), o && m.calmar > o.calmar) +
-        cell('SORTINO', m.sortino==null?'—':m.sortino.toFixed(3), o && lo(o.sortino, m.sortino)) +
-        cell('회복기간', uwfmt(m), o && lo(m.uw_months, o.uw_months)) +
-        cell('ULCER', m.ulcer==null?'—':m.ulcer.toFixed(1), o && lo(m.ulcer, o.ulcer));
+      // [v45] 최종배수를 맨 앞에 둔다.
+      // [v60] 뒤 두 개는 MDD 가 못 재는 것을 잰다 — MDD 는 최악의 '한 점'이라
+      //       얕지만 몇 년 끄는 곡선과 깊지만 반년에 되찾는 곡선을 구분 못 한다.
+      const F = {
+        final:     x => nfmt(x.final),
+        mdd:       x => neg(x.mdd.toFixed(1))+'%',
+        calmar:    x => x.calmar.toFixed(3),
+        sortino:   x => x.sortino==null?'—':x.sortino.toFixed(3),
+        uw_months: x => uwfmt(x),
+        ulcer:     x => x.ulcer==null?'—':x.ulcer.toFixed(1),
+      };
+      // hi=true 면 클수록 좋다. MDD 는 둘 다 음수라 큰 쪽이 얕다 → hi=true.
+      const row = (lab, key, hi) => {
+        let good = null;
+        if(bv && m[key]!=null && bv[key]!=null) good = hi ? m[key] > bv[key] : m[key] < bv[key];
+        return cell(lab, F[key](m), bv ? F[key](bv) : null, good);
+      };
+      mets = row('최종배수','final',true) + row('MDD','mdd',true)
+           + row('CALMAR','calmar',true) + row('SORTINO','sortino',true)
+           + row('회복기간','uw_months',false) + row('ULCER','ulcer',false);
     } else {
       mets = ['최종배수','MDD','CALMAR','SORTINO','회복기간','ULCER']
-               .map(x=>cell(x,'—')).join('');
+               .map(x=>cell(x,'—',null)).join('');
     }
-    // [v45] 참조 규칙은 버튼이 아니다. v43 §4 가 'A 는 선택지가 아니라 참조'로
-    //       결정했는데 화면은 계속 고를 수 있게 두고 있었다. 그 불일치를 없앤다.
-    if(S.ref){
-      return `<div class="opt ref" data-k="${k}">
-        <div class="nm">${S.name}<span class="tag">${S.tag}</span></div>
-        <div class="desc">${S.desc}</div>
-        <div class="mets">${mets}</div>
-      </div>`;
-    }
-    return `<button class="opt" type="button" data-k="${k}" aria-pressed="${k===sel}">
+    // [v61] 규칙이 하나뿐이라 고르는 UI 가 아니다. 버튼이 아니라 패널이다.
+    return `<div class="opt only" data-k="${k}">
       <div class="nm">${S.name}<span class="tag">${S.tag}</span></div>
       <div class="desc">${S.desc}</div>
       <div class="mets">${mets}</div>
-    </button>`;
+    </div>`;
   }).join('');
-  host.querySelectorAll('button.opt').forEach(b=>b.addEventListener('click',()=>{
-    sel = b.dataset.k; savePrefs(); redraw();
-  }));
 
   const sc = document.getElementById('scen');
   if(STATS){
@@ -768,27 +787,33 @@ function drawPerf(){
   const panel = document.getElementById('perfPanel');
   if(!STATS){ panel.hidden = true; return; }
   panel.hidden = false;
-  const head = `<tr><th>기준</th><th>전략</th><th style="text-align:right">최종배수</th>
+  const head = `<tr><th>기준</th><th>규칙 · 비교</th><th style="text-align:right">최종배수</th>
     <th style="text-align:right">CAGR</th><th style="text-align:right">MDD</th>
     <th style="text-align:right">Calmar</th><th style="text-align:right">Sortino</th>
     <th style="text-align:right">회복기간</th><th style="text-align:right">Ulcer</th>
     <th style="text-align:right">전환</th></tr>`;
-  let body = '';
-  STATS.scenarios.forEach((s,si)=>{
-    ORDER.forEach((k,ki)=>{
-      const m = stratsOf(s)[k];
-      const cls = (k===sel?'on':'off') + (ki===0 && si>0 ? ' grp' : '');
-      body += `<tr class="${cls}">
-        <td class="scen">${ki===0?s.label:''}</td>
-        <td class="strat">${STRAT[k].name}</td>
-        <td class="num">${nfmt(m.final)}배</td>
+  // [v61] 규칙 줄 하나 + 벤치마크 두 줄. 벤치마크가 있어야 지표가 읽힌다.
+  const cols = m => `<td class="num">${nfmt(m.final)}배</td>
         <td class="num">${neg(m.cagr.toFixed(2))}%</td>
         <td class="num">${neg(m.mdd.toFixed(2))}%</td>
         <td class="num">${m.calmar.toFixed(3)}</td>
         <td class="num">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
         <td class="num">${uwfmt(m)}</td>
-        <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>
-        <td class="num">${m.switches}</td></tr>`;
+        <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
+  let body = '';
+  STATS.scenarios.forEach((s,si)=>{
+    const m = stratsOf(s)[sel];
+    body += `<tr class="on${si>0?' grp':''}">
+      <td class="scen">${s.label}</td>
+      <td class="strat">${STRAT[sel].name}</td>${cols(m)}
+      <td class="num">${m.switches}</td></tr>`;
+    Object.keys(BENCH).forEach(bk=>{
+      const b = benchOf(s, bk);
+      if(!b) return;
+      body += `<tr class="bench">
+        <td class="scen"></td>
+        <td class="strat">${BENCH[bk]}</td>${cols(b)}
+        <td class="num">—</td></tr>`;
     });
   });
   document.getElementById('perfBody').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
@@ -804,6 +829,11 @@ function drawPerf(){
      <p><span class="lead">왜 둘을 더 두나</span> — MDD 는 최악의 <b>한 점</b>만 잽니다.
        그래서 「얕지만 몇 년을 끄는 곡선」과 「깊지만 반년에 되찾는 곡선」을 구분하지 못합니다.
        그 둘을 회복기간(가장 오래)과 Ulcer(평균적 고통)가 나눕니다.</p>
+
+     <p><span class="lead">눈금</span> — 지표 숫자만으로는 좋고 나쁨을 알 수 없습니다.
+       그래서 각 기준마다 <b style="color:var(--ink)">2배 그냥 보유</b>(전략을 안 썼을 때)와
+       <b style="color:var(--ink)">방어 바스켓 단독</b>(공격을 아예 안 했을 때)을 같은 줄에 놓았습니다.
+       <b>같은 기간·같은 재료·같은 달력</b>으로 잰 값입니다.</p>
 
      <p><span class="lead">읽을 때 주의</span> —
        <b style="color:var(--ink)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다.</b>
@@ -878,7 +908,7 @@ function redraw(){
 }
 
 function paintState(o){
-  // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp, other_state}
+  // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp}
   const isQld = o.state==='QLD';
   const color = isQld ? 'var(--attack)' : 'var(--defend)';
   const S = STRAT[sel];
@@ -905,12 +935,14 @@ function paintState(o){
       : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → 방어 바스켓 매수(아래 비중대로).';
   } else { box.className=''; box.innerHTML=''; }
 
+  // [v61] 예전에는 '두 규칙이 갈립니다'로 알렸는데, 규칙이 하나가 됐으므로
+  //       같은 정보를 낙폭 위치로 직접 말한다. 알리는 내용은 같다.
   const dis = document.getElementById('disagreeBox');
-  if(o.other_state && o.other_state !== o.state){
-    const other = STRAT[sel==='B'?'A':'B'];
+  if(o.dd != null && o.dd <= -11 && o.dd > -16){
     dis.className = 'disagree';
-    dis.innerHTML = `지금은 두 규칙이 갈립니다 — <b>${other.name}</b> 규칙이었다면 <b>${stateLabel(o.other_state)}</b>.
-      회색지대(−16% ~ −11%)를 회복 중이라는 뜻입니다. −16/−16 그대로 가세요.`;
+    dis.innerHTML = `낙폭 <b>${neg(o.dd.toFixed(2))}%</b> — <b>−11% ~ −16% 회색지대</b>입니다.
+      전환선(−16%)까지 <b>${(o.dd + 16).toFixed(2)}%p</b> 남았습니다.
+      여기서 되밀리면 전환, 더 회복하면 그대로 갑니다. <b>규칙대로만 가세요.</b>`;
   } else { dis.className=''; dis.innerHTML=''; }
 
   document.getElementById('fDd').textContent = neg(o.dd.toFixed(2))+'%';
@@ -935,8 +967,6 @@ function render(){
     drawRuler(0, 'var(--ink)');
     return;
   }
-  const other = STRAT[sel==='B'?'A':'B'];
-  const oth = compute(other.exit);
   const last = res[res.length-1];
   const prev = res.length>1 ? res[res.length-2] : null;
   const line = last.state==='QLD' ? S.enter : S.exit;
@@ -946,7 +976,6 @@ function render(){
     state:last.state, changed_today: !!(prev && prev.state!==last.state),
     dd:last.dd*100, close:last.c, high:last.mx,
     next_line: line*100, gap_pp: Math.abs(last.dd-line)*100,
-    other_state: oth.length ? oth[oth.length-1].state : null,
   });
 
   tbl.hidden = false;
@@ -963,17 +992,15 @@ function render(){
 function renderAuto(j){
   const S = STRAT[sel];
   const st = (j.strategies && j.strategies[sel]) ? j.strategies[sel] : null;
-  if(!st){                                   // 구버전 signal.json — A 필드만 있음
+  if(!st){                                   // 구버전 signal.json — B 항목이 없음
     AUTO = null; load(); render(); return;
   }
-  const ok = j.strategies[sel==='B'?'A':'B'];
   document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
   showStale(j.as_of);
   paintState({
     state:st.state, changed_today:st.changed_today,
     dd:j.dd, close:j.close, high:j.high_252,
     next_line:st.next_line, gap_pp:st.gap_pp,
-    other_state: ok ? ok.state : null,
   });
 
   const tbl=document.getElementById('tbl');
@@ -1259,8 +1286,7 @@ async function boot(){
   // 한국 공휴일 표 — 없으면 주말만 반영하는 기존 동작으로 조용히 되돌아간다
   try{ const kh = await getJSON('data/kr_holidays.json'); KRHOL = kh.holidays || null; }catch(e){ KRHOL = null; }
   if(STATS && !STATS.scenarios.some(s=>s.key===scen)) scen = STATS.scenarios[0].key;
-  if(AUTO && AUTO.default && !localStorage.getItem(SKEY)
-     && STRAT[AUTO.default] && !STRAT[AUTO.default].ref) sel = AUTO.default;
+  if(AUTO && AUTO.default && STRAT[AUTO.default]) sel = AUTO.default;   // 사실상 항상 B
   if(!AUTO) load();
   redraw();
   startClock();
