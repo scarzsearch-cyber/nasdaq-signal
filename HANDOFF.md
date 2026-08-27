@@ -24,7 +24,8 @@ python verify_all.py
 | 전략 | QQQ 252일 낙폭 **−16/−16 단일** · 방어 40/40/20 고정 (−16/−11 은 참조, 고를 수 없음) |
 | 신호 | 자동. 예약 3슬롯 + 화면 신선도 경고 |
 | 검증 | 자동. `verify.yml` 이 push/매일 실행, 실패하면 **이슈 자동 생성** |
-| 최신 판정 | `docs/전략_v57.md` (**규칙 동결 2026-08-27.** 이후는 순수 OOS — I11 이 매 push 마다 강제) |
+| 최신 판정 | `docs/전략_v58.md` (Meta-Strategy — Oracle +288% 인데 메타 7종이 **상한의 0% 이하** 포착) |
+| 동결 | **규칙을 바꾸지 마라.** `data/freeze.json` · `verify_all.py` I11 · `data/oos_log.csv` (v57) |
 | **동결** | **규칙을 바꾸지 마라.** `data/freeze.json` · `verify_all.py` I11 · `data/oos_log.csv` |
 | 미결 | 아래 §4 |
 
