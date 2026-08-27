@@ -100,10 +100,16 @@ body{padding:28px 20px 64px;}
   display:grid;grid-template-columns:repeat(3,1fr);gap:13px 20px;
   font-size:14px;color:var(--muted);line-height:1.5;}
 .metkey b{color:var(--ink);font-weight:600;}
-.metkey .mk .nm{font-size:15px;font-weight:600;color:var(--ink);
-  letter-spacing:.02em;margin-bottom:2px;}
-.metkey .mk .df{display:block;}
-.metkey .mk .rd{display:block;margin-top:4px;color:var(--ink);}
+/* [v64] 한 칸 안을 네 줄로 끊는다 — 이름 / 뜻 / 지금 값 / 눈금.
+   이어 쓰면 어디까지가 정의고 어디부터가 수치인지 안 보인다. */
+.metkey .mk .nm{display:flex;align-items:baseline;gap:7px;
+  font-size:15px;font-weight:700;color:var(--ink);letter-spacing:.03em;}
+.metkey .mk .ar{font-size:12px;font-weight:600;color:var(--muted);
+  letter-spacing:0;white-space:nowrap;}
+.metkey .mk .df{display:block;margin-top:3px;}
+.metkey .mk .rd{display:block;margin-top:7px;color:var(--ink);}
+.metkey .mk .rd b{color:var(--attack);font-weight:700;}
+.metkey .mk .bm{display:block;margin-top:2px;font-size:13px;color:var(--muted);}
 .metkey .dir{grid-column:1/-1;margin-top:2px;padding-top:9px;border-top:1px solid #E8ECEF;}
 @media(max-width:900px){ .metkey{grid-template-columns:repeat(2,1fr);} }
 @media(max-width:600px){ .metkey{grid-template-columns:1fr;gap:11px;padding:13px 14px 11px;} }
@@ -791,9 +797,12 @@ function paintMetKey(sc){
   if(!el) return;
   const m = sc ? stratsOf(sc)[sel] : null;
   const bv = sc ? benchOf(sc, 'lev') : null;
-  const row = (nm, def, read) =>
-    `<div class="mk"><div class="nm">${nm}</div><span class="df">${def}</span>` +
-    `${read?`<span class="rd">${read}</span>`:''}</div>`;
+  // nm 이름 / ar 방향 / df 뜻 / rd 지금 값이 뜻하는 것 / bm 눈금(2배 그냥 보유)
+  const row = (nm, ar, df, rd, bm) =>
+    `<div class="mk"><div class="nm">${nm}<span class="ar">${ar}</span></div>` +
+    `<span class="df">${df}</span>` +
+    `${rd?`<span class="rd">${rd}</span>`:''}` +
+    `${bm?`<span class="bm">${bm}</span>`:''}</div>`;
   if(!m){ el.innerHTML = ''; return; }
 
   // MDD → 원금이 얼마가 되나. 백분율보다 금액이 훨씬 빨리 읽힌다. (단위: 만원)
@@ -805,23 +814,36 @@ function paintMetKey(sc){
   // Calmar 의 역수 = 최악의 낙폭을 메우는 데 필요한 '연수익 몇 년치'
   const yrs = x => (1/x).toFixed(1);
 
+  // [v64] 지표마다 자연스러운 말로. MDD 를 '클수록'이라 쓰면 숫자로는 맞아도
+  //       (−44 > −56) 사람은 반대로 읽는다.
+  const UP = '↑ 클수록', DN = '↓ 작을수록';
   el.innerHTML =
-    row('최종배수', '시작 1원이 얼마가 됐나',
-        `1,000만원 → <b>${money(m.final*1000)}</b>`) +
-    row('MDD', '고점 대비 <b>최악의 한 점</b>. 한 번은 겪는 값',
-        `1,000만원이 <b>${won(m.mdd)}만원</b>까지` +
-        (bv?` · 2배 보유는 ${won(bv.mdd)}만원`:'')) +
-    row('회복기간', '전고점을 되찾기까지 걸린 <b>최장</b> 기간',
-        `<b>${uwfmt(m)}</b>` + (bv?` · 2배 보유는 ${uwfmt(bv)}`:'')) +
-    row('CALMAR', '낙폭 대비 효율 — <b>일시적 대폭락</b> 위험을 본다. <b>클수록 좋음</b>',
-        `${m.calmar.toFixed(3)} = 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움` +
-        (bv?` · 2배 보유는 ${yrs(bv.calmar)}년치`:'')) +
-    row('SORTINO', '하락 변동성 대비 수익 — <b>지속적 손실</b> 위험을 본다. <b>클수록 좋음</b>',
-        (m.sortino==null?'—':`${m.sortino.toFixed(3)} · 통상 <b>1 이상 무난 / 1.5 이상 우수</b>`) +
-        (bv&&bv.sortino!=null?` · 2배 보유는 ${bv.sortino.toFixed(2)}`:'')) +
-    row('ULCER', '<b>늘 얼마나 물속이었나</b> — 낙폭의 제곱평균. <b>작을수록 좋음</b>',
-        (m.dd_mean==null?'—':`평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b>에서 지냄`) +
-        (bv&&bv.dd_mean!=null?` · 2배 보유는 −${bv.dd_mean.toFixed(1)}%`:'')) +
+    row('최종배수', UP, '시작 1원이 얼마가 됐나',
+        `1,000만원 → <b>${money(m.final*1000)}</b>`,
+        bv ? `2배 그냥 보유는 ${money(bv.final*1000)}` : '') +
+
+    row('MDD', '↓ 얕을수록', '고점 대비 <b>최악의 한 점</b> — 한 번은 겪는 값',
+        `1,000만원이 <b>${won(m.mdd)}만원</b>까지`,
+        bv ? `2배 그냥 보유는 ${won(bv.mdd)}만원까지` : '') +
+
+    row('회복기간', '↓ 짧을수록', '전고점을 되찾기까지 걸린 <b>최장</b> 기간',
+        `<b>${uwfmt(m)}</b>`,
+        bv ? `2배 그냥 보유는 ${uwfmt(bv)}` : '') +
+
+    row('CALMAR', UP, '낙폭 대비 효율 — <b>일시적 대폭락</b> 위험을 본다',
+        `${m.calmar.toFixed(3)} — 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움`,
+        bv ? `2배 그냥 보유는 ${yrs(bv.calmar)}년치` : '') +
+
+    row('SORTINO', UP, '하락 변동성 대비 수익 — <b>지속적 손실</b> 위험을 본다',
+        m.sortino==null ? '—'
+          : `<b>${m.sortino.toFixed(3)}</b> — 통상 1 이상 무난 · 1.5 이상 우수`,
+        bv&&bv.sortino!=null ? `2배 그냥 보유는 ${bv.sortino.toFixed(2)}` : '') +
+
+    row('ULCER', DN, '<b>늘 얼마나 물속이었나</b> — MDD 가 못 보는 평상시의 고통',
+        m.dd_mean==null ? '—'
+          : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`,
+        bv&&bv.dd_mean!=null ? `2배 그냥 보유는 −${bv.dd_mean.toFixed(1)}%` : '') +
+
     `<div class="dir">각 값 아래 <b>회색 숫자</b>는 같은 기간 <b>2배 그냥 보유</b>(전략을 안 썼을 때).
       <b>파란 값</b>은 그보다 나은 것입니다.</div>`;
 }

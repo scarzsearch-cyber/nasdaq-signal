@@ -230,11 +230,14 @@ def i5_decisions(D):
             ok("화면: %s 를 보여준다" % lab,
                ("row('%s'" % lab) in h or ("cell('%s'" % lab) in h,
                '지표 6종')
+        ok("화면: Ulcer 설명이 정의문이 아니다", '낙폭의 제곱평균' not in h,
+           '「늘 얼마나 물속이었나」로 읽히게')
         ok("화면: 지표 설명이 카드 옆에 있다", 'id="metkey"' in h and 'function paintMetKey' in h,
            'CALMAR·ULCER 가 뭔지 비교표 각주까지 안 내려가도 알 수 있게')
         # [v62] 정의만 주면 0.547 이 좋은 건지 알 수 없다. 체감 풀이가 붙는가.
         for k, why in (('yrs(m.calmar)', 'Calmar → 낙폭을 메우는 연수익 몇 년치'),
                        ('m.dd_mean', 'Ulcer → 평균 몇 % 물속'),
+                       ("'↑ 클수록'", '방향 표시'),
                        ('1.5 이상 우수', 'Sortino → 통상 눈금'),
                        ('won(m.mdd)', 'MDD → 원금이 얼마가 되나')):
             ok('화면: %s' % why, k in h, '지표 체감 풀이')
