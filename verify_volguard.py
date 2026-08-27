@@ -49,7 +49,7 @@ idx = D['idx']
 ddq = D['ddv']
 Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
 kcomp = {'div': np.asarray(dfk, dtype=float),
-         'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX')) * (1 + fr) - 1,
+         'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + fr) - 1,
          'gold': (1 + DA.gold_r(kidx)) * (1 + fr) - 1}
 kdefr = mix_monthly_from(kcomp, V.W4020, kidx)
 MONTH = pd.Series(kidx).dt.to_period('M').values

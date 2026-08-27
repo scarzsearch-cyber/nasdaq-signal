@@ -510,7 +510,7 @@ def s8_krw(D, DUSD, SUSD):
     Dk, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     tb = H.tbill_daily(idx)                       # 원화 단기금리 대용(달러 T-bill 금리, 환효과 없음)
     comp = {'div': np.asarray(dfk, dtype=float),
-            'ust5': (1 + DA.ust_tr(idx, 5, 'TNX')) * (1 + fr) - 1,
+            'ust5': (1 + DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + fr) - 1,
             'gold': (1 + DA.gold_r(idx)) * (1 + fr) - 1,
             'tbill': tb}
     S = signals(comp)

@@ -193,7 +193,7 @@ def main():
     print("=" * 108)
     Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     kcomp = {'div': np.asarray(dfk, dtype=float),
-             'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX')) * (1 + fr) - 1,
+             'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + fr) - 1,
              'gold': (1 + DA.gold_r(kidx)) * (1 + fr) - 1}
     kdefr = mix_monthly_from(kcomp, W4020, kidx)
     lo = int(kidx.searchsorted(FXS))

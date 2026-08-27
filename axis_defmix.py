@@ -35,6 +35,7 @@ import hist_korea as K
 from reentry_lib import met, rolling_stats
 from axis_lib import COST, rule_w, check
 
+UST_FEE = 0.0029          # [v36] 305080 회귀 절편. 실제 보수와 대조 필요
 TYX_START = pd.Timestamp('1977-02-15')      # 30년 금리 고시 시작
 GOLD_START = pd.Timestamp('1968-04-01')
 
@@ -72,8 +73,12 @@ CRISES = [('73-74 오일', '1973-01-11', '1974-10-03'),
 def materials(D):
     idx = D['idx']
     base = D['schdr']                                   # 배당체인 (v21 자율규약2)
+    # [v36] 국내 「미국채10년선물」 ETF 는 **선물형**이다. 현물 총수익이 아니라
+    # 현물 - 단기금리 - 보수를 받는다. v35 까지 이 구분이 없어 과대계상돼 있었다.
+    # 실증: 305080 대비 연드리프트 현물형 +2.84% -> 선물형 -0.18%
     comp = {'div': np.asarray(base, dtype=float),
-            'ust5': DA.ust_tr(idx, 5, 'TNX'),        # 국내 미국채10년선물 ETF 의 실효 사양
+            'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=UST_FEE),
+            'ust5_cash': DA.ust_tr(idx, 5, 'TNX'),   # 현물 대조군(IEF 형)
             'ust10': DA.ust_tr(idx, 10, 'TNX'),
             'ust20': DA.ust_tr(idx, 20, 'TYX'),       # ACE 미국30년국채액티브(H) 의 실효 사양
             'ust30': DA.ust_tr(idx, 30, 'TYX'),

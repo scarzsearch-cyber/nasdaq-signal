@@ -18,9 +18,12 @@
   없음
 
 ============================================================================================
-[CHECK] 6건
+[CHECK] 9건
 ============================================================================================
   archive/v20_히스테리시스/hyst_signif.py:29  <전표본문턱>  % ((boot > 0).mean() * 100, np.exp(np.percentile(boot, 5)), np.exp(np.percentile(boot, 9
+  audit_all.py:253  <전표본문턱>  np.percentile(r1, 5) > np.percentile(r2, 5),
+  audit_all.py:285  <전표본문턱>  np.percentile(q1, 5) > np.percentile(q2, 5) and q1.min() > q2.min(),
+  audit_all.py:285  <전표본문턱>  np.percentile(q1, 5) > np.percentile(q2, 5) and q1.min() > q2.min(),
   audit_full.py:106  <전표본문턱>  if any(k in s for k in ('nanpercentile', 'np.percentile', '.quantile(')) \
   axis_macro.py:289  <shift누락>  z() 가 rolling/expanding 결과를 shift 없이 반환
   axis_macro3.py:141  <전표본문턱>  for nm, mk in [('전표본 분위 (누수)', rvz >= np.nanpercentile(rvz, 95)),
@@ -45,7 +48,7 @@
   archive/v20_히스테리시스/hyst_mech.py
   archive/v20_히스테리시스/hyst_robust.py
   archive/v20_히스테리시스/hyst_signif.py  <- 1건
-  audit_all.py
+  audit_all.py  <- 3건
   audit_full.py  <- 1건
   axis_accum.py
   axis_accum2.py

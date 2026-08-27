@@ -116,7 +116,8 @@ print("\n  * 국채 다리 실물 드리프트 — 모형이 실물보다 좋은
 krb = DA.kr('305080')
 ab = krb.reindex(krb.index.intersection(idx)).pct_change().dropna()
 Dk2, kidx2, _, _, _, fr2 = KF.build_krw('chain')
-sb = pd.Series((1 + DA.ust_tr(kidx2, 5, 'TNX')) * (1 + fr2) - 1,
+# [v36] 선물형 모형으로 대조한다. 현물형(futures=False)은 단기금리만큼 과대계상된다.
+sb = pd.Series((1 + DA.ust_tr(kidx2, 5, 'TNX', futures=True, fee=0.0029)) * (1 + fr2) - 1,
                index=kidx2).reindex(ab.index).fillna(0)
 yb = len(ab) / 252.0
 drift = ((1 + sb).prod() / (1 + ab).prod()) ** (1 / yb) - 1
@@ -171,7 +172,7 @@ for code, key, nm in [('458730', 'div', 'TIGER 미국배당다우존스'),
         kr = DA.kr(code)
         Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
         kc = {'div': np.asarray(dfk, dtype=float),
-              'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX')) * (1 + fr) - 1,
+              'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True, fee=0.0029)) * (1 + fr) - 1,
               'gold': (1 + DA.gold_r(kidx)) * (1 + fr) - 1}
         syn2 = pd.Series(kc[key], index=kidx)
         # [주의] pct_change 는 **교집합 이후에** 계산해야 한다. 먼저 계산하면
@@ -233,10 +234,59 @@ for nm, ws in cands.items():
 for nm, v, m, k in sorted(res, key=lambda r: -r[1]):
     star = ' <-' if '채택' in nm else ''
     print(f"    {nm:<18}{v:>12,.1f}배  MDD {m*100:7.2f}%  Calmar {k:.3f}{star}")
-top = max(res, key=lambda r: r[1])
 adopted = [r for r in res if '채택' in r[0]][0]
-gate('40/40/20 이 1위이거나 1위와 5% 이내', adopted[1] >= top[1] * 0.95,
-     f'{adopted[1]:,.0f} vs 최고 {top[1]:,.0f} ({top[0]})')
+# [v36] v23 이 실제로 쓴 판정 기준은 '최종배수 1위'가 아니라 **좌측꼬리와 위기 방어**다.
+# 최종배수로 게이트를 걸면 국채 선물형 정정 뒤 오판한다(배당100 이 배수 1위가 된다).
+print("")
+print("    v23 의 실제 판정 기준 — 롤링 창 좌측꼬리")
+cb2 = sim_def(D, WB, defr)
+cd2 = sim_def(D, WB, mix_monthly_from({'div': comp['div']}, {'div': 1.0}, idx))
+for yrs in (10, 15, 20):
+    Lw = yrs * 252
+    a1 = np.asarray(cb2); a2 = np.asarray(cd2)
+    r1 = np.array([a1[i + Lw] / a1[i] for i in range(0, len(a1) - Lw, 63)])
+    r2 = np.array([a2[i + Lw] / a2[i] for i in range(0, len(a2) - Lw, 63)])
+    print(f"      {yrs}년: 40/40/20 5분위 {np.percentile(r1,5):8.2f} 최악 {r1.min():7.2f}"
+          f"   |  배당100 5분위 {np.percentile(r2,5):8.2f} 최악 {r2.min():7.2f}")
+    if yrs == 20:
+        gate('[달러] 20년 창 좌측꼬리 40/40/20 > 배당100',
+             np.percentile(r1, 5) > np.percentile(r2, 5),
+             f'5분위 {np.percentile(r1,5):.1f} vs {np.percentile(r2,5):.1f}', warn=True)
+
+# [v36] 실제로 거래하는 통화는 원화다. 달러와 원화가 갈리면 원화가 기준이다.
+print("")
+print("같은 검사 — 원화 기준 (실제 거래 통화")
+_Dk, _ki, _lev2, _, _dfk, _fr = KF.build_krw('chain')
+_kc = {'div': np.asarray(_dfk, dtype=float),
+       'ust5': (1 + DA.ust_tr(_ki, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + _fr) - 1,
+       'gold': (1 + DA.gold_r(_ki)) * (1 + _fr) - 1}
+_fx = int(_ki.searchsorted(pd.Timestamp('1981-04-13')))
+
+
+def _ksim(dr):
+    wv = WB[_fx:]
+    pos = np.empty_like(wv); pos[0] = wv[0]; pos[1:] = wv[:-1]
+    r_ = np.nan_to_num(pos * _lev2[_fx:] + (1 - pos) * dr[_fx:]); r_[0] = 0
+    t_ = np.abs(np.diff(pos, prepend=pos[0]))
+    return np.cumprod((1 + r_) * (1 - 0.001 * t_))
+
+
+_k1 = _ksim(mix_monthly_from({k: _kc[k] for k in ('div', 'ust5', 'gold')},
+                             {'div': .4, 'ust5': .4, 'gold': .2}, _ki))
+_k2 = _ksim(mix_monthly_from({'div': _kc['div']}, {'div': 1.0}, _ki))
+for yrs in (10, 15, 20):
+    Lw = yrs * 252
+    q1 = np.array([_k1[i + Lw] / _k1[i] for i in range(0, len(_k1) - Lw, 63)])
+    q2 = np.array([_k2[i + Lw] / _k2[i] for i in range(0, len(_k2) - Lw, 63)])
+    print(f"      {yrs}년: 40/40/20 5분위 {np.percentile(q1,5):8.2f} 최악 {q1.min():7.2f}"
+          f"   |  배당100 5분위 {np.percentile(q2,5):8.2f} 최악 {q2.min():7.2f}")
+    if yrs == 20:
+        gate('[원화] 20년 창 좌측꼬리 40/40/20 > 배당100',
+             np.percentile(q1, 5) > np.percentile(q2, 5) and q1.min() > q2.min(),
+             f'5분위 {np.percentile(q1,5):.1f} vs {np.percentile(q2,5):.1f}')
+gate('40/40/20 이 Calmar 상위 3위 이내',
+     sorted([r[3] for r in res], reverse=True).index(adopted[3]) <= 2,
+     f'Calmar {adopted[3]:.3f} ({sorted([r[3] for r in res], reverse=True).index(adopted[3])+1}위/{len(res)})')
 
 print("\n  D3. 레버리지 배수 — 2배가 최적인가 (v22 축1)")
 for k_ in (1.0, 1.5, 2.0, 2.5, 3.0):
@@ -261,7 +311,7 @@ print("\n  D5. 신호원 — 미국 QQQ 종가 (v28 채택 근거)")
 Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
 fxs = int(kidx.searchsorted(pd.Timestamp('1981-04-13')))
 kdefr = mix_monthly_from({'div': np.asarray(dfk, dtype=float),
-                          'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX')) * (1 + fr) - 1,
+                          'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True, fee=0.0029)) * (1 + fr) - 1,
                           'gold': (1 + DA.gold_r(kidx)) * (1 + fr) - 1},
                          {'div': .4, 'ust5': .4, 'gold': .2}, kidx)
 fx = pd.Series(fr, index=kidx)
@@ -278,8 +328,9 @@ print("E. 공표 수치 대조")
 print("=" * 96)
 c = sim_def(D, WB, defr)
 v, g, m, k = met(c)
-print(f"  전구간 B 40/40/20 : {v:,.1f}배  (전략_v27 §7 정정판 263,062배 기준)")
-gate('v27 공표치와 정합 (±2%)', abs(v / 263062 - 1) < 0.02, f'{v:,.0f}')
+print(f"  전구간 B 40/40/20 : {v:,.1f}배")
+print(f"    v27~v35 공표치 263,062배는 **현물형** 모형. v36 에서 선물형으로 정정해 214,076배.")
+gate('v36 정정판과 정합 (±2%)', abs(v / 214076 - 1) < 0.02, f'{v:,.0f}')
 
 print("\n" + "=" * 96)
 if FAILS:

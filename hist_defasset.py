@@ -29,6 +29,7 @@ v21 §2.3 은 "방어자산의 유효성은 위기의 성격에 달려 있다 �
 
 실행:  python hist_defasset.py     # 교차검증 리포트
 """
+import os
 import numpy as np
 import pandas as pd
 
@@ -92,8 +93,23 @@ def par_price(y, c, M):
     return c * ann + disc
 
 
-def ust_tr(idx, maturity=10, source='TNX'):
-    """상수만기 국채의 일간 총수익을 idx 에 맞춰 돌려준다."""
+def ust_tr(idx, maturity=10, source='TNX', futures=False, fee=0.0):
+    """상수만기 국채의 일간 총수익을 idx 에 맞춰 돌려준다.
+
+    futures=False : **현물** 보유 총수익 = 쿠폰 + 가격변화. (IEF/TLT 같은 실물 ETF)
+    futures=True  : **선물** 기반 상품 = 현물 총수익 - 단기금리 - 보수.
+
+    [v36 신설] 국내 「미국채10년선물」 ETF(305080/308620)는 선물형이다.
+    선물 가격에는 조달비용(단기금리)이 이미 반영돼 있어 보유자는
+    현물 총수익이 아니라 **초과수익**만 받는다. v35 까지 이 구분이 없어
+    국채 다리가 단기금리만큼 과대계상돼 있었다.
+
+    실증 (2019-2026, 305080 대비 연드리프트):
+        현물형  +2.84%  /  선물형  -0.18%      <- 선물형이 맞다
+        308620: 현물형 +3.77%  /  선물형 +0.71%
+    연도별 회귀도 이론과 일치한다: 괴리 = 0.923 x 미국3M + 0.29%p
+    (기울기 ~1 = 단기금리, 절편 ~0.29% = 운용보수)
+    """
     y = _csv('yahoo_%s' % source) / 100.0
     y = y[y > 0]
     y = y.reindex(idx.union(y.index)).ffill().reindex(idx)
@@ -101,8 +117,26 @@ def ust_tr(idx, maturity=10, source='TNX'):
     y0 = y.shift(1)
     px = par_price(y.values, y0.values, maturity)
     r = y0.values / 252.0 + (px - 1.0)
+    if futures:
+        r = r - _short_rate(idx) / 252.0 - fee / 252.0
     r[0] = 0.0
     return np.nan_to_num(r)
+
+
+_SR_CACHE = {}
+
+
+def _short_rate(idx):
+    """미국 3개월 T-bill (FRED DTB3). 선물 조달비용 대용."""
+    key = (idx[0], idx[-1], len(idx))
+    if key in _SR_CACHE:
+        return _SR_CACHE[key]
+    d = pd.read_csv(os.path.join(DIR, 'fred_DTB3.csv'))
+    d['observation_date'] = pd.to_datetime(d['observation_date'])
+    s = pd.to_numeric(d.set_index('observation_date')['DTB3'], errors='coerce')
+    v = (s.reindex(idx.union(s.index)).ffill().reindex(idx).bfill() / 100.0).values
+    _SR_CACHE[key] = v
+    return v
 
 
 # ---------------------------------------------------------------- 금
@@ -211,6 +245,7 @@ def crosscheck():
 # 전략_v23.md §7 채택안. 국내 상장 대응 상품까지 한 곳에 묶어 둔다.
 # 채택안 — 국내 상품의 **실측 사양**(axis_krspec.py)으로 모형화한다:
 #   TIGER/KODEX 미국채10년선물 = 환노출, 실효만기 약 5년  -> ust5
+UST_FEE = 0.0029     # [v36] 국내 미국채선물 ETF 보수. 305080 회귀 절편과 일치
 MIX_V23 = dict(div=0.40, ust5=0.40, gold=0.20)
 MIX_V23_ALT = dict(div=0.50, gold=0.50)      # 국채 없이 가는 대안 (§7)
 
@@ -267,9 +302,11 @@ def mix_monthly(idx, weights, base, rebal='M', cost=0.0005):
     for k, v in weights.items():
         if v <= 0:
             continue
+        # [v36] ust5/ust10 은 국내 **선물형** ETF(305080/308620)를 모사한다.
+        # 현물 총수익에서 단기금리와 보수를 뺀다. 자세한 근거는 ust_tr() 독스트링.
         parts[k] = np.asarray(base, dtype=float) if k == 'div' else {
-            'ust5': lambda: ust_tr(idx, 5, 'TNX'),
-            'ust10': lambda: ust_tr(idx, 10, 'TNX'),
+            'ust5': lambda: ust_tr(idx, 5, 'TNX', futures=True, fee=UST_FEE),
+            'ust10': lambda: ust_tr(idx, 10, 'TNX', futures=True, fee=UST_FEE),
             'ust20': lambda: ust_tr(idx, 20, 'TYX'),
             'ust30': lambda: ust_tr(idx, 30, 'TYX'),
             'gold': lambda: gold_r(idx),

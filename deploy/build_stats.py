@@ -100,8 +100,9 @@ def sc_kr_1997(kind):
     else:
         # 채택안 3종은 전부 환노출이다 — axis_krspec.py 의 실측(b2≈0.8~1.0).
         #   TIGER 미국배당다우존스 / TIGER 미국채10년선물(실효 5년) / ACE KRX금현물
+        # [v36] ust5 는 **선물형**이다(305080). 현물 총수익에서 단기금리·보수를 뺀다.
         raw = {'div': np.asarray(dfk, dtype=float),
-               'ust5': DA.ust_tr(idx, 5, 'TNX'),
+               'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
                'gold': DA.gold_r(idx)}
         parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
                  for k in DA.MIX_V23}

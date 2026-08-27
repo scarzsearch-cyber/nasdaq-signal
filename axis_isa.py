@@ -182,7 +182,7 @@ if __name__ == '__main__':
     MONTH = pd.Series(IDX).dt.to_period('M').values
     Dk, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     parts = {'div': dfk,
-             'ust5': (1 + DA.ust_tr(idx, 5, 'TNX')) * (1 + fr) - 1,
+             'ust5': (1 + DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + fr) - 1,
              'gold': (1 + DA.gold_r(idx)) * (1 + fr) - 1}
     mix = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
     wB = rule_w(D['ddv'], -0.16, -0.16)

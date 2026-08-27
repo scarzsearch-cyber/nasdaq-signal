@@ -135,7 +135,7 @@ def s4_perf(D, S, krstart):
     idx = D['idx']
     Dk, _, lev2, lev1, dfk, fr = KF.build_krw('chain')
     parts = {'div': dfk,
-             'ust5': (1 + DA.ust_tr(idx, 5, 'TNX')) * (1 + fr) - 1,
+             'ust5': (1 + DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + fr) - 1,
              'gold': (1 + DA.gold_r(idx)) * (1 + fr) - 1}
     mix = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
     krd = K.kr_caldays()

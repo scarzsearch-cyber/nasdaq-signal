@@ -63,7 +63,8 @@ def theory(kind, idx):
     if kind == 'gold':
         r = DA.gold_r(idx)
     elif kind == 'ust5':
-        r = DA.ust_tr(idx, 5, 'TNX')
+        # [v36] 실물 305080 과 대조하는 자리이므로 **선물형** 모형을 쓴다.
+        r = DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE)
     elif kind == 'div':
         import hist_defensive as DF
         r = DF.defensive(idx, 'chain')
