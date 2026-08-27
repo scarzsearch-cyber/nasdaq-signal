@@ -33,7 +33,7 @@ VIX/공포탐욕 등 매크로 지표 추가 · 국내 종가로 신호 재기.
    pages.yml                   화면 재배포
         ↓
 매 평일 01:00 UTC               verify.yml  ← [v37 신설]
-   └ verify_all.py             불변식 8종 검사. 실패하면 **이슈 자동 생성**
+   └ verify_all.py             불변식 11종 검사. 실패하면 **이슈 자동 생성**
    └ audit_full.py             59개 파일 전수조사 + 시점별 재계산
 ```
 
@@ -56,7 +56,7 @@ VIX/공포탐욕 등 매크로 지표 추가 · 국내 종가로 신호 재기.
 ## 3. 검증 — 뭔가 고쳤으면 이것부터
 
 ```bash
-python verify_all.py          # 불변식 8종. 3초. 실패=0 이어야 한다
+python verify_all.py          # 불변식 11종. 3초. 실패=0 이어야 한다
 python verify_all.py --fast   # CI 가 매 push 마다 부르는 것
 ```
 
@@ -72,6 +72,7 @@ python verify_all.py --fast   # CI 가 매 push 마다 부르는 것
 | I8 의존성 | 공용 모형 사용처 목록 |
 | **I9 폐기 수치** | **옛 공표값이 현행 문서·화면에 남아 있는가** |
 | **I10 전제 감시** | **나스닥 고유 성질(극단 MDD·장기 상승)이 유지되는가** |
+| **I11 규칙 동결** | **코드·화면이 `data/freeze.json` 과 다른가.** 2026-08-28 이후는 순수 OOS 표본이라 규칙이 바뀌면 표본이 사라진다 |
 
 추가 도구 (`audit/` 폴더):
 `audit/audit_all.py`(채택 결정 재검증) · `audit/audit_full.py`(전수조사) ·

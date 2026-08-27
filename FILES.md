@@ -32,10 +32,10 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (27) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
-deploy/     (6)  라이브 파이프라인 — 건드리지 말 것
-data/       (7)  화면이 읽는 것 — 워크플로 소유
-docs/       (21) 전략_v*.md · raw/ · HANDOFF_전체이력
+research/   (46) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
+deploy/     (6) 라이브 파이프라인 — 건드리지 말 것
+data/       (9) 화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
+docs/       (38) 전략_v*.md · raw/ · HANDOFF_전체이력
 archive/    (4)  v19~v20 폐기본
 ```
 
@@ -289,9 +289,47 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 | 언제 |
 |---|---|---|
-| `verify_all.py` | **단일 진입점.** 불변식 8종(I1~I8). 3초 | 뭔가 고쳤으면 항상 |
+| `verify_all.py` | **단일 진입점.** 불변식 11종(I1~I11). 3초 | 뭔가 고쳤으면 항상 |
 | `audit_full.py` | 59파일 AST 전수조사 + **시점별 재계산** | 정기 / CI |
 | `audit_all.py` | 채택 결정 재검증 (달러·원화) | 모형을 바꿨을 때 |
 | `verify.py` | 채택안 단독 검산 (140.0배) | 참조 구현 |
 | `verify_volguard.py` | v32/33 관문 6종 | 변동성 가드 관련 |
 | `.github/workflows/verify.yml` | 위를 자동 실행. **실패하면 이슈 자동 생성** | 자동 |
+
+---
+
+## 6. v47~v58 신규 연구 스크립트
+
+전부 **기각** 판정이다. 실전 파일이 아니라 **재현용**이다.
+
+| 파일 | 무엇을 쟀나 | 판정 |
+|---|---|---|
+| `research/axis_dca.py` | 적립식으로 RSI·이평·현금비중·평단가매수 14종 (v47) | 14전 14패 |
+| `research/axis_dca_grid.py` | 적립식으로 문턱 격자 210개 (v48) | 통과 0 |
+| `research/axis_momentum.py` | 절대·이중 모멘텀 · DD+모멘텀 · 사다리 (v49) | 13전 13패 |
+| `research/axis_krreal_decomp.py` | 실물 3.2년 A 우세 분해 (v46) | 9거래일이 전부 |
+| `research/axis_wide.py` | 광역 49후보 × 6관문 (v50) | 통과 0 (최고 4/6) |
+| `research/axis_wide_probe.py` | v50 생존후보 G 정밀검증 | 첨탑·MDD 악화 |
+| `research/axis_external.py` | 외부정보 1차 — VIX·breadth·신용 (v51) | 통과 0 |
+| `research/axis_vixstate.py` | VIX 를 상태변수로 (v52) | 4블록 검증 불가 |
+| `research/axis_rvstate.py` | 실현변동성 상태변수 (v53) | **10관문 통과** → G11 탈락 |
+| `research/axis_gate11.py` | G11 집중도 + leave-one-crisis-out (v53) | 독립위기 9개 |
+| `research/axis_ext2.py` | 외부정보 2차 — 상태변수·SPY 제외 (v54) | 26전 0승 |
+| `research/axis_ext2_probe.py` | v54 최선후보 G1 정밀검증 | 4블록 2/4 |
+| `research/axis_mech.py` | 운용 메커니즘 29후보 (v55) | 4/6 도달 0 |
+| `research/axis_selbias.py` | 선택편향 감사 T1~T4 (v56) | 편향 지문 없음 |
+| `research/axis_minimax.py` | 비중첩 6구간 미니맥스 순위 (v56) | 현행 3위/210 |
+| `research/axis_selbias_disjoint.py` | v56 T3 정정 — 비중첩 창 (v57) | 0/4, −6~37% |
+| `research/axis_meta.py` | Meta-Strategy 7종 + Oracle (v58) | 상한의 0% 이하 |
+| `research/axis_meta_crisis.py` | 메타가 왜 못 고르는가 (v58) | 직전1등 일치 1/4 |
+
+## 7. 동결 (v57) — 건드리지 말 것
+
+| 파일 | 역할 |
+|---|---|
+| `data/freeze.json` | **동결된 규칙**·자산·체결규약·비용 + 지문 + 날짜규약 |
+| `data/oos_log.csv` | 동결 이후 하루 한 줄 (append-only). 워크플로가 쌓는다 |
+| `deploy/oos_log.py` | 위를 기록한다. **판단하지 않는다** |
+| `verify_all.py` I11 | 코드·화면이 동결 기록과 다르면 **매 push 마다 실패** |
+
+**OOS 장부를 보고 문턱을 바꾸면 그 표본이 사라진다.**
