@@ -93,7 +93,7 @@ python verify_all.py
   −81% 가 나온다. 실물과의 시차상관으로 재라(SCHD r=0.9999)
 - **`data/qqq.csv` `data/signal.json` 을 직접 고치기** — 워크플로 소유다
 - **수치를 바꾸고 문서를 안 고치기** — v33·v36 에서 ISA 수치가 두 번 바뀌었는데
-  라이브만 고치고 `docs/전략_v29.md` 에 옛 값(143.3배)이 남아 있었다.
+  라이브만 고치고 `docs/전략_v29.md` 에 v36 이전 값이 남아 있었다.
   **수치를 폐기하면 `data/retired_numbers.json` 에 등록하라.**
   `verify_all.py` I9 가 현행 문서(README·HANDOFF·FILES·요약·signal.html)에
   남아 있으면 **실패**시키고, 버전 문서에 정정 배너가 없으면 경고한다
