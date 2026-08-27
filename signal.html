@@ -58,6 +58,9 @@ body{padding:28px 20px 64px;}
   border-radius:2px;padding:15px 16px 13px;cursor:pointer;color:var(--ink);
   font-family:inherit;transition:border-color .15s,box-shadow .15s;}
 .opt:hover{border-color:var(--muted);}
+.opt.ref{cursor:default;background:transparent;border-style:dashed;opacity:.72;}
+.opt.ref:hover{border-color:var(--rule);}
+.opt.ref .nm{color:var(--muted);}
 .opt[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);}
 .opt .nm{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;
   letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;}
@@ -66,7 +69,7 @@ body{padding:28px 20px 64px;}
   background:#E6EBEF;color:var(--muted);}
 .opt[aria-pressed="true"] .tag{background:var(--ink);color:#fff;}
 .opt .desc{font-size:12px;color:var(--muted);line-height:1.5;margin:7px 0 12px;}
-.opt .mets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+.opt .mets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
   border-top:1px solid #E8ECEF;padding-top:10px;}
 .opt .mets .k{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);
   letter-spacing:.06em;margin-bottom:2px;}
@@ -294,7 +297,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
   <div class="clockbar" id="clockbar"></div>
 
   <div class="pick">
-    <h2>전략 선택</h2>
+    <h2>규칙</h2>
     <div class="opts" id="opts"></div>
     <div class="scen" id="scen"></div>
     <div class="scennote" id="scennote"></div>
@@ -503,8 +506,8 @@ const DKEY = 'qqq_signal_def';
 const STRAT = {
   B: {key:'B', name:'−16 / −16', enter:-0.16, exit:-0.16, tag:'권고',
       desc:'낙폭이 −16%를 회복하면 곧바로 공격으로 돌아갑니다. 회복 초입을 놓치지 않는 대신 톱니 구간에서 잔전환이 잦습니다.'},
-  A: {key:'A', name:'−16 / −11', enter:-0.16, exit:-0.11, tag:'참조',
-      desc:'낙폭이 −11%보다 얕아져야 공격으로 돌아갑니다. v18~v21 시절 규칙으로, 비교 참조용입니다. 한국 거래일 체결·슬리피지·시초가 갭 분산을 모두 반영해도 −16/−16이 1.26~1.28배 앞섭니다(전략_v43).'},
+  A: {key:'A', name:'−16 / −11', enter:-0.16, exit:-0.11, tag:'참조', ref:true,
+      desc:'낙폭이 −11%보다 얕아져야 공격으로 돌아갑니다. <b>고를 수 없습니다 — 비교 참조용입니다.</b> v18~v21 이 이 규칙을 권했지만 근거 두 개가 틀렸고(전략_v43 §1), 한국 거래일 체결·슬리피지·시초가 갭 분산을 모두 반영해도 −16/−16이 1.26~1.28배 앞섭니다.'},
 };
 const ORDER = ['B','A'];
 
@@ -524,7 +527,10 @@ function save(){
 }
 function loadPrefs(){
   try{
-    const s = localStorage.getItem(SKEY); if(s && STRAT[s]) sel = s;
+    // [v45] 참조 규칙(A)은 고를 수 없다. 예전에 눌러 저장된 값은 권고안으로 되돌린다.
+    const s = localStorage.getItem(SKEY);
+    if(s && STRAT[s] && !STRAT[s].ref) sel = s;
+    else if(s) localStorage.removeItem(SKEY);
     const c = localStorage.getItem(CKEY); if(c) scen = c;
     const dd = localStorage.getItem(DKEY); if(dd==='mix'||dd==='div') defk = dd;
   }catch(e){}
@@ -606,12 +612,24 @@ function drawPicker(){
       `<div><div class="k">${label}</div><div class="v${better?' win':''}">${val}</div></div>`;
     let mets = '';
     if(m){
+      // [v45] 최종배수를 맨 앞에 둔다. 이걸 빼고 MDD·CALMAR·SORTINO 만 보이면
+      //       실물 TIGER 3.2년 구간에서 A 가 3개 다 이겨 '더 나은 선택'처럼 보인다.
       mets =
+        cell('최종배수', nfmt(m.final), o && m.final > o.final) +
         cell('MDD', neg(m.mdd.toFixed(1))+'%', o && m.mdd > o.mdd) +
         cell('CALMAR', m.calmar.toFixed(3), o && m.calmar > o.calmar) +
         cell('SORTINO', m.sortino==null?'—':m.sortino.toFixed(3), o && m.sortino!=null && o.sortino!=null && m.sortino > o.sortino);
     } else {
-      mets = cell('MDD','—') + cell('CALMAR','—') + cell('SORTINO','—');
+      mets = cell('최종배수','—') + cell('MDD','—') + cell('CALMAR','—') + cell('SORTINO','—');
+    }
+    // [v45] 참조 규칙은 버튼이 아니다. v43 §4 가 'A 는 선택지가 아니라 참조'로
+    //       결정했는데 화면은 계속 고를 수 있게 두고 있었다. 그 불일치를 없앤다.
+    if(S.ref){
+      return `<div class="opt ref" data-k="${k}">
+        <div class="nm">${S.name}<span class="tag">${S.tag}</span></div>
+        <div class="desc">${S.desc}</div>
+        <div class="mets">${mets}</div>
+      </div>`;
     }
     return `<button class="opt" type="button" data-k="${k}" aria-pressed="${k===sel}">
       <div class="nm">${S.name}<span class="tag">${S.tag}</span></div>
@@ -619,7 +637,7 @@ function drawPicker(){
       <div class="mets">${mets}</div>
     </button>`;
   }).join('');
-  host.querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{
+  host.querySelectorAll('button.opt').forEach(b=>b.addEventListener('click',()=>{
     sel = b.dataset.k; savePrefs(); redraw();
   }));
 
@@ -639,8 +657,16 @@ function drawPicker(){
       defk = b.dataset.d; savePrefs(); redraw();
     }));
     const cur = scenOf(), mm = stratsOf(cur)[sel];
+    // [v45] 표본이 너무 짧아 순위를 믿으면 안 되는 구간은 그렇게 적는다.
+    // 실물 TIGER 3.2년 구간은 전환이 B 6회 / A 2회뿐이다. v41 이 정한 최소
+    // 표본(독립 위기 19회)에 한참 못 미쳐 여기서 A 가 이겨도 근거가 못 된다.
+    const thin = mm.switches < 19
+      ? ` <b style="color:var(--defend)">표본이 얇습니다 — 전환 ${mm.switches}회.</b>`
+        + ` 판단 최소치(독립 위기 19회)에 못 미쳐 이 구간의 순위는 근거가 못 됩니다`
+        + ` (전략_v41 §5, v43 §2-3).`
+      : '';
     document.getElementById('scennote').innerHTML =
-      `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b> (${mm.years}년)`;
+      `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b> (${mm.years}년)` + thin;
   } else {
     sc.innerHTML = '';
     document.getElementById('scennote').textContent = '';
@@ -770,7 +796,7 @@ function paintState(o){
     const other = STRAT[sel==='B'?'A':'B'];
     dis.className = 'disagree';
     dis.innerHTML = `지금은 두 규칙이 갈립니다 — <b>${other.name}</b> 규칙이었다면 <b>${stateLabel(o.other_state)}</b>.
-      회색지대(−16% ~ −11%)를 회복 중이라는 뜻입니다. 고른 규칙을 바꾸지 말고 그대로 가세요.`;
+      회색지대(−16% ~ −11%)를 회복 중이라는 뜻입니다. −16/−16 그대로 가세요.`;
   } else { dis.className=''; dis.innerHTML=''; }
 
   document.getElementById('fDd').textContent = neg(o.dd.toFixed(2))+'%';
@@ -1118,7 +1144,8 @@ async function boot(){
   // 한국 공휴일 표 — 없으면 주말만 반영하는 기존 동작으로 조용히 되돌아간다
   try{ const kh = await getJSON('data/kr_holidays.json'); KRHOL = kh.holidays || null; }catch(e){ KRHOL = null; }
   if(STATS && !STATS.scenarios.some(s=>s.key===scen)) scen = STATS.scenarios[0].key;
-  if(AUTO && AUTO.default && !localStorage.getItem(SKEY) && STRAT[AUTO.default]) sel = AUTO.default;
+  if(AUTO && AUTO.default && !localStorage.getItem(SKEY)
+     && STRAT[AUTO.default] && !STRAT[AUTO.default].ref) sel = AUTO.default;
   if(!AUTO) load();
   redraw();
   startClock();

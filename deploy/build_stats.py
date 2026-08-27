@@ -169,6 +169,20 @@ def main():
                 '—' if o['sortino'] is None else f"{o['sortino']:.3f}", o['switches']))
     print('\n→', OUT)
 
+    # [v45] signal.json 은 이 파일의 **사본**을 안에 들고 있고, 화면은 그 사본을
+    # 우선한다(signal.html: if(AUTO && AUTO.stats) STATS = AUTO.stats).
+    # 그래서 여기서 새로 굳히면 사본도 같이 갱신해야 한다. 안 하면 다음 일일
+    # 실행 때까지 라이브가 옛 수치를 보여준다 — v36 정정 때 실제로 그랬다.
+    sig = os.path.join('data', 'signal.json')
+    if os.path.exists(sig):
+        with open(sig, encoding='utf-8') as f:
+            j = json.load(f)
+        if j.get('stats', {}).get('generated_at') != payload['generated_at']:
+            j['stats'] = payload
+            with open(sig, 'w', encoding='utf-8') as f:
+                json.dump(j, f, ensure_ascii=False, indent=1)
+            print('→', sig, '(내장 사본 갱신)')
+
 
 if __name__ == '__main__':
     main()

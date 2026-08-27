@@ -202,6 +202,24 @@ def i5_decisions(D):
     krw = ks2(rule_w(ddk, -0.16, -0.16), kd)
     ok('신호원: 미국 종가 > 원화환산', us > krw * 2, f'{us:,.0f} vs {krw:,.0f}')
 
+    # [v45] 화면이 채택 결정을 따르는가.
+    # v43 §4 는 'A 는 선택지가 아니라 참조'로 결정했는데 signal.html 은 계속
+    # 고를 수 있게 두고 있었다. 문서와 화면이 어긋나는 걸 아무도 안 보고 있었다.
+    if os.path.exists('signal.html'):
+        h = io.open('signal.html', encoding='utf-8').read()
+        ok("화면: A 가 참조로 표시된다 (ref:true)",
+           "tag:'참조', ref:true" in h, 'signal.html STRAT.A')
+        ok("화면: 참조 규칙에 클릭 핸들러가 안 붙는다",
+           "host.querySelectorAll('button.opt')" in h and
+           "host.querySelectorAll('.opt')" not in h,
+           "선택자가 button.opt 여야 한다")
+        ok("화면: 기본 규칙이 B 다", "let sel  = 'B';" in h, 'signal.html sel')
+        ok("화면: 저장된 참조 선택을 되돌린다",
+           "!STRAT[s].ref" in h, 'localStorage 마이그레이션')
+        ok("화면: 최종배수를 함께 보여준다",
+           "cell('최종배수'" in h,
+           'MDD·CALMAR·SORTINO 만 보이면 실물구간에서 A 가 3개 다 이긴다')
+
 
 # ------------------------------------------------------------------ I6
 def i6_live():
@@ -218,6 +236,24 @@ def i6_live():
        f"json {j['as_of']} vs csv {s.index[-1].date()}")
     ok('낙폭 재계산 일치 (±0.01%p)', abs(j['dd'] - dd.iloc[-1] * 100) < 0.01,
        f"json {j['dd']}% vs 재계산 {dd.iloc[-1]*100:.2f}%")
+
+    # [v45] signal.json 은 strategy_stats.json 의 **사본**을 안에 들고 있고
+    # 화면은 그 사본을 우선한다. 둘이 어긋나면 라이브가 옛 수치를 보여준다.
+    # v36(국채 정정) 뒤 실제로 그랬다: 화면 263,062 vs 실제 214,076 (23% 과대).
+    if os.path.exists('data/strategy_stats.json'):
+        S = json.load(io.open('data/strategy_stats.json', encoding='utf-8'))
+        emb = (j.get('stats') or {}).get('generated_at')
+        ok('signal.json 내장 stats 가 strategy_stats.json 과 같은 판',
+           emb == S.get('generated_at'), f"내장 {emb} vs 원본 {S.get('generated_at')}")
+        for sc in S['scenarios']:
+            e = [x for x in (j.get('stats') or {}).get('scenarios', [])
+                 if x['key'] == sc['key']]
+            if not e:
+                ok(f"내장 stats 에 {sc['key']} 있음", False, '없음'); continue
+            for k in ('B', 'A'):
+                v0 = sc['strategies'][k]['final']; v1 = e[0]['strategies'][k]['final']
+                ok(f"내장 {sc['key']} {k} 최종배수 일치",
+                   abs(v1 / v0 - 1) < 1e-6, f'{v1:,.1f} vs {v0:,.1f}')
     for k, en, ex in (('B', -0.16, -0.16), ('A', -0.16, -0.11)):
         cur = 'QLD'
         for v in dd.values:

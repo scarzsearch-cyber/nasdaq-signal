@@ -12,6 +12,12 @@ data/strategy_stats.json 을 그대로 실어 나른다.
 """
 import json, os, sys
 import datetime
+# 윈도우 콘솔(cp949)에서 '−'(U+2212) 때문에 마지막 print 가 죽는다.
+# 파일은 이미 쓰인 뒤라 결과는 맞지만, 수동 실행이 실패로 보인다.
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 import urllib.request
 import pandas as pd
 import numpy as np
