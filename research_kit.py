@@ -13,6 +13,7 @@
 | 적립 MDD 를 초기 잔고까지 세서 -70% (v32) | `mdd()` 가 적립 경로면 `since=` 없이는 **거부**한다 |
 | 분포에서 한 숫자만 뽑아 인용 (v32) | `dist()` 가 중앙·5분위·최악을 **항상 함께** 준다 |
 | 계산과 무관한 판정문 인쇄 (v27/v30) | `verdict()` 가 계산값에서만 문장을 만든다 |
+| **관문 다 통과했는데 몇 사건이 다 만든 것** (v53) | `concentration()` 이 **상위 사건 제거 후에도 남는지** 강제한다 |
 
 사용법은 각 함수 독스트링에. 새 분석은 이걸 쓰고, 직접 짜지 마라.
 `python research_kit.py` 로 자기검사를 돌린다(CI 가 부른다).
@@ -177,6 +178,104 @@ def walkforward(fit, test, splits, metric='calmar', fixed=None):
 
 
 # ==================================================================== 판정
+def concentration(contrib, refit=None, base=None, dates=None,
+                  min_episodes=19, top=(1, 3, 5), gap_days=252, name=''):
+    """[Gate 11] 성과가 몇 개 사건에 몰려 있는가 — v53 이 여기서 탈락했다.
+
+    v53(실현변동성 상태변수)은 관문 10개를 **전부** 통과했다.
+    중앙 +11% · P20 +4% · P5 +2% · MDD 개선 · 전환 감소 · 4블록 3/4 ·
+    파라미터 능선 · 비용 5배 유지. 그런데 갈린 구간 32개 중
+    **2000년 두 개가 전체 우위의 87%** 였고, 상위 3개를 빼면 P5 가 뒤집혔다.
+
+    **집계 통계가 전부 좋아도 몇 사건이 만든 것일 수 있다.** 그래서 강제한다.
+
+    contrib : 사건별 **로그** 기여 배열. `sum(contrib)` 이 최종 로그 우위와
+              같아야 한다. 안 맞으면 분해가 틀린 것이므로 여기서 막는다
+              (v53 초판은 체결 지연 한 칸을 빠뜨려 0.831 vs 1.240 이었다).
+    refit   : `drop_idx -> dict(median=, p20=, p5=)`.
+              해당 사건들을 기준선으로 되돌려 **재시뮬**한 결과.
+              None 이면 기여합만 보고 정식 판정은 못 한다.
+    base    : 기준선 `dict(median=, p20=, p5=)`.
+    dates   : 사건 시작일 배열(선택). 주면 `gap_days` 로 **독립 위기 수**를 센다.
+
+    반환: dict(checks=[(이름, 통과, 근거)], ...) — 그대로 verdict() 에 넣으면 된다.
+    """
+    c = np.asarray(contrib, dtype=float)
+    if c.ndim != 1 or len(c) == 0:
+        raise DesignError('concentration(): 사건별 기여 배열이 필요하다')
+    order = np.argsort(-c)
+    tot = float(c.sum())
+
+    # 독립 위기 수 — gap_days 이상 떨어진 것만 별개로 센다
+    n_indep = len(c)
+    if dates is not None:
+        d = pd.to_datetime(pd.Series(list(dates))).sort_values().values
+        n_indep = 1 + int((np.diff(d).astype('timedelta64[D]').astype(int)
+                           > gap_days).sum()) if len(d) > 1 else len(d)
+
+    checks = [
+        ('갈린 사건이 %d개 이상' % min_episodes, len(c) >= min_episodes,
+         '%d개' % len(c)),
+        ('독립 위기가 %d개 이상' % min_episodes, n_indep >= min_episodes,
+         '%d개 (%d일 이상 간격)' % (n_indep, gap_days)),
+        ('사건 승률 > 50%', float((c > 0).mean()) > 0.5,
+         '%d/%d' % (int((c > 0).sum()), len(c))),
+    ]
+    for k in top:
+        if k >= len(c):
+            continue
+        rest = tot - float(c[order[:k]].sum())
+        checks.append(('상위 %d개 제외해도 기여가 양수' % k, rest > 0,
+                       '%+.1f%% -> %+.1f%%' % (tot * 100, rest * 100)))
+    share = (float(c[order[:min(3, len(c))]].sum()) / tot) if tot > 0 else np.nan
+    checks.append(('상위 3개 비중 < 50%', np.isfinite(share) and share < 0.5,
+                   '%.0f%%' % (share * 100) if np.isfinite(share) else '-'))
+
+    if refit is not None and base is not None:
+        for k in top:
+            if k >= len(c):
+                continue
+            r = refit(list(order[:k]))
+            ok = (r['median'] > base['median'] and r['p20'] > base['p20']
+                  and r['p5'] > base['p5'])
+            checks.append(('상위 %d개 제외 후에도 세 지표 우세' % k, ok,
+                           '중앙 %+.0f%% / P20 %+.0f%% / P5 %+.0f%%'
+                           % ((r['median'] / base['median'] - 1) * 100,
+                              (r['p20'] / base['p20'] - 1) * 100,
+                              (r['p5'] / base['p5'] - 1) * 100)))
+    return dict(checks=checks, total=tot, n=len(c), n_indep=n_indep,
+                top_share=share, order=order)
+
+
+def leave_one_crisis_out(refit, base, crises, dates_of, name=''):
+    """[Gate 11-b] 위기를 하나씩 빼고 재시뮬 — 한 시대에 기대는지 본다.
+
+    refit    : `drop_idx -> dict(median=, p20=, p5=)`
+    crises   : [(이름, 시작, 끝), ...]
+    dates_of : 사건 index -> 시작일 (pd.Timestamp)
+    """
+    rows = []
+    for nm, a, b in crises:
+        a, b = pd.Timestamp(a), pd.Timestamp(b)
+        idxs = [i for i, d in dates_of.items() if a <= pd.Timestamp(d) <= b]
+        if not idxs:
+            rows.append((nm, None, '해당 사건 없음'))
+            continue
+        r = refit(idxs)
+        ok = (r['median'] > base['median'] and r['p20'] > base['p20']
+              and r['p5'] > base['p5'])
+        rows.append((nm, ok, '사건 %d개 제외 -> 중앙 %+.0f%% / P20 %+.0f%% / P5 %+.0f%%'
+                     % (len(idxs), (r['median'] / base['median'] - 1) * 100,
+                        (r['p20'] / base['p20'] - 1) * 100,
+                        (r['p5'] / base['p5'] - 1) * 100)))
+    tested = [r for r in rows if r[1] is not None]
+    n_ok = sum(1 for r in tested if r[1])
+    return dict(rows=rows,
+                checks=[('위기를 하나씩 빼도 전부 우세 유지',
+                         len(tested) > 0 and n_ok == len(tested),
+                         '%d/%d 유지' % (n_ok, len(tested)))])
+
+
 def verdict(name, checks, adopt_if=None):
     """판정문을 **계산값에서** 만든다. 문장을 하드코딩하지 못하게 한다.
 
@@ -240,6 +339,25 @@ def _selftest():
     # #4 표본 부족
     case('표본 2개로 dist()', lambda: dist([1, 2]))
 
+    # #6 집중도 — 몇 사건이 전부 만든 경우 (v53)
+    spike = np.r_[np.full(29, 0.001), [0.12, 0.07, 0.066]]     # 32개 중 3개가 다 만든다
+    r = concentration(spike, dates=None)
+    bad = [c for c in r['checks'] if not c[1]]
+    if bad:
+        n += 1
+        print('  [OK]   집중된 후보를 concentration() 이 잡는다')
+        for c in bad[:3]:
+            print('         └ %s : %s' % (c[0], c[2]))
+    else:
+        print('  [FAIL] 집중된 후보를 못 잡았다')
+    flat = np.full(32, 0.008)                                   # 고르게 퍼진 경우
+    r2 = concentration(flat)
+    if all(c[1] for c in r2['checks'] if '상위' in c[0]):
+        print('  [OK]   고르게 퍼진 후보는 통과시킨다')
+    else:
+        print('  [FAIL] 고른 후보를 잘못 막았다')
+    case('빈 기여 배열로 concentration()', lambda: concentration([]))
+
     # #5 판정문 생성
     v = verdict('테스트축', [('플라시보', True, 'p=0.02'),
                             ('워크포워드', False, 'OOS -7.3%')])
@@ -249,7 +367,7 @@ def _selftest():
     print("\n" + "=" * 70)
     print(f"설계 오류 {n}종을 API 단계에서 차단했다.")
     print("=" * 70)
-    return n >= 4
+    return n >= 6
 
 
 if __name__ == '__main__':

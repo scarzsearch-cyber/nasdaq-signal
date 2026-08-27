@@ -213,6 +213,10 @@ from research_kit import sweep, walkforward, mdd, mdd_vs_paid, dist, verdict
 - [ ] **사본을 만들었으면 원본과 대조할 것.** `signal.json` 이 `strategy_stats.json`
       의 사본을 들고 있었고, v36 정정 뒤 화면이 옛 수치(263,062배)를 보여줬다(v45).
       I6 이 이제 매번 대조한다.
+- [ ] **관문을 다 통과해도 집중도를 볼 것.** v53 은 중앙·P20·P5·MDD·4블록·
+      파라미터능선·비용·시작일까지 **10관문을 전부 통과**하고도, 상위 3개 사건을
+      빼니 P5 가 −4% 로 뒤집혔다(독립 위기 9개, 최소 19 미달).
+      `research_kit.concentration()` 과 `leave_one_crisis_out()` 을 반드시 쓸 것.
 
 ### 남는 위험과, 사용자가 쓸 수 있는 지렛대
 
