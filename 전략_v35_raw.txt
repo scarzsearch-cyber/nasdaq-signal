@@ -1,0 +1,91 @@
+전수조사 대상: 파이썬 59개 파일
+
+============================================================================================
+★ 시점별 재계산 (point-in-time replay) — 미래참조의 결정적 검사
+============================================================================================
+  (a) QQQ 252일 낙폭        불일치 0/40
+  (b) 변동성 z점수 zc()      불일치 0/40
+  (c) 확장창 분위 exp_q()    불일치 0/40
+  (d) 비중경로 rule_w()      불일치 0/40
+
+  -> 총 불일치 0건. 0 이면 어떤 신호도 미래를 보지 않는다.
+
+파싱 성공 59/59
+
+============================================================================================
+[HIGH] 0건
+============================================================================================
+  없음
+
+============================================================================================
+[CHECK] 6건
+============================================================================================
+  archive/v20_히스테리시스/hyst_signif.py:29  <전표본문턱>  % ((boot > 0).mean() * 100, np.exp(np.percentile(boot, 5)), np.exp(np.percentile(boot, 9
+  audit_full.py:106  <전표본문턱>  if any(k in s for k in ('nanpercentile', 'np.percentile', '.quantile(')) \
+  axis_macro.py:289  <shift누락>  z() 가 rolling/expanding 결과를 shift 없이 반환
+  axis_macro3.py:141  <전표본문턱>  for nm, mk in [('전표본 분위 (누수)', rvz >= np.nanpercentile(rvz, 95)),
+  axis_macro4.py:41  <shift누락>  zc() 가 rolling/expanding 결과를 shift 없이 반환
+  axis_volguard.py:43  <shift누락>  zc() 가 rolling/expanding 결과를 shift 없이 반환
+
+============================================================================================
+전수 목록
+============================================================================================
+  archive/v19_복귀로직/reentry_cd.py
+  archive/v19_복귀로직/reentry_edge.py
+  archive/v19_복귀로직/reentry_final.py
+  archive/v19_복귀로직/reentry_grid.py
+  archive/v19_복귀로직/reentry_plateau.py
+  archive/v19_복귀로직/reentry_staged.py
+  archive/v19_복귀로직/reentry_vshape.py
+  archive/v19_복귀로직/reentry_wfa.py
+  archive/v20_히스테리시스/hyst_decomp.py
+  archive/v20_히스테리시스/hyst_episodes.py
+  archive/v20_히스테리시스/hyst_focus.py
+  archive/v20_히스테리시스/hyst_mdd.py
+  archive/v20_히스테리시스/hyst_mech.py
+  archive/v20_히스테리시스/hyst_robust.py
+  archive/v20_히스테리시스/hyst_signif.py  <- 1건
+  audit_all.py
+  audit_full.py  <- 1건
+  axis_accum.py
+  axis_accum2.py
+  axis_defmix.py
+  axis_defsel.py
+  axis_ens.py
+  axis_isa.py
+  axis_krspec.py
+  axis_krspread.py
+  axis_lev.py
+  axis_lib.py
+  axis_macro.py  <- 1건
+  axis_macro2.py
+  axis_macro3.py  <- 1건
+  axis_macro4.py  <- 1건
+  axis_sigsrc.py
+  axis_volguard.py  <- 1건
+  axis_vrhybrid.py
+  deploy/build_stats.py
+  deploy/kr_holidays.py
+  deploy/nav_collect.py
+  deploy/update_signal.py
+  hist_data.py
+  hist_defasset.py
+  hist_defchain.py
+  hist_defdiag.py
+  hist_defensive.py
+  hist_defrun.py
+  hist_divetf.py
+  hist_fetch.py
+  hist_korea.py
+  hist_krfinal.py
+  hist_krreal.py
+  hist_krtax.py
+  hist_three.py
+  hist_tiger.py
+  hyst_core.py
+  hyst_signal.py
+  hyst_sigwfa.py
+  hyst_wfa.py
+  reentry_lib.py
+  verify.py
+  verify_volguard.py
