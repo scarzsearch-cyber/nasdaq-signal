@@ -32,6 +32,7 @@
   I7  공표 수치      strategy_stats.json 이 현재 코드 출력과 일치
   I8  의존성         공용 모형 사용처가 전부 최신인가
   I9  폐기 수치      옛 공표값이 현행 문서·화면에 남아 있지 않은가
+  I10 전제 감시      나스닥 고유 성질(극단 MDD·장기 상승)이 유지되는가
 """
 import argparse
 import io
@@ -331,6 +332,43 @@ def i9_retired():
        f'{len(missing)}건 누락' if missing else f'{len(cfg["retired"])}종 확인', warn=True)
 
 
+# ------------------------------------------------------------------ I10
+def i10_premise(D):
+    """전략의 전제가 아직 유효한가 — 나스닥 고유 성질에 의존한다
+
+    [v44] 같은 규칙을 다른 지수에 적용해보니 S&P500·코스피에서는 그냥 보유에 진다.
+    전략의 값어치는 「강한 장기 상승 + 극단적 레버리지 붕괴」라는 나스닥의 성질에서
+    나온다. 그 성질이 변하면 우위도 사라진다. 그래서 세 가지를 감시한다.
+
+      P1  2배 그냥 보유의 MDD 가 여전히 극단적인가 (-90% 수준)
+          -> S&P500 처럼 -86% 로 얕아지면 전략의 존재 이유가 준다
+      P2  기초지수가 여전히 장기 상승 추세인가
+          -> 코스피처럼 횡보하면 지킬 상승이 없다
+      P3  전략이 여전히 그냥 보유를 이기는가
+    """
+    head("I10. 전제 감시 — 나스닥 고유 성질이 유지되는가 (v44)")
+    from axis_lib import rule_w, lev_r, COST
+    from axis_defmix import materials, mix_monthly_from, sim_def
+    idx = D['idx']
+    comp = materials(D)
+    defr = mix_monthly_from({k: comp[k] for k in ('div', 'ust5', 'gold')},
+                            {'div': .4, 'ust5': .4, 'gold': .2}, idx)
+    r2 = np.nan_to_num(lev_r(D, 2.0))
+    bh = np.cumprod(1 + r2)
+    bh_mdd = float((bh / np.maximum.accumulate(bh) - 1).min())
+    ok('P1 2배 보유 MDD 가 -90% 이하 (전략의 존재 이유)', bh_mdd <= -0.90,
+       f'{bh_mdd*100:.1f}%')
+
+    px = D['px']
+    n20 = 20 * 252
+    tr = float((px.iloc[-1] / px.iloc[-n20]) ** (252 / n20) - 1) if len(px) > n20 else np.nan
+    ok('P2 기초지수 최근 20년 연평균 상승 > 3%', tr > 0.03, f'{tr*100:.1f}%/년')
+
+    st = float(sim_def(D, rule_w(D['ddv'], -0.16, -0.16), defr).iloc[-1])
+    ok('P3 전략이 2배 그냥 보유를 이긴다', st > bh[-1],
+       f'{st:,.0f} vs {bh[-1]:,.0f} ({st/bh[-1]:.1f}배)')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--fast', action='store_true', help='빠른 검사만 (CI 기본)')
@@ -346,6 +384,7 @@ def main():
         i4_real(D)
         i5_decisions(D)
         i7_stats(D)
+        i10_premise(D)
     i9_retired()
     i8_deps()
     head(f"결과  ({time.time()-T0:.0f}초)")
