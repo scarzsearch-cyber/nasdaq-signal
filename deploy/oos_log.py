@@ -41,7 +41,13 @@ def main():
         print('%s 는 동결일 이전 — 기록하지 않는다' % as_of)
         return
 
-    b = (j.get('strategies') or {}).get(f['rule']['name'].replace('-16/-16', 'B')) or {}
+    # 동결 규칙은 signal.json 의 'B' 항목이다. freeze.json 과 문턱이 일치하는지
+    # 확인하고 쓴다 — 이름 문자열을 파싱하지 않는다(몇 년을 무인으로 돌 코드다).
+    b = (j.get('strategies') or {}).get('B') or {}
+    if b and 'enter' in b and abs(float(b.get('enter', 0)) / 100 - f['rule']['enter']) > 1e-9:
+        print('[경고] signal.json 의 B 진입선이 동결값과 다르다 — 기록을 멈춘다',
+              file=sys.stderr)
+        return
     row = {
         'as_of': as_of,
         'close': j.get('close'),
