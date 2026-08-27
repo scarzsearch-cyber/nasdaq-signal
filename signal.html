@@ -94,17 +94,19 @@ body{padding:28px 20px 64px;}
 .scennote{font-size:15px;color:var(--muted);line-height:1.55;margin-top:8px;}
 /* [v60] 카드 지표 6개가 각각 뭔지. 비교표 각주는 화면 한참 아래라 여기서 한 번 준다.
    한 줄 문장으로 두니 폰에서 188px 를 먹었다 — 한 줄에 하나씩 격자로 놓는다. */
-.metkey{font-size:14px;color:var(--muted);line-height:1.55;margin-top:11px;}
+/* [v63] 규칙 카드와 같은 흰 패널. 3칸 x 2줄 — 세로로 쭉 늘어놓으면 안 읽힌다. */
+.metkey{background:var(--panel);border:1px solid var(--rule);border-radius:2px;
+  padding:14px 16px 12px;margin-top:10px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:13px 20px;
+  font-size:14px;color:var(--muted);line-height:1.5;}
 .metkey b{color:var(--ink);font-weight:600;}
-.metkey .mk{padding:3px 0;}
-.metkey .mk>b:first-child{display:inline-block;min-width:74px;}
-/* 풀이 — 정의 뒤에 붙는 '그래서 얼마냐' */
-.metkey .rd{display:block;margin:1px 0 0 74px;color:var(--ink);}
-.metkey .dir{margin-top:7px;padding-top:6px;border-top:1px solid #E8ECEF;}
-@media(max-width:600px){
-  .metkey .mk>b:first-child{min-width:0;display:block;}
-  .metkey .rd{margin-left:0;}
-}
+.metkey .mk .nm{font-size:15px;font-weight:600;color:var(--ink);
+  letter-spacing:.02em;margin-bottom:2px;}
+.metkey .mk .df{display:block;}
+.metkey .mk .rd{display:block;margin-top:4px;color:var(--ink);}
+.metkey .dir{grid-column:1/-1;margin-top:2px;padding-top:9px;border-top:1px solid #E8ECEF;}
+@media(max-width:900px){ .metkey{grid-template-columns:repeat(2,1fr);} }
+@media(max-width:600px){ .metkey{grid-template-columns:1fr;gap:11px;padding:13px 14px 11px;} }
 
 /* ---- 신호 패널 ---- */
 .signal{display:grid;grid-template-columns:156px 1fr;gap:0;background:var(--panel);
@@ -195,9 +197,15 @@ td.s-schd{color:var(--defend);font-weight:600;}
 
 /* ---- 성과표 ---- */
 .perf{overflow-x:auto;}
+/* [v63] 표 사이 소제목 */
+.guide h3.sub{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
+  font-size:15px;font-weight:700;letter-spacing:.08em;color:var(--muted);
+  text-transform:uppercase;margin:26px 0 10px;padding-top:16px;border-top:1px solid var(--rule);}
 .perf table{min-width:860px;margin-top:0;}   /* [v60] 회복기간·Ulcer 두 칸 추가 */
 /* [v61] 벤치마크 줄 — 규칙 줄과 구분되게 흐리게 */
 .perf tr.bench td{color:var(--muted);}
+/* [v63] 기준 이름 아래 그 기준의 실제 구간 */
+.perf td.scen .per{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-top:2px;white-space:nowrap;}
 .perf tr.bench td.strat{font-weight:400;}
 .perf th{white-space:nowrap;}
 .perf td{white-space:nowrap;}
@@ -396,9 +404,12 @@ td.s-schd{color:var(--defend);font-weight:600;}
   </div>
 
   <div class="guide" id="perfPanel" hidden>
-    <h2>두 전략 성과 비교</h2>
+    <h2>성과 비교</h2>
     <div class="perf" id="perfBody"></div>
     <div class="hint" id="perfNote"></div>
+    <h3 class="sub">같은 기간으로 맞추면</h3>
+    <div class="perf" id="horizBody"></div>
+    <div class="hint" id="horizNote"></div>
   </div>
 
   <!-- 수치 출처: axis_isa.py [v33 정정 반영] (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
@@ -781,7 +792,8 @@ function paintMetKey(sc){
   const m = sc ? stratsOf(sc)[sel] : null;
   const bv = sc ? benchOf(sc, 'lev') : null;
   const row = (nm, def, read) =>
-    `<div class="mk"><b>${nm}</b> ${def}${read?`<span class="rd">${read}</span>`:''}</div>`;
+    `<div class="mk"><div class="nm">${nm}</div><span class="df">${def}</span>` +
+    `${read?`<span class="rd">${read}</span>`:''}</div>`;
   if(!m){ el.innerHTML = ''; return; }
 
   // MDD → 원금이 얼마가 되나. 백분율보다 금액이 훨씬 빨리 읽힌다. (단위: 만원)
@@ -832,11 +844,13 @@ function drawPerf(){
         <td class="num">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
         <td class="num">${uwfmt(m)}</td>
         <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
+  // [v63] 기준마다 기간이 다르다는 걸 표에서 바로 보이게 — 최종배수 세로비교 함정 방지
+  const per = m => `<span class="per">${m.start.slice(0,7)} ~ ${m.end.slice(0,7)} (${m.years}년)</span>`;
   let body = '';
   STATS.scenarios.forEach((s,si)=>{
     const m = stratsOf(s)[sel];
     body += `<tr class="on${si>0?' grp':''}">
-      <td class="scen">${s.label}</td>
+      <td class="scen">${s.label}${per(m)}</td>
       <td class="strat">${STRAT[sel].name}</td>${cols(m)}
       <td class="num">${m.switches}</td></tr>`;
     Object.keys(BENCH).forEach(bk=>{
@@ -853,11 +867,7 @@ function drawPerf(){
   //       ① 지표 뜻 ② 왜 두 지표를 더 두나 ③ 읽을 때의 함정 ④ 각 줄의 전제 ⑤ 계산 조건
   // [v62] 요점만. 길게 풀어 쓰면 안 읽힌다 — 자세한 것은 카드 아래 지표 풀이에 있다.
   document.getElementById('perfNote').innerHTML =
-    `<p><span class="lead">지표</span> — Calmar·Sortino 는 <b>클수록</b>,
-       MDD·회복기간·Ulcer 는 <b>작을수록</b> 좋습니다. 전환 = 실제 체결 횟수.
-       회복기간의 <b>+</b>는 아직 전고점을 못 되찾은 상태입니다.</p>
-
-     <p><span class="lead">눈금</span> — 기준마다 <b>2배 그냥 보유</b>(전략을 안 썼을 때)와
+    `<p><span class="lead">눈금</span> — 기준마다 <b>2배 그냥 보유</b>(전략을 안 썼을 때)와
        <b>${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'} 단독</b>(공격을 안 했을 때)을
        흐린 줄로 붙였습니다. 같은 기간·같은 재료·같은 달력입니다.</p>
 
@@ -869,6 +879,41 @@ function drawPerf(){
      <p><span class="lead">전제</span> — 「원화」는 환노출 2배 + 슬리피지 0.1%,
        「달러」는 미국 종가 체결. 달러·54년은 나스닥 종합/NDX/QQQ를 이어붙인 대리 시계열이라
        같은 자산이 아닙니다.</p>`;
+  drawHoriz();
+}
+
+/* [v63] 같은 기간으로 맞춘 배수.
+   최종배수는 기준마다 시작일이 달라 세로로 못 비교한다. 넷 다 **같은 날**에 끝나므로
+   끝에서 N년을 잘라내면 같은 창이 된다. 실물 TIGER(3.2년)는 잘라낼 구간이 없다. */
+const HZ = ['5','10','15','20'];
+function drawHoriz(){
+  const host = document.getElementById('horizBody');
+  if(!STATS){ host.innerHTML = ''; return; }
+  const head = `<tr><th>기준</th><th>규칙 · 비교</th>` +
+    HZ.map(y=>`<th style="text-align:right">최근 ${y}년</th>`).join('') + `</tr>`;
+  const cells = m => HZ.map(y=>{
+    const v = m.horizons ? m.horizons[y] : null;
+    return `<td class="num">${v==null ? '—' : nfmt(v)+'배'}</td>`;
+  }).join('');
+  let body = '';
+  STATS.scenarios.forEach((s,si)=>{
+    const m = stratsOf(s)[sel], b = benchOf(s,'lev');
+    body += `<tr class="on${si>0?' grp':''}">
+      <td class="scen">${s.label}</td>
+      <td class="strat">${STRAT[sel].name}</td>${cells(m)}</tr>`;
+    if(b) body += `<tr class="bench"><td class="scen"></td>
+      <td class="strat">${BENCH.lev}</td>${cells(b)}</tr>`;
+  });
+  host.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  document.getElementById('horizNote').innerHTML =
+    `<p>네 기준 모두 <b style="color:var(--ink)">${STATS.scenarios[0].strategies.B.end}</b> 에서 끝납니다.
+       거기서 거꾸로 N년을 잘라낸 배수라 <b>세로로 비교해도 됩니다</b>.
+       실물 TIGER는 표본이 3.2년뿐이라 잘라낼 구간이 없습니다.</p>
+     <p><span class="lead">여기서 보이는 것</span> —
+       <b style="color:var(--ink)">최근 5·10·15년은 2배 그냥 보유가 이깁니다.</b>
+       그 구간에 −16%를 크게 밟은 적이 거의 없어 전략이 할 일이 없었기 때문입니다.
+       <b style="color:var(--ink)">2008년이 들어오는 20년으로 넓히면 뒤집힙니다.</b>
+       이 전략은 상승장에서 더 벌려는 게 아니라 <b>폭락에서 덜 잃으려는</b> 것입니다.</p>`;
 }
 
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */

@@ -62,6 +62,25 @@ STRATS = {
 }
 
 
+def horizons(curve, years=(5, 10, 15, 20)):
+    """[v63] **끝 날짜를 맞춘** 최근 N년 배수.
+
+    최종배수는 기준마다 시작일이 달라 세로로 비교할 수 없다(달러 26.6년 165배 vs
+    원화 29.6년 2,761배). 넷 다 같은 날(마지막 종가)에 끝나므로 **끝에서 N년을
+    잘라내면** 같은 창으로 맞출 수 있다. 구간이 모자라면 None.
+    """
+    end = curve.index[-1]
+    out = {}
+    for y in years:
+        st = end - pd.DateOffset(years=y)
+        if curve.index[0] > st:
+            out[str(y)] = None
+            continue
+        i = int(curve.index.searchsorted(st))
+        out[str(y)] = round(float(curve.iloc[-1] / curve.iloc[i]), 3)
+    return out
+
+
 def pack(curve, turn):
     m = met(curve)
     ui, uwd, uwo, dmean = ulcer_uw(curve)
@@ -79,6 +98,7 @@ def pack(curve, turn):
         'uw_months': round(uwd / 30.4375, 1),
         'uw_open': bool(uwo),
         'switches': int(np.sum(np.asarray(turn) > 1e-9)),
+        'horizons': horizons(curve),         # [v63] 끝을 맞춘 최근 5/10/15/20년 배수
         'start': curve.index[0].strftime('%Y-%m-%d'),
         'end': curve.index[-1].strftime('%Y-%m-%d'),
     }

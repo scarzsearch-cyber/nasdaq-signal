@@ -218,6 +218,10 @@ def i5_decisions(D):
         ok("화면: 지표에 벤치마크 눈금이 붙는다",
            "function benchOf" in h and "benchOf(s, 'lev')" in h,
            '값 아래 회색 = 같은 기간 2배 그냥 보유')
+        # [v63] 같은 기간으로 맞춘 표 — 최종배수 세로비교 함정의 정면 해법
+        ok("화면: 같은 기간 비교표가 있다",
+           'function drawHoriz' in h and 'id="horizBody"' in h, '최근 5/10/15/20년')
+        ok("화면: 기준마다 실제 구간을 적는다", 'class="per"' in h, '시작~끝 (n.n년)')
         ok("화면: 비교표에 벤치마크 줄이 있다",
            "tr class=\"bench\"" in h, '2배 보유 · 방어 단독')
         # [v60] 6개를 다 그리는가. 최종배수를 빼면 실물 3.2년 구간이 왜곡돼 보인다.
@@ -331,6 +335,13 @@ def i6_live():
                     ok(f"내장 {sc['key']} {k} {fld} 일치",
                        a is not None and b is not None and abs(b - a) < 1e-9,
                        f'{b} vs {a}')
+            # [v63] 같은 기간 비교표가 읽는 값
+            for k in ('B',):
+                a = (sc['strategies'][k].get('horizons') or {}).get('20')
+                b = (e[0]['strategies'][k].get('horizons') or {}).get('20')
+                ok(f"내장 {sc['key']} {k} horizons 일치",
+                   (a is None and b is None) or
+                   (a is not None and b is not None and abs(b - a) < 1e-9), f'{b} vs {a}')
             # [v61] 화면 눈금이 되는 벤치마크도 사본에 있어야 한다
             for bk in ('lev', 'def'):
                 a = (sc.get('benchmarks') or {}).get(bk, {}).get('ulcer')
