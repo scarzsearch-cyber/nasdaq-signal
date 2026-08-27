@@ -42,7 +42,7 @@ jobs:
 
       - name: 전수조사 (예약 실행·수동 실행만)
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: python3 audit_full.py
+        run: python3 audit/audit_full.py
 
       - name: 실패하면 이슈 열기
         if: failure() && (github.event_name == 'schedule' || github.event_name == 'push')

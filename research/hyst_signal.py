@@ -4,6 +4,14 @@
 - 사전에 정한 소수 후보만 비교 (대규모 Grid Search 금지 규약 준수)
 - 합성 QLD 구간과 실물 QLD 구간을 반드시 분리해 보고
 """
+# --- [v39] 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------
+# 이 3줄이 없으면 `python research/axis_isa.py` 가 import 와 data/ 경로를 못 찾는다.
+# 폴더를 나눠도 실험에 지장이 없게 하는 장치다. 지우지 말 것.
+import os as _os, sys as _sys
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+# ---------------------------------------------------------------------------
+
 import numpy as np, pandas as pd
 from reentry_lib import run, met, rolling_stats
 import hist_data as H

@@ -99,6 +99,9 @@ from research_kit import sweep, walkforward, mdd, mdd_vs_paid, dist, verdict
 
 `python research_kit.py` 자기검사. CI 가 매 push 마다 부른다.
 
+**새 연구 스크립트는 `research/` 에 만들고 상단에 경로 보정 3줄을 넣어라**
+(`research/` 의 아무 파일에서 복사). 그러면 어디서 실행하든 루트 엔진·데이터를 찾는다.
+
 **한계**: 이 함수를 **안 쓰면 무력하다.** 급해도 직접 짜지 마라.
 
 ---

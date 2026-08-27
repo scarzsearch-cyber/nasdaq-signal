@@ -14,6 +14,14 @@ axis_macro.py 는 2011-2026 구간에서만 잴 수 있었다(SCHD 시작일). �
 은 판정 근거로 약하다 — 점수가 닮아도 **문턱을 넘는 날의 집합**은 다를 수 있다.
 실제 자카드 겹침은 61.7% 다. 정정본은 axis_macro3.py [A5].
 """
+# --- [v39] 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------
+# 이 3줄이 없으면 `python research/axis_isa.py` 가 import 와 data/ 경로를 못 찾는다.
+# 폴더를 나눠도 실험에 지장이 없게 하는 장치다. 지우지 말 것.
+import os as _os, sys as _sys
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+# ---------------------------------------------------------------------------
+
 import sys
 import numpy as np
 import pandas as pd

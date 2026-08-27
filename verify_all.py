@@ -4,6 +4,7 @@
 
 사용자는 파이썬을 직접 돌리지 않는다. 그래서 **검증이 자동으로 돌아야** 하고,
 실패하면 **CI 가 막아야** 한다. `.github/workflows/verify.yml` 이 매 push 마다 부른다.
+**이 파일은 루트에 있어야 한다** — 사용자와 CI 의 진입점이다.
 
     python verify_all.py            # 전체 (느림, 5~15분)
     python verify_all.py --fast     # 빠른 것만 (CI 기본, 1~2분)

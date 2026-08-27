@@ -71,8 +71,9 @@ python verify_all.py --fast   # CI 가 매 push 마다 부르는 것
 | I7 공표 수치 | `strategy_stats.json` 이 현재 코드와 일치 |
 | I8 의존성 | 공용 모형 사용처 목록 |
 
-추가 도구: `audit_all.py`(채택 결정 재검증) · `audit_full.py`(59파일 전수조사) ·
-`verify.py`(채택안 단독 검산) · `verify_volguard.py`(v32/33 관문)
+추가 도구 (`audit/` 폴더):
+`audit/audit_all.py`(채택 결정 재검증) · `audit/audit_full.py`(전수조사) ·
+`audit/verify.py`(채택안 단독 검산) · `audit/verify_volguard.py`(v32/33 관문)
 
 ---
 
@@ -106,11 +107,15 @@ data/*.json, data/qqq.csv   화면이 읽는 것
 > 그 목록을 보고 관련 raw 출력을 재생성하라. 2026-08-27 에 이걸 안 해서
 > v27 의 근거 문장 하나가 뒤집힌 채 남아 있었다.
 
-### 연구 기록 (실행할 일 없음 — 기각 근거의 증거)
+### 연구 기록 — `research/` (23개)
 
-`axis_*.py` 20여 개와 `docs/전략_v*.md` 19개, `docs/raw/*.txt` 17개.
-**지우지 않는 이유**: 각 기각 판정의 재현 코드이자 증거다.
-같은 축을 또 파지 않으려면 이 기록이 있어야 한다.
+각 기각 판정의 재현 코드다. **지우지 않는 이유**: 같은 축을 또 파지 않으려면
+증거가 있어야 한다. `docs/전략_v*.md` 와 짝을 이룬다.
+
+**폴더를 나눠도 실험에 지장 없다.** 각 파일 상단에 3줄짜리 경로 보정이 들어 있어
+`python research/axis_isa.py` 처럼 어디서 실행하든 루트의 엔진과 `data/` 를 찾는다.
+새 연구 스크립트를 만들 때도 같은 3줄을 복사해 넣으면 된다.
+
 `archive/` 는 v19~v20 시절 폐기본 15개.
 
 ---

@@ -1,19 +1,63 @@
 # 파일 분류
 
-> **먼저 `README.md` 를 읽으세요.** 전략·자동화·파일 지도·오류 원인 분석이 거기 있습니다.
-> 이 파일은 **스크립트별 역할**의 상세 목록입니다.
->
-> 구조 (2026-08-27 v37 정리):
-> ```
-> README.md HANDOFF.md FILES.md     ← 여기서 시작
-> verify_all.py                     ← 검증 단일 진입점 (python verify_all.py)
-> signal.html  deploy/  data/  .github/   ← 라이브. 건드리면 안 됨
-> reentry_lib axis_lib hist_*       ← 공용 엔진. 고치면 사용처 전부 재실행
-> axis_*.py                         ← 연구 기록 (실행할 일 없음)
-> docs/전략_v*.md  docs/raw/*.txt   ← 판정 문서와 원본 출력
-> docs/HANDOFF_전체이력.md          ← 세션별 전체 이력
-> archive/                          ← v19~v20 폐기본
-> ```
+> **먼저 `전략_요약.md` 를 읽으세요** (5분). 그 다음이 `README.md` 입니다.
+> 이 파일은 스크립트별 상세 목록입니다.
+
+## 폴더 구조 (2026-08-27 v39 정리)
+
+```
+전략_요약.md            ★ 이것부터. 전략·근거·결론 5분 요약
+README.md               전략·자동화·파일지도·오류원인·체크리스트
+HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
+FILES.md                이 파일
+
+verify_all.py           ★ 검증 단일 진입점 —  python verify_all.py
+research_kit.py         새 분석용 도구 (설계 오류를 API 에서 차단)
+signal.html             화면 전부
+
+── 공용 엔진 (루트, 12개) — 고치면 사용처 전부 재실행 ──
+reentry_lib.py          체결·비용 규약의 단일 원천
+axis_lib.py             rule_w / sim / accumulate / lev_r / check
+axis_defmix.py          materials / sim_hold / check_hold
+axis_volguard.py        zc / exp_q (변동성 유틸)
+hist_data.py            1972- 나스닥 3구간 접합
+hist_defensive.py       배당체인 build()
+hist_defasset.py        ust_tr / gold_r / mix_monthly
+hist_korea.py           한국 거래일 체결
+hist_krfinal.py         원화 환산
+hist_krreal.py          실물 TIGER 시가 체결
+hist_divetf.py          배당 ETF 교차검증
+hist_tiger.py           국내 ETF 원자료
+hyst_core.py            A/B 전략 정의
+qqq/qld/schd_us_d.csv   미국 ETF 원자료
+
+audit/      (4)  audit_all · audit_full · verify · verify_volguard
+research/   (23) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
+deploy/     (6)  라이브 파이프라인 — 건드리지 말 것
+data/       (7)  화면이 읽는 것 — 워크플로 소유
+docs/       (21) 전략_v*.md · raw/ · HANDOFF_전체이력
+archive/    (4)  v19~v20 폐기본
+```
+
+### 폴더를 나눠도 실험에 지장 없다
+
+`audit/` 와 `research/` 의 모든 파일 상단에 **경로 보정 3줄**이 들어 있다:
+
+```python
+import os as _os, sys as _sys
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+```
+
+이 3줄이 루트를 `sys.path` 에 넣고 작업 디렉터리를 루트로 옮긴다. 그래서
+`python research/axis_isa.py` 든 다른 폴더에서 절대경로로 부르든 **똑같이 돈다.**
+루트 엔진 import 도, `data/hist/...` 상대경로도 그대로 작동한다.
+검증 완료: `audit/verify.py`, `research/axis_krspec.py`, `research/hyst_wfa.py` 를
+임의 폴더에서 실행해 정상 동작 확인.
+
+**새 연구 스크립트를 만들 때도 이 3줄을 복사해 넣으면 된다.**
+
+---
 
 아래는 스크립트별 상세다. (2026-08-26 분류 + v37 정리 반영)
 

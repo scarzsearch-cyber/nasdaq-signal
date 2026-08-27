@@ -15,6 +15,14 @@ v27(재조정 비용 분모)·v30(체결규약)·v33(적립 2일 지연) 세 번
 [D] 채택 결정 재검증  ★ 핵심 — 지금 계산해도 같은 답이 나오는가
 [E] 문서 수치 대조  공표된 숫자가 현재 코드 출력과 맞는가
 """
+# --- [v39] 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------
+# 이 3줄이 없으면 `python research/axis_isa.py` 가 import 와 data/ 경로를 못 찾는다.
+# 폴더를 나눠도 실험에 지장이 없게 하는 장치다. 지우지 말 것.
+import os as _os, sys as _sys
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+# ---------------------------------------------------------------------------
+
 import sys
 import numpy as np
 import pandas as pd

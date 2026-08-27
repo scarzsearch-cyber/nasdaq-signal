@@ -22,6 +22,14 @@ v30 초판(axis_macro.py / axis_macro2.py)의 결론 "매크로 전부 기각" �
 [C] 살아남은 후보 — 변동성 조건부 조기방어. 관문 9개.
     **결정적 대조: 그냥 문턱을 낮춘 것과 구분되는가**
 """
+# --- [v39] 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------
+# 이 3줄이 없으면 `python research/axis_isa.py` 가 import 와 data/ 경로를 못 찾는다.
+# 폴더를 나눠도 실험에 지장이 없게 하는 장치다. 지우지 말 것.
+import os as _os, sys as _sys
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+# ---------------------------------------------------------------------------
+
 import sys
 import numpy as np
 import pandas as pd

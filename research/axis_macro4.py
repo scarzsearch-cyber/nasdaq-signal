@@ -21,6 +21,14 @@ v31 §4 는 이 후보를 기각하면서 이렇게 적었다:
   - Q2 에서 고정문턱 프론티어보다 **위**에 있어야 변동성 정보가 기여한 것이다
   - Q3 앙상블이 개선을 유지해야 '파라미터를 안 골라도 된다'가 성립한다
 """
+# --- [v39] 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------
+# 이 3줄이 없으면 `python research/axis_isa.py` 가 import 와 data/ 경로를 못 찾는다.
+# 폴더를 나눠도 실험에 지장이 없게 하는 장치다. 지우지 말 것.
+import os as _os, sys as _sys
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+# ---------------------------------------------------------------------------
+
 import sys
 import numpy as np
 import pandas as pd
