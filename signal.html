@@ -74,7 +74,8 @@ body{padding:28px 20px 64px;}
   background:#E6EBEF;color:var(--muted);}
 .opt[aria-pressed="true"] .tag{background:var(--ink);color:#fff;}
 .opt .desc{font-size:16px;color:var(--muted);line-height:1.5;margin:7px 0 12px;}
-.opt .mets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+/* [v60] 지표 6개 — 3칸 x 2줄. 폰·태블릿은 아래에서 2칸 x 3줄로 접는다 */
+.opt .mets{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 8px;
   border-top:1px solid #E8ECEF;padding-top:10px;}
 .opt .mets .k{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);
   letter-spacing:.06em;margin-bottom:2px;}
@@ -174,7 +175,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
 
 /* ---- 성과표 ---- */
 .perf{overflow-x:auto;}
-.perf table{min-width:700px;margin-top:0;}
+.perf table{min-width:860px;margin-top:0;}   /* [v60] 회복기간·Ulcer 두 칸 추가 */
 .perf th{white-space:nowrap;}
 .perf td{white-space:nowrap;}
 .perf td.num{text-align:right;}
@@ -609,6 +610,14 @@ function neg(s){ return String(s).replace(/-/g,'−'); }
 function stateLabel(x){ return x==='QLD' ? 'QLD' : '방어'; }   // 내부 상태는 SCHD, 화면은 방어
 function pct(x){ return neg((x*100).toFixed(2))+'%'; }
 function num(x){ return x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+/* [v60] 최장 회복기간. 24개월 넘어가면 '년'이 읽기 쉽다.
+   '+' 는 그 구간이 아직 안 끝났다는 뜻 — 마지막 날까지 전고점을 못 되찾았다. */
+function uwfmt(m){
+  if(m.uw_months==null) return '—';
+  const t = m.uw_months>=24 ? (m.uw_months/12).toFixed(1)+'년'
+                            : Math.round(m.uw_months)+'개월';
+  return t + (m.uw_open ? '+' : '');
+}
 function nfmt(x){ return x>=1000 ? x.toLocaleString('en-US',{maximumFractionDigits:0})
                                  : x.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1}); }
 
@@ -660,13 +669,20 @@ function drawPicker(){
     if(m){
       // [v45] 최종배수를 맨 앞에 둔다. 이걸 빼고 MDD·CALMAR·SORTINO 만 보이면
       //       실물 TIGER 3.2년 구간에서 A 가 3개 다 이겨 '더 나은 선택'처럼 보인다.
+      // [v60] 뒤 두 개는 MDD 가 못 재는 것을 잰다. MDD 는 최악의 '한 점'이라
+      //       얕지만 몇 년을 끄는 곡선과 깊지만 반년에 되찾는 곡선을 구분 못 한다.
+      //       회복기간·Ulcer 는 낮을수록 좋다 — 비교 방향이 반대다.
+      const lo = (a,b) => a!=null && b!=null && a < b;
       mets =
         cell('최종배수', nfmt(m.final), o && m.final > o.final) +
         cell('MDD', neg(m.mdd.toFixed(1))+'%', o && m.mdd > o.mdd) +
         cell('CALMAR', m.calmar.toFixed(3), o && m.calmar > o.calmar) +
-        cell('SORTINO', m.sortino==null?'—':m.sortino.toFixed(3), o && m.sortino!=null && o.sortino!=null && m.sortino > o.sortino);
+        cell('SORTINO', m.sortino==null?'—':m.sortino.toFixed(3), o && lo(o.sortino, m.sortino)) +
+        cell('회복기간', uwfmt(m), o && lo(m.uw_months, o.uw_months)) +
+        cell('ULCER', m.ulcer==null?'—':m.ulcer.toFixed(1), o && lo(m.ulcer, o.ulcer));
     } else {
-      mets = cell('최종배수','—') + cell('MDD','—') + cell('CALMAR','—') + cell('SORTINO','—');
+      mets = ['최종배수','MDD','CALMAR','SORTINO','회복기간','ULCER']
+               .map(x=>cell(x,'—')).join('');
     }
     // [v45] 참조 규칙은 버튼이 아니다. v43 §4 가 'A 는 선택지가 아니라 참조'로
     //       결정했는데 화면은 계속 고를 수 있게 두고 있었다. 그 불일치를 없앤다.
@@ -712,7 +728,11 @@ function drawPicker(){
         + ` (전략_v41 §5, v43 §2-3).`
       : '';
     document.getElementById('scennote').innerHTML =
-      `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b> (${mm.years}년)` + thin;
+      // [v60] 기간과 CAGR 을 같이 적는다. 최종배수는 기간이 다르면 비교가 안 되는
+      //       숫자인데(달러 26.6년 165배 vs 원화 29.6년 2,761배), 탭을 갈아타며
+      //       나란히 보게 되어 있어서 여기서 기간을 정규화한 수치를 함께 준다.
+      `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b>`
+      + ` (${mm.years}년 · 연 ${neg(mm.cagr.toFixed(1))}%)` + thin;
   } else {
     sc.innerHTML = '';
     document.getElementById('scennote').textContent = '';
@@ -727,6 +747,7 @@ function drawPerf(){
   const head = `<tr><th>기준</th><th>전략</th><th style="text-align:right">최종배수</th>
     <th style="text-align:right">CAGR</th><th style="text-align:right">MDD</th>
     <th style="text-align:right">Calmar</th><th style="text-align:right">Sortino</th>
+    <th style="text-align:right">회복기간</th><th style="text-align:right">Ulcer</th>
     <th style="text-align:right">전환</th></tr>`;
   let body = '';
   STATS.scenarios.forEach((s,si)=>{
@@ -741,12 +762,21 @@ function drawPerf(){
         <td class="num">${neg(m.mdd.toFixed(2))}%</td>
         <td class="num">${m.calmar.toFixed(3)}</td>
         <td class="num">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
+        <td class="num">${uwfmt(m)}</td>
+        <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>
         <td class="num">${m.switches}</td></tr>`;
     });
   });
   document.getElementById('perfBody').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
   document.getElementById('perfNote').innerHTML =
     `Calmar = CAGR ÷ |MDD|. Sortino = 연율 수익 ÷ 하방편차(무위험 0). 전환 = 실제 체결 횟수.
+     <b style="color:var(--ink)">회복기간</b>은 전고점을 되찾기까지 가장 오래 걸린 기간이고
+     (<b>+</b>는 아직 못 되찾은 상태), <b style="color:var(--ink)">Ulcer</b>는 전 구간 낙폭의
+     제곱평균(√mean dd²)입니다 — <b>둘 다 낮을수록 좋습니다.</b>
+     MDD 는 최악의 한 점만 재기 때문에 「얕지만 몇 년을 끄는 곡선」과
+     「깊지만 반년에 되찾는 곡선」을 구분하지 못합니다. 그 둘을 이 두 지표가 나눕니다.
+     <b style="color:var(--ink)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b> —
+     그 비교는 CAGR 열로 하세요.
      「원화」 두 줄은 환노출 2배 구조와 슬리피지 0.1%를 반영한 값이고, 「달러」 두 줄은 미국 종가 체결 기준입니다.
      달러·54년 확장은 나스닥 종합/NDX/QQQ를 일간수익률로 이어붙인 대리 시계열이라 같은 자산이 아닙니다.
      방어자산 <b style="color:var(--ink)">${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'}</b> 기준입니다 —

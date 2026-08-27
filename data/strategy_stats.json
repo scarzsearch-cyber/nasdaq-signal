@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-08-27 01:37 UTC",
+ "generated_at": "2026-08-27 15:59 UTC",
  "strategies": {
   "B": {
    "name": "−16 / −16",
@@ -64,6 +64,9 @@
      "sortino": 0.905,
      "sharpe": 0.733,
      "years": 26.6,
+     "ulcer": 22.64,
+     "uw_months": 45.4,
+     "uw_open": false,
      "switches": 52,
      "start": "2000-01-03",
      "end": "2026-08-26"
@@ -76,6 +79,9 @@
      "sortino": 0.895,
      "sharpe": 0.731,
      "years": 26.6,
+     "ulcer": 20.48,
+     "uw_months": 39.3,
+     "uw_open": false,
      "switches": 22,
      "start": "2000-01-03",
      "end": "2026-08-26"
@@ -90,6 +96,9 @@
      "sortino": 0.867,
      "sharpe": 0.721,
      "years": 26.6,
+     "ulcer": 23.24,
+     "uw_months": 56.2,
+     "uw_open": false,
      "switches": 52,
      "start": "2000-01-03",
      "end": "2026-08-26"
@@ -102,6 +111,9 @@
      "sortino": 0.854,
      "sharpe": 0.718,
      "years": 26.6,
+     "ulcer": 20.59,
+     "uw_months": 41.1,
+     "uw_open": false,
      "switches": 22,
      "start": "2000-01-03",
      "end": "2026-08-26"
@@ -121,6 +133,9 @@
      "sortino": 1.041,
      "sharpe": 0.836,
      "years": 54.5,
+     "ulcer": 22.8,
+     "uw_months": 50.6,
+     "uw_open": false,
      "switches": 140,
      "start": "1972-02-07",
      "end": "2026-08-26"
@@ -133,6 +148,9 @@
      "sortino": 1.005,
      "sharpe": 0.817,
      "years": 54.5,
+     "ulcer": 22.18,
+     "uw_months": 50.7,
+     "uw_open": false,
      "switches": 54,
      "start": "1972-02-07",
      "end": "2026-08-26"
@@ -147,6 +165,9 @@
      "sortino": 1.057,
      "sharpe": 0.823,
      "years": 54.5,
+     "ulcer": 22.65,
+     "uw_months": 62.6,
+     "uw_open": false,
      "switches": 140,
      "start": "1972-02-07",
      "end": "2026-08-26"
@@ -159,6 +180,9 @@
      "sortino": 1.036,
      "sharpe": 0.814,
      "years": 54.5,
+     "ulcer": 22.04,
+     "uw_months": 62.9,
+     "uw_open": false,
      "switches": 54,
      "start": "1972-02-07",
      "end": "2026-08-26"
@@ -178,6 +202,9 @@
      "sortino": 1.143,
      "sharpe": 0.851,
      "years": 29.6,
+     "ulcer": 20.63,
+     "uw_months": 56.6,
+     "uw_open": false,
      "switches": 58,
      "start": "1997-01-02",
      "end": "2026-08-26"
@@ -190,6 +217,9 @@
      "sortino": 1.12,
      "sharpe": 0.84,
      "years": 29.6,
+     "ulcer": 20.28,
+     "uw_months": 81.5,
+     "uw_open": false,
      "switches": 28,
      "start": "1997-01-02",
      "end": "2026-08-26"
@@ -204,6 +234,9 @@
      "sortino": 1.158,
      "sharpe": 0.833,
      "years": 29.6,
+     "ulcer": 19.74,
+     "uw_months": 56.0,
+     "uw_open": false,
      "switches": 58,
      "start": "1997-01-02",
      "end": "2026-08-26"
@@ -216,6 +249,9 @@
      "sortino": 1.142,
      "sharpe": 0.825,
      "years": 29.6,
+     "ulcer": 21.02,
+     "uw_months": 84.7,
+     "uw_open": false,
      "switches": 28,
      "start": "1997-01-02",
      "end": "2026-08-26"
@@ -235,6 +271,9 @@
      "sortino": 1.488,
      "sharpe": 1.121,
      "years": 3.2,
+     "ulcer": 14.25,
+     "uw_months": 9.9,
+     "uw_open": false,
      "switches": 6,
      "start": "2023-06-20",
      "end": "2026-08-26"
@@ -247,6 +286,9 @@
      "sortino": 1.609,
      "sharpe": 1.2,
      "years": 3.2,
+     "ulcer": 12.63,
+     "uw_months": 9.2,
+     "uw_open": false,
      "switches": 2,
      "start": "2023-06-20",
      "end": "2026-08-26"
@@ -261,6 +303,9 @@
      "sortino": 1.502,
      "sharpe": 1.139,
      "years": 3.2,
+     "ulcer": 13.71,
+     "uw_months": 9.8,
+     "uw_open": false,
      "switches": 6,
      "start": "2023-06-20",
      "end": "2026-08-26"
@@ -273,6 +318,9 @@
      "sortino": 1.549,
      "sharpe": 1.162,
      "years": 3.2,
+     "ulcer": 13.24,
+     "uw_months": 9.2,
+     "uw_open": false,
      "switches": 2,
      "start": "2023-06-20",
      "end": "2026-08-26"

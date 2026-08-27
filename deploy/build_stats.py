@@ -14,8 +14,9 @@ signal.html 의 전략 선택 카드에 띄울 성과지표를 미리 계산해 
   kr_1997  원화 · 1997-01~ · 환노출 2배 + 한국 거래일 체결 + 슬리피지 0.1% (전략_v21 §4)
   kr_real  원화 · 2023-06~ · 실물 TIGER 3종 시가 체결                     (전략_v21 §4.5)
 
-[지표] 최종배수 / CAGR / MDD / Calmar / Sortino / Sharpe / 전환횟수
+[지표] 최종배수 / CAGR / MDD / Calmar / Sortino / Sharpe / 최장회복기간 / Ulcer / 전환횟수
   Sortino, Sharpe 는 reentry_lib.met() 정의 그대로 — 무위험수익률 0, 일간수익 연율화.
+  [v60] 최장회복기간·Ulcer 는 reentry_lib.ulcer_uw(). MDD 가 못 재는 '낙폭의 넓이'다.
 """
 import json
 import os
@@ -23,6 +24,11 @@ import sys
 
 import numpy as np
 import pandas as pd
+
+try:                       # [v60] cp949 콘솔에서 '−'(U+2212) 로 죽지 않게
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -33,7 +39,7 @@ import hist_korea as K                # noqa: E402
 import hist_krfinal as KF             # noqa: E402
 import hist_krreal as KR              # noqa: E402
 import reentry_lib as RL              # noqa: E402
-from reentry_lib import met, run      # noqa: E402
+from reentry_lib import met, run, ulcer_uw   # noqa: E402
 
 OUT = os.path.join('data', 'strategy_stats.json')
 
@@ -58,6 +64,7 @@ STRATS = {
 
 def pack(curve, turn):
     m = met(curve)
+    ui, uwd, uwo = ulcer_uw(curve)
     return {
         'final': round(float(m['final']), 3),
         'cagr': round(float(m['cagr']) * 100, 2),
@@ -66,6 +73,10 @@ def pack(curve, turn):
         'sortino': round(float(m['sortino']), 3) if np.isfinite(m['sortino']) else None,
         'sharpe': round(float(m['sharpe']), 3),
         'years': round(float(m['years']), 1),
+        # [v60] MDD 는 최악의 한 점이라 '얼마나 오래 물속이었나'를 못 잰다.
+        'ulcer': round(float(ui), 2),
+        'uw_months': round(uwd / 30.4375, 1),
+        'uw_open': bool(uwo),
         'switches': int(np.sum(np.asarray(turn) > 1e-9)),
         'start': curve.index[0].strftime('%Y-%m-%d'),
         'end': curve.index[-1].strftime('%Y-%m-%d'),
@@ -153,23 +164,7 @@ def main():
     with open(OUT, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
 
-    hdr = '%-16s %-9s %10s %7s %8s %8s %8s %6s' % (
-        '시나리오', '전략', '최종배수', 'CAGR', 'MDD', 'Calmar', 'Sortino', '전환')
-    print('\n' + hdr); print('-' * len(hdr))
-    for s in scen:
-        for k in ('B', 'A'):
-            m = s['strategies'][k]
-            o = s['strategies_div'][k]
-            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %6d' % (
-                s['label'] if k == 'B' else '', STRATS[k]['name'], f"{m['final']:,.1f}",
-                m['cagr'], m['mdd'], m['calmar'],
-                '—' if m['sortino'] is None else f"{m['sortino']:.3f}", m['switches']))
-            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %6d   <- 배당100' % (
-                '', '', f"{o['final']:,.1f}", o['cagr'], o['mdd'], o['calmar'],
-                '—' if o['sortino'] is None else f"{o['sortino']:.3f}", o['switches']))
-    print('\n→', OUT)
-
-    # [v45] signal.json 은 이 파일의 **사본**을 안에 들고 있고, 화면은 그 사본을
+    # [v45·v60] signal.json 은 이 파일의 **사본**을 안에 들고 있고, 화면은 그 사본을
     # 우선한다(signal.html: if(AUTO && AUTO.stats) STATS = AUTO.stats).
     # 그래서 여기서 새로 굳히면 사본도 같이 갱신해야 한다. 안 하면 다음 일일
     # 실행 때까지 라이브가 옛 수치를 보여준다 — v36 정정 때 실제로 그랬다.
@@ -182,6 +177,30 @@ def main():
             with open(sig, 'w', encoding='utf-8') as f:
                 json.dump(j, f, ensure_ascii=False, indent=1)
             print('→', sig, '(내장 사본 갱신)')
+    # [v60] 사본 갱신은 아래 요약 출력보다 **먼저** 한다 — 출력이 죽어도
+    #       사본이 옛 판으로 남지 않도록.
+
+    hdr = '%-16s %-9s %10s %7s %8s %8s %8s %9s %7s %6s' % (
+        '시나리오', '전략', '최종배수', 'CAGR', 'MDD', 'Calmar', 'Sortino',
+        '회복기간', 'Ulcer', '전환')
+    print('\n' + hdr); print('-' * len(hdr))
+    for s in scen:
+        for k in ('B', 'A'):
+            m = s['strategies'][k]
+            o = s['strategies_div'][k]
+            def uw(x):
+                return '%.1f개월%s' % (x['uw_months'], '+' if x['uw_open'] else '')
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %9s %7.2f %6d' % (
+                s['label'] if k == 'B' else '', STRATS[k]['name'], f"{m['final']:,.1f}",
+                m['cagr'], m['mdd'], m['calmar'],
+                '—' if m['sortino'] is None else f"{m['sortino']:.3f}",
+                uw(m), m['ulcer'], m['switches']))
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %9s %7.2f %6d   <- 배당100' % (
+                '', '', f"{o['final']:,.1f}", o['cagr'], o['mdd'], o['calmar'],
+                '—' if o['sortino'] is None else f"{o['sortino']:.3f}",
+                uw(o), o['ulcer'], o['switches']))
+    print('\n→', OUT)
+
 
 
 if __name__ == '__main__':

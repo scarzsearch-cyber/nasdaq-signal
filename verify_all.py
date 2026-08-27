@@ -219,6 +219,12 @@ def i5_decisions(D):
         ok("화면: 최종배수를 함께 보여준다",
            "cell('최종배수'" in h,
            'MDD·CALMAR·SORTINO 만 보이면 실물구간에서 A 가 3개 다 이긴다')
+        # [v60] MDD 는 최악의 한 점만 잰다. 낙폭의 '넓이'를 재는 두 지표를 같이 둔다.
+        for lab in ("회복기간", "ULCER"):
+            ok("화면: %s 를 보여준다" % lab, "cell('%s'" % lab in h,
+               'MDD 가 못 재는 낙폭의 넓이')
+        ok("화면: 기준 설명줄에 CAGR 이 있다", '연 ${neg(mm.cagr.toFixed(1))}%' in h,
+           '최종배수는 기간이 다르면 비교 불가 — 정규화 수치를 함께 준다')
 
         # [v46] 화면 개정 시점 주입 자리. 없으면 배포 때 stamp_rev.py 가 실패한다.
         MARK = "const HTML_REV = '__HTML' + '_REV__';"
@@ -297,6 +303,13 @@ def i6_live():
                 v0 = sc['strategies'][k]['final']; v1 = e[0]['strategies'][k]['final']
                 ok(f"내장 {sc['key']} {k} 최종배수 일치",
                    abs(v1 / v0 - 1) < 1e-6, f'{v1:,.1f} vs {v0:,.1f}')
+                # [v60] 새 지표도 사본에 실려야 한다. 없으면 화면이 '—' 만 뜬다.
+                for fld in ('ulcer', 'uw_months'):
+                    a = sc['strategies'][k].get(fld)
+                    b = e[0]['strategies'][k].get(fld)
+                    ok(f"내장 {sc['key']} {k} {fld} 일치",
+                       a is not None and b is not None and abs(b - a) < 1e-9,
+                       f'{b} vs {a}')
     for k, en, ex in (('B', -0.16, -0.16), ('A', -0.16, -0.11)):
         cur = 'QLD'
         for v in dd.values:

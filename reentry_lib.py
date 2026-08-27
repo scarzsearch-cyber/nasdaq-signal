@@ -130,6 +130,35 @@ def met(c):
                 sortino=float(ret.mean() * 252 / dn) if dn > 0 else np.nan, years=float(yrs))
 
 
+def ulcer_uw(c):
+    """[v60] 낙폭의 **깊이**만이 아니라 **넓이**를 재는 두 지표.
+
+    MDD 는 최악의 한 점만 본다. 그래서 「얕지만 3년을 끄는 곡선」과
+    「깊지만 반년에 되찾는 곡선」을 구분하지 못한다. 2배 레버리지에서는
+    그 구분이 실제로 버틸 수 있는지를 가른다.
+
+      Ulcer Index   sqrt(mean(dd_t^2)) x 100. 전 구간 평균적 고통. 낮을수록 좋다.
+      최장 회복기간  전고점에서 그 전고점을 되찾을 때까지의 최장 달력일수.
+                    끝까지 못 되찾았으면 마지막 날까지 세고 open=True 로 표시한다.
+
+    반환 (ulcer_pct, worst_days, worst_open).
+    """
+    v = np.asarray(c.values, dtype=float)
+    dd = v / np.maximum.accumulate(v) - 1.0
+    ulcer = float(np.sqrt(np.mean(dd ** 2)) * 100)
+
+    at_peak = dd >= -1e-12                      # dd[0] == 0 이므로 항상 True 로 시작
+    ix = np.arange(len(v))
+    last_peak = np.maximum.accumulate(np.where(at_peak, ix, 0))
+    day = c.index.values.astype('datetime64[D]').astype('int64')
+    spans = day - day[last_peak]
+    worst = int(spans.max())
+    # 마지막까지 물속이고 그 구간이 최장과 같으면 '아직 진행 중'이다.
+    # 동률도 True 다 — 이미 최악과 같은 길이인데 내일 더 길어질 구간이므로.
+    worst_open = bool(not at_peak[-1] and int(spans[-1]) == worst)
+    return ulcer, worst, worst_open
+
+
 def bench(D):
     """QLD 계속보유 / QQQ 계속보유 곡선"""
     idx = D['idx']
