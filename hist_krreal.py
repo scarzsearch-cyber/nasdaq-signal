@@ -28,7 +28,7 @@ def signals(exit_):
 
 
 def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
-    """defmix=True 면 방어자산을 전략_v23 채택안(배당50 / ACE KRX금현물50)으로 바꾼다."""
+    """defmix=True 면 방어자산을 전략_v23 채택안(DA.MIX_V23 = 배당40/국채40/금20)으로 바꾼다."""
     w, dd = signals(exit_)
     lev, div = TT.T['lev']['open'], TT.T['div']['open']
     kr = lev.index.intersection(div.index)
