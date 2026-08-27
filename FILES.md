@@ -32,7 +32,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (24) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
+research/   (27) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
 deploy/     (6)  라이브 파이프라인 — 건드리지 말 것
 data/       (7)  화면이 읽는 것 — 워크플로 소유
 docs/       (21) 전략_v*.md · raw/ · HANDOFF_전체이력
