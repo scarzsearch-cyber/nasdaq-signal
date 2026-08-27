@@ -41,6 +41,9 @@ jobs:
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
           cp data/strategy_stats.json _site/data/ 2>/dev/null || echo "strategy_stats.json 없음 — 성과 패널만 숨겨짐"
           cp data/kr_holidays.json _site/data/ 2>/dev/null || echo "kr_holidays.json 없음 — 시계가 주말만 반영"
+          # [v57] 규칙 동결 기록 + 전향적 OOS 장부
+          cp data/freeze.json _site/data/ 2>/dev/null || echo "freeze.json 없음 — 동결 배지 숨김"
+          cp data/oos_log.csv _site/data/ 2>/dev/null || echo "oos_log.csv 없음 — 첫 실행이면 정상"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

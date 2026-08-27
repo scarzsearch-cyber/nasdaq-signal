@@ -33,6 +33,9 @@ body{padding:28px 20px 64px;}
   font-variant-numeric:tabular-nums;}
 .masthead .rev b{font-weight:700;color:var(--ink);opacity:.75;}
 .masthead .rev.local{color:var(--warn);opacity:1;}
+.masthead .frz{font-size:12px;color:var(--muted);opacity:.8;letter-spacing:.02em;
+  font-variant-numeric:tabular-nums;}
+.masthead .frz b{font-weight:700;color:var(--attack);opacity:.85;}
 .masthead .sub{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);
   letter-spacing:0.06em;}
 
@@ -295,6 +298,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <div class="subs">
       <div class="sub" id="asof">데이터 없음</div>
       <div class="rev" id="htmlRev" title="이 화면(전략 로직) 자체가 마지막으로 바뀐 시점입니다. 위의 종가일과는 별개입니다."></div>
+      <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
     </div>
   </div>
 
@@ -531,6 +535,7 @@ let scen = 'kr_1997';                            // 성과 표기 기준 시나�
 let defk = 'mix';                                // 방어자산: 'mix'(v23 채택) | 'div'(v21)
 let AUTO = null;                                 // signal.json (자동 모드)
 let STATS = null;                                // strategy_stats.json
+let FREEZE = null;                               // data/freeze.json (규칙 동결 기록)
 let KRHOL = null;                                // data/kr_holidays.json (deploy/kr_holidays.py 산출물)
 
 function load(){
@@ -587,6 +592,17 @@ function paintRev(){
   }
   el.className = 'rev';
   el.innerHTML = '전략 반영 <b>' + HTML_REV + '</b>';
+}
+
+/* [v57] 규칙 동결 표시. 2026-08-27 이후는 순수 out-of-sample 표본이다.
+   그 결과를 보고 규칙을 바꾸면 표본이 사라진다 — 그래서 화면에 박아 둔다. */
+function paintFreeze(){
+  const el = document.getElementById('frzBadge');
+  if(!el) return;
+  if(!FREEZE){ el.textContent = ''; return; }
+  const days = Math.max(0, bizDaysSince(FREEZE.oos_start));   // 오늘까지의 영업일
+  el.innerHTML = '규칙 동결 <b>' + FREEZE.frozen_at + '</b> · 이후 '
+               + days + '영업일 평가만';
 }
 
 function neg(s){ return String(s).replace(/-/g,'−'); }
@@ -1171,6 +1187,7 @@ async function boot(){
   try{ AUTO = await getJSON('data/signal.json'); }catch(e){ AUTO = null; }
   if(AUTO && AUTO.stats) STATS = AUTO.stats;
   if(!STATS){ try{ STATS = await getJSON('data/strategy_stats.json'); }catch(e){} }
+  try{ FREEZE = await getJSON('data/freeze.json'); }catch(e){ FREEZE = null; }
   // 한국 공휴일 표 — 없으면 주말만 반영하는 기존 동작으로 조용히 되돌아간다
   try{ const kh = await getJSON('data/kr_holidays.json'); KRHOL = kh.holidays || null; }catch(e){ KRHOL = null; }
   if(STATS && !STATS.scenarios.some(s=>s.key===scen)) scen = STATS.scenarios[0].key;
@@ -1187,7 +1204,7 @@ function drawTrajectory(tr){
   if(!host||!tr) return;
   const names=Object.keys(tr);
   if(!names.length) return;
-  paintRev();
+  paintRev(); paintFreeze();
   const S=STRAT[sel];
   const W=680,H=240,PL=44,PR=14,PT=14,PB=26;
   const maxLen=Math.max(...names.map(n=>tr[n].length));

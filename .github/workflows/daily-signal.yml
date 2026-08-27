@@ -41,6 +41,11 @@ jobs:
         continue-on-error: true
         run: python3 deploy/nav_collect.py
 
+      # [v57] 규칙 동결(2026-08-27) 이후를 하루 한 줄씩 덧붙인다. 순수 OOS 표본.
+      - name: OOS 장부 기록
+        continue-on-error: true
+        run: python3 deploy/oos_log.py
+
       - name: 변경분 커밋
         run: |
           git config user.name  "github-actions[bot]"

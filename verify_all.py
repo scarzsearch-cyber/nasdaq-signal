@@ -231,7 +231,40 @@ def i5_decisions(D):
             ok('화면: %s 참조 없음' % f, f not in h, '전부 Pretendard')
 
 
-# ------------------------------------------------------------------ I6
+
+# ------------------------------------------------------------------ I11
+def i11_freeze():
+    """[v57] 규칙 동결 — 2026-08-27 이후는 순수 OOS 표본이다.
+
+    규칙이 바뀌면 그 표본이 사라진다. 그래서 **매 push 마다**(빠른 모드 포함)
+    코드·화면이 data/freeze.json 과 일치하는지 확인한다.
+    바꾸려면 freeze.json 을 **의도적으로** 고쳐야 한다 — 실수로는 안 바뀐다.
+    """
+    head("I11. 규칙 동결 — 동결 이후는 평가만 한다")
+    if not os.path.exists('data/freeze.json'):
+        ok('freeze.json 존재', False, '파일 없음', warn=True)
+        return
+    fz = json.load(io.open('data/freeze.json', encoding='utf-8'))
+    R = fz['rule']
+    ok('진입선 -0.16', abs(R['enter'] + 0.16) < 1e-9, 'freeze.json')
+    ok('복귀선 -0.16', abs(R['exit'] + 0.16) < 1e-9, 'freeze.json')
+    ok('룩백 252일', R['lookback'] == 252, 'freeze.json')
+    if os.path.exists('deploy/update_signal.py'):
+        u = io.open('deploy/update_signal.py', encoding='utf-8').read()
+        ok('신호 생성기가 동결 규칙과 같다',
+           '("B", "−16 / −16", -0.16, -0.16)' in u and 'DEFAULT = "B"' in u,
+           'update_signal.py STRATS')
+    if os.path.exists('signal.html'):
+        hh = io.open('signal.html', encoding='utf-8').read()
+        ok('화면이 동결 규칙과 같다', 'enter:-0.16, exit:-0.16' in hh,
+           'signal.html STRAT.B')
+    n = 0
+    if os.path.exists('data/oos_log.csv'):
+        n = sum(1 for _ in io.open('data/oos_log.csv', encoding='utf-8')) - 1
+    ok('OOS 장부가 쌓이고 있다', n >= 1,
+       '%d영업일 (동결 %s 이후)' % (n, fz['frozen_at']), warn=(n < 1))
+
+
 def i6_live():
     head("I6. 라이브 정합 — signal.json 이 재계산과 맞는가")
     if not os.path.exists('data/signal.json') or not os.path.exists('data/qqq.csv'):
@@ -425,6 +458,7 @@ def main():
     D = i1_engine()
     i2_pit(D)
     i3_lag(D)
+    i11_freeze()
     i6_live()
     if not a.fast:
         i4_real(D)

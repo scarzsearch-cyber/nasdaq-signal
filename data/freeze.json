@@ -1,0 +1,47 @@
+{
+ "frozen_at": "2026-08-27",
+ "oos_start": "2026-08-28",
+ "rule": {
+  "name": "-16/-16",
+  "lookback": 252,
+  "enter": -0.16,
+  "exit": -0.16,
+  "signal_source": "QQQ 미국장 종가",
+  "position": "전량 전환 (0 또는 1)"
+ },
+ "risk_on": {
+  "code": "418660",
+  "name": "TIGER 미국나스닥100레버리지(합성)"
+ },
+ "defensive": [
+  {
+   "code": "458730",
+   "name": "TIGER 미국배당다우존스",
+   "weight": 0.4
+  },
+  {
+   "code": "305080",
+   "name": "TIGER 미국채10년선물",
+   "weight": 0.4
+  },
+  {
+   "code": "411060",
+   "name": "ACE KRX금현물",
+   "weight": 0.2
+  }
+ ],
+ "execution": "전일 미국 종가 신호 -> 다음 한국 거래일 체결 (pos = w.shift(1))",
+ "cost": {
+  "one_way": 0.001,
+  "slippage": 0.001
+ },
+ "principle": [
+  "2026-08-28 이후 데이터는 **평가만** 한다.",
+  "그 결과를 보고 규칙을 수정하지 않는다.",
+  "수정하면 그 구간도 연구 표본이 되어 순수 OOS 가 사라진다.",
+  "규칙을 바꾸려면 그 이유가 **동결 이후 데이터와 무관**해야 하고,",
+  "바꾼 시점부터 OOS 표본을 다시 시작한다."
+ ],
+ "reference": "docs/전략_v56.md · docs/전략_v57.md",
+ "fingerprint": "0067e42d7aa7c3a3"
+}
