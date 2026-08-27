@@ -31,6 +31,7 @@
   I6  라이브 정합    signal.json 이 update_signal.py 재계산과 일치
   I7  공표 수치      strategy_stats.json 이 현재 코드 출력과 일치
   I8  의존성         공용 모형 사용처가 전부 최신인가
+  I9  폐기 수치      옛 공표값이 현행 문서·화면에 남아 있지 않은가
 """
 import argparse
 import io
@@ -272,6 +273,64 @@ def i8_deps():
     print("  ※ 이 목록의 파일을 고쳤으면 관련 raw 출력을 재생성했는지 확인하라.")
 
 
+# ------------------------------------------------------------------ I9
+def i9_retired():
+    """폐기된 공표 수치가 현행 문서·화면에 남아 있는가
+
+    [왜 필요한가 — 2026-08-27]
+    ISA 수치가 v33 에서 한 번, v36 에서 또 한 번 바뀌었다. 라이브 화면은 고쳤는데
+    `docs/전략_v29.md` 에는 v36 이전 값(143.3배)이 그대로 남아 있었다.
+    사용자가 "바뀐 걸 다 수정해줘" 라고 해서 발견했다.
+
+    수치를 폐기할 때 `data/retired_numbers.json` 에 등록하면 이 검사가 막는다.
+    정정 이력을 서술하는 문장(-> 나 '정정' 이 같이 있는 줄)은 통과시킨다.
+    """
+    import glob
+    head("I9. 폐기 수치 — 옛 값이 현행 문서에 남아 있는가")
+    p = 'data/retired_numbers.json'
+    if not os.path.exists(p):
+        ok('retired_numbers.json 존재', False, '파일 없음', warn=True)
+        return
+    cfg = json.load(io.open(p, encoding='utf-8'))
+    allow_c = cfg.get('allow_context', [])
+    CURRENT = cfg.get('current_docs', [])
+    hits, missing = [], []
+
+    # (a) '현행 상태' 문서는 폐기 수치가 있으면 안 된다 — 엄격
+    for item in cfg['retired']:
+        v = item['value']
+        for f in CURRENT:
+            if not os.path.exists(f):
+                continue
+            for i, line in enumerate(io.open(f, encoding='utf-8').read().splitlines(), 1):
+                if v in line and not any(a in line for a in allow_c):
+                    hits.append((f, i, v, item['now']))
+
+    # (b) 버전 문서는 그 시대의 기록이라 수치가 있는 게 맞다.
+    #     대신 **정정 배너**가 있어야 한다 (읽는 사람이 현행으로 오인하지 않게).
+    import glob
+    for f in sorted(glob.glob('docs/전략_v*.md')):
+        txt = io.open(f, encoding='utf-8').read()
+        for item in cfg['retired']:
+            if item['value'] not in txt:
+                continue
+            if f.replace(os.sep, '/') in item.get('exempt_docs', []):
+                continue
+            tag = item['since']
+            if not any(k in txt for k in (f'{tag} 정정', f'{tag} 수치 정정', f'{tag} 재정정',
+                                          f'[{tag}]', f'{tag} 에서')):
+                missing.append((f, item['value'], tag))
+
+    for f, i, v, now in hits[:10]:
+        print(f"    [현행문서] {f}:{i}  '{v}' 남아 있음 (현행 {now})")
+    for f, v, tag in missing[:10]:
+        print(f"    [배너없음] {f}  '{v}' 가 있는데 {tag} 정정 배너가 없다")
+    ok('현행 문서에 폐기 수치 없음', not hits,
+       f'{len(hits)}건' if hits else f'{len(CURRENT)}개 파일 검사')
+    ok('버전 문서에 정정 배너 있음', not missing,
+       f'{len(missing)}건 누락' if missing else f'{len(cfg["retired"])}종 확인', warn=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--fast', action='store_true', help='빠른 검사만 (CI 기본)')
@@ -287,6 +346,7 @@ def main():
         i4_real(D)
         i5_decisions(D)
         i7_stats(D)
+    i9_retired()
     i8_deps()
     head(f"결과  ({time.time()-T0:.0f}초)")
     if FAIL:

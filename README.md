@@ -70,6 +70,7 @@ python verify_all.py --fast   # CI 가 매 push 마다 부르는 것
 | I6 라이브 정합 | `signal.json` 이 재계산과 일치 + 신선도 |
 | I7 공표 수치 | `strategy_stats.json` 이 현재 코드와 일치 |
 | I8 의존성 | 공용 모형 사용처 목록 |
+| **I9 폐기 수치** | **옛 공표값이 현행 문서·화면에 남아 있는가** |
 
 추가 도구 (`audit/` 폴더):
 `audit/audit_all.py`(채택 결정 재검증) · `audit/audit_full.py`(전수조사) ·
@@ -103,6 +104,10 @@ data/*.json, data/qqq.csv   화면이 읽는 것
 | `hist_korea.py` `hist_krfinal.py` `hist_krreal.py` | 원화·한국 체결 | 원화 쓰는 것 |
 | `axis_defmix.py` | `materials` `sim_hold` `check_hold` | 바스켓 쓰는 것 |
 
+> **수치를 폐기하면 `data/retired_numbers.json` 에 등록하라.** I9 가 현행 문서에
+> 남아 있으면 실패시킨다. 2026-08-27 에 ISA 수치가 두 번 바뀌었는데 라이브만 고치고
+> `docs/전략_v29.md` 에 옛 값이 남아 있던 걸 이 검사로 잡았다.
+>
 > **`verify_all.py` 의 I8 이 사용처 목록을 출력한다.** 공용 모형을 고쳤으면
 > 그 목록을 보고 관련 raw 출력을 재생성하라. 2026-08-27 에 이걸 안 해서
 > v27 의 근거 문장 하나가 뒤집힌 채 남아 있었다.
