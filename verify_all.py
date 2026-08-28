@@ -217,16 +217,24 @@ def i5_decisions(D):
         # [v61] 지표에 눈금이 붙는가 — 숫자만으로는 체감이 안 된다
         # [v72] 카드 눈금은 소유자 요청으로 제거 — 비교는 성과 비교표 한 곳에서만.
         #       벤치마크와 전략 3줄(채택안/배당100/헤지 60/40)이 표에 있는지 본다.
-        ok("화면: 비교표에 벤치마크와 전략 3줄이 있다",
-           "function benchOf" in h and "strategies_hedge" in h
-           and "헤지 60/40" in h and 'class="bench"' in h,
-           '벤치 2줄 + 전략 3줄 (v72)')
+        # [v73] 비교표는 전략 4줄 (벤치 줄은 소유자 요청으로 제거, 데이터는 JSON 유지).
+        #       헤지 방어 추천(mix)이 파랑으로 표시되는지도 본다.
+        ok("화면: 비교표 전략 4줄 + 헤지 추천 표시",
+           "strategies_hedge_div" in h and h.count("헤지 60/40") >= 2
+           and "★추천" in h and "tr.rec td.strat" in h,
+           '채택안/배당100/헤지mix★/헤지div (v73)')
+        ok("화면: 임계점 거리 게이지 + 궤적 경고",
+           "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
+           '여유/접근/근접 + 트리거 발생 (v73)')
+        ok("화면: 포지션 계산기",
+           "function drawCalc" in h and 'id="calcPanel"' in h and "잔여 현금" in h,
+           '원금→목표금액·주수·잔여 (v73)')
+        ok("화면: 모바일 고정열(Sticky)",
+           "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
         # [v63] 같은 기간으로 맞춘 표 — 최종배수 세로비교 함정의 정면 해법
         ok("화면: 같은 기간 비교표가 있다",
            'function drawHoriz' in h and 'id="horizBody"' in h, '최근 5/10/15/20년')
         ok("화면: 기준마다 실제 구간을 적는다", 'class="per"' in h, '시작~끝 (n.n년)')
-        ok("화면: 비교표에 벤치마크 줄이 있다",
-           "tr class=\"bench\"" in h, '2배 보유 · 방어 단독')
         # [v60] 6개를 다 그리는가. 최종배수를 빼면 실물 3.2년 구간이 왜곡돼 보인다.
         # [v61] 렌더가 cell(...) 에서 row(...) 로 바뀌었다 — 둘 다 허용한다.
         for lab in ('최종배수', 'MDD', 'CALMAR', 'SORTINO', '회복기간', 'ULCER'):
@@ -307,6 +315,15 @@ def i11_freeze():
         n = sum(1 for _ in io.open('data/oos_log.csv', encoding='utf-8')) - 1
     ok('OOS 장부가 쌓이고 있다', n >= 1,
        '%d영업일 (동결 %s 이후)' % (n, fz['frozen_at']), warn=(n < 1))
+
+    # [v73] 01 문서 AUTO-STATS 블록이 최신 스냅샷과 같은 끝 날짜인가
+    if os.path.exists('01_Strategy_Logic.md') and os.path.exists('data/strategy_stats.json'):
+        doc = io.open('01_Strategy_Logic.md', encoding='utf-8').read()
+        S2 = json.load(io.open('data/strategy_stats.json', encoding='utf-8'))
+        i0, j0 = doc.find('<!-- AUTO-STATS:START'), doc.find('<!-- AUTO-STATS:END -->')
+        endd = S2['scenarios'][0]['strategies']['B']['end']
+        ok('01 문서 AUTO-STATS 블록 동기화', i0 >= 0 and j0 > i0 and endd in doc[i0:j0],
+           '%s (build_stats 가 자동 갱신)' % endd)
 
 
 def i6_live():

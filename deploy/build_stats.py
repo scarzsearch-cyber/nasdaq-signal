@@ -19,6 +19,7 @@ signal.html 의 전략 선택 카드에 띄울 성과지표를 미리 계산해 
   Sortino, Sharpe 는 reentry_lib.met() 정의 그대로 — 무위험수익률 0, 일간수익 연율화.
   [v60] 최장회복기간·Ulcer 는 reentry_lib.ulcer_uw(). MDD 가 못 재는 '낙폭의 넓이'다.
 """
+import io
 import json
 import os
 import sys
@@ -202,52 +203,56 @@ def sc_kr_real(kind):
 HEDGE_W = {'lev': 0.6, 'div': 0.4}
 
 
-def hedge_us_2000():
+def hedge_us_2000(defkind='mix'):
     D = dict(RL.build())
     att = DA.mix_monthly_parts(D['idx'], HEDGE_W,
                                {'lev': np.asarray(D['qldr']), 'div': np.asarray(D['schdr'])})
-    dr = defensive_r(D['idx'], D['schdr'], 'mix')
+    dr = defensive_r(D['idx'], D['schdr'], defkind)
     Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
     c, w, t = run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
     return {'B': pack(c, t)}
 
 
-def hedge_us_1972():
+def hedge_us_1972(defkind='mix'):
     D = dict(DF.build('chain'))
     att = DA.mix_monthly_parts(D['idx'], HEDGE_W,
                                {'lev': np.asarray(D['qldr']), 'div': np.asarray(D['schdr'])})
-    dr = defensive_r(D['idx'], D['schdr'], 'mix')
+    dr = defensive_r(D['idx'], D['schdr'], defkind)
     Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
     c, w, t = run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
     return {'B': pack(c, t)}
 
 
-def hedge_kr_1997():
+def hedge_kr_1997(defkind='mix'):
     D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     att = DA.mix_monthly_parts(idx, HEDGE_W,
                                {'lev': np.asarray(lev2), 'div': np.asarray(dfk)})
-    raw = {'div': np.asarray(dfk, dtype=float),
-           'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
-           'gold': DA.gold_r(idx)}
-    parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
-             for k in DA.MIX_V23}
-    dr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
+    if defkind == 'div':
+        dr = np.asarray(dfk, dtype=float)
+    else:
+        raw = {'div': np.asarray(dfk, dtype=float),
+               'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
+               'gold': DA.gold_r(idx)}
+        parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
+                 for k in DA.MIX_V23}
+        dr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
     Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
     c, w, t = K.run_kr(Dx, STRATS['B'], cost=0.001, slip=0.001, start=KF.ST,
                        krdays=K.kr_caldays())
     return {'B': pack(c, t)}
 
 
-def hedge_kr_real():
-    kr, rl, rd_mix = KR.legs_real(defmix=True)
+def hedge_kr_real(defkind='mix'):
+    defmix = (defkind == 'mix')
+    kr, rl, rd_def = KR.legs_real(defmix=defmix)
     kr0, _, rd_div = KR.legs_real(defmix=False)
     att = pd.Series(DA.mix_monthly_parts(kr, HEDGE_W,
                                          {'lev': rl.values,
                                           'div': rd_div.reindex(kr).fillna(0).values}), index=kr)
-    _, hold, _ = KR.run_real(STRATS['B']['exit'], defmix=True)
+    _, hold, _ = KR.run_real(STRATS['B']['exit'], defmix=defmix)
     hold = hold.reindex(kr).ffill().fillna(1.0)
     eff = hold.shift(1).fillna(1.0)
-    r = eff * att + (1 - eff) * rd_mix
+    r = eff * att + (1 - eff) * rd_def.reindex(kr).fillna(0)
     turn = eff.diff().abs().fillna(0)
     g = (1 + r) * (1 - 0.002 * turn)
     c = pd.Series(np.cumprod(g), index=kr)
@@ -265,6 +270,35 @@ SCENARIOS = [
 ]
 
 
+def sync_doc(payload, path='01_Strategy_Logic.md'):
+    """[v73] 최신 성과를 문서의 AUTO-STATS 블록에만 반영한다.
+    마커 밖의 사람 글은 절대 건드리지 않는다. 마커가 없으면 아무것도 안 한다."""
+    S, E = '<!-- AUTO-STATS:START', '<!-- AUTO-STATS:END -->'
+    if not os.path.exists(path):
+        return
+    txt = io.open(path, encoding='utf-8').read()
+    i, j = txt.find(S), txt.find(E)
+    if i < 0 or j < 0 or j < i:
+        print(f'[경고] {path} 에 AUTO-STATS 마커가 없다 — 문서 동기화 건너뜀', file=sys.stderr)
+        return
+    head_end = txt.index('-->', i) + 3
+    rows = ['| 기준 | 구간 | 최종배수 | CAGR | MDD | 회복기간 | 전환 |',
+            '|---|---|---:|---:|---:|---:|---:|']
+    for s in payload['scenarios']:
+        m = s['strategies']['B']
+        uw = f"{m['uw_months']/12:.1f}년" if m['uw_months'] >= 12 else f"{m['uw_months']:.0f}개월"
+        rows.append(f"| {s['label']} | {m['start'][:7]}~ ({m['years']}년) "
+                    f"| **{m['final']:,.1f}배** | {m['cagr']:.2f}% | −{abs(m['mdd']):.1f}% "
+                    f"| {uw}{'+' if m['uw_open'] else ''} | {m['switches']} |")
+    end_date = payload['scenarios'][0]['strategies']['B']['end']
+    block = (f"\n{end_date} 종가 기준 · {payload['generated_at']} 생성 (월간 자동 갱신)\n\n"
+             + '\n'.join(rows) + '\n')
+    out = txt[:head_end] + block + txt[j:]
+    if out != txt:
+        io.open(path, 'w', encoding='utf-8', newline='\n').write(out)
+        print('→', path, '(AUTO-STATS 블록 갱신)')
+
+
 def main():
     if not os.path.exists('qqq_us_d.csv'):
         sys.exit('저장소 루트에서 실행해야 한다: python deploy/build_stats.py')
@@ -277,7 +311,8 @@ def main():
             row['strategies' if dk == 'mix' else 'strategies_' + dk] = st
             row['benchmarks' if dk == 'mix' else 'benchmarks_' + dk] = bm
         print('  계산 중 …', key, 'hedge', flush=True)
-        row['strategies_hedge'] = HEDGES[key]()          # [v72] ③ 자산헤지 60/40
+        row['strategies_hedge'] = HEDGES[key]('mix')      # [v72] ③ 자산헤지 60/40 · 방어 mix (추천)
+        row['strategies_hedge_div'] = HEDGES[key]('div')  # [v73] ④ 자산헤지 60/40 · 방어 배당100
         scen.append(row)
     payload = dict(
         generated_at=pd.Timestamp.now('UTC').strftime('%Y-%m-%d %H:%M UTC'),
@@ -303,6 +338,7 @@ def main():
             with open(sig, 'w', encoding='utf-8') as f:
                 json.dump(j, f, ensure_ascii=False, indent=1)
             print('→', sig, '(내장 사본 갱신)')
+    sync_doc(payload)          # [v73] 01 문서 AUTO-STATS 블록
     # [v60] 사본 갱신은 아래 요약 출력보다 **먼저** 한다 — 출력이 죽어도
     #       사본이 옛 판으로 남지 않도록.
 

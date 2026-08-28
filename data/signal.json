@@ -160,7 +160,7 @@
   }
  ],
  "stats": {
-  "generated_at": "2026-08-28 20:04 UTC",
+  "generated_at": "2026-08-28 20:18 UTC",
   "strategies": {
    "B": {
     "name": "−16 / −16",
@@ -423,6 +423,30 @@
       "start": "2000-01-03",
       "end": "2026-08-28"
      }
+    },
+    "strategies_hedge_div": {
+     "B": {
+      "final": 58.52,
+      "cagr": 16.5,
+      "mdd": -43.16,
+      "calmar": 0.382,
+      "sortino": 0.925,
+      "sharpe": 0.775,
+      "years": 26.7,
+      "ulcer": 15.01,
+      "dd_mean": 10.76,
+      "uw_months": 45.3,
+      "uw_open": false,
+      "switches": 52,
+      "horizons": {
+       "5": 1.927,
+       "10": 9.03,
+       "15": 28.694,
+       "20": 47.681
+      },
+      "start": "2000-01-03",
+      "end": "2026-08-28"
+     }
     }
    },
    {
@@ -632,6 +656,30 @@
        "10": 8.944,
        "15": 28.872,
        "20": 46.359
+      },
+      "start": "1972-02-07",
+      "end": "2026-08-28"
+     }
+    },
+    "strategies_hedge_div": {
+     "B": {
+      "final": 36459.372,
+      "cagr": 21.23,
+      "mdd": -64.82,
+      "calmar": 0.328,
+      "sortino": 1.121,
+      "sharpe": 0.871,
+      "years": 54.6,
+      "ulcer": 15.85,
+      "dd_mean": 11.0,
+      "uw_months": 42.3,
+      "uw_open": false,
+      "switches": 140,
+      "horizons": {
+       "5": 1.926,
+       "10": 9.029,
+       "15": 29.042,
+       "20": 38.183
       },
       "start": "1972-02-07",
       "end": "2026-08-28"
@@ -849,6 +897,30 @@
       "start": "1997-01-02",
       "end": "2026-08-28"
      }
+    },
+    "strategies_hedge_div": {
+     "B": {
+      "final": 600.518,
+      "cagr": 24.08,
+      "mdd": -42.06,
+      "calmar": 0.573,
+      "sortino": 1.138,
+      "sharpe": 0.82,
+      "years": 29.7,
+      "ulcer": 13.72,
+      "dd_mean": 10.31,
+      "uw_months": 44.5,
+      "uw_open": false,
+      "switches": 58,
+      "horizons": {
+       "5": 2.494,
+       "10": 11.979,
+       "15": 38.742,
+       "20": 55.285
+      },
+      "start": "1997-01-02",
+      "end": "2026-08-28"
+     }
     }
    },
    {
@@ -1051,6 +1123,30 @@
       "ulcer": 9.99,
       "dd_mean": 6.34,
       "uw_months": 10.0,
+      "uw_open": false,
+      "switches": 6,
+      "horizons": {
+       "5": null,
+       "10": null,
+       "15": null,
+       "20": null
+      },
+      "start": "2023-06-20",
+      "end": "2026-08-28"
+     }
+    },
+    "strategies_hedge_div": {
+     "B": {
+      "final": 2.508,
+      "cagr": 33.41,
+      "mdd": -32.74,
+      "calmar": 1.02,
+      "sortino": 1.704,
+      "sharpe": 1.324,
+      "years": 3.2,
+      "ulcer": 9.35,
+      "dd_mean": 5.95,
+      "uw_months": 9.9,
       "uw_open": false,
       "switches": 6,
       "horizons": {

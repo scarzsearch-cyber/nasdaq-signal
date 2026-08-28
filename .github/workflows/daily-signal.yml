@@ -64,3 +64,12 @@ jobs:
             git commit -m "signal: ${ASOF} 미국 종가 반영 · NAV 적립"
             git push
           fi
+
+      # [v73] 실패 알림 — Telegram/Discord (GitHub Secrets, 미설정이면 조용히 생략)
+      - name: 실패 알림
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/notify.py "일일 신호 갱신" failure "실패 스텝은 위 로그 링크에서 확인"

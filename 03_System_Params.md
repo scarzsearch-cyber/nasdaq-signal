@@ -40,6 +40,10 @@ daily-signal.yml   21:17~00:17 UTC 사이 7슬롯 (06:17~09:17 KST, :17/:47 분 
   ③ oos_log.py         동결 이후 하루 한 줄 append-only (판단하지 않음)
                        + T4 그림자 3열 (t4_votes/t4_rv/t4_w — 평가 전용, v68·v69. 채택안 아님)
 pages.yml            push 시 배포 + stamp_rev.py 가 화면 개정일·커밋 주입
+notify.py            [v73] 일일·월간 워크플로 실패 시 Telegram/Discord 알림 (GitHub Secrets:
+                     DISCORD_WEBHOOK_URL 또는 TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID — 미설정이면 생략)
+data_check.py        [v73] 월간 연장의 검증 게이트 — 결측·중복·역순·0이하·±30%·공백·열누락 시
+                     해당 파일 갱신 거부(기존 유지) + 종료코드 1 (build_stats 미실행 = downstream 보호)
 monthly-stats.yml    매월 1일 07:17 UTC (미·한 장 모두 휴장 시각) — refresh_hist.py 로
                      원자료 연장(append-only·수정주가 비율 이음·장중 가드) 후
                      build_stats.py 재계산, verify_all 통과 시에만 커밋 (v72)
