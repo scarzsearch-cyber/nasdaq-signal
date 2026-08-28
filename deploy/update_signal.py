@@ -16,6 +16,7 @@ import datetime
 # 파일은 이미 쓰인 뒤라 결과는 맞지만, 수동 실행이 실패로 보인다.
 try:
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')   # 예비 사슬 경고문도 한글이다
 except Exception:
     pass
 import urllib.request
@@ -49,7 +50,9 @@ DEFENSIVE = {
 RISK = {"code": "418660", "name": "TIGER 미국나스닥100레버리지(합성)"}
 
 # stooq.com이 자동화 요청을 JS 챌린지로 차단해 Yahoo Finance chart API로 대체.
-SRC = "https://query1.finance.yahoo.com/v8/finance/chart/QQQ"
+# [v66] Yahoo 가 죽는 날을 위한 예비 사슬: query1 → query2 미러 → 네이버 증권 → 캐시.
+SRC = "https://{host}.finance.yahoo.com/v8/finance/chart/QQQ"
+NAVER_SRC = "https://api.stock.naver.com/stock/QQQ.O/basic"
 OUT_DIR = "data"
 CSV_PATH = os.path.join(OUT_DIR, "qqq.csv")
 JSON_PATH = os.path.join(OUT_DIR, "signal.json")
@@ -64,10 +67,10 @@ CRISES = [
 ]
 
 
-def fetch():
+def fetch(host="query1"):
     period1 = int(datetime.datetime(1999, 1, 1, tzinfo=datetime.timezone.utc).timestamp())
     period2 = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-    url = f"{SRC}?period1={period1}&period2={period2}&interval=1d"
+    url = f"{SRC.format(host=host)}?period1={period1}&period2={period2}&interval=1d"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=60) as r:
         raw = json.loads(r.read().decode("utf-8", "replace"))
@@ -92,6 +95,30 @@ def fetch():
             print(f"장중 실행 감지 — 진행 중인 {live_day.date()} 봉 제외")
             s = s.iloc[:-1]
     return s
+
+
+def fetch_naver():
+    """[v66] Yahoo 가 양쪽 다 죽었을 때의 예비 소스 — 네이버 증권 해외종목 API.
+    이력은 캐시(data/qqq.csv)가 들고 있으므로 **최신 확정 종가 한 줄**만 가져와 붙인다.
+    규칙(QQQ 미국장 종가)은 그대로다 — 같은 값을 다른 창구에서 읽을 뿐이다.
+    안전장치 둘:
+      ① marketStatus 가 CLOSE 일 때만 쓴다 (장중가 오염 방지 — Yahoo 쪽 가드와 같은 목적).
+      ② 캐시 마지막 날짜보다 새 날짜일 때만 붙인다 (예비 소스가 과거를 덮어쓰지 않게).
+    """
+    req = urllib.request.Request(NAVER_SRC, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        d = json.loads(r.read().decode("utf-8", "replace"))
+    if d.get("marketStatus") != "CLOSE":
+        raise RuntimeError(f"네이버 marketStatus={d.get('marketStatus')} — 확정 종가 아님")
+    close = float(d["closePriceRaw"])
+    # localTradedAt 예: '2026-08-28T16:00:02-04:00' — 앞 10자리가 미국 동부 날짜
+    day = pd.Timestamp(str(d["localTradedAt"])[:10])
+    cached = load_cached()
+    if cached is None:
+        raise RuntimeError("캐시가 없어 네이버 한 줄로는 이력을 만들 수 없음")
+    if day <= cached.index[-1]:
+        raise RuntimeError(f"네이버 종가({day.date()})가 캐시({cached.index[-1].date()})보다 새롭지 않음")
+    return pd.Series([close], index=[day], name="Close")
 
 
 def load_cached():
@@ -150,15 +177,23 @@ def load_stats():
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-    try:
-        px = fetch()
-        source = "yahoo"
-    except Exception as e:
-        print(f"[경고] 다운로드 실패({e}) — 캐시 사용", file=sys.stderr)
+    # [v66] 예비 사슬: Yahoo query1 → query2 미러 → 네이버 증권 → 캐시.
+    # 캐시로 떨어지면 그날 종가는 못 싣는다 — 그 전에 세 번 시도한다.
+    px, source = None, None
+    for name, fn in [("yahoo",  fetch),
+                     ("yahoo2", lambda: fetch(host="query2")),
+                     ("naver",  fetch_naver)]:
+        try:
+            px, source = fn(), name
+            break
+        except Exception as e:
+            print(f"[경고] {name} 실패({e}) — 다음 소스 시도", file=sys.stderr)
+    if px is None:
+        print("[경고] 모든 소스 실패 — 캐시 사용", file=sys.stderr)
         px = load_cached()
         source = "cache"
         if px is None:
-            raise
+            raise RuntimeError("소스 전부 실패 + 캐시도 없음")
 
     cached = load_cached()
     if cached is not None:

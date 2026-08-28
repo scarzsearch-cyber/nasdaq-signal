@@ -23,7 +23,7 @@
 
 | 자료 | 출처·구성 |
 |---|---|
-| 일일 신호 | `data/qqq.csv` — stooq → yahoo 폴백 (`deploy/update_signal.py`) |
+| 일일 신호 | `data/qqq.csv` — Yahoo query1 → query2 미러 → 네이버 증권 → 캐시 예비 사슬 (`deploy/update_signal.py`, v66. 네이버는 marketStatus=CLOSE 확정 종가만, 캐시보다 새 날짜만 붙인다) |
 | 54년 체인 | 나스닥종합(1972-)→NDX→QQQ 를 **일간수익률로 접합** — 같은 자산 아님, 대리 시계열 |
 | 방어 재료 | 배당 실측 체인 · 국채 **선물형 모형**(현물TR − 미 단기금리 − 보수 0.29%) · 금 현물 |
 | 환율 | USD/KRW (FRED DEXKOUS) — 원화 시나리오는 환노출 **2배** 구조: `2×((1+지수)(1+환율)−1)` |
