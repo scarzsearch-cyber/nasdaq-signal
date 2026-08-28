@@ -247,6 +247,9 @@ def i5_decisions(D):
            'LP 호가 의무 시간대 — 전략_v21 §13.4')
         ok("화면: 비교표 각주가 문단으로 끊겨 있다", h.count('<p><span class="lead">') >= 4,
            '한 덩어리로 이어 쓰면 아무도 안 읽는다')
+        # [v71] v67 감사 조건 ② — 집중도·급락 비대칭 공개가 화면에 있어야 한다
+        ok("화면: 기여 집중(96%)·급락 무방비 공개", '급락은 거의 못 피합니다' in h
+           and '96%' in h, 'v67 C-1·C-3 — 최종배수 서사의 조건부를 명시')
         # [v60] I9 는 docs 만 훑는다. 화면 문구에 폐기된 방어자산 조합이 남아 있었다.
         for bad in ('배당50/금50', '배당50 / 금50'):
             ok("화면: 폐기 조합 '%s' 없음" % bad, bad not in h,
@@ -288,6 +291,10 @@ def i11_freeze():
         ok('신호 생성기가 동결 규칙과 같다',
            '("B", "−16 / −16", -0.16, -0.16)' in u and 'DEFAULT = "B"' in u,
            'update_signal.py STRATS')
+        # [v71] v67 감사 조건 ① — 라이브 신호원 = 수정 종가 (백테스트와 동일 기준).
+        # 비수정으로 되돌아가면 27년 중 11일 신호가 백테스트와 갈린다.
+        ok('신호원이 수정 종가(adjclose)다', 'adjclose' in u,
+           'update_signal.py fetch — v67 B-1 해소')
     if os.path.exists('signal.html'):
         hh = io.open('signal.html', encoding='utf-8').read()
         ok('화면이 동결 규칙과 같다', 'enter:-0.16, exit:-0.16' in hh,

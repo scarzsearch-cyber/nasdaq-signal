@@ -76,7 +76,15 @@ def fetch(host="query1"):
         raw = json.loads(r.read().decode("utf-8", "replace"))
     result = raw["chart"]["result"][0]
     ts = result["timestamp"]
-    closes = result["indicators"]["quote"][0]["close"]
+    # [v71/B-1] 수정 종가(배당 조정)를 쓴다 — 백테스트(qqq_us_d.csv)와 같은 기준.
+    # 비수정 종가는 배당락만큼 낙폭이 더 깊어 27년 중 11일 신호가 갈렸다(v67 감사).
+    # 수정 종가로는 백테스트와 신호 불일치 0일(6,908일 검증). adjclose 가 없으면
+    # 비수정으로 폴백하되 경고를 남긴다.
+    ind = result["indicators"]
+    closes = (ind.get("adjclose") or [{}])[0].get("adjclose")
+    if not closes:
+        print("[경고] adjclose 없음 — 비수정 종가로 폴백", file=sys.stderr)
+        closes = ind["quote"][0]["close"]
     idx = pd.to_datetime(ts, unit="s", utc=True).tz_convert(None).normalize()
     s = pd.Series(closes, index=idx, name="Close").dropna()
     s = s[~s.index.duplicated(keep="last")].sort_index()
@@ -104,6 +112,10 @@ def fetch_naver():
     안전장치 둘:
       ① marketStatus 가 CLOSE 일 때만 쓴다 (장중가 오염 방지 — Yahoo 쪽 가드와 같은 목적).
       ② 캐시 마지막 날짜보다 새 날짜일 때만 붙인다 (예비 소스가 과거를 덮어쓰지 않게).
+    [v71] 네이버는 비수정 종가지만 최신 봉은 수정 종가와 항상 같으므로(조정은 과거에만
+    적용) 수정 종가 캐시에 붙여도 일관된다. 예외적으로 Yahoo 가 며칠 죽은 사이 배당락이
+    지나면 그 며칠만 최대 배당 1회분(~0.15%p) 오차가 났다가, Yahoo 복구 시 전체 이력을
+    다시 받으며 자동 정정된다.
     """
     req = urllib.request.Request(NAVER_SRC, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=30) as r:
