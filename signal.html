@@ -104,7 +104,7 @@ body{padding:28px 20px 64px;}
    이어 쓰면 어디까지가 정의고 어디부터가 수치인지 안 보인다. */
 .metkey .mk .nm{display:flex;align-items:baseline;gap:7px;
   font-size:15px;font-weight:700;color:var(--ink);letter-spacing:.03em;}
-.metkey .mk .ar{font-size:12px;font-weight:600;color:var(--muted);
+.metkey .mk .ar{font-size:12px;font-weight:600;color:var(--attack);
   letter-spacing:0;white-space:nowrap;}
 .metkey .mk .df{display:block;margin-top:3px;}
 .metkey .mk .rd{display:block;margin-top:7px;color:var(--ink);}
@@ -506,33 +506,21 @@ td.s-schd{color:var(--defend);font-weight:600;}
           <b>09:05~15:20 사이</b>에 넣습니다.</dd>
     </dl>
     <div class="rules">
-      <b>왜 같은 날인가</b> — 백테스트는 「신호 다음날 미국 종가 체결」을 가정했고,
-      한국장 실행은 그보다 <b>반나절 빠릅니다</b>. 늦어질수록 성과가 떨어지므로
-      (1일 지연 126배 → 3일 지연 102배) <b>미루지 않는 것만 중요합니다</b>.
-      한국 휴장일이면 다음 개장일에 하면 됩니다 — 신호의 94.9%는 지연 없이 체결되고
-      2~3일 밀려도 무너지지 않습니다.<br><br>
+      <b>미루지만 마세요</b> — 신호(미국 종가)는 한국 개장 전에 확정됩니다.
+      같은 날 <b>09:05~15:20</b> 사이 아무 때나 체결하면 되고(그 밖은 LP 호가 의무가 없어
+      스프레드만 벌어짐), 몇 분·몇 시간 차이는 비용에 묻힙니다. 성과를 깎는 건 하루 단위
+      지연뿐입니다 (1일 126배 → 3일 102배). 휴장이면 다음 개장일에.<br><br>
 
-      <b>몇 시에 넣을지는 고민할 가치가 없습니다</b> — 국내 ETF는 개장 직후와 종가 단일가
-      구간에 LP 호가 의무가 없어 스프레드만 벌어집니다. 그 구간만 피해
-      <b>09:05~15:20</b> 안이면 됩니다. 시초가 갭 표준편차가 레버리지 2.4%라
-      이 안에서 몇 분 차이는 비용(0.1%)에 묻힙니다.<br><br>
+      <b>방어 바스켓은 고르지 말고 셋 다</b> — 40/40/20 고정, 월 1회 비율만 맞춥니다.
+      골라 타는 규칙 11종은 전부 기각됐고, 섞는 이유는 수익이 아니라 낙폭입니다
+      (MDD −60.5% vs 배당100 −68.1%). 국채 다리는 <b>선물형</b>이라 단기금리만큼 뺀
+      수익을 받습니다 — 백테스트도 같은 규약입니다.<br><br>
 
-      <b>방어 바스켓은 고르지 않습니다</b> — 셋 중 우상향인 것을 골라 타는 규칙 11종을
-      전부 시험했고 전부 기각됐습니다. 섞는 이유는 수익이 아니라 <b>낙폭</b>입니다 —
-      MDD −60.5% vs 배당100 −68.1%, 2008 위기에 <b>+9.0% vs −22.7%</b>.
-      <b>40/40/20으로 그냥 사고 월 1회만 비율을 맞춥니다.</b><br><br>
+      <b>세금이 규칙보다 큽니다</b> — 일반계좌 세후는 ISA 대비 <b>−33%</b>.
+      이 화면의 성과표는 전부 세전입니다.<br><br>
 
-      <b>국채 다리는 선물형입니다</b> — TIGER 미국채10년선물은 현물이 아니라 선물을 굴립니다.
-      선물 가격에 조달비용(미국 단기금리)이 들어 있어 보유자는 <b>그만큼 뺀 수익</b>을 받습니다.
-      백테스트도 그렇게 맞췄습니다(실물 대비 연 −0.18%). 금리가 높을수록 기여가 줄어듭니다.<br><br>
-
-      <b>세금이 규칙 선택보다 큽니다</b> — 연 2.1회 전량 전환하는 전략이라 매도 과세 부담이 큽니다.
-      일반계좌 세후는 ISA 대비 <b>−33%</b>(20년 창 중앙값)로, 규칙을 바꿔서 얻을 수 있는
-      차이보다 훨씬 큽니다. 이 화면의 다른 성과표는 <b>전부 세전</b>입니다.<br><br>
-
-      <b>환율</b> — TIGER 레버리지는 <b>원화 환산 지수를 2배</b>로 추종합니다(실측 베타 1.98).
-      지수뿐 아니라 <b>환변동도 2배</b>로 실립니다. 위기 때 원화가 약해지면 완충이 되는 방향이라
-      원화 기준 낙폭이 달러 기준보다 얕게 나오는 경우가 많습니다.
+      <b>환율은 2배로 실립니다</b> — TIGER 레버리지는 원화 환산 지수의 2배(실측 베타 1.98).
+      위기 때 원화 약세가 완충이 되는 방향이었지만, 반대로 갈 수도 있는 환위험입니다.
     </div>
   </div>
 
@@ -566,10 +554,11 @@ const STRAT = {
 const ORDER = ['B'];
 // 지표 눈금 — 같은 기간 같은 재료로 잰 두 벤치마크. 숫자만으로는 체감이 안 된다.
 const BENCH = {lev:'2배 그냥 보유', def:'방어 단독'};
-// [v62] 방어 줄은 실제 구성(배당40 / 국채40 / 금20)을 그대로 쓴다 — 칩에 따라 바뀐다.
+// [v72] 비교표의 벤치마크는 채택안과 같은 방어(mix) 기준으로 고정한다 —
+//       전략 3줄이 이미 방어 변형을 보여주므로 벤치까지 칩에 따라 바뀌면 헷갈린다.
 function benchLabel(k){
   if(k !== 'def') return BENCH[k];
-  const d = (STATS && STATS.defensives || []).find(x=>x.key===defk);
+  const d = (STATS && STATS.defensives || []).find(x=>x.key==='mix');
   return d ? d.label + ' 단독' : '방어 단독';
 }
 
@@ -711,13 +700,10 @@ function drawPicker(){
   host.innerHTML = ORDER.map(k=>{
     const S = STRAT[k];
     const m  = s ? stratsOf(s)[k] : null;
-    const bv = s ? benchOf(s, 'lev') : null;      // 눈금 = 같은 기간 2배 그냥 보유
 
-    // [v61] 값 밑에 벤치마크를 회색으로 붙인다. 강조색은 '벤치마크보다 나음'을 뜻한다.
-    const cell = (label, val, ref, good) =>
-      `<div><div class="k">${label}</div>` +
-      `<div class="v${good===true?' win':''}">${val}</div>` +
-      `<div class="b">${ref==null?'&nbsp;':ref}</div></div>`;
+    // [v72] 카드는 채택안의 값만 보여준다 — 벤치마크 비교는 아래 성과 비교표에 있다.
+    const cell = (label, val) =>
+      `<div><div class="k">${label}</div><div class="v">${val}</div></div>`;
     let mets = '';
     if(m){
       // [v45] 최종배수를 맨 앞에 둔다.
@@ -731,18 +717,13 @@ function drawPicker(){
         uw_months: x => uwfmt(x),
         ulcer:     x => x.ulcer==null?'—':x.ulcer.toFixed(1),
       };
-      // hi=true 면 클수록 좋다. MDD 는 둘 다 음수라 큰 쪽이 얕다 → hi=true.
-      const row = (lab, key, hi) => {
-        let good = null;
-        if(bv && m[key]!=null && bv[key]!=null) good = hi ? m[key] > bv[key] : m[key] < bv[key];
-        return cell(lab, F[key](m), bv ? F[key](bv) : null, good);
-      };
-      mets = row('최종배수','final',true) + row('MDD','mdd',true)
-           + row('CALMAR','calmar',true) + row('SORTINO','sortino',true)
-           + row('회복기간','uw_months',false) + row('ULCER','ulcer',false);
+      const row = (lab, key) => cell(lab, F[key](m));
+      mets = row('최종배수','final') + row('MDD','mdd')
+           + row('CALMAR','calmar') + row('SORTINO','sortino')
+           + row('회복기간','uw_months') + row('ULCER','ulcer');
     } else {
       mets = ['최종배수','MDD','CALMAR','SORTINO','회복기간','ULCER']
-               .map(x=>cell(x,'—',null)).join('');
+               .map(x=>cell(x,'—')).join('');
     }
     // [v61] 규칙이 하나뿐이라 고르는 UI 가 아니다. 버튼이 아니라 패널이다.
     return `<div class="opt only" data-k="${k}">
@@ -796,13 +777,12 @@ function paintMetKey(sc){
   const el = document.getElementById('metkey');
   if(!el) return;
   const m = sc ? stratsOf(sc)[sel] : null;
-  const bv = sc ? benchOf(sc, 'lev') : null;
-  // nm 이름 / ar 방향 / df 뜻 / rd 지금 값이 뜻하는 것 / bm 눈금(2배 그냥 보유)
-  const row = (nm, ar, df, rd, bm) =>
+  // nm 이름 / ar 방향 / df 뜻 / rd 지금 값이 뜻하는 것
+  // [v72] 벤치마크 줄은 뺐다 — 비교는 아래 성과 비교표 한 곳에서만 한다.
+  const row = (nm, ar, df, rd) =>
     `<div class="mk"><div class="nm">${nm}<span class="ar">${ar}</span></div>` +
     `<span class="df">${df}</span>` +
-    `${rd?`<span class="rd">${rd}</span>`:''}` +
-    `${bm?`<span class="bm">${bm}</span>`:''}</div>`;
+    `${rd?`<span class="rd">${rd}</span>`:''}</div>`;
   if(!m){ el.innerHTML = ''; return; }
 
   // MDD → 원금이 얼마가 되나. 백분율보다 금액이 훨씬 빨리 읽힌다. (단위: 만원)
@@ -819,33 +799,26 @@ function paintMetKey(sc){
   const UP = '↑ 클수록', DN = '↓ 작을수록';
   el.innerHTML =
     row('최종배수', UP, '시작 1원이 얼마가 됐나',
-        `1,000만원 → <b>${money(m.final*1000)}</b>`,
-        bv ? `2배 그냥 보유는 ${money(bv.final*1000)}` : '') +
+        `1,000만원 → <b>${money(m.final*1000)}</b>`) +
 
     row('MDD', '↓ 얕을수록', '고점 대비 <b>최악의 한 점</b> — 한 번은 겪는 값',
-        `1,000만원이 <b>${won(m.mdd)}만원</b>까지`,
-        bv ? `2배 그냥 보유는 ${won(bv.mdd)}만원까지` : '') +
+        `1,000만원이 <b>${won(m.mdd)}만원</b>까지`) +
 
     row('회복기간', '↓ 짧을수록', '전고점을 되찾기까지 걸린 <b>최장</b> 기간',
-        `<b>${uwfmt(m)}</b>`,
-        bv ? `2배 그냥 보유는 ${uwfmt(bv)}` : '') +
+        `<b>${uwfmt(m)}</b>`) +
 
     row('CALMAR', UP, '낙폭 대비 효율 — <b>일시적 대폭락</b> 위험을 본다',
-        `${m.calmar.toFixed(3)} — 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움`,
-        bv ? `2배 그냥 보유는 ${yrs(bv.calmar)}년치` : '') +
+        `${m.calmar.toFixed(3)} — 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움`) +
 
     row('SORTINO', UP, '하락 변동성 대비 수익 — <b>지속적 손실</b> 위험을 본다',
         m.sortino==null ? '—'
-          : `<b>${m.sortino.toFixed(3)}</b> — 통상 1 이상 무난 · 1.5 이상 우수`,
-        bv&&bv.sortino!=null ? `2배 그냥 보유는 ${bv.sortino.toFixed(2)}` : '') +
+          : `<b>${m.sortino.toFixed(3)}</b> — 통상 1 이상 무난 · 1.5 이상 우수`) +
 
     row('ULCER', DN, '<b>늘 얼마나 물속이었나</b> — MDD 가 못 보는 평상시의 고통',
         m.dd_mean==null ? '—'
-          : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`,
-        bv&&bv.dd_mean!=null ? `2배 그냥 보유는 −${bv.dd_mean.toFixed(1)}%` : '') +
+          : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`) +
 
-    `<div class="dir">각 값 아래 <b>회색 숫자</b>는 같은 기간 <b>2배 그냥 보유</b>(전략을 안 썼을 때).
-      <b>파란 값</b>은 그보다 나은 것입니다.</div>`;
+    `<div class="dir">다른 전략·벤치마크와의 비교는 아래 <b>성과 비교표</b> 한 곳에서 합니다.</div>`;
 }
 
 /* ---------------- 성과 비교표 ---------------- */
@@ -868,15 +841,28 @@ function drawPerf(){
         <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
   // [v63] 기준마다 기간이 다르다는 걸 표에서 바로 보이게 — 최종배수 세로비교 함정 방지
   const per = m => `<span class="per">${m.start.slice(0,7)} ~ ${m.end.slice(0,7)} (${m.years}년)</span>`;
+  // [v72] 전략 3줄 체제: ① 채택안(방어 40/40/20) ② 방어만 배당100 ③ 헤지 60/40.
+  //       셋 다 같은 신호(−16/−16)·같은 체결·같은 비용 — 다른 것만 이름에 적는다.
+  const VARIANTS = [
+    ['strategies',       '−16 / −16 · 방어 40/40/20'],
+    ['strategies_div',   '−16 / −16 · 방어 배당100'],
+    ['strategies_hedge', '헤지 60/40 · 방어 40/40/20'],
+  ];
   let body = '';
   STATS.scenarios.forEach((s,si)=>{
-    const m = stratsOf(s)[sel];
-    body += `<tr class="on${si>0?' grp':''}">
-      <td class="scen">${s.label}${per(m)}</td>
-      <td class="strat">${STRAT[sel].name}</td>${cols(m)}
-      <td class="num">${m.switches}</td></tr>`;
+    let first = true;
+    VARIANTS.forEach(([vk, vlab])=>{
+      const m = s[vk] ? s[vk][sel] : null;
+      if(!m) return;
+      body += `<tr class="${first?('on'+(si>0?' grp':'')):'alt'}">
+        <td class="scen">${first ? s.label+per(m) : ''}</td>
+        <td class="strat">${vlab}</td>${cols(m)}
+        <td class="num">${m.switches}</td></tr>`;
+      first = false;
+    });
+    // 벤치마크는 채택안과 같은 방어(mix) 기준으로 고정한다
     Object.keys(BENCH).forEach(bk=>{
-      const b = benchOf(s, bk);
+      const b = s.benchmarks ? s.benchmarks[bk] : null;
       if(!b) return;
       body += `<tr class="bench">
         <td class="scen"></td>
@@ -889,9 +875,14 @@ function drawPerf(){
   //       ① 지표 뜻 ② 왜 두 지표를 더 두나 ③ 읽을 때의 함정 ④ 각 줄의 전제 ⑤ 계산 조건
   // [v62] 요점만. 길게 풀어 쓰면 안 읽힌다 — 자세한 것은 카드 아래 지표 풀이에 있다.
   document.getElementById('perfNote').innerHTML =
-    `<p><span class="lead">눈금</span> — 기준마다 <b>2배 그냥 보유</b>(전략을 안 썼을 때)와
-       <b>${(STATS.defensives||[]).find(d=>d.key===defk)?.label || '배당100'} 단독</b>(공격을 안 했을 때)을
-       흐린 줄로 붙였습니다. 같은 기간·같은 재료·같은 달력입니다.</p>
+    `<p><span class="lead">세 줄의 차이</span> — 셋 다 <b>같은 신호(−16/−16)·같은 체결·같은
+       비용</b>입니다. ①은 채택안, ②는 방어만 배당100 으로 바꾼 것,
+       ③ <b>헤지 60/40</b> 은 상승장에도 QLD 60% / SCHD 40%(월 1회 재조정)만 들고 가는
+       저레버리지형입니다 — 수익 계단을 낮추고 낙폭을 더 깎습니다.</p>
+
+     <p><span class="lead">눈금</span> — 기준마다 <b>2배 그냥 보유</b>(전략을 안 썼을 때)와
+       <b>방어 단독</b>(공격을 안 했을 때)을 흐린 줄로 붙였습니다.
+       같은 기간·같은 재료·같은 달력입니다.</p>
 
      <p><span class="lead">주의</span> —
        <b style="color:var(--ink)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다.</b>

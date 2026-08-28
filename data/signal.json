@@ -160,7 +160,7 @@
   }
  ],
  "stats": {
-  "generated_at": "2026-08-27 18:40 UTC",
+  "generated_at": "2026-08-28 20:04 UTC",
   "strategies": {
    "B": {
     "name": "−16 / −16",
@@ -218,186 +218,210 @@
     "note": "QQQ 실물 · SCHD 상장 이전은 연 2% 현금. verify.py 와 같은 규약.",
     "strategies": {
      "B": {
-      "final": 165.01,
-      "cagr": 21.12,
+      "final": 167.315,
+      "cagr": 21.18,
       "mdd": -48.4,
-      "calmar": 0.436,
-      "sortino": 0.905,
-      "sharpe": 0.733,
-      "years": 26.6,
+      "calmar": 0.438,
+      "sortino": 0.907,
+      "sharpe": 0.735,
+      "years": 26.7,
       "ulcer": 22.64,
       "dd_mean": 16.74,
       "uw_months": 45.4,
       "uw_open": false,
       "switches": 52,
       "horizons": {
-       "5": 2.203,
-       "10": 15.304,
-       "15": 68.164,
-       "20": 134.159
+       "5": 2.142,
+       "10": 15.473,
+       "15": 65.341,
+       "20": 136.03
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 150.284,
-      "cagr": 20.7,
+      "final": 152.384,
+      "cagr": 20.76,
       "mdd": -45.39,
-      "calmar": 0.456,
-      "sortino": 0.895,
-      "sharpe": 0.731,
-      "years": 26.6,
+      "calmar": 0.457,
+      "sortino": 0.897,
+      "sharpe": 0.733,
+      "years": 26.7,
       "ulcer": 20.48,
       "dd_mean": 15.77,
       "uw_months": 39.3,
       "uw_open": false,
       "switches": 22,
       "horizons": {
-       "5": 2.293,
-       "10": 14.375,
-       "15": 57.835,
-       "20": 97.835
+       "5": 2.23,
+       "10": 14.534,
+       "15": 55.495,
+       "20": 99.199
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks": {
      "lev": {
-      "final": 4.988,
-      "cagr": 6.22,
+      "final": 5.058,
+      "cagr": 6.27,
       "mdd": -98.82,
       "calmar": 0.063,
-      "sortino": 0.497,
-      "sharpe": 0.38,
-      "years": 26.6,
-      "ulcer": 76.84,
-      "dd_mean": 69.32,
+      "sortino": 0.498,
+      "sharpe": 0.381,
+      "years": 26.7,
+      "ulcer": 76.83,
+      "dd_mean": 69.3,
       "uw_months": 245.1,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 2.27,
-       "10": 17.2,
-       "15": 77.557,
-       "20": 91.928
+       "5": 2.208,
+       "10": 17.39,
+       "15": 74.345,
+       "20": 93.21
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 5.064,
-      "cagr": 6.28,
+      "final": 5.035,
+      "cagr": 6.25,
       "mdd": -13.62,
-      "calmar": 0.461,
-      "sortino": 1.366,
-      "sharpe": 1.047,
-      "years": 26.6,
+      "calmar": 0.459,
+      "sortino": 1.361,
+      "sharpe": 1.043,
+      "years": 26.7,
       "ulcer": 2.39,
       "dd_mean": 1.59,
       "uw_months": 25.7,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 1.376,
-       "10": 2.056,
-       "15": 2.682,
-       "20": 3.806
+       "5": 1.361,
+       "10": 2.036,
+       "15": 2.671,
+       "20": 3.784
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "strategies_div": {
      "B": {
-      "final": 153.283,
-      "cagr": 20.79,
+      "final": 155.425,
+      "cagr": 20.85,
       "mdd": -49.03,
-      "calmar": 0.424,
-      "sortino": 0.867,
-      "sharpe": 0.721,
-      "years": 26.6,
+      "calmar": 0.425,
+      "sortino": 0.869,
+      "sharpe": 0.722,
+      "years": 26.7,
       "ulcer": 23.24,
       "dd_mean": 17.19,
       "uw_months": 56.2,
       "uw_open": false,
       "switches": 52,
       "horizons": {
-       "5": 2.138,
-       "10": 15.45,
-       "15": 68.564,
-       "20": 129.488
+       "5": 2.079,
+       "10": 15.62,
+       "15": 65.724,
+       "20": 131.293
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 140.318,
-      "cagr": 20.39,
+      "final": 142.279,
+      "cagr": 20.45,
       "mdd": -46.62,
-      "calmar": 0.437,
-      "sortino": 0.854,
-      "sharpe": 0.718,
-      "years": 26.6,
-      "ulcer": 20.59,
+      "calmar": 0.439,
+      "sortino": 0.856,
+      "sharpe": 0.72,
+      "years": 26.7,
+      "ulcer": 20.58,
       "dd_mean": 15.89,
       "uw_months": 41.1,
       "uw_open": false,
       "switches": 22,
       "horizons": {
-       "5": 2.223,
-       "10": 14.472,
-       "15": 59.065,
-       "20": 98.53
+       "5": 2.162,
+       "10": 14.631,
+       "15": 56.675,
+       "20": 99.904
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks_div": {
      "lev": {
-      "final": 4.988,
-      "cagr": 6.22,
+      "final": 5.058,
+      "cagr": 6.27,
       "mdd": -98.82,
       "calmar": 0.063,
-      "sortino": 0.497,
-      "sharpe": 0.38,
-      "years": 26.6,
-      "ulcer": 76.84,
-      "dd_mean": 69.32,
+      "sortino": 0.498,
+      "sharpe": 0.381,
+      "years": 26.7,
+      "ulcer": 76.83,
+      "dd_mean": 69.3,
       "uw_months": 245.1,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 2.27,
-       "10": 17.2,
-       "15": 77.557,
-       "20": 91.928
+       "5": 2.208,
+       "10": 17.39,
+       "15": 74.345,
+       "20": 93.21
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 7.95,
-      "cagr": 8.09,
+      "final": 7.901,
+      "cagr": 8.06,
       "mdd": -33.37,
-      "calmar": 0.243,
-      "sortino": 0.702,
-      "sharpe": 0.737,
-      "years": 26.6,
+      "calmar": 0.242,
+      "sortino": 0.7,
+      "sharpe": 0.735,
+      "years": 26.7,
       "ulcer": 3.86,
       "dd_mean": 1.89,
       "uw_months": 23.5,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 1.545,
-       "10": 3.277,
-       "15": 6.3,
-       "20": 6.962
+       "5": 1.525,
+       "10": 3.238,
+       "15": 6.261,
+       "20": 6.919
       },
       "start": "2000-01-03",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
+     }
+    },
+    "strategies_hedge": {
+     "B": {
+      "final": 62.997,
+      "cagr": 16.82,
+      "mdd": -38.48,
+      "calmar": 0.437,
+      "sortino": 0.995,
+      "sharpe": 0.802,
+      "years": 26.7,
+      "ulcer": 14.39,
+      "dd_mean": 10.31,
+      "uw_months": 43.3,
+      "uw_open": false,
+      "switches": 52,
+      "horizons": {
+       "5": 1.985,
+       "10": 8.945,
+       "15": 28.527,
+       "20": 49.401
+      },
+      "start": "2000-01-03",
+      "end": "2026-08-28"
      }
     }
    },
@@ -407,186 +431,210 @@
     "note": "나스닥 3구간 체인 + 배당 실측 방어자산. 가장 긴 표본.",
     "strategies": {
      "B": {
-      "final": 214076.093,
-      "cagr": 25.23,
+      "final": 217110.075,
+      "cagr": 25.26,
       "mdd": -60.48,
-      "calmar": 0.417,
+      "calmar": 0.418,
       "sortino": 1.041,
       "sharpe": 0.836,
-      "years": 54.5,
+      "years": 54.6,
       "ulcer": 22.8,
       "dd_mean": 17.34,
       "uw_months": 50.6,
       "uw_open": false,
       "switches": 140,
       "horizons": {
-       "5": 2.203,
-       "10": 15.304,
-       "15": 68.164,
-       "20": 123.881
+       "5": 2.142,
+       "10": 15.473,
+       "15": 65.341,
+       "20": 125.608
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 126286.961,
-      "cagr": 24.03,
+      "final": 128074.913,
+      "cagr": 24.06,
       "mdd": -57.56,
-      "calmar": 0.417,
-      "sortino": 1.005,
-      "sharpe": 0.817,
-      "years": 54.5,
+      "calmar": 0.418,
+      "sortino": 1.006,
+      "sharpe": 0.818,
+      "years": 54.6,
       "ulcer": 22.18,
       "dd_mean": 17.17,
       "uw_months": 50.7,
       "uw_open": false,
       "switches": 54,
       "horizons": {
-       "5": 2.293,
-       "10": 14.375,
-       "15": 57.835,
-       "20": 92.045
+       "5": 2.23,
+       "10": 14.534,
+       "15": 55.495,
+       "20": 93.328
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks": {
      "lev": {
-      "final": 5679.592,
-      "cagr": 17.17,
+      "final": 5760.443,
+      "cagr": 17.2,
       "mdd": -98.82,
       "calmar": 0.174,
-      "sortino": 0.733,
+      "sortino": 0.734,
       "sharpe": 0.574,
-      "years": 54.5,
-      "ulcer": 58.8,
+      "years": 54.6,
+      "ulcer": 58.79,
       "dd_mean": 46.85,
       "uw_months": 245.1,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 2.27,
-       "10": 17.2,
-       "15": 77.557,
-       "20": 91.928
+       "5": 2.208,
+       "10": 17.39,
+       "15": 74.345,
+       "20": 93.21
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 57.337,
-      "cagr": 7.71,
+      "final": 57.003,
+      "cagr": 7.69,
       "mdd": -26.0,
       "calmar": 0.296,
-      "sortino": 1.354,
-      "sharpe": 1.005,
-      "years": 54.5,
+      "sortino": 1.352,
+      "sharpe": 1.003,
+      "years": 54.6,
       "ulcer": 4.31,
       "dd_mean": 2.66,
       "uw_months": 26.2,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 1.376,
-       "10": 2.056,
-       "15": 2.753,
-       "20": 3.709
+       "5": 1.361,
+       "10": 2.036,
+       "15": 2.713,
+       "20": 3.687
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "strategies_div": {
      "B": {
-      "final": 245603.243,
-      "cagr": 25.55,
+      "final": 249084.042,
+      "cagr": 25.58,
       "mdd": -68.12,
       "calmar": 0.375,
-      "sortino": 1.057,
+      "sortino": 1.058,
       "sharpe": 0.823,
-      "years": 54.5,
+      "years": 54.6,
       "ulcer": 22.65,
       "dd_mean": 17.22,
       "uw_months": 62.6,
       "uw_open": false,
       "switches": 140,
       "horizons": {
-       "5": 2.138,
-       "10": 15.45,
-       "15": 68.564,
-       "20": 102.033
+       "5": 2.079,
+       "10": 15.62,
+       "15": 65.724,
+       "20": 103.455
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 179355.079,
-      "cagr": 24.83,
+      "final": 181894.361,
+      "cagr": 24.86,
       "mdd": -68.72,
-      "calmar": 0.361,
-      "sortino": 1.036,
-      "sharpe": 0.814,
-      "years": 54.5,
+      "calmar": 0.362,
+      "sortino": 1.037,
+      "sharpe": 0.815,
+      "years": 54.6,
       "ulcer": 22.04,
       "dd_mean": 16.73,
       "uw_months": 62.9,
       "uw_open": false,
       "switches": 54,
       "horizons": {
-       "5": 2.223,
-       "10": 14.472,
-       "15": 59.065,
-       "20": 81.581
+       "5": 2.162,
+       "10": 14.631,
+       "15": 56.675,
+       "20": 82.718
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks_div": {
      "lev": {
-      "final": 5679.592,
-      "cagr": 17.17,
+      "final": 5760.443,
+      "cagr": 17.2,
       "mdd": -98.82,
       "calmar": 0.174,
-      "sortino": 0.733,
+      "sortino": 0.734,
       "sharpe": 0.574,
-      "years": 54.5,
-      "ulcer": 58.8,
+      "years": 54.6,
+      "ulcer": 58.79,
       "dd_mean": 46.85,
       "uw_months": 245.1,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 2.27,
-       "10": 17.2,
-       "15": 77.557,
-       "20": 91.928
+       "5": 2.208,
+       "10": 17.39,
+       "15": 74.345,
+       "20": 93.21
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 587.124,
-      "cagr": 12.4,
+      "final": 583.438,
+      "cagr": 12.38,
       "mdd": -62.59,
       "calmar": 0.198,
-      "sortino": 1.007,
-      "sharpe": 0.811,
-      "years": 54.5,
-      "ulcer": 11.07,
+      "sortino": 1.006,
+      "sharpe": 0.81,
+      "years": 54.6,
+      "ulcer": 11.06,
       "dd_mean": 6.31,
       "uw_months": 67.9,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 1.545,
-       "10": 3.277,
-       "15": 6.725,
-       "20": 6.123
+       "5": 1.525,
+       "10": 3.238,
+       "15": 6.503,
+       "20": 6.085
       },
       "start": "1972-02-07",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
+     }
+    },
+    "strategies_hedge": {
+     "B": {
+      "final": 31779.222,
+      "cagr": 20.93,
+      "mdd": -46.15,
+      "calmar": 0.453,
+      "sortino": 1.141,
+      "sharpe": 0.913,
+      "years": 54.6,
+      "ulcer": 15.21,
+      "dd_mean": 11.0,
+      "uw_months": 42.3,
+      "uw_open": false,
+      "switches": 140,
+      "horizons": {
+       "5": 1.985,
+       "10": 8.944,
+       "15": 28.872,
+       "20": 46.359
+      },
+      "start": "1972-02-07",
+      "end": "2026-08-28"
      }
     }
    },
@@ -596,186 +644,210 @@
     "note": "환노출 2배 + 한국 거래일 체결 + 슬리피지 0.1%. 국내 ETF 상장 이전은 원화 환산 시뮬레이션.",
     "strategies": {
      "B": {
-      "final": 2761.328,
-      "cagr": 30.64,
+      "final": 2799.948,
+      "cagr": 30.69,
       "mdd": -55.97,
-      "calmar": 0.547,
-      "sortino": 1.143,
-      "sharpe": 0.851,
-      "years": 29.6,
+      "calmar": 0.548,
+      "sortino": 1.145,
+      "sharpe": 0.852,
+      "years": 29.7,
       "ulcer": 20.63,
       "dd_mean": 16.02,
       "uw_months": 56.6,
       "uw_open": false,
       "switches": 58,
       "horizons": {
-       "5": 3.031,
-       "10": 22.03,
-       "15": 93.477,
-       "20": 186.694
+       "5": 2.967,
+       "10": 21.884,
+       "15": 90.771,
+       "20": 189.295
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 2161.866,
-      "cagr": 29.57,
+      "final": 2192.09,
+      "cagr": 29.62,
       "mdd": -56.79,
-      "calmar": 0.521,
-      "sortino": 1.12,
-      "sharpe": 0.84,
-      "years": 29.6,
+      "calmar": 0.522,
+      "sortino": 1.122,
+      "sharpe": 0.841,
+      "years": 29.7,
       "ulcer": 20.28,
       "dd_mean": 15.73,
       "uw_months": 81.5,
       "uw_open": false,
       "switches": 28,
       "horizons": {
-       "5": 3.116,
-       "10": 20.598,
-       "15": 76.484,
-       "20": 119.839
+       "5": 3.05,
+       "10": 20.461,
+       "15": 74.418,
+       "20": 121.508
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks": {
      "lev": {
-      "final": 132.646,
-      "cagr": 17.92,
+      "final": 134.507,
+      "cagr": 17.98,
       "mdd": -98.31,
-      "calmar": 0.182,
-      "sortino": 0.784,
-      "sharpe": 0.574,
-      "years": 29.6,
-      "ulcer": 73.53,
-      "dd_mean": 63.76,
+      "calmar": 0.183,
+      "sortino": 0.785,
+      "sharpe": 0.575,
+      "years": 29.7,
+      "ulcer": 73.52,
+      "dd_mean": 63.75,
       "uw_months": 250.3,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 3.428,
-       "10": 27.918,
-       "15": 118.46,
-       "20": 165.903
+       "5": 3.356,
+       "10": 27.732,
+       "15": 115.032,
+       "20": 168.218
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 11.779,
-      "cagr": 8.68,
+      "final": 11.71,
+      "cagr": 8.65,
       "mdd": -44.71,
-      "calmar": 0.194,
-      "sortino": 0.839,
-      "sharpe": 0.651,
-      "years": 29.6,
+      "calmar": 0.193,
+      "sortino": 0.837,
+      "sharpe": 0.649,
+      "years": 29.7,
       "ulcer": 13.94,
       "dd_mean": 9.28,
       "uw_months": 122.6,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 1.629,
-       "10": 2.561,
-       "15": 3.532,
-       "20": 5.33
+       "5": 1.616,
+       "10": 2.515,
+       "15": 3.5,
+       "20": 5.299
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "strategies_div": {
      "B": {
-      "final": 2741.243,
-      "cagr": 30.61,
+      "final": 2779.582,
+      "cagr": 30.66,
       "mdd": -54.98,
-      "calmar": 0.557,
-      "sortino": 1.158,
-      "sharpe": 0.833,
-      "years": 29.6,
+      "calmar": 0.558,
+      "sortino": 1.16,
+      "sharpe": 0.834,
+      "years": 29.7,
       "ulcer": 19.74,
-      "dd_mean": 15.47,
+      "dd_mean": 15.48,
       "uw_months": 56.0,
       "uw_open": false,
       "switches": 58,
       "horizons": {
-       "5": 2.942,
-       "10": 22.24,
-       "15": 94.366,
-       "20": 154.325
+       "5": 2.88,
+       "10": 22.092,
+       "15": 91.634,
+       "20": 156.475
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 2252.13,
-      "cagr": 29.74,
+      "final": 2283.616,
+      "cagr": 29.8,
       "mdd": -55.67,
-      "calmar": 0.534,
-      "sortino": 1.142,
-      "sharpe": 0.825,
-      "years": 29.6,
+      "calmar": 0.535,
+      "sortino": 1.144,
+      "sharpe": 0.826,
+      "years": 29.7,
       "ulcer": 21.02,
       "dd_mean": 16.37,
       "uw_months": 84.7,
       "uw_open": false,
       "switches": 28,
       "horizons": {
-       "5": 3.021,
-       "10": 20.406,
-       "15": 77.146,
-       "20": 104.904
+       "5": 2.958,
+       "10": 20.27,
+       "15": 75.063,
+       "20": 106.365
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks_div": {
      "lev": {
-      "final": 132.646,
-      "cagr": 17.92,
+      "final": 134.507,
+      "cagr": 17.98,
       "mdd": -98.31,
-      "calmar": 0.182,
-      "sortino": 0.784,
-      "sharpe": 0.574,
-      "years": 29.6,
-      "ulcer": 73.53,
-      "dd_mean": 63.76,
+      "calmar": 0.183,
+      "sortino": 0.785,
+      "sharpe": 0.575,
+      "years": 29.7,
+      "ulcer": 73.52,
+      "dd_mean": 63.75,
       "uw_months": 250.3,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 3.428,
-       "10": 27.918,
-       "15": 118.46,
-       "20": 165.903
+       "5": 3.356,
+       "10": 27.732,
+       "15": 115.032,
+       "20": 168.218
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 30.803,
-      "cagr": 12.26,
+      "final": 30.609,
+      "cagr": 12.23,
       "mdd": -47.99,
       "calmar": 0.255,
-      "sortino": 0.857,
-      "sharpe": 0.643,
-      "years": 29.6,
+      "sortino": 0.855,
+      "sharpe": 0.642,
+      "years": 29.7,
       "ulcer": 13.06,
       "dd_mean": 8.72,
       "uw_months": 40.0,
       "uw_open": false,
       "switches": 0,
       "horizons": {
-       "5": 1.829,
-       "10": 4.083,
-       "15": 8.628,
-       "20": 8.8
+       "5": 1.811,
+       "10": 3.999,
+       "15": 8.391,
+       "20": 8.745
       },
       "start": "1997-01-02",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
+     }
+    },
+    "strategies_hedge": {
+     "B": {
+      "final": 604.918,
+      "cagr": 24.11,
+      "mdd": -43.33,
+      "calmar": 0.556,
+      "sortino": 1.154,
+      "sharpe": 0.858,
+      "years": 29.7,
+      "ulcer": 12.59,
+      "dd_mean": 9.58,
+      "uw_months": 55.9,
+      "uw_open": false,
+      "switches": 58,
+      "horizons": {
+       "5": 2.57,
+       "10": 11.866,
+       "15": 38.378,
+       "20": 66.881
+      },
+      "start": "1997-01-02",
+      "end": "2026-08-28"
      }
     }
    },
@@ -785,15 +857,15 @@
     "note": "TIGER 3종이 모두 상장된 이후만. 실제 시가 체결.",
     "strategies": {
      "B": {
-      "final": 2.854,
-      "cagr": 39.0,
+      "final": 2.932,
+      "cagr": 40.12,
       "mdd": -44.94,
-      "calmar": 0.868,
-      "sortino": 1.488,
-      "sharpe": 1.121,
+      "calmar": 0.893,
+      "sortino": 1.518,
+      "sharpe": 1.142,
       "years": 3.2,
-      "ulcer": 14.25,
-      "dd_mean": 9.58,
+      "ulcer": 14.28,
+      "dd_mean": 9.62,
       "uw_months": 9.9,
       "uw_open": false,
       "switches": 6,
@@ -804,18 +876,18 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 3.066,
-      "cagr": 42.17,
+      "final": 3.15,
+      "cagr": 43.3,
       "mdd": -36.97,
-      "calmar": 1.141,
-      "sortino": 1.609,
-      "sharpe": 1.2,
+      "calmar": 1.171,
+      "sortino": 1.639,
+      "sharpe": 1.222,
       "years": 3.2,
-      "ulcer": 12.63,
-      "dd_mean": 8.6,
+      "ulcer": 12.67,
+      "dd_mean": 8.64,
       "uw_months": 9.2,
       "uw_open": false,
       "switches": 2,
@@ -826,20 +898,20 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks": {
      "lev": {
-      "final": 3.459,
-      "cagr": 47.66,
+      "final": 3.554,
+      "cagr": 48.83,
       "mdd": -40.99,
-      "calmar": 1.163,
-      "sortino": 1.683,
-      "sharpe": 1.221,
+      "calmar": 1.191,
+      "sortino": 1.711,
+      "sharpe": 1.241,
       "years": 3.2,
-      "ulcer": 11.1,
-      "dd_mean": 7.31,
+      "ulcer": 11.16,
+      "dd_mean": 7.36,
       "uw_months": 7.5,
       "uw_open": false,
       "switches": 0,
@@ -850,18 +922,18 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 1.582,
-      "cagr": 15.49,
+      "final": 1.57,
+      "cagr": 15.19,
       "mdd": -9.4,
-      "calmar": 1.647,
-      "sortino": 2.108,
-      "sharpe": 1.577,
+      "calmar": 1.615,
+      "sortino": 2.074,
+      "sharpe": 1.549,
       "years": 3.2,
-      "ulcer": 2.96,
-      "dd_mean": 1.99,
+      "ulcer": 2.97,
+      "dd_mean": 2.0,
       "uw_months": 5.8,
       "uw_open": false,
       "switches": 0,
@@ -872,20 +944,20 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "strategies_div": {
      "B": {
-      "final": 2.939,
-      "cagr": 40.3,
+      "final": 3.02,
+      "cagr": 41.42,
       "mdd": -44.2,
-      "calmar": 0.912,
-      "sortino": 1.502,
-      "sharpe": 1.139,
+      "calmar": 0.937,
+      "sortino": 1.532,
+      "sharpe": 1.161,
       "years": 3.2,
-      "ulcer": 13.71,
-      "dd_mean": 9.22,
+      "ulcer": 13.75,
+      "dd_mean": 9.26,
       "uw_months": 9.8,
       "uw_open": false,
       "switches": 6,
@@ -896,18 +968,18 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "A": {
-      "final": 2.976,
-      "cagr": 40.84,
+      "final": 3.058,
+      "cagr": 41.96,
       "mdd": -38.83,
-      "calmar": 1.052,
-      "sortino": 1.549,
-      "sharpe": 1.162,
+      "calmar": 1.081,
+      "sortino": 1.579,
+      "sharpe": 1.184,
       "years": 3.2,
-      "ulcer": 13.24,
-      "dd_mean": 8.99,
+      "ulcer": 13.28,
+      "dd_mean": 9.03,
       "uw_months": 9.2,
       "uw_open": false,
       "switches": 2,
@@ -918,20 +990,20 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      }
     },
     "benchmarks_div": {
      "lev": {
-      "final": 3.459,
-      "cagr": 47.66,
+      "final": 3.554,
+      "cagr": 48.83,
       "mdd": -40.99,
-      "calmar": 1.163,
-      "sortino": 1.683,
-      "sharpe": 1.221,
+      "calmar": 1.191,
+      "sortino": 1.711,
+      "sharpe": 1.241,
       "years": 3.2,
-      "ulcer": 11.1,
-      "dd_mean": 7.31,
+      "ulcer": 11.16,
+      "dd_mean": 7.36,
       "uw_months": 7.5,
       "uw_open": false,
       "switches": 0,
@@ -942,17 +1014,17 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
      },
      "def": {
-      "final": 1.708,
-      "cagr": 18.3,
+      "final": 1.692,
+      "cagr": 17.93,
       "mdd": -13.75,
-      "calmar": 1.331,
-      "sortino": 1.508,
-      "sharpe": 1.246,
+      "calmar": 1.304,
+      "sortino": 1.484,
+      "sharpe": 1.224,
       "years": 3.2,
-      "ulcer": 4.35,
+      "ulcer": 4.34,
       "dd_mean": 2.91,
       "uw_months": 8.0,
       "uw_open": false,
@@ -964,7 +1036,31 @@
        "20": null
       },
       "start": "2023-06-20",
-      "end": "2026-08-26"
+      "end": "2026-08-28"
+     }
+    },
+    "strategies_hedge": {
+     "B": {
+      "final": 2.435,
+      "cagr": 32.18,
+      "mdd": -33.63,
+      "calmar": 0.957,
+      "sortino": 1.718,
+      "sharpe": 1.309,
+      "years": 3.2,
+      "ulcer": 9.99,
+      "dd_mean": 6.34,
+      "uw_months": 10.0,
+      "uw_open": false,
+      "switches": 6,
+      "horizons": {
+       "5": null,
+       "10": null,
+       "15": null,
+       "20": null
+      },
+      "start": "2023-06-20",
+      "end": "2026-08-28"
      }
     }
    }

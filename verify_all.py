@@ -215,9 +215,12 @@ def i5_decisions(D):
         ok("화면: 저장된 옛 선택값을 지운다",
            "localStorage.removeItem(SKEY)" in h, 'localStorage 마이그레이션')
         # [v61] 지표에 눈금이 붙는가 — 숫자만으로는 체감이 안 된다
-        ok("화면: 지표에 벤치마크 눈금이 붙는다",
-           "function benchOf" in h and "benchOf(s, 'lev')" in h,
-           '값 아래 회색 = 같은 기간 2배 그냥 보유')
+        # [v72] 카드 눈금은 소유자 요청으로 제거 — 비교는 성과 비교표 한 곳에서만.
+        #       벤치마크와 전략 3줄(채택안/배당100/헤지 60/40)이 표에 있는지 본다.
+        ok("화면: 비교표에 벤치마크와 전략 3줄이 있다",
+           "function benchOf" in h and "strategies_hedge" in h
+           and "헤지 60/40" in h and 'class="bench"' in h,
+           '벤치 2줄 + 전략 3줄 (v72)')
         # [v63] 같은 기간으로 맞춘 표 — 최종배수 세로비교 함정의 정면 해법
         ok("화면: 같은 기간 비교표가 있다",
            'function drawHoriz' in h and 'id="horizBody"' in h, '최근 5/10/15/20년')

@@ -3,8 +3,9 @@
 """
 signal.html 의 전략 선택 카드에 띄울 성과지표를 미리 계산해 data/strategy_stats.json 에 굳힌다.
 
-매일 도는 스크립트가 아니다. 원자료(data/hist/**, *_us_d.csv)가 있는 로컬에서 수동으로 돌리고
-결과 JSON 만 커밋한다. GitHub Actions 러너에는 확장 원자료가 없으므로 여기서 돌리지 않는다.
+매일 도는 스크립트가 아니다. [v72] 매월 1일 monthly-stats.yml 이 refresh_hist.py 로
+원자료를 연장한 뒤 이 스크립트를 돌려 커밋한다 (verify_all 통과 시에만).
+원자료는 전부 저장소에 커밋돼 있어 Actions 러너에서도 돈다. 수동 실행:
 
     python deploy/build_stats.py          # 반드시 저장소 루트에서
 
@@ -192,6 +193,70 @@ def sc_kr_real(kind):
     return out, bm
 
 
+# ---------------------------------------------------------------- 헤지 변형 [v72]
+# ③ 자산헤지: 상승장 QLD60/SCHD40(월 1회 재조정, mix_monthly_parts 규약 0.05%),
+#    낙폭 -16% 이하면 전량 방어(배당40/국채40/금20), 회복 시 60/40 복귀.
+#    신호·문턱·체결·비용은 채택안과 완전히 같다 — 다른 것은 공격 다리뿐이다.
+#    방어를 mix 로 굳힌 근거: us_1972 실측에서 mix Calmar 0.453 vs 배당100 0.327
+#    (MDD -46.1% vs -64.8%), kr_1997 은 사실상 동률 — 전략_v72 문서.
+HEDGE_W = {'lev': 0.6, 'div': 0.4}
+
+
+def hedge_us_2000():
+    D = dict(RL.build())
+    att = DA.mix_monthly_parts(D['idx'], HEDGE_W,
+                               {'lev': np.asarray(D['qldr']), 'div': np.asarray(D['schdr'])})
+    dr = defensive_r(D['idx'], D['schdr'], 'mix')
+    Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
+    c, w, t = run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
+    return {'B': pack(c, t)}
+
+
+def hedge_us_1972():
+    D = dict(DF.build('chain'))
+    att = DA.mix_monthly_parts(D['idx'], HEDGE_W,
+                               {'lev': np.asarray(D['qldr']), 'div': np.asarray(D['schdr'])})
+    dr = defensive_r(D['idx'], D['schdr'], 'mix')
+    Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
+    c, w, t = run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
+    return {'B': pack(c, t)}
+
+
+def hedge_kr_1997():
+    D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
+    att = DA.mix_monthly_parts(idx, HEDGE_W,
+                               {'lev': np.asarray(lev2), 'div': np.asarray(dfk)})
+    raw = {'div': np.asarray(dfk, dtype=float),
+           'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
+           'gold': DA.gold_r(idx)}
+    parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
+             for k in DA.MIX_V23}
+    dr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
+    Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
+    c, w, t = K.run_kr(Dx, STRATS['B'], cost=0.001, slip=0.001, start=KF.ST,
+                       krdays=K.kr_caldays())
+    return {'B': pack(c, t)}
+
+
+def hedge_kr_real():
+    kr, rl, rd_mix = KR.legs_real(defmix=True)
+    kr0, _, rd_div = KR.legs_real(defmix=False)
+    att = pd.Series(DA.mix_monthly_parts(kr, HEDGE_W,
+                                         {'lev': rl.values,
+                                          'div': rd_div.reindex(kr).fillna(0).values}), index=kr)
+    _, hold, _ = KR.run_real(STRATS['B']['exit'], defmix=True)
+    hold = hold.reindex(kr).ffill().fillna(1.0)
+    eff = hold.shift(1).fillna(1.0)
+    r = eff * att + (1 - eff) * rd_mix
+    turn = eff.diff().abs().fillna(0)
+    g = (1 + r) * (1 - 0.002 * turn)
+    c = pd.Series(np.cumprod(g), index=kr)
+    return {'B': pack(c, turn.values)}
+
+
+HEDGES = {'us_2000': hedge_us_2000, 'us_1972': hedge_us_1972,
+          'kr_1997': hedge_kr_1997, 'kr_real': hedge_kr_real}
+
 SCENARIOS = [
     ('us_2000', '미국 달러 기준', 'QQQ 실물 · SCHD 상장 이전은 연 2% 현금. verify.py 와 같은 규약.', sc_us_2000),
     ('us_1972', '달러 · 54년 확장', '나스닥 3구간 체인 + 배당 실측 방어자산. 가장 긴 표본.', sc_us_1972),
@@ -211,6 +276,8 @@ def main():
             st, bm = fn(dk)
             row['strategies' if dk == 'mix' else 'strategies_' + dk] = st
             row['benchmarks' if dk == 'mix' else 'benchmarks_' + dk] = bm
+        print('  계산 중 …', key, 'hedge', flush=True)
+        row['strategies_hedge'] = HEDGES[key]()          # [v72] ③ 자산헤지 60/40
         scen.append(row)
     payload = dict(
         generated_at=pd.Timestamp.now('UTC').strftime('%Y-%m-%d %H:%M UTC'),
