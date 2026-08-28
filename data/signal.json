@@ -1,11 +1,11 @@
 {
- "as_of": "2026-08-26",
- "updated_at": "2026-08-27 14:38 KST",
- "updated_at_iso": "2026-08-27T05:38:36Z",
+ "as_of": "2026-08-27",
+ "updated_at": "2026-08-28 15:04 KST",
+ "updated_at_iso": "2026-08-28T06:04:41Z",
  "source": "yahoo",
- "close": 711.37,
+ "close": 721.11,
  "high_252": 746.16,
- "dd": -4.66,
+ "dd": -3.36,
  "default": "B",
  "defensive": {
   "version": "v23",
@@ -47,7 +47,7 @@
    "prev_state": "QLD",
    "changed_today": false,
    "next_line": -16.0,
-   "gap_pp": 11.3
+   "gap_pp": 12.6
   },
   "A": {
    "key": "A",
@@ -58,10 +58,18 @@
    "prev_state": "QLD",
    "changed_today": false,
    "next_line": -16.0,
-   "gap_pp": 11.3
+   "gap_pp": 12.6
   }
  },
  "recent": [
+  {
+   "d": "2026-08-27",
+   "c": 721.11,
+   "dd": -3.36,
+   "B": "QLD",
+   "A": "QLD",
+   "s": "QLD"
+  },
   {
    "d": "2026-08-26",
    "c": 711.37,
@@ -146,14 +154,6 @@
    "d": "2026-08-12",
    "c": 723.7,
    "dd": -3.01,
-   "B": "QLD",
-   "A": "QLD",
-   "s": "QLD"
-  },
-  {
-   "d": "2026-08-11",
-   "c": 718.45,
-   "dd": -3.71,
    "B": "QLD",
    "A": "QLD",
    "s": "QLD"
@@ -2639,14 +2639,15 @@
    -4.39,
    -5.34,
    -4.75,
-   -4.66
+   -4.66,
+   -3.36
   ]
  },
  "state": "QLD",
  "prev_state": "QLD",
  "changed_today": false,
  "next_line": -16.0,
- "gap_pp": 11.3,
+ "gap_pp": 12.6,
  "enter": -16.0,
  "exit": -11.0
 }
