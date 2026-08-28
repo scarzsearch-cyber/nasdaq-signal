@@ -462,7 +462,8 @@ def i9_retired():
     # (b) 버전 문서는 그 시대의 기록이라 수치가 있는 게 맞다.
     #     대신 **정정 배너**가 있어야 한다 (읽는 사람이 현행으로 오인하지 않게).
     import glob
-    for f in sorted(glob.glob('docs/전략_v*.md')):
+    # [v65] 버전 문서는 docs/history/ 로 이동했다 — 통폐합(01~04_*.md) 이후 보관층
+    for f in sorted(glob.glob('docs/history/전략_v*.md')):
         txt = io.open(f, encoding='utf-8').read()
         for item in cfg['retired']:
             if item['value'] not in txt:
