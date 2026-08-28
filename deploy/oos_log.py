@@ -25,8 +25,44 @@ except Exception:
 
 SIG = os.path.join('data', 'signal.json')
 FRZ = os.path.join('data', 'freeze.json')
+QQQ = os.path.join('data', 'qqq.csv')
 OUT = os.path.join('data', 'oos_log.csv')
-COLS = ['as_of', 'close', 'high_252', 'dd', 'state', 'changed', 'rule', 'fingerprint']
+COLS = ['as_of', 'close', 'high_252', 'dd', 'state', 'changed', 'rule', 'fingerprint',
+        't4_votes', 't4_rv', 't4_w']
+
+# [v69] T4 그림자 — 평가 전용. 채택안이 아니다. 어떤 판단·매매에도 쓰지 않는다.
+# 정의와 사전 고정 파라미터는 docs/history/전략_v68_추세추종.md:
+#   투표 = #{k ∈ {21,63,126,252} : 종가/종가[k일 전] > 1}
+#   w    = clip(40% / 실현변동성, 0, 1) × 1[투표 ≥ 2]
+#   실현변동성 = 2배 자산 근사 = 2 × (QQQ 일간수익 20일 표본표준편차) × √252
+# 종가 원천은 이 장부의 close 와 같은 data/qqq.csv (비수정) — 장부 안에서 일관되게.
+# 이 파라미터를 나중에 바꾸면 그때까지의 그림자 기록은 무효다(사전 고정이 전부다).
+T4_LOOKS = (21, 63, 126, 252)
+T4_TH = 2
+T4_VT = 0.40
+T4_WIN = 20
+
+
+def t4_shadow(as_of):
+    """as_of 종가까지의 데이터로 T4 목표비중을 계산한다. (votes, rv%, w) 또는 None."""
+    if not os.path.exists(QQQ):
+        return None
+    px = []
+    with io.open(QQQ, encoding='utf-8', newline='') as fh:
+        for r in csv.DictReader(fh):
+            if r['Date'][:10] <= as_of:
+                px.append(float(r['Close']))
+    if len(px) < max(T4_LOOKS) + 1:
+        return None
+    votes = sum(1 for k in T4_LOOKS if px[-1] / px[-1 - k] > 1.0)
+    rets = [px[i] / px[i - 1] - 1.0 for i in range(len(px) - T4_WIN, len(px))]
+    mu = sum(rets) / len(rets)
+    var = sum((x - mu) ** 2 for x in rets) / (len(rets) - 1)          # 표본(ddof=1)
+    rv = 2.0 * (var ** 0.5) * (252 ** 0.5)                            # 2배 자산 연율화
+    w = min(1.0, T4_VT / rv) if rv > 0 else 1.0
+    if votes < T4_TH:
+        w = 0.0
+    return votes, round(rv * 100, 1), round(w, 3)
 
 
 def main():
@@ -58,6 +94,14 @@ def main():
         'rule': f['rule']['name'],
         'fingerprint': f['fingerprint'],
     }
+    # T4 그림자 (실패해도 본 기록은 살린다 — 빈 칸으로 남는다)
+    row.update({'t4_votes': '', 't4_rv': '', 't4_w': ''})
+    try:
+        t4 = t4_shadow(as_of)
+        if t4:
+            row.update({'t4_votes': t4[0], 't4_rv': t4[1], 't4_w': t4[2]})
+    except Exception as e:
+        print('[경고] T4 그림자 계산 실패(%s) — 빈 칸으로 기록' % e, file=sys.stderr)
 
     rows = []
     if os.path.exists(OUT):
@@ -67,10 +111,13 @@ def main():
         print('%s 는 이미 기록됨 — 변경하지 않는다 (append-only)' % as_of)
         return
 
+    for r in rows:                      # 구판 행에 새 열이 없으면 빈 칸으로
+        for c in COLS:
+            r.setdefault(c, '')
     rows.append(row)
     rows.sort(key=lambda r: r['as_of'])
     with io.open(OUT, 'w', encoding='utf-8', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=COLS)
+        w = csv.DictWriter(fh, fieldnames=COLS, extrasaction='ignore')
         w.writeheader()
         w.writerows(rows)
     print('OOS 장부 %d행 (동결 %s 이후 %d영업일 기록)'
