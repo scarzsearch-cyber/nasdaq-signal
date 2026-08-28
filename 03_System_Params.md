@@ -33,7 +33,8 @@
 ## 3. 자동화 파이프라인 (GitHub Actions)
 
 ```
-daily-signal.yml   22:30 UTC 본슬롯 + 23:30 / 00:30 예비 2개 (월~금 미국장 마감 후)
+daily-signal.yml   21:17~00:17 UTC 사이 7슬롯 (06:17~09:17 KST, :17/:47 분 — v66에서 3→7 보강.
+                   GitHub 예약은 최선노력이라 슬롯을 통째로 건너뛴 실측 사례가 8/26·8/27 이틀 연속 있었다)
   ① update_signal.py   qqq.csv 갱신 → signal.json (신호·낙폭·최근 12일·내장 stats 사본)
   ② nav_collect.py     실물 NAV·괴리율 적립
   ③ oos_log.py         동결 이후 하루 한 줄 append-only (판단하지 않음)
