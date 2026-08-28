@@ -76,7 +76,22 @@ def fetch():
     closes = result["indicators"]["quote"][0]["close"]
     idx = pd.to_datetime(ts, unit="s", utc=True).tz_convert(None).normalize()
     s = pd.Series(closes, index=idx, name="Close").dropna()
-    return s[~s.index.duplicated(keep="last")].sort_index()
+    s = s[~s.index.duplicated(keep="last")].sort_index()
+    # [v66] 장중 가드: 미국 정규장 진행 중에 받으면 마지막 봉은 확정 종가가
+    # 아니라 실시간 가격이다. 예약 실행이 몇 시간 밀려 개장(13:30 UTC) 뒤에
+    # 돌 때 장중가가 종가로 둔갑하는 것을 막는다.
+    # 판별은 서버가 주는 값만 쓴다: 시세 시각(regularMarketTime)이 당일 정규장
+    # 마감(currentTradingPeriod.regular.end)보다 앞이면 장중이다. 마감 후에는
+    # 시세 시각이 마감 시각으로 굳는다. (v8 chart meta 에 marketState 는 없다.)
+    meta = result.get("meta", {})
+    qt = meta.get("regularMarketTime")
+    end = meta.get("currentTradingPeriod", {}).get("regular", {}).get("end")
+    if qt and end and qt < end and len(s) > 0:
+        live_day = pd.to_datetime(qt, unit="s", utc=True).tz_convert(None).normalize()
+        if s.index[-1] == live_day:
+            print(f"장중 실행 감지 — 진행 중인 {live_day.date()} 봉 제외")
+            s = s.iloc[:-1]
+    return s
 
 
 def load_cached():
