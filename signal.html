@@ -1651,11 +1651,21 @@ function drawTlog(){
   }
   drawTlogList();
 }
+/* [v94] 실측 괴리 요약 — 10건 미만이면 표시 안 함 (표본이 얇으면 근거로 못 쓴다) */
+function tlogSummary(){
+  const devs = TRADES.map(t => t.ref > 0 ? (t.px / t.ref - 1) * 100 : null).filter(x => x != null);
+  if(devs.length < 10) return '';
+  const avg = devs.reduce((a,b)=>a+b,0) / devs.length;
+  const maxAbs = Math.max(...devs.map(Math.abs));
+  return `<div class="hint" style="font-size:13px;margin-bottom:8px">
+    실측 체결 괴리 — 평균 ${avg >= 0 ? '+' : ''}${avg.toFixed(2)}% · 최대 ${maxAbs.toFixed(2)}%
+    (${devs.length}건 기준, 기준가 입력분만 집계)</div>`;
+}
 function drawTlogList(){
   const el = document.getElementById('tlogList');
   if(!el) return;
   if(!TRADES.length){ el.innerHTML = '<div class="hint" style="font-size:13px">기록 없음.</div>'; return; }
-  el.innerHTML = TRADES.slice(-8).reverse().map(t => {
+  el.innerHTML = tlogSummary() + TRADES.slice(-8).reverse().map(t => {
     const i = TRADES.indexOf(t);
     const dev = t.ref > 0 ? ((t.px / t.ref - 1) * 100).toFixed(2) : null;
     return `<div class="tlrow"><span>${t.d} <b>${t.side === 'buy' ? '매수' : '매도'}</b> ${shortName(t.code)}
