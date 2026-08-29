@@ -7,7 +7,7 @@
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 <style>
 :root{
-  color-scheme:light;
+  color-scheme:light dark;
   --paper:#EEF1F4;
   --panel:#FFFFFF;
   --ink:#16202B;
@@ -16,6 +16,19 @@
   --attack:#0B5FD6;
   --defend:#B8722A;
   --warn:#A3372B;
+  /* [v95] 다크 모드용 신규 토큰 — 라이트 값은 기존 하드코딩 색과 동일(픽셀 무변경) */
+  --surface2:#F7F9FA;      /* 패널보다 살짝 다른 회색 면 */
+  --hairline:#E8ECEF;      /* 얇은 구분선 */
+  --chip-bg:#E6EBEF;       /* 태그/칩 배경 */
+}
+/* [v95] 다크 모드 토큰 — OS 설정만 따른다(토글 UI 없음). 개별 오버라이드는
+   캐스케이드 순서상 스타일시트 맨 끝에 있다. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#12181F; --panel:#1B232C; --ink:#E7ECF1; --muted:#93A3B2; --rule:#33404E;
+    --attack:#5B9BF0; --defend:#D99A57; --warn:#E8776A;
+    --surface2:#20293380; --hairline:#2B3644; --chip-bg:#26313D;
+  }
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--paper);color:var(--ink);
@@ -70,12 +83,12 @@ body{padding:28px 20px 64px;}
   letter-spacing:-0.01em;display:flex;align-items:center;gap:8px;}
 .opt .tag{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-size:14px;
   font-weight:600;letter-spacing:.04em;padding:2px 6px;border-radius:2px;
-  background:#E6EBEF;color:var(--muted);}
+  background:var(--chip-bg);color:var(--muted);}
 .opt.only .tag{background:var(--ink);color:#fff;}
 .opt .desc{font-size:16px;color:var(--muted);line-height:1.5;margin:7px 0 12px;}
 /* [v61] 카드가 전체 폭을 쓰므로 지표 6개를 한 줄에 편다. 폰은 아래에서 접는다 */
 .opt .mets{display:grid;grid-template-columns:repeat(6,1fr);gap:10px 8px;
-  border-top:1px solid #E8ECEF;padding-top:10px;}
+  border-top:1px solid var(--hairline);padding-top:10px;}
 .opt .mets .k{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);
   letter-spacing:.06em;margin-bottom:2px;}
 .opt .mets .v{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;}
@@ -110,7 +123,7 @@ body{padding:28px 20px 64px;}
 .metkey .mk .rd{display:block;margin-top:7px;color:var(--ink);}
 .metkey .mk .rd b{color:var(--attack);font-weight:700;}
 .metkey .mk .bm{display:block;margin-top:2px;font-size:13px;color:var(--muted);}
-.metkey .dir{grid-column:1/-1;margin-top:2px;padding-top:9px;border-top:1px solid #E8ECEF;}
+.metkey .dir{grid-column:1/-1;margin-top:2px;padding-top:9px;border-top:1px solid var(--hairline);}
 @media(max-width:900px){ .metkey{grid-template-columns:repeat(2,1fr);} }
 @media(max-width:600px){ .metkey{grid-template-columns:1fr;gap:11px;padding:13px 14px 11px;} }
 
@@ -119,7 +132,7 @@ body{padding:28px 20px 64px;}
   border:1px solid var(--rule);border-radius:2px;overflow:hidden;min-height:330px;}
 
 /* 낙폭 눈금자 (시그니처) */
-.ruler{position:relative;border-right:1px solid var(--rule);background:#F7F9FA;padding:22px 0;}
+.ruler{position:relative;border-right:1px solid var(--rule);background:var(--surface2);padding:22px 0;}
 .track{position:absolute;left:50%;top:22px;bottom:22px;width:2px;background:var(--rule);
   transform:translateX(-50%);}
 .tick{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;padding-left:12px;}
@@ -169,7 +182,7 @@ body{padding:28px 20px 64px;}
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 input[type=text],input[type=date]{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:18px;
-  padding:9px 11px;border:1px solid var(--rule);border-radius:2px;background:#fff;
+  padding:9px 11px;border:1px solid var(--rule);border-radius:2px;background:var(--panel);
   color:var(--ink);}
 input[type=text]{width:170px;}
 button{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-size:17px;font-weight:600;
@@ -189,7 +202,7 @@ label.file input{position:absolute;opacity:0;width:0;height:0;}
 .hint p{margin:0 0 9px;}
 .hint p:last-child{margin-bottom:0;}
 .hint p .lead{color:var(--ink);font-weight:600;}
-.hint p.meta{font-size:14px;padding-top:8px;border-top:1px solid #E8ECEF;margin-top:11px;}
+.hint p.meta{font-size:14px;padding-top:8px;border-top:1px solid var(--hairline);margin-top:11px;}
 .msg{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:16px;margin-top:10px;}
 .msg.err{color:var(--warn);}
 
@@ -197,7 +210,7 @@ table{width:100%;border-collapse:collapse;margin-top:14px;
   font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:16px;}
 th{text-align:left;font-weight:600;color:var(--muted);font-size:14px;letter-spacing:0.05em;
   border-bottom:1px solid var(--rule);padding:6px 8px;}
-td{padding:6px 8px;border-bottom:1px solid #E8ECEF;}
+td{padding:6px 8px;border-bottom:1px solid var(--hairline);}
 td.s-qld{color:var(--attack);font-weight:600;}
 td.s-schd{color:var(--defend);font-weight:600;}
 
@@ -258,7 +271,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
 #portAction.ok{background:#F2F8F4;border-color:#1F9D55;}
 #portAction.go{background:#FDF2F0;border-color:var(--warn);}
 .prow{display:grid;grid-template-columns:minmax(0,1.5fr) 96px 104px 104px;gap:4px 10px;
-  align-items:center;padding:7px 0;border-bottom:1px solid #E8ECEF;font-size:15px;}
+  align-items:center;padding:7px 0;border-bottom:1px solid var(--hairline);font-size:15px;}
 .prow.phead{color:var(--muted);font-size:12.5px;border-bottom:1px solid var(--rule);padding:4px 0;}
 .prow.phead span{text-align:right;}
 .prow.phead span:first-child{text-align:left;}
@@ -286,7 +299,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .tlform button{padding:7px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
   background:var(--ink);color:#fff;border:none;border-radius:2px;}
 .tlrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:13.5px;
-  border-bottom:1px solid #E8ECEF;color:var(--muted);font-variant-numeric:tabular-nums;}
+  border-bottom:1px solid var(--hairline);color:var(--muted);font-variant-numeric:tabular-nums;}
 .tlrow b{color:var(--ink);}
 .tlrow .x{cursor:pointer;color:#B45309;font-weight:700;padding:0 4px;}
 .pwarn{margin-top:10px;font-size:14px;color:#B45309;line-height:1.55;}
@@ -301,8 +314,8 @@ td.s-schd{color:var(--defend);font-weight:600;}
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
 .clock{display:grid;grid-template-columns:94px 1fr;gap:0;font-size:17px;line-height:1.55;}
 .clock dt{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);
-  padding:9px 0;border-top:1px solid #E8ECEF;}
-.clock dd{padding:9px 0;border-top:1px solid #E8ECEF;}
+  padding:9px 0;border-top:1px solid var(--hairline);}
+.clock dd{padding:9px 0;border-top:1px solid var(--hairline);}
 .clock dt:first-of-type,.clock dd:first-of-type{border-top:none;}
 .rules{font-size:17px;line-height:1.7;color:var(--muted);margin-top:16px;
   padding-top:14px;border-top:1px solid var(--rule);}
@@ -327,7 +340,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
 /* ---- 계좌·세금 ---- */
 .taxhero{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
   border:1px solid var(--rule);border-radius:2px;margin-bottom:16px;overflow:hidden;}
-.taxhero>div{background:#F7F9FA;padding:13px 15px;}
+.taxhero>div{background:var(--surface2);padding:13px 15px;}
 .taxhero .k{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;letter-spacing:.06em;
   color:var(--muted);margin-bottom:4px;}
 .taxhero .v{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:25px;font-weight:600;
@@ -346,7 +359,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
 /* ---- 선택지 ---- */
 .pickbox{display:grid;gap:8px;margin-top:18px;}
 .pickbox .p{display:grid;grid-template-columns:32px 1fr;gap:11px;align-items:start;
-  border:1px solid var(--rule);border-radius:2px;padding:12px 14px;background:#F7F9FA;}
+  border:1px solid var(--rule);border-radius:2px;padding:12px 14px;background:var(--surface2);}
 .pickbox .n{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-weight:900;font-size:16px;
   color:var(--attack);line-height:1.25;}
 .pickbox .t{font-size:17px;line-height:1.6;}
@@ -369,7 +382,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
   #calcBody table{display:block;margin-top:10px;}
   #calcBody tbody{display:block;}
   #calcBody tr{display:grid;grid-template-columns:1fr 1.25fr 0.65fr 1.1fr;gap:2px 8px;
-    padding:8px 0;border-bottom:1px solid #E8ECEF;}
+    padding:8px 0;border-bottom:1px solid var(--hairline);}
   #calcBody td{display:block;border:none;padding:0;white-space:nowrap;font-size:13.5px;}
   #calcBody tr[data-code] td:first-child{grid-column:1/4;white-space:normal;word-break:keep-all;}
   #calcBody tr[data-code] td:nth-child(2){text-align:right;font-weight:600;}
@@ -472,6 +485,28 @@ body.vroutine #t4Panel{display:none;}
 .tlio button{padding:5px 10px;border-radius:2px;border:1px solid var(--rule);background:var(--panel);
   font-family:inherit;font-size:12.5px;color:var(--muted);cursor:pointer;margin-right:6px;}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* [v95] 다크 모드 개별 오버라이드 — 같은 특이도의 원본 규칙보다 뒤에 와야 이긴다.
+   상태색(매수·매도 배지, 게이지 3색, 위기 궤적 COL, 신선도 도트)은 의미 전달용이라 고정. */
+@media (prefers-color-scheme: dark){
+  /* ink 배경 위 흰 글자 → 다크에서 ink 가 밝아지므로 글자를 어둡게 */
+  button,.opt.only .tag,.chip[aria-pressed="true"],.tlform button,.copybtn{color:#12181F;}
+  .tabs a.on{color:#12181F;}
+  /* 밝은 상태 배경(경고·성공·하이라이트) → 같은 계열의 어두운 톤 */
+  .changed{background:#3A2F16;}
+  .changed.toattack{background:#16283E;}
+  .disagree{background:#212A34;}
+  #portAction.ok{background:#16281D;}
+  #portAction.go{background:#301B18;}
+  .perf tr.on td{background:#1C2836;}
+  .perf tr.on td.strat{background:#1C2836;}
+  .tax tr.best td{background:#1C2A3D;}
+  .stale.warn{background:#33261A;border-color:#7C4A1D;color:#F5C9A6;}
+  .stale.bad{background:#331B1B;border-color:#7F2D2D;color:#F5B5B1;}
+  /* 어두운 색 글자·검정 기반 선 → 다크에서 안 보이는 곳만 밝게 */
+  .plbl.trig b{color:#E8776A;}
+  .plbl.warn,.pwarn,.tlrow .x{color:#D99A57;}
+  .chk{border-top-color:rgba(255,255,255,.25);}
+}
 </style>
 </head>
 <body>
@@ -2128,12 +2163,24 @@ async function boot(){
   });
 }
 
+/* [v95] SVG 색은 렌더 시점에 굳으므로, OS 테마가 바뀌면 마지막 데이터로 다시 그린다 */
+let LAST_TRAJ=null;
+try{
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',
+    () => { if(LAST_TRAJ) drawTrajectory(LAST_TRAJ); });
+}catch(e){ /* 구형 브라우저 — 리스너 없이도 새로고침이면 맞는 색 */ }
 function drawTrajectory(tr){
   const host=document.getElementById('trajBody');
   if(!host||!tr) return;
+  LAST_TRAJ=tr;                                  // [v95] 테마 전환 시 재도색용
   const names=Object.keys(tr);
   if(!names.length) return;
   paintRev(); paintFreeze();
+  // [v95] SVG 는 CSS 변수를 못 쓰므로 렌더 시점의 테마 색을 읽어온다
+  const cs = getComputedStyle(document.documentElement);
+  const gridColor = cs.getPropertyValue('--hairline').trim() || '#E1E7EB';
+  const axisColor = cs.getPropertyValue('--muted').trim() || '#6B7A88';
+  const inkColor  = cs.getPropertyValue('--ink').trim()   || '#16202B';
   const S=STRAT[sel];
   const W=680,H=240,PL=44,PR=14,PT=14,PB=26;
   const maxLen=Math.max(...names.map(n=>tr[n].length));
@@ -2144,10 +2191,10 @@ function drawTrajectory(tr){
   let g='';
   for(const lv of [0,-10,-20,-30,-40,-50,-60,-70]){
     if(lv<minV-5) continue;
-    g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="#E1E7EB"/>`+
-       `<text x="${PL-6}" y="${Y(lv)+3}" text-anchor="end" font-size="13" fill="#6B7A88" font-family="Pretendard Variable, Pretendard, sans-serif">${lv}%</text>`;
+    g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${gridColor}"/>`+
+       `<text x="${PL-6}" y="${Y(lv)+3}" text-anchor="end" font-size="13" fill="${axisColor}" font-family="Pretendard Variable, Pretendard, sans-serif">${lv}%</text>`;
   }
-  const lines = S.exit===S.enter ? [[-16,'#16202B']] : [[S.exit*100,'#0B5FD6'],[S.enter*100,'#B8722A']];
+  const lines = S.exit===S.enter ? [[-16,inkColor]] : [[S.exit*100,'#0B5FD6'],[S.enter*100,'#B8722A']];
   for(const [lv,col] of lines){
     g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${col}" stroke-dasharray="3 3" opacity=".6"/>`;
   }
@@ -2159,7 +2206,7 @@ function drawTrajectory(tr){
   let legend=names.map(n=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:15px">
     <span style="width:18px;height:${n==='현재'?3:2}px;background:${COL[n]||'#888'};display:inline-block"></span>${n}</span>`).join('');
   host.innerHTML=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:480px;height:auto">${g}
-    <text x="${PL}" y="${H-8}" font-size="13" fill="#6B7A88" font-family="Pretendard Variable, Pretendard, sans-serif">고점 이후 경과일 →</text></svg></div>
+    <text x="${PL}" y="${H-8}" font-size="13" fill="${axisColor}" font-family="Pretendard Variable, Pretendard, sans-serif">고점 이후 경과일 →</text></svg></div>
     <div style="margin-top:8px">${legend}</div>
     <div class="hint">규칙(${S.name})은 이 궤적 모양과 무관하게 낙폭 숫자만 봅니다 — 참고용입니다.
     점선은 ${S.exit===S.enter?'전환선 −16%(진입·복귀 공통)':'두 전환선'}.</div>`;
