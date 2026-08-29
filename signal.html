@@ -1541,6 +1541,21 @@ function tlogChips(){
 }
 function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
 function saveTrades(){ try{ localStorage.setItem(TKEY, JSON.stringify(TRADES)); }catch(e){} }
+/* [v93] 백업 검증·적용 — 붙여넣기 복원과 파일 복원이 공유 */
+function applyBackup(j){
+  if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
+    alert('백업 형식이 올바르지 않습니다 — 아무것도 바꾸지 않았습니다.'); return false;
+  }
+  if(!confirm('현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
+              + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return false;
+  PORT = j.port; TRADES = j.trades;
+  savePort(); saveTrades();
+  (portAssets() || []).forEach(x => syncPortInputs(x.code));
+  const ci = document.querySelector("#portBody .prow[data-code='_cash'] input");
+  if(ci) ci.value = PORT.cash || '';
+  portCompute(); drawTlogList();
+  return true;
+}
 function effPx(code){
   const p = PORT.a[code] || {};
   if(pnum(p.px) > 0) return pnum(p.px);
@@ -1572,7 +1587,9 @@ function drawTlog(){
       <button id="tlAdd" type="button">기록</button></div>
       <div id="tlChips"></div>
       <div class="tlio"><button id="tlExp" type="button">백업 복사</button><button
-        id="tlImp" type="button">복원 붙여넣기</button>
+        id="tlImp" type="button">복원 붙여넣기</button><button id="tlExpFile" type="button">파일로 저장</button>
+        <label class="file" style="font-size:12.5px;font-weight:400;padding:5px 10px;border-color:var(--rule)">
+          파일에서 복원<input type="file" id="tlImpFile" accept=".json,application/json"></label>
         <span style="font-size:11.5px;color:var(--muted)">보유+체결 전체 JSON — 기기 이동·브라우저 초기화 대비</span></div>`;
     document.getElementById('tlAdd').addEventListener('click', () => {
       const code = document.getElementById('tlCode').value;
@@ -1605,17 +1622,31 @@ function drawTlog(){
       if(!txt) return;
       let j = null;
       try{ j = JSON.parse(txt); }catch(e){}
-      if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
-        alert('백업 형식이 올바르지 않습니다 — 아무것도 바꾸지 않았습니다.'); return;
-      }
-      if(!confirm('현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
-                  + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return;
-      PORT = j.port; TRADES = j.trades;
-      savePort(); saveTrades();
-      (portAssets() || []).forEach(x => syncPortInputs(x.code));
-      const ci = document.querySelector("#portBody .prow[data-code='_cash'] input");
-      if(ci) ci.value = PORT.cash || '';
-      portCompute(); drawTlogList();
+      applyBackup(j);
+    });
+    // [v93] 파일 저장/복원 — 긴 JSON 복붙(잘림·줄바꿈 깨짐) 없이 폰↔PC 이동
+    document.getElementById('tlExpFile').addEventListener('click', () => {
+      const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES}, null, 2);
+      const blob = new Blob([txt], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const tp = tzParts(new Date(), SEOUL);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
+    document.getElementById('tlImpFile').addEventListener('change', (ev) => {
+      const f = ev.target.files[0];
+      ev.target.value = '';
+      if(!f) return;
+      const rd = new FileReader();
+      rd.onload = e => {
+        let j = null;
+        try{ j = JSON.parse(e.target.result); }catch(err){}
+        applyBackup(j);
+      };
+      rd.readAsText(f);
     });
   }
   drawTlogList();
