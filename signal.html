@@ -1740,6 +1740,26 @@ function kstStamp(){
   const tp = tzParts(new Date(), SEOUL);
   return tp.y + String(tp.m).padStart(2, '0') + String(tp.d).padStart(2, '0');
 }
+/* [v105] 백업 리마인더 — localStorage 가 유일 저장소라 30일 넘게 백업이 없으면
+   조용한 한 줄로 권장 (배너·닫기 버튼 없음 — 이 화면은 조용한 UI 가 원칙). */
+const BKKEY = 'b_lastbackup_v1';
+function kstISO(){
+  const tp = tzParts(new Date(), SEOUL);
+  return tp.y + '-' + String(tp.m).padStart(2, '0') + '-' + String(tp.d).padStart(2, '0');
+}
+function markBackup(){
+  try{ localStorage.setItem(BKKEY, kstISO()); }catch(e){}
+  drawTlogList();
+}
+function backupHint(){
+  if(!TRADES.length) return '';
+  let d = null; try{ d = localStorage.getItem(BKKEY); }catch(e){}
+  const days = d ? daysSince(d) : null;
+  if(d && days < 30) return '';
+  return `<div class="hint" style="font-size:12px;margin-top:6px">`
+    + (d ? `마지막 백업이 <b>${days}일</b> 지났습니다` : '아직 백업한 적이 없습니다')
+    + ` — 체결 기록이 쌓이고 있으니 「백업 복사」 또는 「파일로 저장」을 권장합니다.</div>`;
+}
 function effPx(code){
   const p = PORT.a[code] || {};
   if(pnum(p.px) > 0) return pnum(p.px);
@@ -1801,6 +1821,7 @@ function drawTlog(){
       if(navigator.clipboard && navigator.clipboard.writeText)
         navigator.clipboard.writeText(txt).then(ok, () => prompt('저장해 두세요:', txt));
       else prompt('저장해 두세요:', txt);
+      markBackup();                          // [v105] 리마인더 기준일 갱신
     });
     document.getElementById('tlImp').addEventListener('click', () => {
       const txt = prompt('백업 JSON 을 붙여넣으세요:');
@@ -1820,6 +1841,7 @@ function drawTlog(){
       a.download = 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.json';
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
+      markBackup();                          // [v105] 리마인더 기준일 갱신
     });
     document.getElementById('tlImpFile').addEventListener('change', (ev) => {
       const f = ev.target.files[0];
@@ -1868,7 +1890,8 @@ function drawTlogList(){
       ${t.qty}주 @ ${Math.round(t.px).toLocaleString('en-US')}${dev !== null ? ` · 기준가 대비 ${dev > 0 ? '+' : ''}${dev}%` : ''}</span>
       <span class="x" data-i="${i}" title="기록 취소 — 보유 되돌림">✕</span></div>`;
   }).join('') + (TRADES.length > 8 ? `<div class="hint" style="font-size:12px"><button id="tlogAllBtn"
-      class="chipbtn" type="button">${TLOG_ALL ? '접기 — 최근 8건만' : `전체 보기 (${TRADES.length}건)`}</button></div>` : '');
+      class="chipbtn" type="button">${TLOG_ALL ? '접기 — 최근 8건만' : `전체 보기 (${TRADES.length}건)`}</button></div>` : '')
+    + backupHint();
   const ab = document.getElementById('tlogAllBtn');
   if(ab) ab.addEventListener('click', () => { TLOG_ALL = !TLOG_ALL; drawTlogList(); });
   el.querySelectorAll('.x').forEach(x => x.addEventListener('click', () => {
