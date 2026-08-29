@@ -594,6 +594,7 @@ body.vroutine #t4Panel{display:none;}
   <div class="guide" id="portPanel">
     <h2>내 포트폴리오 <span style="font-size:12px;font-weight:400;color:var(--muted)">— 보유를 입력하면 전략 B 목표와 비교합니다 · 저장은 이 기기</span></h2>
     <div id="portAction"></div>
+    <div class="actline" id="defDays" hidden></div>
     <div id="portBody"></div>
     <div id="portComp"></div>
     <details id="tlogWrap" style="margin-top:12px">
@@ -1741,6 +1742,41 @@ function drawTlogList(){
   }));
 }
 
+/* [v97] 방어 진입일 — OOS 장부(data/oos_log.csv)를 뒤에서부터 거슬러 현재 방어 연속
+   구간의 첫 행을 찾는다. 장부 맨 앞까지 같은 상태면(전환 기록이 장부 밖) 미확정 처리.
+   재조정 기준일 규약(월 1회 「며칠에」)은 미정이라 날짜 카운터가 아니라 경과일만 쓴다. */
+let DEF_ENTRY;                                  // undefined=미조회 · null=미확정 · {d}=확정
+async function getDefenseEntryDate(){
+  if(DEF_ENTRY !== undefined) return DEF_ENTRY;
+  DEF_ENTRY = null;
+  try{
+    const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache: 'no-store'});
+    if(!res.ok) return DEF_ENTRY;
+    const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
+    if(lines.length < 2) return DEF_ENTRY;
+    const cols = lines[0].split(',');
+    const iA = cols.indexOf('as_of'), iS = cols.indexOf('state'), iC = cols.indexOf('changed');
+    if(iA < 0 || iS < 0) return DEF_ENTRY;
+    const rows = lines.slice(1).map(l => l.split(','));
+    if(rows[rows.length - 1][iS] !== 'SCHD') return DEF_ENTRY;   // 방어 상태가 아님
+    let k = rows.length - 1;
+    while(k > 0 && rows[k - 1][iS] === 'SCHD') k--;
+    if(k === 0 && !(iC >= 0 && rows[0][iC] === '1')) return DEF_ENTRY;
+    DEF_ENTRY = {d: rows[k][iA]};
+  }catch(e){ /* 장부 없음 — 표시 생략 */ }
+  return DEF_ENTRY;
+}
+async function drawDefDays(){
+  const el = document.getElementById('defDays');
+  if(!el) return;
+  if(CURSTATE !== 'SCHD'){ el.hidden = true; el.innerHTML = ''; return; }
+  const e = await getDefenseEntryDate();
+  if(CURSTATE !== 'SCHD' || !e){ el.hidden = true; el.innerHTML = ''; return; }
+  const days = Math.max(0, Math.floor((Date.now() - Date.parse(e.d)) / 864e5));
+  el.hidden = false;
+  el.innerHTML = `방어 전환(${e.d}) 후 <b>${days}일 경과</b> · 비율 재조정은 <b>월 1회</b> 규약 —
+    마지막 재조정이 언제였는지 직접 기억/기록해 판단하세요.`;
+}
 function paintState(o){
   // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp}
   const isQld = o.state==='QLD';
@@ -1801,6 +1837,7 @@ function paintState(o){
   drawRuler(o.dd/100, color);
   CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
   drawPort();
+  drawDefDays();                           // [v97] 방어 상태에서만 보임
 }
 
 /* [v73] 임계점 거리 게이지 — 신호 계산이 이미 만든 o.dd / o.gap_pp 만 쓴다.
