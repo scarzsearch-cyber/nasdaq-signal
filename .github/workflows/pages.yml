@@ -45,6 +45,8 @@ jobs:
           # [v57] 규칙 동결 기록 + 전향적 OOS 장부
           cp data/freeze.json _site/data/ 2>/dev/null || echo "freeze.json 없음 — 동결 배지 숨김"
           cp data/oos_log.csv _site/data/ 2>/dev/null || echo "oos_log.csv 없음 — 첫 실행이면 정상"
+          # [v89] 포트폴리오 패널의 현재가 기본값 (전일 종가·괴리율 수집분)
+          cp data/nav_history.csv _site/data/ 2>/dev/null || echo "nav_history.csv 없음 — 가격 직접 입력"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

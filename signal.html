@@ -252,6 +252,32 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .perf .glbl .per{font-size:11px;}
 }
 
+/* ---- 내 포트폴리오 [v89] ---- */
+#portAction.ok,#portAction.go{margin:0 0 12px;padding:11px 14px;border-radius:2px;
+  font-size:16px;line-height:1.6;border:1px solid var(--rule);}
+#portAction.ok{background:#F2F8F4;border-color:#1F9D55;}
+#portAction.go{background:#FDF2F0;border-color:var(--warn);}
+.prow{display:grid;grid-template-columns:minmax(0,1.5fr) 96px 104px 104px;gap:4px 10px;
+  align-items:center;padding:7px 0;border-bottom:1px solid #E8ECEF;font-size:15px;}
+.prow.phead{color:var(--muted);font-size:12.5px;border-bottom:1px solid var(--rule);padding:4px 0;}
+.prow.phead span{text-align:right;}
+.prow.phead span:first-child{text-align:left;}
+.prow .pnm{font-weight:600;font-size:14.5px;}
+.prow .pnm .code{opacity:.6;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.prow input{width:100%;text-align:right;padding:6px 6px;}
+.pbrow{margin-top:11px;}
+.pbrow .pbl{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:4px;}
+.pbrow .pbl b{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.pbar2{position:relative;height:10px;border-radius:6px;background:var(--rule);}
+.pbar2 .cur{height:100%;border-radius:6px;background:var(--attack);opacity:.72;}
+.pbar2 .tgt{position:absolute;top:-3px;bottom:-3px;width:2.5px;background:var(--ink);}
+.pbrow .pbd{font-size:13.5px;color:var(--muted);margin-top:4px;}
+.pbrow .pbd b{color:var(--ink);}
+.pwarn{margin-top:10px;font-size:14px;color:#B45309;line-height:1.55;}
+.psum{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);
+  font-size:14.5px;color:var(--muted);line-height:1.6;}
+.psum b{color:var(--ink);font-variant-numeric:tabular-nums;}
+
 /* ---- 운용 안내 ---- */
 .guide{margin-top:22px;background:var(--panel);border:1px solid var(--rule);
   border-radius:2px;padding:20px 22px;}
@@ -339,6 +365,11 @@ td.s-schd{color:var(--defend);font-weight:600;}
   #calcBody td input{width:100% !important;padding:6px 5px;text-align:right;}
   #calcBody tr:not([data-code]){grid-template-columns:1fr auto;}   /* 잔여 현금 줄 */
   #calcBody tr:not([data-code]) td{text-align:right;}
+  /* [v89] 포트폴리오 입력: 자산명 줄 + 입력 3칸 줄 (가로 스크롤 없음) */
+  #portBody .prow{grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 8px;}
+  #portBody .prow.phead{display:none;}
+  #portBody .prow .pnm{grid-column:1/-1;word-break:keep-all;}
+  #portBody .pin::before{display:block;font-size:10.5px;color:var(--muted);content:attr(data-l);}
   /* [v85] 계좌표: 강제 폭 해제 + 계좌명 줄바꿈 — 가로 스크롤 제거 */
   .tax table{min-width:0;font-size:13px;}
   .tax th,.tax td{padding:6px 5px;white-space:nowrap;}
@@ -496,6 +527,16 @@ td.s-schd{color:var(--defend);font-weight:600;}
     </div>
     <div id="calcBody"></div>
     <div class="hint" id="calcNote"></div>
+  </div>
+
+  <!-- [v89] 내 포트폴리오 — 보유 입력 → 목표(전략 B)와 비교 → 오늘의 행동.
+       자동 주문 없음. 전략 로직 무변경 — 목표비중은 signal.json 설정에서 읽는다. -->
+  <div class="guide" id="portPanel">
+    <h2>내 포트폴리오 <span style="font-size:12px;font-weight:400;color:var(--muted)">— 보유를 입력하면 전략 B 목표와 비교합니다 · 저장은 이 기기</span></h2>
+    <div id="portAction"></div>
+    <div id="portBody"></div>
+    <div id="portComp"></div>
+    <div class="hint" id="portNote"></div>
   </div>
 
   <div class="guide" id="execPanel">
@@ -1163,6 +1204,170 @@ function drawCalc(){
   calcCompute();
 }
 
+/* ---------------- 내 포트폴리오 [v89] ----------------
+   보유(이 기기 localStorage)를 전략 B 의 목표비중과 비교해 「오늘의 행동」을 만든다.
+   목표비중은 계산기와 같은 원천(AUTO.risk / AUTO.defensive)에서 읽는다 — 하드코딩 없음.
+   자동 주문 없음 · 전략 로직 무변경. 현재가 기본값은 nav_history(전일 종가). */
+const PKEY = 'b_port_v1';
+let PORT = {d:null, a:{}, cash:0};             // a: {종목코드: {qty, avg, px}}
+let NAVPX = {};                                // {종목코드: {px, d}}
+let CURSTATE = null;                           // paintState 가 갱신 (내부값: QLD/SCHD)
+
+function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
+function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
+  try{ localStorage.setItem(PKEY, JSON.stringify(PORT)); }catch(e){} }
+function fmtWon(v){ return Math.round(v).toLocaleString('en-US') + '원'; }
+function pnum(v){ return parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')) || 0; }
+
+async function loadNav(){
+  try{
+    const res = await fetch('data/nav_history.csv?t=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) return;
+    const lines = (await res.text()).trim().split(/\r?\n/);
+    const h = lines[0].split(','), iA = h.indexOf('as_of'), iC = h.indexOf('code'), iP = h.indexOf('close');
+    if(iA < 0 || iC < 0 || iP < 0) return;
+    for(let k = 1; k < lines.length; k++){
+      const p = lines[k].split(','), px = parseFloat(p[iP]);
+      if(!isFinite(px) || px <= 0) continue;
+      if(!NAVPX[p[iC]] || p[iA] >= NAVPX[p[iC]].d) NAVPX[p[iC]] = {px: px, d: p[iA]};
+    }
+  }catch(e){}
+}
+
+function portAssets(){
+  const R = AUTO && AUTO.risk, D = AUTO && AUTO.defensive;
+  if(!R || !D || !D.legs || !D.legs.length) return null;
+  return [{code: R.code, name: R.name, atk: 100, def: 0}]
+    .concat(D.legs.map(l => ({code: l.code, name: l.name, atk: 0, def: l.weight})));
+}
+
+function drawPort(){
+  const body = document.getElementById('portBody');
+  if(!body) return;
+  const A = portAssets();
+  if(!A){
+    body.innerHTML = '<div class="hint">신호 데이터(자동 모드)를 불러오면 사용할 수 있습니다.</div>';
+    ['portAction', 'portComp', 'portNote'].forEach(id => document.getElementById(id).innerHTML = '');
+    return;
+  }
+  const key = A.map(x => x.code).join(',');
+  if(body.dataset.codes !== key){                 // 입력칸은 한 번만 만든다 (포커스 보존)
+    body.dataset.codes = key;
+    let html = `<div class="prow phead"><span>자산</span><span>보유 수량</span>
+      <span>평단가(선택)</span><span>현재가(원)</span></div>`;
+    A.forEach(x => {
+      const p = PORT.a[x.code] || {};
+      const nav = NAVPX[x.code];
+      html += `<div class="prow" data-code="${x.code}">
+        <span class="pnm">${x.name} <span class="code">${x.code}</span></span>
+        <span class="pin" data-l="보유 수량"><input data-f="qty" type="text" inputmode="numeric"
+          value="${p.qty || ''}" placeholder="0"></span>
+        <span class="pin" data-l="평단(선택)"><input data-f="avg" type="text" inputmode="numeric"
+          value="${p.avg || ''}" placeholder="—"></span>
+        <span class="pin" data-l="현재가"><input data-f="px" type="text" inputmode="numeric"
+          value="${p.px || ''}" placeholder="${nav ? Math.round(nav.px).toLocaleString('en-US') : '직접 입력'}"></span>
+      </div>`;
+    });
+    html += `<div class="prow" data-code="_cash">
+      <span class="pnm">현금 (선택)</span>
+      <span class="pin" data-l="금액(원)"><input data-f="cash" type="text" inputmode="numeric"
+        value="${PORT.cash || ''}" placeholder="0"></span><span></span><span></span></div>`;
+    body.innerHTML = html;
+    body.querySelectorAll('input').forEach(i => i.addEventListener('input', () => {
+      const code = i.closest('.prow').dataset.code;
+      if(code === '_cash'){ PORT.cash = pnum(i.value); }
+      else{ PORT.a[code] = PORT.a[code] || {}; PORT.a[code][i.dataset.f] = i.value; }
+      savePort(); portCompute();
+    }));
+  }
+  portCompute();
+}
+
+function portCompute(){
+  const A = portAssets();
+  if(!A) return;
+  const act = document.getElementById('portAction');
+  const comp = document.getElementById('portComp');
+  const note = document.getElementById('portNote');
+  const isAtk = CURSTATE !== 'SCHD';
+  const stLab = isAtk ? '공격' : '방어';
+  const warns = [];
+  let total = Math.max(0, PORT.cash || 0), anyQty = false, invest = 0, investVal = 0;
+
+  const rows = A.map(x => {
+    const p = PORT.a[x.code] || {};
+    const qty = pnum(p.qty), avg = pnum(p.avg);
+    let px = pnum(p.px), src = '';
+    if(!(px > 0) && NAVPX[x.code]){ px = NAVPX[x.code].px; src = NAVPX[x.code].d.slice(5) + ' 종가'; }
+    if(qty < 0) warns.push(x.name + ': 수량이 음수입니다');
+    if(pnum(p.px) < 0) warns.push(x.name + ': 가격이 0 이하입니다');
+    if(qty > 0 && !(px > 0)) warns.push(x.name + ': 현재가 누락 — 입력 전까지 계산 제외');
+    const val = (qty > 0 && px > 0) ? qty * px : 0;
+    if(qty > 0) anyQty = true;
+    if(val > 0 && avg > 0){ invest += qty * avg; investVal += val; }
+    total += val;
+    return {x, qty, px, val, src, tgt: isAtk ? x.atk : x.def};
+  });
+  if(PORT.d){
+    const days = Math.floor((Date.now() - Date.parse(PORT.d)) / 864e5);
+    if(days >= 7) warns.push('마지막 입력이 ' + days + '일 전입니다 — 수량·가격을 확인하세요');
+  }
+
+  if(!anyQty || !(total > 0)){
+    act.className = ''; act.innerHTML = ''; comp.innerHTML = '';
+    note.innerHTML = `현재가 기본값은 자동 수집된 <b>전일 종가</b>입니다 — 주문 전 실시간 시세로
+      갱신하세요. 보유 수량만 넣으면 현재 비중과 필요한 매매가 계산됩니다.
+      <b>자동 주문은 없습니다</b> — 체결은 직접, <b>09:05~15:20</b>.`;
+    return;
+  }
+
+  let bars = '', sells = [], buys = [], maxdev = 0;
+  rows.forEach(r => {
+    const curW = r.val / total * 100;
+    const diff = total * r.tgt / 100 - r.val;                    // + 면 매수
+    maxdev = Math.max(maxdev, Math.abs(curW - r.tgt));
+    const sh = r.px > 0 ? Math.floor(Math.abs(diff) / r.px) : 0; // 주수는 내림
+    const shx = diff < 0 ? Math.min(sh, r.qty) : sh;             // 매도는 보유 한도
+    if(diff < 0 && shx > 0) sells.push({r, sh: shx});
+    if(diff > 0 && shx > 0) buys.push({r, sh: shx});
+    bars += `<div class="pbrow">
+      <div class="pbl"><span>${r.x.name}${r.src ? ` <span style="opacity:.6;font-size:12px">(${r.src})</span>` : ''}</span>
+        <b>${curW.toFixed(1)}% → ${r.tgt}%</b></div>
+      <div class="pbar2"><div class="cur" style="width:${Math.min(100, curW).toFixed(1)}%"></div>
+        <div class="tgt" style="left:${r.tgt}%"></div></div>
+      ${shx > 0 && Math.abs(curW - r.tgt) > 2 ?
+        `<div class="pbd">${diff > 0 ? '매수' : '매도'} 약 <b>${fmtWon(shx * r.px)}</b>
+           (${shx.toLocaleString('en-US')}주 @ ${Math.round(r.px).toLocaleString('en-US')})</div>` : ''}
+    </div>`;
+  });
+
+  if(maxdev <= 2){
+    act.className = 'ok';
+    act.innerHTML = `🟢 <b>오늘의 행동 — 없음.</b> ${stLab} 목표와 일치합니다 (오차 ≤2%p 표시 기준).`
+      + (isAtk ? '' : ' 방어 비율 재조정은 <b>월 1회</b> 규약입니다.');
+  } else {
+    const L = [];
+    sells.forEach(s => L.push(`${s.r.x.name} <b style="color:var(--warn)">매도 ${fmtWon(s.sh * s.r.px)}</b> (${s.sh}주)`));
+    buys.forEach(b => L.push(`${b.r.x.name} <b style="color:var(--attack)">매수 ${fmtWon(b.sh * b.r.px)}</b> (${b.sh}주)`));
+    act.className = 'go';
+    act.innerHTML = `🔴 <b>오늘의 행동 — ${stLab} 목표와 ${maxdev.toFixed(1)}%p 차이</b><br>` + L.join('<br>')
+      + (isAtk ? '' : `<br><span style="font-size:13px;color:var(--muted)">전환일이 아니라면 —
+         방어 비율 재조정은 월 1회 규약입니다.</span>`);
+  }
+
+  const sellCash = sells.reduce((a, s) => a + s.sh * s.r.px, 0);
+  const buyCash = buys.reduce((a, b) => a + b.sh * b.r.px, 0);
+  let sum = `총 평가 <b>${fmtWon(total)}</b>`;
+  if(PORT.cash > 0) sum += ` (현금 ${(Math.max(0, PORT.cash) / total * 100).toFixed(1)}% 포함)`;
+  if(invest > 0) sum += ` · 평단 기준 손익 <b>${(investVal - invest >= 0 ? '+' : '−') + fmtWon(Math.abs(investVal - invest))}</b>
+    (${((investVal / invest - 1) * 100).toFixed(1)}%)`;
+  if(maxdev > 2) sum += ` · 위 조정 후 예상 현금 <b>${fmtWon((PORT.cash || 0) + sellCash - buyCash)}</b>`;
+  comp.innerHTML = bars + `<div class="psum">${sum}</div>`
+    + (warns.length ? `<div class="pwarn">⚠ ${warns.join(' · ')}</div>` : '');
+  note.innerHTML = `주수는 내림(매수)·보유 한도(매도) 기준 · 입력은 이 기기 브라우저에만 저장
+    ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''} · <b>자동 주문 없음</b> — 체결은 직접, <b>09:05~15:20</b>.`;
+}
+
 function paintState(o){
   // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp}
   const isQld = o.state==='QLD';
@@ -1212,6 +1417,8 @@ function paintState(o){
   paintProx(o, isQld);
 
   drawRuler(o.dd/100, color);
+  CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
+  drawPort();
 }
 
 /* [v73] 임계점 거리 게이지 — 신호 계산이 이미 만든 o.dd / o.gap_pp 만 쓴다.
@@ -1570,6 +1777,8 @@ async function getJSON(p){
 
 async function boot(){
   loadPrefs();
+  loadPort();                              // [v89] 보유 입력 (이 기기)
+  await loadNav();                         // [v89] 현재가 기본값 (전일 종가)
   try{ AUTO = await getJSON('data/signal.json'); }catch(e){ AUTO = null; }
   if(AUTO && AUTO.stats) STATS = AUTO.stats;
   if(!STATS){ try{ STATS = await getJSON('data/strategy_stats.json'); }catch(e){} }
