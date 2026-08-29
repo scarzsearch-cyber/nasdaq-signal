@@ -207,28 +207,25 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .guide h3.sub{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
   font-size:15px;font-weight:700;letter-spacing:.08em;color:var(--muted);
   text-transform:uppercase;margin:26px 0 10px;padding-top:16px;border-top:1px solid var(--rule);}
-.perf table{min-width:860px;margin-top:0;}   /* [v60] 회복기간·Ulcer 두 칸 추가 */
-/* [v61] 벤치마크 줄 — 규칙 줄과 구분되게 흐리게 */
-.perf tr.bench td{color:var(--muted);}
-/* [v63] 기준 이름 아래 그 기준의 실제 구간 */
-.perf td.scen .per{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-top:2px;white-space:nowrap;}
-.perf tr.bench td.strat{font-weight:400;}
+.perf table{margin-top:0;}
+/* [v85] 기준은 열이 아니라 그룹 행(ghead) — 열 하나를 없애 가로 드래그 최소화 */
+.perf tr.ghead td{padding:11px 8px 7px;border-top:1px solid var(--rule);
+  font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
+  font-weight:700;font-size:14px;}
+.perf tbody tr.ghead:first-child td{border-top:none;}
+.perf .glbl{position:sticky;left:0;display:inline-block;}   /* 스크롤해도 그룹명 유지 */
+.perf .glbl .per{font-weight:400;font-size:12.5px;color:var(--muted);margin-left:8px;white-space:nowrap;}
 .perf th{white-space:nowrap;}
 .perf td{white-space:nowrap;}
 .perf td.num{text-align:right;}
 .perf tr.on td{background:#F2F6FB;font-weight:600;}
-.perf tr.on td.strat{color:var(--attack);}
 .perf tr.off td{color:var(--muted);}
-.perf td.scen{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-weight:600;
-  font-size:15px;}
-.perf tr.grp td{border-top:1px solid var(--rule);}
-.perf tr.rec td.strat{color:var(--attack);font-weight:700;}   /* [v73] 추천 줄 */
+.perf tr.rec td.strat{color:var(--attack);font-weight:700;}   /* [v85] 추천 = 파란 전략명 */
 /* [v79] 참고 4구역(실행시각·성과비교·지평·계좌) 폰트 -2px — 소유자 요청 */
 #execPanel,#perfPanel,#taxPanel{font-size:15px}
 #execPanel h2,#perfPanel h2,#taxPanel h2{font-size:14px}
 #execPanel .hint,#perfPanel .hint,#taxPanel .hint{font-size:14px}
 #execPanel .clock dt{font-size:13px}
-#perfPanel .perf td.scen .per{font-size:11.5px}
 /* [v73] 임계점 거리 게이지 */
 .prox{margin-top:12px;}
 .pbar{height:10px;border-radius:6px;background:var(--rule);overflow:hidden;}
@@ -240,21 +237,19 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .plbl b{color:var(--ink);}
 .plbl.trig b{color:#D93025;}
 .plbl.warn{color:#B45309;}
-/* [v73] 모바일 가로 스크롤 시 기준·전략명 열 고정 (Sticky) */
-/* [v84] 갤럭시 실측: min-width:860 강제 확장이 남는 폭을 전략 열에 몰아줘(239px)
-   고정 2열이 화면 352px 중 323px를 덮음 — 스크롤 창 29px. 내용 폭만 쓰게 하고
-   전략 열을 96px로 캡(줄바꿈 허용)해 데이터가 보이는 창을 넓힌다. */
+/* [v73] 모바일 가로 스크롤 시 전략명 열 고정 (Sticky)
+   [v85] 가로 드래그 최소화(소유자 지시): 기준 열을 그룹 행으로 빼고 전략 열만 고정.
+   성과표는 열이 9개라 스크롤이 남지만 한 화면에 지표 3~4열이 보이고,
+   같은기간 표는 거의 통째로 들어온다. */
 @media (max-width:700px){
-  .perf table{min-width:0;}
-  .perf th,.perf td{padding:6px 6px;font-size:13px;}
-  .perf th:nth-child(1),.perf td.scen{position:sticky;left:0;z-index:2;
-    background:var(--panel);min-width:84px;max-width:84px;font-size:11px;}
-  .perf td.scen{white-space:normal;line-height:1.3;word-break:keep-all;} /* 기준명·기간 잘림 방지 */
-  .perf td.scen .per{white-space:normal;}
-  .perf th:nth-child(2),.perf td.strat{position:sticky;left:84px;z-index:2;
-    background:var(--panel);min-width:96px;max-width:96px;font-size:11.5px;
-    white-space:normal;line-height:1.3;box-shadow:2px 0 3px rgba(0,0,0,.06);}
-  .perf tr.on td.scen,.perf tr.on td.strat{background:#F2F6FB;}
+  .perf th,.perf td{padding:6px 6px;font-size:12.5px;}
+  .perf th:nth-child(1),.perf td.strat{position:sticky;left:0;z-index:2;
+    background:var(--panel);min-width:92px;max-width:92px;font-size:11.5px;
+    white-space:normal;line-height:1.3;word-break:keep-all;
+    box-shadow:2px 0 3px rgba(0,0,0,.06);}
+  .perf tr.on td.strat{background:#F2F6FB;}
+  .perf tr.ghead td{padding:10px 6px 6px;}
+  .perf .glbl .per{font-size:11px;}
 }
 
 /* ---- 운용 안내 ---- */
@@ -305,7 +300,6 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .tax tr.best td{background:#EAF2FE;font-weight:600;}
 .tax tr.best td.acct{color:var(--attack);}
 .tax tr.ref td{color:var(--muted);}
-.swipe{font-size:15px;color:var(--muted);margin-top:7px;display:none;}
 
 /* ---- 선택지 ---- */
 .pickbox{display:grid;gap:8px;margin-top:18px;}
@@ -324,14 +318,31 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .signal>*,.state,.state>*{min-width:0;}
   .basket{max-width:100%;}
   .basket .leg{white-space:normal;font-size:14px;}          /* 공격 다리는 줄바꿈 허용 */
-  .standby .basket{max-width:100%;}                          /* 대기 3종은 한 줄+스크롤 유지 */
+  .standby .basket{max-width:100%;}                          /* 대기 3종: 칩 단위 줄바꿈 */
   .standby .basket .leg{white-space:nowrap;font-size:11.5px;padding:3px 6px;}
   .eyebrow,.verdict,.product{overflow-wrap:anywhere;}
   .basket .leg b,.basket .code{white-space:nowrap;}          /* 100% · 종목코드는 안 쪼갬 */
-  /* 계산기 표: 세로 찌그러짐 방지 — 머리글 고정폭 + 가로 스크롤 */
-  #calcBody{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  #calcBody table{min-width:540px;}
-  #calcBody th,#calcBody td{white-space:nowrap;}
+  /* [v85] 계산기: 가로 스크롤 제거 — 자산명 줄 + 숫자 4칸 줄의 2단 카드형 */
+  #calcBody thead{display:none;}
+  #calcBody table{display:block;margin-top:10px;}
+  #calcBody tbody{display:block;}
+  #calcBody tr{display:grid;grid-template-columns:1fr 1.25fr 0.65fr 1.1fr;gap:2px 8px;
+    padding:8px 0;border-bottom:1px solid #E8ECEF;}
+  #calcBody td{display:block;border:none;padding:0;white-space:nowrap;font-size:13.5px;}
+  #calcBody tr[data-code] td:first-child{grid-column:1/4;white-space:normal;word-break:keep-all;}
+  #calcBody tr[data-code] td:nth-child(2){text-align:right;font-weight:600;}
+  #calcBody td:nth-child(n+3)::before{display:block;font-size:10.5px;color:var(--muted);}
+  #calcBody td:nth-child(3)::before{content:'목표금액';}
+  #calcBody td:nth-child(4)::before{content:'현재가 입력';}
+  #calcBody td:nth-child(5)::before{content:'주수';}
+  #calcBody td:nth-child(6)::before{content:'소요금액';}
+  #calcBody td input{width:100% !important;padding:6px 5px;text-align:right;}
+  #calcBody tr:not([data-code]){grid-template-columns:1fr auto;}   /* 잔여 현금 줄 */
+  #calcBody tr:not([data-code]) td{text-align:right;}
+  /* [v85] 계좌표: 강제 폭 해제 + 계좌명 줄바꿈 — 가로 스크롤 제거 */
+  .tax table{min-width:0;font-size:13px;}
+  .tax th,.tax td{padding:6px 5px;white-space:nowrap;}
+  .tax td.acct{white-space:normal;font-size:12px;line-height:1.35;word-break:keep-all;}
   .facts{grid-template-columns:repeat(3,1fr);gap:10px 8px;}
   .facts .k{font-size:11px;}
   .facts .v{font-size:15px;}
@@ -346,7 +357,6 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .taxhero{grid-template-columns:1fr;}
   .taxhero>div{padding:11px 14px;}
   .pickbox .p{grid-template-columns:1fr;gap:4px;}
-  .swipe{display:block;}
   /* iOS 사파리는 16px 미만 입력창에 포커스하면 화면을 확대한다 */
   input[type=text],input[type=date]{font-size:16px;}
   .row>button,.row>label.file{min-height:44px;}
@@ -377,8 +387,8 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .bsub{margin-top:6px;font-size:16px;opacity:.7}
 .standby{margin-top:10px;padding-top:9px;border-top:1px dashed var(--rule);opacity:.72}
 .standby .lbl{display:block;font-size:13px;letter-spacing:.04em;opacity:.8;margin-bottom:4px}
-/* [v78] 대기 바스켓은 반드시 한 줄 — 세로 길이 최소화 (소유자 취향) */
-.standby .basket{flex-wrap:nowrap;overflow-x:auto;gap:6px}
+/* [v85] 대기 바스켓 — 가로 스크롤 금지(소유자 지시), 칩 단위로만 줄바꿈 */
+.standby .basket{flex-wrap:wrap;gap:6px}
 .standby .basket .leg{font-size:12.5px;padding:3px 7px;white-space:nowrap;flex:0 0 auto}
 .standby .basket .leg b{font-size:13.5px}
 .standby .basket .code{font-size:11.5px}
@@ -398,7 +408,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <h1>오늘의 신호</h1>
     <div class="subs">
       <div class="sub" id="asof">데이터 없음</div>
-      <div class="rev" id="htmlRev" title="이 화면(전략 로직) 자체가 마지막으로 바뀐 시점입니다. 위의 종가일과는 별개입니다."></div>
+      <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
       <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
     </div>
   </div>
@@ -460,10 +470,10 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <button class="ghost" id="btnClear">전체 삭제</button>
     </div>
     <div class="hint">
-      QQQ(미국 상장 나스닥100 ETF)의 <b>미국장 종가</b>를 넣습니다. 판정은 항상 QQQ 기준이고,
-      실제 매매만 국내 ETF로 합니다. 국내 ETF 종가로 판정하면 환율이 섞여
-      <b>도피가 걸리는 날의 낙폭을 3%p 얕게</b> 보고, 원화 29.6년 기준 최종배수가 −92%가 됩니다. 처음 한 번은 stooq 등에서 받은 CSV(Date, Close 열 포함)를
-      올려 과거 1년치를 채워두세요. 그 뒤로는 매일 종가 하나만 추가하면 됩니다.
+      QQQ(미국 상장 나스닥100 ETF)의 <b>미국장 종가</b>를 넣습니다. 판정은 항상 QQQ,
+      매매만 국내 ETF — 국내 ETF 종가로 판정하면 환율이 섞여 <b>전환일 낙폭을 3%p 얕게</b>
+      보고 원화 29.6년 최종배수가 −92% 됩니다. 처음 한 번 stooq 등의 CSV(Date, Close 열)로
+      과거 1년치를 채우면, 그 뒤로는 매일 종가 하나만 추가하면 됩니다.
     </div>
     <div class="msg" id="msg"></div>
     <table id="tbl" hidden>
@@ -501,9 +511,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
     </dl>
     <div class="rules">
       <b style="color:var(--attack)">미루지만 마세요</b> — 신호(미국 종가)는 한국 개장 전에 확정됩니다.
-      같은 날 <b style="color:var(--attack)">09:05~15:20</b> 사이 아무 때나 체결하면 되고(그 밖은 LP 호가 의무가 없어
-      스프레드만 벌어짐), 몇 분·몇 시간 차이는 비용에 묻힙니다. 성과를 깎는 건 하루 단위
-      지연뿐입니다 (1일 126배 → 3일 102배). 휴장이면 다음 개장일에.<br><br>
+      같은 날 <b style="color:var(--attack)">09:05~15:20</b> 아무 때나 체결하면 되고(그 밖은
+      LP 호가 의무가 없어 스프레드만 벌어짐), 성과를 깎는 건 몇 시간이 아니라
+      <b>하루 단위 지연</b>입니다(1일 126배 → 3일 102배). 휴장이면 다음 개장일에.<br><br>
 
       <b style="color:var(--attack)">방어 바스켓은 고르지 말고 셋 다</b> — 40/40/20 고정, 월 1회 비율만 맞춥니다.
       골라 타는 규칙 11종은 전부 기각됐고, 섞는 이유는 수익이 아니라 낙폭입니다
@@ -570,7 +580,6 @@ td.s-schd{color:var(--defend);font-weight:600;}
         </tbody>
       </table>
     </div>
-    <div class="swipe">← 표를 옆으로 밀어 보세요</div>
     <div class="hint">
       <b>방법</b> — 연 2,000만원(월 166.7만원)씩 5년 넣어 1억을 채우고 그 뒤엔 보유.
       ISA는 납입한도 때문에 거치식이 불가능합니다. 배수는 <b>납입액 1억 대비 세후 평가액</b>,
@@ -693,8 +702,8 @@ function compute(exitLine){
 }
 
 /* [v46] 화면(전략 로직) 자체의 개정 시점. 종가 갱신과 **별개**다.
-   배포 시 pages.yml 이 아래 문자열을 실제 커밋 날짜·해시로 치환한다.
-   치환되지 않은 채로 열렸다면 배포본이 아니라 로컬 사본이라는 뜻이다. */
+   [v85] 배포 시 pages.yml 이 아래 문자열을 "vNN · 날짜 시각(KST)" 으로 치환한다
+   (deploy/stamp_rev.py). 치환 안 된 채 열렸다면 배포본이 아니라 로컬 사본이다. */
 const HTML_REV = '__HTML' + '_REV__';          /* 배포 때 치환됨 */
 function paintRev(){
   const el = document.getElementById('htmlRev');
@@ -768,7 +777,7 @@ function riskHtml(){
   const legs = basketLegs();
   if(!legs) return head;
   return `<div class="basket">${head}</div>
-    <div class="standby"><span class="lbl">전환되면 살 것 &mdash; 비중 고정, 셋을 다 삽니다</span>
+    <div class="standby"><span class="lbl">전환되면 살 것 &mdash; 셋 다, 비중 고정</span>
       <div class="basket">${legs}</div></div>`;
 }
 
@@ -893,7 +902,7 @@ function paintMetKey(sc){
         m.dd_mean==null ? '—'
           : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`) +
 
-    `<div class="dir">다른 전략·벤치마크와의 비교는 아래 <b>성과 비교표</b> 한 곳에서 합니다.</div>`;
+    `<div class="dir">전략·벤치마크 비교는 아래 <b>성과 비교표</b> 한 곳에서.</div>`;
 }
 
 /* ---------------- 성과 비교표 ---------------- */
@@ -901,7 +910,7 @@ function drawPerf(){
   const panel = document.getElementById('perfPanel');
   if(!STATS){ panel.hidden = true; return; }
   panel.hidden = false;
-  const head = `<tr><th>기준</th><th>전략</th><th style="text-align:right">최종배수</th>
+  const head = `<tr><th>전략</th><th style="text-align:right">최종배수</th>
     <th style="text-align:right">CAGR</th><th style="text-align:right">MDD</th>
     <th style="text-align:right">Calmar</th><th style="text-align:right">Sortino</th>
     <th style="text-align:right">회복기간</th><th style="text-align:right">Ulcer</th>
@@ -920,21 +929,23 @@ function drawPerf(){
   //   ① 채택안 ② 방어 배당100 ③ 헤지 60/40·방어 40/40/20 (추천=파랑) ④ 헤지·배당100.
   //   기준도 3개만: us_2000 / kr_1997 / kr_real (54년 확장은 문서·지평 근거로만).
   // [v78] 전략 이름 규약 (소유자 명명): 기본 = 방어 40/40/20, 배당 = 방어 배당100
+  // [v85] 추천 표기는 파란 전략명뿐(별표 텍스트 제거) · 기준은 그룹 행(ghead)으로.
   const VARIANTS = [
     ['strategies',           '−16 기본', ''],
     ['strategies_div',       '−16 배당', ''],
-    ['strategies_hedge',     '헤지6/4 기본 ★추천', 'rec'],
+    ['strategies_hedge',     '헤지6/4 기본', 'rec'],
     ['strategies_hedge_div', '헤지6/4 배당', ''],
   ];
   const SHOW = ['us_2000', 'kr_1997', 'kr_real'];
   let body = '';
-  STATS.scenarios.filter(s=>SHOW.includes(s.key)).forEach((s,si)=>{
+  STATS.scenarios.filter(s=>SHOW.includes(s.key)).forEach(s=>{
     let first = true;
     VARIANTS.forEach(([vk, vlab, cls])=>{
       const m = s[vk] ? s[vk][sel] : null;
       if(!m) return;
-      body += `<tr class="${first?('on'+(si>0?' grp':'')):(cls||'alt')}">
-        <td class="scen">${first ? s.label+per(m) : ''}</td>
+      if(first) body += `<tr class="ghead"><td colspan="9">
+        <span class="glbl">${s.label}${per(m)}</span></td></tr>`;
+      body += `<tr class="${first?'on':(cls||'')}">
         <td class="strat">${vlab}</td>${cols(m)}
         <td class="num">${m.switches}</td></tr>`;
       first = false;
@@ -948,24 +959,22 @@ function drawPerf(){
     `<p><span class="lead">이름 읽는 법</span> — <b>−16</b> 은 채택안(항상 QLD 100%),
        <b>헤지6/4</b> 는 상승장에도 QLD 60%/SCHD 40%(월 1회 재조정)만 드는 저레버리지형.
        <b>기본</b> = 방어 배당40·국채40·금20, <b>배당</b> = 방어 배당100.
-       넷 다 같은 신호(−16/−16)·같은 체결·같은 비용입니다.
-       헤지의 6/4 는 QLD 10~90% 전수 실측 —
-       <b style="color:var(--attack)">Calmar(폭락 대비 수익 효율)가 50~60%에서 최고점</b>이고
-       동률이면 수익 높은 쪽(60%)을 택했습니다. 방어는 기본형 추천
-       (54년 실측 MDD −46% vs 배당 −65%).</p>
+       넷 다 같은 신호(−16/−16)·같은 체결·같은 비용.
+       <b style="color:var(--attack)">파란 전략명이 추천안</b>입니다 —
+       6/4 는 QLD 10~90% 전수 실측에서 Calmar(폭락 대비 수익 효율) 최고 구간(50~60%)의
+       수익 높은 쪽, 방어는 기본형(54년 실측 MDD −46% vs 배당 −65%).</p>
 
      <p><span class="lead">주의</span> —
-       <b style="color:var(--attack)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다.</b>
-       달러 26.6년 165배와 원화 29.6년 2,761배도 같은 26.6년으로 맞추면 165 vs 169 입니다.
-       기준끼리는 <b>CAGR 열</b>로 보세요.
-       그리고 이 우위의 <b style="color:var(--ink)">대부분(96%)은 닷컴 한 사건</b>에서
-       나왔습니다 — 2000년형 느린 약세장은 −43~−53%p 완화하지만,
-       <b style="color:var(--attack)">1987·2020형 급락은 거의 못 피합니다</b>(완화 3%p 안팎).
-       이 전략은 "느린 약세장 보험"이지 만능 방어가 아닙니다.</p>
+       <b style="color:var(--attack)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b>
+       — 기준끼리는 <b>CAGR 열</b>로. (달러 165배 vs 원화 2,761배도 같은 26.6년으로
+       맞추면 165 vs 169.) 이 우위의 <b style="color:var(--ink)">96%는 닷컴 한 사건</b>에서
+       나왔고, 2000년형 느린 약세장은 −43~−53%p 완화하지만
+       <b style="color:var(--attack)">1987·2020형 급락은 거의 못 피합니다</b>(3%p 안팎).
+       느린 약세장 보험이지 만능 방어가 아닙니다.</p>
 
      <p><span class="lead">전제</span> — 「원화」는 환노출 2배 + 슬리피지 0.1%,
-       「달러」는 미국 종가 체결. 달러·54년은 나스닥 종합/NDX/QQQ를 이어붙인 대리 시계열이라
-       같은 자산이 아닙니다.</p>`;
+       「달러」는 미국 종가 체결. 달러·54년은 나스닥 종합/NDX/QQQ를 이어붙인
+       대리 시계열 — 같은 자산이 아닙니다.</p>`;
   drawHoriz();
 }
 
@@ -976,32 +985,30 @@ const HZ = ['5','10','15','20'];
 function drawHoriz(){
   const host = document.getElementById('horizBody');
   if(!STATS){ host.innerHTML = ''; return; }
-  const head = `<tr><th>기준</th><th>전략</th>` +
+  const head = `<tr><th>전략</th>` +
     HZ.map(y=>`<th style="text-align:right">최근 ${y}년</th>`).join('') + `</tr>`;
   const cells = m => HZ.map(y=>{
     const v = m.horizons ? m.horizons[y] : null;
     return `<td class="num">${v==null ? '—' : nfmt(v)+'배'}</td>`;
   }).join('');
   // [v73] 기준 2개(us_2000/kr_1997)만, 벤치 대신 헤지 60/40(방어 40/40/20 · 추천)을 병기.
+  // [v85] 기준은 그룹 행 · 추천은 파란 전략명만.
   let body = '';
-  STATS.scenarios.filter(s=>['us_2000','kr_1997'].includes(s.key)).forEach((s,si)=>{
+  STATS.scenarios.filter(s=>['us_2000','kr_1997'].includes(s.key)).forEach(s=>{
     const m = stratsOf(s)[sel];
     const hg = s.strategies_hedge ? s.strategies_hedge[sel] : null;
-    body += `<tr class="on${si>0?' grp':''}">
-      <td class="scen">${s.label}</td>
-      <td class="strat">−16 기본</td>${cells(m)}</tr>`;
-    if(hg) body += `<tr class="rec"><td class="scen"></td>
-      <td class="strat">헤지6/4 기본 ★추천</td>${cells(hg)}</tr>`;
+    body += `<tr class="ghead"><td colspan="5"><span class="glbl">${s.label}</span></td></tr>`;
+    body += `<tr class="on"><td class="strat">−16 기본</td>${cells(m)}</tr>`;
+    if(hg) body += `<tr class="rec"><td class="strat">헤지6/4 기본</td>${cells(hg)}</tr>`;
   });
   host.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
   document.getElementById('horizNote').innerHTML =
-    `<p>두 기준 모두 <b style="color:var(--ink)">${STATS.scenarios[0].strategies.B.end}</b> 에서 끝납니다.
-       거기서 거꾸로 N년을 잘라낸 배수라 <b>세로로 비교해도 됩니다</b>.</p>
+    `<p>네 값 모두 <b style="color:var(--ink)">${STATS.scenarios[0].strategies.B.end}</b> 에
+       끝나는 같은 창이라 <b>세로로 비교해도 됩니다</b>.</p>
      <p><span class="lead">여기서 보이는 것</span> —
-       −16 기본과 헤지6/4 의 차이는 <b style="color:var(--attack)">기간이 길어질수록 복리로
-       벌어집니다</b>. 헤지는 상승장 노출이 60% 라 잔잔한 구간마다 조금씩 뒤지고,
-       그 대신 낙폭·회복기간을 깎습니다. <b>더 버는 쪽이 아니라 덜 흔들리는 쪽</b>을
-       사는 선택지입니다.</p>`;
+       차이는 <b style="color:var(--attack)">기간이 길수록 복리로 벌어집니다</b>.
+       헤지는 상승 노출 60%라 잔잔한 구간마다 조금 뒤지는 대신 낙폭·회복기간을
+       깎습니다 — <b>더 버는 쪽이 아니라 덜 흔들리는 쪽</b>입니다.</p>`;
 }
 
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */
@@ -1129,9 +1136,9 @@ function calcCompute(){
   if(left) left.textContent = cash > 0 ? (cash - spentAll).toLocaleString('en-US') + ' 원' : '—';
   const t = new Date();
   document.getElementById('calcNote').innerHTML =
-    `가격 출처: <b>직접 입력</b>(주문 직전 호가/현재가를 넣으세요 — 이 화면은 국내 ETF
-     실시간 가격을 받지 않습니다) · 계산 시각 ${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')} ·
-     주수는 내림(floor), 잔여 현금은 그대로 둡니다. 체결 시간대는 <b>09:05~15:20</b>.`;
+    `가격은 <b>직접 입력</b> — 주문 직전 호가를 넣으세요(실시간 시세 미연동) ·
+     계산 ${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')} ·
+     주수는 내림, 잔돈은 현금으로 · 체결은 <b>09:05~15:20</b>.`;
 }
 function drawCalc(){
   const body = document.getElementById('calcBody');

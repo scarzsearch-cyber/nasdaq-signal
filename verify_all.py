@@ -220,10 +220,11 @@ def i5_decisions(D):
         # [v73] 비교표는 전략 4줄 (벤치 줄은 소유자 요청으로 제거, 데이터는 JSON 유지).
         #       헤지 방어 추천(mix)이 파랑으로 표시되는지도 본다.
         # [v78] 소유자 명명 규약: −16 기본 / −16 배당 / 헤지6/4 기본 / 헤지6/4 배당
-        ok("화면: 비교표 전략 4줄 + 헤지 추천 표시",
+        # [v85] 추천 표기는 파란 전략명(tr.rec)뿐 — ★추천 텍스트는 소유자 지시로 금지.
+        ok("화면: 비교표 전략 4줄 + 추천은 파랑만",
            "strategies_hedge_div" in h and h.count("헤지6/4") >= 3
-           and "★추천" in h and "tr.rec td.strat" in h,
-           '−16 기본·배당 / 헤지6/4 기본★·배당 (v78)')
+           and "★추천" not in h and "tr.rec td.strat" in h,
+           '−16 기본·배당 / 헤지6/4 기본·배당, 추천=파란 전략명 (v85)')
         ok("화면: 설명서 탭 연결", 'href="guide.html"' in h and os.path.exists('guide.html'),
            '별도 화면 설명서 (v78)')
         if os.path.exists('.github/workflows/pages.yml'):
