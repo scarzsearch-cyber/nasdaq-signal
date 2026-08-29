@@ -55,6 +55,13 @@ body{padding:28px 20px 64px;}
 .masthead .frz b{font-weight:700;color:var(--attack);opacity:.85;}
 .masthead .sub{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted);
   letter-spacing:0.06em;}
+/* [v108] 버전·동결 메타 접기 (세로 −40px) — 로컬 사본 경고일 때는 JS 가 강제로 펼친다 */
+.mmeta summary{font-size:11.5px;color:var(--muted);opacity:.7;cursor:pointer;
+  letter-spacing:.04em;list-style:none;text-align:inherit;}
+.mmeta summary::-webkit-details-marker{display:none;}
+.mmeta summary::after{content:' ▾';}
+.mmeta[open] summary::after{content:' ▴';}
+.mmeta .rev,.mmeta .frz{margin-top:2px;}
 
 /* ---- 시장 시계 ---- */
 .clockbar{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
@@ -537,8 +544,13 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
     <h1>오늘의 신호</h1>
     <div class="subs">
       <div class="sub" id="asof">데이터 없음</div>
-      <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
-      <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
+      <!-- [v108] 버전·동결은 매일 볼 정보가 아니라 접어둔다 — 탭하면 펼침.
+           id="htmlRev"/"frzBadge" 는 verify_all 검사 대상이라 유지. -->
+      <details class="mmeta">
+        <summary>버전 · 동결</summary>
+        <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
+        <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
+      </details>
       <button class="seenbdg" id="seenBadge" hidden type="button">🔔 지난 확인 이후 전환됨</button>
     </div>
   </div>
@@ -877,6 +889,7 @@ function paintRev(){
   if(HTML_REV.indexOf('__HTML') === 0){
     el.className = 'rev local';
     el.textContent = '로컬 사본 — 배포본이 아닙니다';
+    const d = el.closest('details'); if(d) d.open = true;   // [v108] 경고는 접지 않는다
     return;
   }
   el.className = 'rev';
