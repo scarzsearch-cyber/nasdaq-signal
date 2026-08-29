@@ -1777,6 +1777,12 @@ function applyBackup(j){
               + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return false;
   PORT = j.port; TRADES = j.trades;
   savePort(); saveTrades();
+  if(j.goal && pnum(j.goal.target) > 0){         // [v114] 목표액 — 옛 백업엔 없음(선택 필드)
+    GOAL = {target: pnum(j.goal.target)};
+    try{ localStorage.setItem(GKEY, JSON.stringify(GOAL)); }catch(e){}
+    const gi = document.getElementById('goalTarget');
+    if(gi) gi.value = Math.round(GOAL.target).toLocaleString('en-US');
+  }
   (portAssets() || []).forEach(x => syncPortInputs(x.code));
   const ci = document.querySelector("#portBody .prow[data-code='_cash'] input");
   if(ci) ci.value = PORT.cash || '';
@@ -1871,7 +1877,9 @@ function drawTlog(){
     //        깨짐 없음)이라 과도기 버튼을 정리. 복원 검증은 applyBackup 이 그대로 담당.
     // [v93] 파일 저장/복원 — 긴 JSON 복붙(잘림·줄바꿈 깨짐) 없이 폰↔PC 이동
     document.getElementById('tlExpFile').addEventListener('click', () => {
-      const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES}, null, 2);
+      // [v114] goal(단계 계산기 목표액) 포함 — v 는 1 유지: goal 없는 옛 파일도,
+      //        goal 을 모르는 옛 화면도 서로 그대로 호환된다 (선택 필드).
+      const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2);
       const blob = new Blob([txt], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
       const tp = tzParts(new Date(), SEOUL);
