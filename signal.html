@@ -444,6 +444,15 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .tabs a{padding:6px 14px;border-radius:8px;border:1px solid var(--rule);font-size:14px;
   font-weight:700;text-decoration:none;color:var(--muted);background:var(--panel)}
 .tabs a.on{color:#fff;background:var(--attack);border-color:var(--attack)}
+/* [v91] 루틴/전체 보기 토글 — 루틴 = 신호·포트폴리오만 (제미나이 제안 A 채택) */
+.tabs .vtog{margin-left:auto;padding:6px 12px;border-radius:8px;border:1px solid var(--rule);
+  font-size:13px;font-weight:700;color:var(--muted);background:var(--panel);cursor:pointer;font-family:inherit;}
+body.vroutine #calcPanel,body.vroutine .pick,body.vroutine #execPanel,
+body.vroutine #perfPanel,body.vroutine #taxPanel,body.vroutine #trajPanel,
+body.vroutine #t4Panel{display:none;}
+/* [v91] 주문 메모 복사 (제미나이 C1+C3 통합) */
+.copybtn{margin-top:8px;padding:7px 14px;font-family:inherit;font-size:14px;font-weight:700;
+  cursor:pointer;background:var(--ink);color:#fff;border:none;border-radius:2px;}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -451,7 +460,8 @@ td.s-schd{color:var(--defend);font-weight:600;}
 <div class="wrap">
 
   <div class="masthead">
-    <nav class="tabs"><a class="on" href="./">오늘의 신호</a><a href="guide.html">설명서</a></nav>
+    <nav class="tabs"><a class="on" href="./">오늘의 신호</a><a href="guide.html">설명서</a>
+      <button class="vtog" id="viewToggle" type="button" title="루틴 모드: 신호·포트폴리오만 / 전체: 참고 패널 포함"></button></nav>
     <h1>오늘의 신호</h1>
     <div class="subs">
       <div class="sub" id="asof">데이터 없음</div>
@@ -1380,7 +1390,16 @@ function portCompute(){
     act.className = 'go';
     act.innerHTML = `🔴 <b>오늘의 행동 — ${stLab} 목표와 ${maxdev.toFixed(1)}%p 차이</b><br>` + L.join('<br>')
       + (isAtk ? '' : `<br><span style="font-size:13px;color:var(--muted)">전환일이 아니라면 —
-         방어 비율 재조정은 월 1회 규약입니다.</span>`);
+         방어 비율 재조정은 월 1회 규약입니다.</span>`)
+      + `<br><button class="copybtn" id="copyOrder" type="button">주문 메모 복사</button>`;
+    const cb = document.getElementById('copyOrder');
+    if(cb) cb.addEventListener('click', () => {
+      const txt = orderMemo(stLab, sells, buys);
+      const ok = () => { cb.textContent = '복사됨 ✓'; setTimeout(() => { cb.textContent = '주문 메모 복사'; }, 1500); };
+      if(navigator.clipboard && navigator.clipboard.writeText)
+        navigator.clipboard.writeText(txt).then(ok, () => prompt('복사해서 쓰세요:', txt));
+      else prompt('복사해서 쓰세요:', txt);
+    });
   }
 
   const sellCash = sells.reduce((a, s) => a + s.sh * s.r.px, 0);
@@ -1395,6 +1414,36 @@ function portCompute(){
   note.innerHTML = `주수는 내림(매수)·보유 한도(매도) 기준 · 입력은 이 기기 브라우저에만 저장
     ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''} · <b>자동 주문 없음</b> — 체결은 직접, <b>09:05~15:20</b>.`;
 }
+
+/* [v91] 주문 메모 — MTS 입력·카톡 나에게 보내기용 (제미나이 C1+C3 통합 채택) */
+function orderMemo(stLab, sells, buys){
+  const tp = tzParts(new Date(), SEOUL);
+  const L = ['[나스닥 신호 ' + tp.m + '/' + tp.d + '] ' + stLab + ' 목표 조정'];
+  sells.forEach(s => L.push(shortName(s.r.x.code) + ' 매도 ' + s.sh + '주 (약 ' + fmtWon(s.sh * s.r.px) + ')'));
+  buys.forEach(b => L.push(shortName(b.r.x.code) + ' 매수 ' + b.sh + '주 (약 ' + fmtWon(b.sh * b.r.px) + ')'));
+  L.push('체결 09:05~15:20 · 주문은 직접');
+  return L.join('\n');
+}
+
+/* [v91] 루틴/전체 보기 — 루틴 = 신호 카드 + 내 포트폴리오만 (선택은 이 기기 저장) */
+const VKEY = 'b_view_v1';
+function applyView(){
+  let v = 'routine';
+  try{ v = localStorage.getItem(VKEY) || 'routine'; }catch(e){}
+  document.body.classList.toggle('vroutine', v === 'routine');
+  const b = document.getElementById('viewToggle');
+  if(b) b.textContent = v === 'routine' ? '전체 보기 +' : '간단히 −';
+}
+(function(){
+  const b = document.getElementById('viewToggle');
+  if(b) b.addEventListener('click', () => {
+    let v = 'routine';
+    try{ v = localStorage.getItem(VKEY) || 'routine'; }catch(e){}
+    try{ localStorage.setItem(VKEY, v === 'routine' ? 'full' : 'routine'); }catch(e){}
+    applyView();
+  });
+  applyView();
+})();
 
 /* [v90] 전환일 체크리스트 — 전환 신호일에만 표시, 이 기기에 유지 (키: 신호일) */
 const CHK_ITEMS = ['목표 비중·주문 금액 확인 (아래 내 포트폴리오)',
