@@ -1289,38 +1289,50 @@ function redraw(){
   if(AUTO) renderAuto(AUTO); else render();
 }
 
+/* [v106] OOS 장부 공용 캐시 — T4 패널·방어 경과일·체결 지연이 공유.
+   페이지당 네트워크 요청 1회만 (전에는 소비자마다 각자 fetch). */
+let OOSLOG = undefined;        // undefined=미조회 · null=실패/없음 · {cols,rows}
+async function loadOosLog(){
+  if(OOSLOG !== undefined) return OOSLOG;
+  OOSLOG = null;
+  try{
+    const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) return OOSLOG;
+    const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
+    if(lines.length < 2) return OOSLOG;
+    const cols = {}; lines[0].split(',').forEach((c,i)=>cols[c]=i);
+    OOSLOG = {cols, rows: lines.slice(1).map(l => l.split(','))};
+  }catch(e){}
+  return OOSLOG;
+}
+
 /* [v75] T4 그림자 표시 — OOS 장부(data/oos_log.csv)의 t4_* 열을 읽어 요약만 보여준다.
    T4 = 변동성타깃 40% × 추세 다수결 (전략_v68). 판정 규약은 v69 에 사전 고정:
    3년 + 낙폭 −16% 사건 1회 이후에만 판정. 장부가 없거나 비어 있으면 패널 숨김. */
 async function drawT4(){
   const panel = document.getElementById('t4Panel');
   if(!panel) return;
-  try{
-    const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache: 'no-store'});
-    if(!res.ok) return;
-    const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
-    if(lines.length < 2) return;
-    const cols = lines[0].split(',');
-    const iA = cols.indexOf('as_of'), iS = cols.indexOf('state'),
-          iV = cols.indexOf('t4_votes'), iR = cols.indexOf('t4_rv'), iW = cols.indexOf('t4_w');
-    if(iW < 0) return;
-    const last = lines[lines.length - 1].split(',');
-    const w = parseFloat(last[iW]), votes = last[iV], rv = last[iR];
-    if(!isFinite(w)) return;
-    const bState = last[iS] === 'QLD' ? 1 : 0;
-    const agree = (w > 0.5) === (bState === 1);
-    panel.hidden = false;
-    document.getElementById('t4Body').innerHTML =
-      `채택안(−16/−16)의 유일한 생존 도전자 <b>T4</b>(변동성타깃 40% × 추세 다수결)를
-       규칙은 건드리지 않고 장부로만 추적 중입니다.
-       기록 <b>${lines.length - 1}영업일</b> (${last[iA]} 기준) ·
-       오늘 T4 목표비중 <b style="color:var(--attack)">${(w * 100).toFixed(0)}%</b>
-       (추세 ${votes}/4 · 변동성 ${rv}%) ·
-       채택안과 ${agree ? '<b>같은 방향</b>' : '<b style="color:#B45309">다른 방향</b>'} —
-       판정은 <b>3년 + 낙폭 사건 1회 이후</b>, 사건마다 「미리 줄였나·덜 빠졌나」를
-       사전 고정 기준으로 심사(v80 부속서).
-       <a href="guide.html#t4" style="color:var(--attack)">쉬운 설명은 설명서 탭 →</a>`;
-  }catch(e){ /* 장부 없음 — 조용히 숨김 */ }
+  const log = await loadOosLog();                         // [v106] 공용 캐시
+  if(!log) return;
+  const iA = log.cols['as_of'], iS = log.cols['state'],
+        iV = log.cols['t4_votes'], iR = log.cols['t4_rv'], iW = log.cols['t4_w'];
+  if(iW == null) return;
+  const last = log.rows[log.rows.length - 1];
+  const w = parseFloat(last[iW]), votes = last[iV], rv = last[iR];
+  if(!isFinite(w)) return;
+  const bState = last[iS] === 'QLD' ? 1 : 0;
+  const agree = (w > 0.5) === (bState === 1);
+  panel.hidden = false;
+  document.getElementById('t4Body').innerHTML =
+    `채택안(−16/−16)의 유일한 생존 도전자 <b>T4</b>(변동성타깃 40% × 추세 다수결)를
+     규칙은 건드리지 않고 장부로만 추적 중입니다.
+     기록 <b>${log.rows.length}영업일</b> (${last[iA]} 기준) ·
+     오늘 T4 목표비중 <b style="color:var(--attack)">${(w * 100).toFixed(0)}%</b>
+     (추세 ${votes}/4 · 변동성 ${rv}%) ·
+     채택안과 ${agree ? '<b>같은 방향</b>' : '<b style="color:#B45309">다른 방향</b>'} —
+     판정은 <b>3년 + 낙폭 사건 1회 이후</b>, 사건마다 「미리 줄였나·덜 빠졌나」를
+     사전 고정 기준으로 심사(v80 부속서).
+     <a href="guide.html#t4" style="color:var(--attack)">쉬운 설명은 설명서 탭 →</a>`;
 }
 
 /* [v73] 포지션 계산기 — 상품 구성·비중은 signal.json(AUTO.risk/AUTO.defensive) 설정에서
@@ -1878,16 +1890,41 @@ function tlogSummary(){
     실측 체결 괴리 — 평균 ${avg >= 0 ? '+' : ''}${avg.toFixed(2)}% · 최대 ${maxAbs.toFixed(2)}%
     (${devs.length}건 기준, 기준가 입력분만 집계)</div>`;
 }
+/* [v106] 체결 지연 — 전환 신호일(changed=1) 대비 첫 체결까지 며칠 걸렸는지
+   (01 §3: 지연은 하루 단위로 손해 — 1일 126배 → 3일 102배).
+   재조정 등 후속 매매는 대상 제외(전환당 첫 체결에만). 7일 초과는 무관 매매로 보고
+   조용히 생략 — 상한 7일·D+0 표시는 소유자 확정(2026-08-30). */
+async function tradeDelayMap(){
+  const log = await loadOosLog();
+  const out = {};                                // {tradeIndex: 지연일수}
+  if(!log) return out;
+  const iA = log.cols['as_of'], iC = log.cols['changed'];
+  if(iA == null || iC == null) return out;
+  // oos_log.csv 는 append-only 라 이미 날짜순 — 별도 정렬 불필요
+  const transitions = log.rows.filter(r => r[iC] === '1').map(r => r[iA]);
+  if(!transitions.length) return out;
+  const seen = new Set();
+  TRADES.forEach((t, i) => {
+    let last = null;
+    for(const d of transitions){ if(d <= t.d) last = d; else break; }
+    if(!last || seen.has(last)) return;
+    const dd = Math.round((Date.parse(t.d) - Date.parse(last)) / 864e5);
+    if(dd >= 0 && dd <= 7){ out[i] = dd; seen.add(last); }
+  });
+  return out;
+}
 let TLOG_ALL = false;                            // [v99] 전체 보기 토글 — 화면 상태일 뿐, 저장 안 함
-function drawTlogList(){
+async function drawTlogList(){
   const el = document.getElementById('tlogList');
   if(!el) return;
   if(!TRADES.length){ el.innerHTML = '<div class="hint" style="font-size:13px">기록 없음.</div>'; return; }
+  const delays = await tradeDelayMap();          // [v106] 첫 로드 후엔 캐시라 사실상 동기
   el.innerHTML = tlogSummary() + (TLOG_ALL ? TRADES.slice() : TRADES.slice(-8)).reverse().map(t => {
     const i = TRADES.indexOf(t);
     const dev = t.ref > 0 ? ((t.px / t.ref - 1) * 100).toFixed(2) : null;
+    const dl = delays[i] != null ? ` · 신호 대비 <b>D+${delays[i]}일</b> 체결` : '';
     return `<div class="tlrow"><span>${t.d} <b>${t.side === 'buy' ? '매수' : '매도'}</b> ${shortName(t.code)}
-      ${t.qty}주 @ ${Math.round(t.px).toLocaleString('en-US')}${dev !== null ? ` · 기준가 대비 ${dev > 0 ? '+' : ''}${dev}%` : ''}</span>
+      ${t.qty}주 @ ${Math.round(t.px).toLocaleString('en-US')}${dev !== null ? ` · 기준가 대비 ${dev > 0 ? '+' : ''}${dev}%` : ''}${dl}</span>
       <span class="x" data-i="${i}" title="기록 취소 — 보유 되돌림">✕</span></div>`;
   }).join('') + (TRADES.length > 8 ? `<div class="hint" style="font-size:12px"><button id="tlogAllBtn"
       class="chipbtn" type="button">${TLOG_ALL ? '접기 — 최근 8건만' : `전체 보기 (${TRADES.length}건)`}</button></div>` : '')
@@ -1912,21 +1949,16 @@ let DEF_ENTRY;                                  // undefined=미조회 · null=�
 async function getDefenseEntryDate(){
   if(DEF_ENTRY !== undefined) return DEF_ENTRY;
   DEF_ENTRY = null;
-  try{
-    const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache: 'no-store'});
-    if(!res.ok) return DEF_ENTRY;
-    const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
-    if(lines.length < 2) return DEF_ENTRY;
-    const cols = lines[0].split(',');
-    const iA = cols.indexOf('as_of'), iS = cols.indexOf('state'), iC = cols.indexOf('changed');
-    if(iA < 0 || iS < 0) return DEF_ENTRY;
-    const rows = lines.slice(1).map(l => l.split(','));
-    if(rows[rows.length - 1][iS] !== 'SCHD') return DEF_ENTRY;   // 방어 상태가 아님
-    let k = rows.length - 1;
-    while(k > 0 && rows[k - 1][iS] === 'SCHD') k--;
-    if(k === 0 && !(iC >= 0 && rows[0][iC] === '1')) return DEF_ENTRY;
-    DEF_ENTRY = {d: rows[k][iA]};
-  }catch(e){ /* 장부 없음 — 표시 생략 */ }
+  const log = await loadOosLog();                         // [v106] 공용 캐시
+  if(!log) return DEF_ENTRY;
+  const iA = log.cols['as_of'], iS = log.cols['state'], iC = log.cols['changed'];
+  if(iA == null || iS == null) return DEF_ENTRY;
+  const rows = log.rows;
+  if(rows[rows.length - 1][iS] !== 'SCHD') return DEF_ENTRY;   // 방어 상태가 아님
+  let k = rows.length - 1;
+  while(k > 0 && rows[k - 1][iS] === 'SCHD') k--;
+  if(k === 0 && !(iC != null && rows[0][iC] === '1')) return DEF_ENTRY;
+  DEF_ENTRY = {d: rows[k][iA]};
   return DEF_ENTRY;
 }
 function daysSince(d){ return Math.max(0, Math.floor((Date.now() - Date.parse(d)) / 864e5)); }
