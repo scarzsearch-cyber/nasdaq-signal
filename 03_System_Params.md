@@ -41,8 +41,11 @@ daily-signal.yml   [v75] 대기 루프 체제 — 트리거 4개(05:17/06:17/07:
   ③ oos_log.py         동결 이후 하루 한 줄 append-only (판단하지 않음)
                        + T4 그림자 3열 (t4_votes/t4_rv/t4_w — 평가 전용, v68·v69. 채택안 아님)
 pages.yml            push 시 배포 + stamp_rev.py 가 화면 개정일·커밋 주입
-notify.py            [v73] 일일·월간 워크플로 실패 시 Telegram/Discord 알림 (GitHub Secrets:
-                     DISCORD_WEBHOOK_URL 또는 TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID — 미설정이면 생략)
+notify.py            [v73/v77] 실패·전환 알림 — 카카오톡 "나에게 보내기"(권장:
+                     KAKAO_REST_API_KEY+KAKAO_REFRESH_TOKEN, 최초 발급은 deploy/kakao_setup.py)
+                     또는 Discord/Telegram. 미설정이면 조용히 생략
+kakao_keepalive.py   [v77] 카카오 refresh 토큰(2개월 시한부)을 매일 갱신해 연명.
+                     교체 신호 시 GH_PAT 로 secret 자동 교체, 없으면 카톡 만료 예고
 data_check.py        [v73] 월간 연장의 검증 게이트 — 결측·중복·역순·0이하·±30%·공백·열누락 시
                      해당 파일 갱신 거부(기존 유지) + 종료코드 1 (build_stats 미실행 = downstream 보호)
 monthly-stats.yml    매월 1일 07:17 UTC (미·한 장 모두 휴장 시각) — refresh_hist.py 로
