@@ -10,7 +10,7 @@
 전략_요약.md            ★ 이것부터. 전략·근거·결론 5분 요약
 README.md               전략·자동화·파일지도·오류원인·체크리스트
 HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
-CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v92)
+CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v103)
 FILES.md                이 파일
 
 verify_all.py           ★ 검증 단일 진입점 —  python verify_all.py
@@ -71,7 +71,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 
 | 파일 | 역할 |
 |---|---|
-| `signal.html` | GitHub Pages 로 서비스되는 신호 뷰어. **−16/−16 · −16/−11 선택 + 방어자산 2안 토글**. 도피 상태에서 바스켓 비중·종목코드 표시. **한국 공휴일 반영 시계** |
+| `signal.html` | GitHub Pages 로 서비스되는 신호 뷰어. **−16/−16 단일 규칙**(A 선택지는 v61 에서 화면 제거). 내 포트폴리오·체결 기록·계산기·백업(파일/CSV)·다크 모드까지 화면 전부 (v103, 기구현 목록은 CLAUDE.md §4). **한국 공휴일 반영 시계** |
 | `deploy/update_signal.py` | 매일 QQQ 종가 받아 **두 규칙을 모두** 판정 → `data/signal.json` 갱신 |
 | `deploy/refresh_hist.py` | [v72] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드) |
 | `deploy/data_check.py` | [v73] 데이터 검증 게이트 — 이상 데이터가 정상 데이터를 덮어쓰지 못하게 |
