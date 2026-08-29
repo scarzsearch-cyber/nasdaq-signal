@@ -1591,6 +1591,18 @@ function applyBackup(j){
   portCompute(); drawTlogList();
   return true;
 }
+/* [v96] Blob 다운로드 공용 — 파일 백업(v93)과 같은 기법, CSV 내보내기와 공유 */
+function dlBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function kstStamp(){
+  const tp = tzParts(new Date(), SEOUL);
+  return tp.y + String(tp.m).padStart(2, '0') + String(tp.d).padStart(2, '0');
+}
 function effPx(code){
   const p = PORT.a[code] || {};
   if(pnum(p.px) > 0) return pnum(p.px);
@@ -1624,7 +1636,8 @@ function drawTlog(){
       <div class="tlio"><button id="tlExp" type="button">백업 복사</button><button
         id="tlImp" type="button">복원 붙여넣기</button><button id="tlExpFile" type="button">파일로 저장</button>
         <label class="file" style="font-size:12.5px;font-weight:400;padding:5px 10px;border-color:var(--rule)">
-          파일에서 복원<input type="file" id="tlImpFile" accept=".json,application/json"></label>
+          파일에서 복원<input type="file" id="tlImpFile" accept=".json,application/json"></label><button
+        id="tlExpCsv" type="button">CSV 내보내기</button>
         <span style="font-size:11.5px;color:var(--muted)">보유+체결 전체 JSON — 기기 이동·브라우저 초기화 대비</span></div>`;
     document.getElementById('tlAdd').addEventListener('click', () => {
       const code = document.getElementById('tlCode').value;
@@ -1682,6 +1695,16 @@ function drawTlog(){
         applyBackup(j);
       };
       rd.readAsText(f);
+    });
+    // [v96] 체결 기록 CSV — 스프레드시트 분석용. BOM 은 엑셀 한글 깨짐 방지.
+    document.getElementById('tlExpCsv').addEventListener('click', () => {
+      if(!TRADES.length){ alert('기록이 없습니다.'); return; }
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const rows = [['날짜', '종목코드', '종목명', '매수매도', '수량', '체결가', '기준가', '괴리율%']]
+        .concat(TRADES.map(t => [t.d, t.code, shortName(t.code), t.side === 'buy' ? '매수' : '매도',
+          t.qty, t.px, t.ref > 0 ? t.ref : '', t.ref > 0 ? ((t.px / t.ref - 1) * 100).toFixed(2) : '']));
+      const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
+      dlBlob(new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8'}), 'trades-' + kstStamp() + '.csv');
     });
   }
   drawTlogList();
