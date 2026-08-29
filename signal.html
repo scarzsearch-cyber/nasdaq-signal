@@ -561,6 +561,7 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
         <div class="fact"><div class="k">전환 기준가</div><div class="v" id="fTrig">—</div></div>
       </div>
       <div class="prox" id="proxBox"></div>
+      <div class="actline" id="defDur" hidden></div>
     </div>
   </div>
 
@@ -1827,16 +1828,28 @@ async function getDefenseEntryDate(){
   }catch(e){ /* 장부 없음 — 표시 생략 */ }
   return DEF_ENTRY;
 }
+function daysSince(d){ return Math.max(0, Math.floor((Date.now() - Date.parse(d)) / 864e5)); }
 async function drawDefDays(){
   const el = document.getElementById('defDays');
   if(!el) return;
   if(CURSTATE !== 'SCHD'){ el.hidden = true; el.innerHTML = ''; return; }
   const e = await getDefenseEntryDate();
   if(CURSTATE !== 'SCHD' || !e){ el.hidden = true; el.innerHTML = ''; return; }
-  const days = Math.max(0, Math.floor((Date.now() - Date.parse(e.d)) / 864e5));
   el.hidden = false;
-  el.innerHTML = `방어 전환(${e.d}) 후 <b>${days}일 경과</b> · 비율 재조정은 <b>월 1회</b> 규약 —
+  el.innerHTML = `방어 전환(${e.d}) 후 <b>${daysSince(e.d)}일 경과</b> · 비율 재조정은 <b>월 1회</b> 규약 —
     마지막 재조정이 언제였는지 직접 기억/기록해 판단하세요.`;
+}
+/* [v100] 방어 경과일 — 신호 카드에 한 줄. 과거 지속기간 비교는 trajPanel 에 이미 있는
+   하드코딩 문구(1개월~2년 7개월)를 재활용 — 새 통계 계산 없음 (과설계 금지). */
+async function drawDefDur(){
+  const el = document.getElementById('defDur');
+  if(!el) return;
+  if(CURSTATE !== 'SCHD'){ el.hidden = true; el.innerHTML = ''; return; }
+  const e = await getDefenseEntryDate();
+  if(CURSTATE !== 'SCHD' || !e){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `방어 전환 후 <b>${daysSince(e.d)}일째</b> · 참고: 과거 위기의 방어 기간은
+    <b>1개월~2년 7개월</b>로 다양했습니다 (위기 궤적 패널 참고 — 예측 아님).`;
 }
 function paintState(o){
   // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp}
@@ -1899,6 +1912,7 @@ function paintState(o){
   CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
   drawPort();
   drawDefDays();                           // [v97] 방어 상태에서만 보임
+  drawDefDur();                            // [v100] 방어 상태에서만 보임 (신호 카드)
 }
 
 /* [v73] 임계점 거리 게이지 — 신호 계산이 이미 만든 o.dd / o.gap_pp 만 쓴다.
