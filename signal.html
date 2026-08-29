@@ -551,6 +551,7 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
         <summary>버전 · 동결</summary>
         <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
         <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
+        <div class="frz" id="oosHist" title="동결 이후 OOS 장부에 쌓인 실측 기록입니다. 전환이 기록될수록 표본이 자랍니다."></div>
       </details>
       <button class="seenbdg" id="seenBadge" hidden type="button">🔔 지난 확인 이후 전환됨</button>
     </div>
@@ -906,6 +907,20 @@ function paintFreeze(){
   const days = Math.max(0, bizDaysSince(FREEZE.oos_start));   // 오늘까지의 영업일
   el.innerHTML = '규칙 동결 <b>' + FREEZE.frozen_at + '</b> · 이후 '
                + days + '영업일 평가만';
+}
+
+/* [v111] 동결 이후 이력 한 줄 — OOS 장부(공용 캐시) 재사용. 전환 표본이 쌓이는 걸
+   눈으로 확인하는 용도. 판단 문구 없음 — 개수·날짜만. */
+async function drawOosHist(){
+  const el = document.getElementById('oosHist');
+  if(!el) return;
+  const log = await loadOosLog();
+  if(!log){ el.textContent = ''; return; }
+  const iA = log.cols['as_of'], iC = log.cols['changed'];
+  if(iA == null || iC == null){ el.textContent = ''; return; }
+  const tr = log.rows.filter(r => r[iC] === '1');
+  el.innerHTML = 'OOS 장부 <b>' + log.rows.length + '영업일</b> · 전환 <b>' + tr.length + '회</b>'
+    + (tr.length ? ' · 마지막 ' + tr[tr.length - 1][iA] : '');
 }
 
 function neg(s){ return String(s).replace(/-/g,'−'); }
@@ -1314,21 +1329,24 @@ function redraw(){
   if(AUTO) renderAuto(AUTO); else render();
 }
 
-/* [v106] OOS 장부 공용 캐시 — T4 패널·방어 경과일·체결 지연이 공유.
-   페이지당 네트워크 요청 1회만 (전에는 소비자마다 각자 fetch). */
-let OOSLOG = undefined;        // undefined=미조회 · null=실패/없음 · {cols,rows}
-async function loadOosLog(){
-  if(OOSLOG !== undefined) return OOSLOG;
-  OOSLOG = null;
-  try{
-    const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache:'no-store'});
-    if(!res.ok) return OOSLOG;
-    const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
-    if(lines.length < 2) return OOSLOG;
-    const cols = {}; lines[0].split(',').forEach((c,i)=>cols[c]=i);
-    OOSLOG = {cols, rows: lines.slice(1).map(l => l.split(','))};
-  }catch(e){}
-  return OOSLOG;
+/* [v106] OOS 장부 공용 캐시 — T4 패널·방어 경과일·체결 지연·이력 줄이 공유.
+   페이지당 네트워크 요청 1회만 (전에는 소비자마다 각자 fetch).
+   [v111 정정] 값이 아니라 **프라미스**를 캐시한다 — 값 캐시는 fetch 중에 들어온
+   두 번째 호출이 null 을 받는 레이스가 있었다 (drawT4 직후 drawOosHist 가 재현). */
+let OOSLOG_P = null;           // null=미조회 · Promise<{cols,rows}|null>
+function loadOosLog(){
+  if(OOSLOG_P) return OOSLOG_P;
+  OOSLOG_P = (async () => {
+    try{
+      const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache:'no-store'});
+      if(!res.ok) return null;
+      const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
+      if(lines.length < 2) return null;
+      const cols = {}; lines[0].split(',').forEach((c,i)=>cols[c]=i);
+      return {cols, rows: lines.slice(1).map(l => l.split(','))};
+    }catch(e){ return null; }
+  })();
+  return OOSLOG_P;
 }
 
 /* [v75] T4 그림자 표시 — OOS 장부(data/oos_log.csv)의 t4_* 열을 읽어 요약만 보여준다.
@@ -2452,6 +2470,7 @@ async function boot(){
   watchMinibar();
   checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
+  drawOosHist();                           // [v111] 같은 공용 캐시 — 추가 요청 없음
   // [v73] 포지션 계산기 컨트롤
   const cc = document.getElementById('calcCash');
   if(cc) cc.addEventListener('input', calcCompute);
