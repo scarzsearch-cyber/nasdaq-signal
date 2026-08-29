@@ -679,7 +679,8 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
   </div>
 
   <div class="guide" id="perfPanel" hidden>
-    <h2>성과 비교</h2>
+    <h2 style="display:flex;align-items:center;gap:10px">성과 비교
+      <button id="perfCsv" class="chipbtn" type="button" style="margin-left:auto">CSV 내보내기</button></h2>
     <div class="perf" id="perfBody"></div>
     <div class="hint" id="perfNote"></div>
     <h3 class="sub">같은 기간으로 맞추면</h3>
@@ -1056,6 +1057,19 @@ function paintMetKey(sc){
 }
 
 /* ---------------- 성과 비교표 ---------------- */
+// [v73] 전략 4줄 체제 (벤치마크 줄은 소유자 요청으로 제거 — 데이터는 JSON 에 유지):
+//   ① 채택안 ② 방어 배당100 ③ 헤지 60/40·방어 40/40/20 (추천=파랑) ④ 헤지·배당100.
+//   기준도 3개만: us_2000 / kr_1997 / kr_real (54년 확장은 문서·지평 근거로만).
+// [v78] 전략 이름 규약 (소유자 명명): 기본 = 방어 40/40/20, 배당 = 방어 배당100
+// [v85] 추천 표기는 파란 전략명뿐(별표 텍스트 제거) · 기준은 그룹 행(ghead)으로.
+// [v103] 모듈 스코프로 — 화면(drawPerf)과 CSV 내보내기가 같은 순회 구조를 공유.
+const PERF_VARIANTS = [
+  ['strategies',           '−16 기본', ''],
+  ['strategies_div',       '−16 배당', ''],
+  ['strategies_hedge',     '헤지6/4 기본', 'rec'],
+  ['strategies_hedge_div', '헤지6/4 배당', ''],
+];
+const PERF_SHOW = ['us_2000', 'kr_1997', 'kr_real'];
 function drawPerf(){
   const panel = document.getElementById('perfPanel');
   if(!STATS){ panel.hidden = true; return; }
@@ -1075,22 +1089,10 @@ function drawPerf(){
         <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
   // [v63] 기준마다 기간이 다르다는 걸 표에서 바로 보이게 — 최종배수 세로비교 함정 방지
   const per = m => `<span class="per">${m.start.slice(0,7)} ~ ${m.end.slice(0,7)} (${m.years}년)</span>`;
-  // [v73] 전략 4줄 체제 (벤치마크 줄은 소유자 요청으로 제거 — 데이터는 JSON 에 유지):
-  //   ① 채택안 ② 방어 배당100 ③ 헤지 60/40·방어 40/40/20 (추천=파랑) ④ 헤지·배당100.
-  //   기준도 3개만: us_2000 / kr_1997 / kr_real (54년 확장은 문서·지평 근거로만).
-  // [v78] 전략 이름 규약 (소유자 명명): 기본 = 방어 40/40/20, 배당 = 방어 배당100
-  // [v85] 추천 표기는 파란 전략명뿐(별표 텍스트 제거) · 기준은 그룹 행(ghead)으로.
-  const VARIANTS = [
-    ['strategies',           '−16 기본', ''],
-    ['strategies_div',       '−16 배당', ''],
-    ['strategies_hedge',     '헤지6/4 기본', 'rec'],
-    ['strategies_hedge_div', '헤지6/4 배당', ''],
-  ];
-  const SHOW = ['us_2000', 'kr_1997', 'kr_real'];
   let body = '';
-  STATS.scenarios.filter(s=>SHOW.includes(s.key)).forEach(s=>{
+  STATS.scenarios.filter(s=>PERF_SHOW.includes(s.key)).forEach(s=>{
     let first = true;
-    VARIANTS.forEach(([vk, vlab, cls])=>{
+    PERF_VARIANTS.forEach(([vk, vlab, cls])=>{
       const m = s[vk] ? s[vk][sel] : null;
       if(!m) return;
       if(first) body += `<tr class="ghead"><td colspan="9">
@@ -1160,6 +1162,32 @@ function drawHoriz(){
        헤지는 상승 노출 60%라 잔잔한 구간마다 조금 뒤지는 대신 낙폭·회복기간을
        깎습니다 — <b>더 버는 쪽이 아니라 덜 흔들리는 쪽</b>입니다.</p>`;
 }
+
+/* [v103] 성과표 CSV — 화면과 같은 순회(PERF_SHOW × PERF_VARIANTS)를 그대로 내보낸다.
+   유니코드 −(neg)를 쓰지 않고 원시 숫자의 일반 - 로 내보낸다 — 스프레드시트가
+   −16.00 을 숫자로 못 읽는다. 한글 헤더는 BOM 으로 엑셀 안전. */
+(function(){
+  const b = document.getElementById('perfCsv');
+  if(!b) return;
+  b.addEventListener('click', () => {
+    if(!STATS){ alert('신호 데이터를 불러온 뒤 사용할 수 있습니다.'); return; }
+    const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const rows = [['기준', '기간', '전략', '최종배수', 'CAGR%', 'MDD%', 'Calmar', 'Sortino', '회복기간', 'Ulcer', '전환']];
+    STATS.scenarios.filter(s => PERF_SHOW.includes(s.key)).forEach(s => {
+      PERF_VARIANTS.forEach(([vk, vlab]) => {
+        const m = s[vk] ? s[vk][sel] : null;
+        if(!m) return;
+        rows.push([s.label, `${m.start.slice(0, 7)}~${m.end.slice(0, 7)} (${m.years}년)`, vlab,
+          m.final, m.cagr.toFixed(2), m.mdd.toFixed(2), m.calmar.toFixed(3),
+          m.sortino == null ? '' : m.sortino.toFixed(3), m.uw_months == null ? '' : uwfmt(m),
+          m.ulcer == null ? '' : m.ulcer.toFixed(1), m.switches]);
+      });
+    });
+    const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
+    dlBlob(new Blob([String.fromCharCode(0xFEFF) + csv], {type: 'text/csv;charset=utf-8'}),
+           'performance-' + kstStamp() + '.csv');
+  });
+})();
 
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */
 // [v37] 신호가 얼마나 낡았는지 알린다.
