@@ -545,7 +545,8 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
         <span class="dot"></span>
       </div>
     </div>
-    <div class="state">
+    <!-- [v101] aria-live: 스크린리더가 공격↔방어 전환을 자동으로 읽는다 -->
+    <div class="state" aria-live="polite">
       <div class="eyebrow"><span id="eyebrow">보유할 자산</span><span class="rule" id="ebRule"></span></div>
       <div class="verdict" id="verdict">—</div>
       <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
@@ -569,8 +570,8 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
     <details>
     <summary style="cursor:pointer;font-weight:700;font-size:16px">수동 종가 입력 <span style="font-weight:400;font-size:13px;color:var(--muted)">— 자동 갱신이 실패했을 때만 펼치세요</span></summary>
     <div class="row">
-      <input type="date" id="inDate">
-      <input type="text" id="inClose" placeholder="QQQ 종가" inputmode="decimal">
+      <input type="date" id="inDate" aria-label="종가 날짜">
+      <input type="text" id="inClose" placeholder="QQQ 종가" inputmode="decimal" aria-label="QQQ 종가">
       <button id="btnAdd">기록</button>
       <label class="file">CSV 불러오기<input type="file" id="inFile" accept=".csv"></label>
       <button class="ghost" id="btnClear">전체 삭제</button>
@@ -1299,7 +1300,7 @@ function drawCalc(){
       <td>${l.name} <span class="code">${l.code}</span></td>
       <td class="num">${l.w}%</td><td class="num c-target">—</td>
       <td class="num"><input type="text" inputmode="numeric" style="width:90px;text-align:right"
-           value="${CALC_PRICE[l.code] || ''}" placeholder="예: 25,000"></td>
+           aria-label="${l.name} 현재가(원)" value="${CALC_PRICE[l.code] || ''}" placeholder="예: 25,000"></td>
       <td class="num c-shares">—</td><td class="num c-spent">—</td></tr>`).join('') +
     `<tr><td colspan="5" style="text-align:right"><b>잔여 현금</b></td>
       <td class="num" id="calcLeft">—</td></tr></tbody></table>`;
@@ -1333,7 +1334,7 @@ function freshDot(iso){
   const n = bizDaysSince(iso);
   const c = n <= 1 ? 'g' : n === 2 ? 'y' : 'r';
   const t = n <= 1 ? '데이터 최신' : n === 2 ? '2거래일 경과 — 확인 필요' : n + '거래일 경과 — 갱신 필요';
-  return '<span class="fdot ' + c + '" title="' + t + '"></span>';
+  return '<span class="fdot ' + c + '" role="img" title="' + t + '" aria-label="' + t + '"></span>';
 }
 function pnum(v){ return parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')) || 0; }
 
@@ -1379,17 +1380,17 @@ function drawPort(){
       html += `<div class="prow" data-code="${x.code}">
         <span class="pnm">${x.name} <span class="code">${x.code}</span></span>
         <span class="pin" data-l="보유 수량"><input data-f="qty" type="text" inputmode="numeric"
-          value="${p.qty || ''}" placeholder="0"></span>
+          aria-label="${x.name} 보유 수량" value="${p.qty || ''}" placeholder="0"></span>
         <span class="pin" data-l="평단(선택)"><input data-f="avg" type="text" inputmode="numeric"
-          value="${p.avg || ''}" placeholder="—"></span>
+          aria-label="${x.name} 평단가(선택)" value="${p.avg || ''}" placeholder="—"></span>
         <span class="pin" data-l="현재가"><input data-f="px" type="text" inputmode="numeric"
-          value="${p.px || ''}" placeholder="${nav ? Math.round(nav.px).toLocaleString('en-US') : '직접 입력'}"></span>
+          aria-label="${x.name} 현재가(원)" value="${p.px || ''}" placeholder="${nav ? Math.round(nav.px).toLocaleString('en-US') : '직접 입력'}"></span>
       </div>`;
     });
     html += `<div class="prow" data-code="_cash">
       <span class="pnm">현금 (선택)</span>
       <span class="pin" data-l="금액(원)"><input data-f="cash" type="text" inputmode="numeric"
-        value="${PORT.cash || ''}" placeholder="0"></span><span></span><span></span></div>`;
+        aria-label="현금 금액(원)" value="${PORT.cash || ''}" placeholder="0"></span><span></span><span></span></div>`;
     body.innerHTML = html;
     body.querySelectorAll('input').forEach(i => i.addEventListener('input', () => {
       const code = i.closest('.prow').dataset.code;
@@ -1686,10 +1687,10 @@ function drawTlog(){
   if(!form.dataset.on){
     form.dataset.on = '1';
     form.innerHTML = `<div class="tlform">
-      <select id="tlCode">${A.map(x => `<option value="${x.code}">${x.name.replace('TIGER ', '').replace('(합성)', '')}</option>`).join('')}</select>
-      <select id="tlSide"><option value="buy">매수</option><option value="sell">매도</option></select>
-      <input id="tlQty" type="text" inputmode="numeric" placeholder="수량">
-      <input id="tlPx" type="text" inputmode="numeric" placeholder="체결가(원)">
+      <select id="tlCode" aria-label="체결 종목">${A.map(x => `<option value="${x.code}">${x.name.replace('TIGER ', '').replace('(합성)', '')}</option>`).join('')}</select>
+      <select id="tlSide" aria-label="매수/매도 구분"><option value="buy">매수</option><option value="sell">매도</option></select>
+      <input id="tlQty" type="text" inputmode="numeric" placeholder="수량" aria-label="체결 수량">
+      <input id="tlPx" type="text" inputmode="numeric" placeholder="체결가(원)" aria-label="체결가(원)">
       <button id="tlAdd" type="button">기록</button></div>
       <div id="tlChips"></div>
       <div class="tlio"><button id="tlExp" type="button">백업 복사</button><button
@@ -1933,7 +1934,7 @@ function paintProx(o, isQld){
       : `<div class="plbl warn">전환 가능성 ${zone[1]} — <b>주문할 방어 바스켓을 미리 확인해 두세요.</b>
          (예측이 아니라 거리 표시입니다. 실행은 규칙이 합니다)</div>`;
     el.innerHTML =
-      `<div class="pbar"><div class="pfill ${zone[0]}" style="width:${fill.toFixed(1)}%"></div></div>
+      `<div class="pbar" aria-hidden="true"><div class="pfill ${zone[0]}" style="width:${fill.toFixed(1)}%"></div></div>
        <div class="plbl">방어 트리거(−16%)까지 <b>${gap.toFixed(1)}%p</b> 남음 · 상태: <b>${zone[1]}</b>
          — QQQ <b>${num(o.high*0.84)}</b> 아래로 마감하면 전환</div>` + warn;
   } else {
@@ -1941,7 +1942,7 @@ function paintProx(o, isQld){
     const fill = Math.max(0, Math.min(100, 100 - gap / 16 * 100));
     el.innerHTML =
       `<div class="plbl trig"><b>방어 트리거 발생 중</b> — 방어 바스켓 보유 구간입니다.</div>
-       <div class="pbar"><div class="pfill orange" style="width:${fill.toFixed(1)}%"></div></div>
+       <div class="pbar" aria-hidden="true"><div class="pfill orange" style="width:${fill.toFixed(1)}%"></div></div>
        <div class="plbl">복귀선(−16% 회복)까지 <b>${gap.toFixed(1)}%p</b>
          — QQQ <b>${num(o.high*0.84)}</b> 위로 마감하면 복귀</div>`;
   }
