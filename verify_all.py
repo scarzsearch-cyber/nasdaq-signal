@@ -219,10 +219,18 @@ def i5_decisions(D):
         #       벤치마크와 전략 3줄(채택안/배당100/헤지 60/40)이 표에 있는지 본다.
         # [v73] 비교표는 전략 4줄 (벤치 줄은 소유자 요청으로 제거, 데이터는 JSON 유지).
         #       헤지 방어 추천(mix)이 파랑으로 표시되는지도 본다.
+        # [v78] 소유자 명명 규약: −16 기본 / −16 배당 / 헤지6/4 기본 / 헤지6/4 배당
         ok("화면: 비교표 전략 4줄 + 헤지 추천 표시",
-           "strategies_hedge_div" in h and h.count("헤지 60/40") >= 2
+           "strategies_hedge_div" in h and h.count("헤지6/4") >= 3
            and "★추천" in h and "tr.rec td.strat" in h,
-           '채택안/배당100/헤지mix★/헤지div (v73)')
+           '−16 기본·배당 / 헤지6/4 기본★·배당 (v78)')
+        ok("화면: 설명서 탭 연결", 'href="guide.html"' in h and os.path.exists('guide.html'),
+           '별도 화면 설명서 (v78)')
+        if os.path.exists('guide.html'):
+            g = io.open('guide.html', encoding='utf-8').read()
+            ok("설명서: 필수 절 존재",
+               'id="t4"' in g and '반드시 이해' in g and '그림자' in g and 'href="./"' in g,
+               'T4 상세 + 이해 필수 6가지 + 돌아가기 탭')
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')
