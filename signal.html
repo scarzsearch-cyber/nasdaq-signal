@@ -1777,17 +1777,21 @@ function tlogSummary(){
     실측 체결 괴리 — 평균 ${avg >= 0 ? '+' : ''}${avg.toFixed(2)}% · 최대 ${maxAbs.toFixed(2)}%
     (${devs.length}건 기준, 기준가 입력분만 집계)</div>`;
 }
+let TLOG_ALL = false;                            // [v99] 전체 보기 토글 — 화면 상태일 뿐, 저장 안 함
 function drawTlogList(){
   const el = document.getElementById('tlogList');
   if(!el) return;
   if(!TRADES.length){ el.innerHTML = '<div class="hint" style="font-size:13px">기록 없음.</div>'; return; }
-  el.innerHTML = tlogSummary() + TRADES.slice(-8).reverse().map(t => {
+  el.innerHTML = tlogSummary() + (TLOG_ALL ? TRADES.slice() : TRADES.slice(-8)).reverse().map(t => {
     const i = TRADES.indexOf(t);
     const dev = t.ref > 0 ? ((t.px / t.ref - 1) * 100).toFixed(2) : null;
     return `<div class="tlrow"><span>${t.d} <b>${t.side === 'buy' ? '매수' : '매도'}</b> ${shortName(t.code)}
       ${t.qty}주 @ ${Math.round(t.px).toLocaleString('en-US')}${dev !== null ? ` · 기준가 대비 ${dev > 0 ? '+' : ''}${dev}%` : ''}</span>
       <span class="x" data-i="${i}" title="기록 취소 — 보유 되돌림">✕</span></div>`;
-  }).join('') + (TRADES.length > 8 ? `<div class="hint" style="font-size:12px">최근 8건 표시 · 총 ${TRADES.length}건 저장</div>` : '');
+  }).join('') + (TRADES.length > 8 ? `<div class="hint" style="font-size:12px"><button id="tlogAllBtn"
+      class="chipbtn" type="button">${TLOG_ALL ? '접기 — 최근 8건만' : `전체 보기 (${TRADES.length}건)`}</button></div>` : '');
+  const ab = document.getElementById('tlogAllBtn');
+  if(ab) ab.addEventListener('click', () => { TLOG_ALL = !TLOG_ALL; drawTlogList(); });
   el.querySelectorAll('.x').forEach(x => x.addEventListener('click', () => {
     const t = TRADES[+x.dataset.i];
     if(!t) return;
