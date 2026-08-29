@@ -36,6 +36,15 @@ jobs:
       - name: 종가 확정 대기 + 신호 갱신
         run: python3 deploy/wait_close.py
 
+      # [v76] 전환 신호가 뜬 날만 폰 알림 (secret 미설정 시 조용히 생략)
+      - name: 전환 신호 알림
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/signal_alert.py
+
       # 국내 ETF 실측 NAV 한 줄 적립 (진짜 괴리율 시계열). 실패해도 신호 갱신은 살린다.
       - name: 실측 NAV 수집
         continue-on-error: true

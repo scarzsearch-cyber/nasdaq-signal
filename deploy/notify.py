@@ -40,7 +40,7 @@ def main():
     job = os.environ.get('GITHUB_JOB', '')
     url = f'https://github.com/{repo}/actions/runs/{run_id}' if repo and run_id else ''
     kst = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
-    icon = '❌' if status == 'failure' else '✅'
+    icon = {'failure': '❌', 'signal': '🔔'}.get(status, '✅')
     text = (f'{icon} [{wf}] {status}\n'
             f'job: {job} · {kst}\n'
             + (f'{detail}\n' if detail else '')
