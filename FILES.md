@@ -10,7 +10,7 @@
 전략_요약.md            ★ 이것부터. 전략·근거·결론 5분 요약
 README.md               전략·자동화·파일지도·오류원인·체크리스트
 HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
-CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v103)
+CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v105)
 FILES.md                이 파일
 
 verify_all.py           ★ 검증 단일 진입점 —  python verify_all.py
@@ -84,6 +84,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
 | `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **매일 돌지 않음**(로컬 수동) |
 | `data/kr_holidays.json` | 2026~2032 휴장일 110일. `signal.html` 시계가 읽는다 |
+| `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행 |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
