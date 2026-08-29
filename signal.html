@@ -1795,7 +1795,7 @@ function backupHint(){
   if(d && days < 30) return '';
   return `<div class="hint" style="font-size:12px;margin-top:6px">`
     + (d ? `마지막 백업이 <b>${days}일</b> 지났습니다` : '아직 백업한 적이 없습니다')
-    + ` — 체결 기록이 쌓이고 있으니 「백업 복사」 또는 「파일로 저장」을 권장합니다.</div>`;
+    + ` — 체결 기록이 쌓이고 있으니 「파일로 저장」 백업을 권장합니다.</div>`;
 }
 function effPx(code){
   const p = PORT.a[code] || {};
@@ -1827,8 +1827,7 @@ function drawTlog(){
       <input id="tlPx" type="text" inputmode="numeric" placeholder="체결가(원)" aria-label="체결가(원)">
       <button id="tlAdd" type="button">기록</button></div>
       <div id="tlChips"></div>
-      <div class="tlio"><button id="tlExp" type="button">백업 복사</button><button
-        id="tlImp" type="button">복원 붙여넣기</button><button id="tlExpFile" type="button">파일로 저장</button>
+      <div class="tlio"><button id="tlExpFile" type="button">파일로 저장</button>
         <label class="file" style="font-size:12.5px;font-weight:400;padding:5px 10px;border-color:var(--rule)">
           파일에서 복원<input type="file" id="tlImpFile" accept=".json,application/json"></label><button
         id="tlExpCsv" type="button">CSV 내보내기</button>
@@ -1850,23 +1849,8 @@ function drawTlog(){
       document.getElementById('tlQty').value = ''; document.getElementById('tlPx').value = '';
       portCompute(); drawTlogList();
     });
-    // [v92] 백업/복원 — localStorage 가 유일 저장소라 소실 대비 수단이 필요 (감사 P0)
-    document.getElementById('tlExp').addEventListener('click', () => {
-      const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES});
-      const b = document.getElementById('tlExp');
-      const ok = () => { b.textContent = '복사됨 ✓'; setTimeout(() => { b.textContent = '백업 복사'; }, 1500); };
-      if(navigator.clipboard && navigator.clipboard.writeText)
-        navigator.clipboard.writeText(txt).then(ok, () => prompt('저장해 두세요:', txt));
-      else prompt('저장해 두세요:', txt);
-      markBackup();                          // [v105] 리마인더 기준일 갱신
-    });
-    document.getElementById('tlImp').addEventListener('click', () => {
-      const txt = prompt('백업 JSON 을 붙여넣으세요:');
-      if(!txt) return;
-      let j = null;
-      try{ j = JSON.parse(txt); }catch(e){}
-      applyBackup(j);
-    });
+    // [v109] 클립보드 백업 복사/붙여넣기 제거 — v93 파일 방식이 상위호환(잘림·줄바꿈
+    //        깨짐 없음)이라 과도기 버튼을 정리. 복원 검증은 applyBackup 이 그대로 담당.
     // [v93] 파일 저장/복원 — 긴 JSON 복붙(잘림·줄바꿈 깨짐) 없이 폰↔PC 이동
     document.getElementById('tlExpFile').addEventListener('click', () => {
       const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES}, null, 2);
