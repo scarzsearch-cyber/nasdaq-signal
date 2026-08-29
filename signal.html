@@ -478,6 +478,10 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
 .fdot.g{background:#1F9D55;}
 .fdot.y{background:#E4B63C;}
 .fdot.r{background:#D93025;}
+/* [v102] 지난 확인 이후 전환 배지 — 클릭하면 신호 카드로 */
+.seenbdg{margin-top:3px;padding:3px 10px;border-radius:999px;border:1px solid var(--warn);
+  background:transparent;color:var(--warn);font-family:inherit;font-size:12.5px;font-weight:700;
+  cursor:pointer;}
 /* [v92] 예정 주문 프리필 칩 + 백업/복원 */
 .chipbtn{padding:5px 10px;border-radius:8px;border:1px solid var(--rule);background:var(--panel);
   font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;margin:3px 4px 0 0;}
@@ -520,6 +524,7 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
       <div class="sub" id="asof">데이터 없음</div>
       <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
       <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
+      <button class="seenbdg" id="seenBadge" hidden type="button">🔔 지난 확인 이후 전환됨</button>
     </div>
   </div>
 
@@ -1202,6 +1207,46 @@ function watchMinibar(){
   addEventListener('scroll', sync, {passive:true});
   addEventListener('resize', sync, {passive:true});
   sync();
+}
+
+/* [v102] 마지막 방문 이후 전환 배지 — 「확인」 저장은 신호 카드를 5초 이상 본 뒤.
+   로드 즉시 저장하면 배지가 뜨자마자 의미를 잃는다. 미니바처럼 IO+스크롤 병행. */
+const SEENKEY = 'b_lastseen_v1';
+function saveSeen(){
+  if(!ASOF || !CURSTATE) return;
+  try{ localStorage.setItem(SEENKEY, JSON.stringify({d: ASOF, state: CURSTATE})); }catch(e){}
+}
+function watchSeen(){
+  const panel = document.querySelector('.signal');
+  if(!panel) return;
+  let t = null, done = false;
+  const vis = () => { const r = panel.getBoundingClientRect();
+    return r.bottom > 0 && r.top < (innerHeight || document.documentElement.clientHeight); };
+  const arm = () => {
+    if(done) return;
+    if(vis()){ if(!t) t = setTimeout(() => { done = true; saveSeen(); }, 5000); }
+    else if(t){ clearTimeout(t); t = null; }
+  };
+  if('IntersectionObserver' in window) new IntersectionObserver(arm, {threshold: 0}).observe(panel);
+  addEventListener('scroll', arm, {passive: true});
+  arm();
+}
+function checkSeenBadge(){
+  const b = document.getElementById('seenBadge');
+  if(!b || !CURSTATE || !ASOF) return;             // 수동 모드(ASOF 없음)는 대상 아님
+  let prev = null;
+  try{ prev = JSON.parse(localStorage.getItem(SEENKEY) || 'null'); }catch(e){}
+  if(!prev || !prev.state){ saveSeen(); return; }  // 첫 방문 — 배지 없이 조용히 저장
+  if(prev.state !== CURSTATE){
+    b.hidden = false;
+    b.title = '지난 확인(' + prev.d + ' · ' + stateLabel(prev.state) + ') 이후 신호가 전환됐습니다 — 누르면 신호 카드로';
+    b.addEventListener('click', () => {
+      const p = document.querySelector('.signal');
+      if(p) p.scrollIntoView({behavior: 'smooth'});
+      saveSeen(); b.hidden = true;
+    }, {once: true});
+  }
+  watchSeen();                                     // 상태 같아도 종가일(d)은 본 뒤 갱신
 }
 
 /* ---------------- 메인 렌더 ---------------- */
@@ -2289,6 +2334,7 @@ async function boot(){
   redraw();
   startClock();
   watchMinibar();
+  checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
   // [v73] 포지션 계산기 컨트롤
   const cc = document.getElementById('calcCash');
