@@ -55,7 +55,7 @@ body{padding:28px 20px 64px;}
 .mkt.live .cd{color:var(--attack);}
 
 /* ---- 전략 선택 ---- */
-.pick{margin-bottom:22px;}
+.pick{margin:22px 0;}   /* [v90] 신호 카드 아래로 이동 — 위쪽 간격 추가 */
 .pick h2{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-size:16px;font-weight:700;
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
 /* [v61] 규칙이 하나가 되면서 카드가 전체 폭을 쓴다 */
@@ -273,6 +273,22 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .pbar2 .tgt{position:absolute;top:-3px;bottom:-3px;width:2.5px;background:var(--ink);}
 .pbrow .pbd{font-size:13.5px;color:var(--muted);margin-top:4px;}
 .pbrow .pbd b{color:var(--ink);}
+/* [v90] 평시 행동 한 줄 + 전환일 체크리스트 + 체결 기록 */
+.actline{margin-top:10px;font-size:14.5px;color:var(--muted);}
+.actline b{color:var(--ink);}
+.chk{margin-top:12px;padding-top:10px;border-top:1px dashed rgba(0,0,0,.2);font-size:15px;}
+.chk label{display:flex;gap:8px;align-items:center;padding:4px 0;cursor:pointer;}
+.chk input{width:18px;height:18px;flex:0 0 auto;}
+.chk .done{font-weight:700;}
+.tlform{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center;font-size:14px;}
+.tlform select,.tlform input{padding:6px 6px;}
+.tlform input{width:88px;text-align:right;}
+.tlform button{padding:7px 14px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+  background:var(--ink);color:#fff;border:none;border-radius:2px;}
+.tlrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:13.5px;
+  border-bottom:1px solid #E8ECEF;color:var(--muted);font-variant-numeric:tabular-nums;}
+.tlrow b{color:var(--ink);}
+.tlrow .x{cursor:pointer;color:#B45309;font-weight:700;padding:0 4px;}
 .pwarn{margin-top:10px;font-size:14px;color:#B45309;line-height:1.55;}
 .psum{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule);
   font-size:14.5px;color:var(--muted);line-height:1.6;}
@@ -456,14 +472,8 @@ td.s-schd{color:var(--defend);font-weight:600;}
 
   <div class="clockbar" id="clockbar"></div>
 
-  <div class="pick">
-    <h2>규칙</h2>
-    <div class="opts" id="opts"></div>
-    <div class="metkey" id="metkey"></div>
-    <div class="scen" id="scen"></div>
-    <div class="scennote" id="scennote"></div>
-  </div>
-
+  <!-- [v90] 3초 테스트: 첫 화면 주인공은 규칙 설명이 아니라 오늘의 판정이다.
+       규칙 카드·지표 풀이는 계산기 아래로 내렸다 (내용 무변경). -->
   <div class="signal">
     <div class="ruler" id="ruler">
       <div class="track"></div>
@@ -476,6 +486,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <div class="eyebrow"><span id="eyebrow">보유할 자산</span><span class="rule" id="ebRule"></span></div>
       <div class="verdict" id="verdict">—</div>
       <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
+      <div class="actline" id="actLine"></div>
       <div id="changeBox"></div>
       <div id="disagreeBox"></div>
       <div class="facts">
@@ -514,6 +525,23 @@ td.s-schd{color:var(--defend);font-weight:600;}
   </details>
   </div>
 
+  <!-- [v89] 내 포트폴리오 — 보유 입력 → 목표(전략 B)와 비교 → 오늘의 행동.
+       자동 주문 없음. 전략 로직 무변경 — 목표비중은 signal.json 설정에서 읽는다.
+       [v90] 계산기보다 위로 (매일 쓰는 것이 먼저) + 체결 기록(실측 비용 표본). -->
+  <div class="guide" id="portPanel">
+    <h2>내 포트폴리오 <span style="font-size:12px;font-weight:400;color:var(--muted)">— 보유를 입력하면 전략 B 목표와 비교합니다 · 저장은 이 기기</span></h2>
+    <div id="portAction"></div>
+    <div id="portBody"></div>
+    <div id="portComp"></div>
+    <details id="tlogWrap" style="margin-top:12px">
+      <summary style="cursor:pointer;font-weight:700;font-size:14px">체결 기록
+        <span style="font-weight:400;color:var(--muted)">— 남기면 보유 수량이 자동 반영되고 실측 비용 표본이 쌓입니다</span></summary>
+      <div id="tlogForm"></div>
+      <div id="tlogList"></div>
+    </details>
+    <div class="hint" id="portNote"></div>
+  </div>
+
   <div class="guide" id="calcPanel">
     <h2>포지션 계산기</h2>
     <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -529,14 +557,12 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <div class="hint" id="calcNote"></div>
   </div>
 
-  <!-- [v89] 내 포트폴리오 — 보유 입력 → 목표(전략 B)와 비교 → 오늘의 행동.
-       자동 주문 없음. 전략 로직 무변경 — 목표비중은 signal.json 설정에서 읽는다. -->
-  <div class="guide" id="portPanel">
-    <h2>내 포트폴리오 <span style="font-size:12px;font-weight:400;color:var(--muted)">— 보유를 입력하면 전략 B 목표와 비교합니다 · 저장은 이 기기</span></h2>
-    <div id="portAction"></div>
-    <div id="portBody"></div>
-    <div id="portComp"></div>
-    <div class="hint" id="portNote"></div>
+  <div class="pick">
+    <h2>규칙</h2>
+    <div class="opts" id="opts"></div>
+    <div class="metkey" id="metkey"></div>
+    <div class="scen" id="scen"></div>
+    <div class="scennote" id="scennote"></div>
   </div>
 
   <div class="guide" id="execPanel">
@@ -1212,6 +1238,7 @@ const PKEY = 'b_port_v1';
 let PORT = {d:null, a:{}, cash:0};             // a: {종목코드: {qty, avg, px}}
 let NAVPX = {};                                // {종목코드: {px, d}}
 let CURSTATE = null;                           // paintState 가 갱신 (내부값: QLD/SCHD)
+let ASOF = null;                               // [v90] 신호일 — 체크리스트 키
 
 function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
 function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
@@ -1281,6 +1308,7 @@ function drawPort(){
     }));
   }
   portCompute();
+  drawTlog();                              // [v90] 체결 기록
 }
 
 function portCompute(){
@@ -1368,6 +1396,115 @@ function portCompute(){
     ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''} · <b>자동 주문 없음</b> — 체결은 직접, <b>09:05~15:20</b>.`;
 }
 
+/* [v90] 전환일 체크리스트 — 전환 신호일에만 표시, 이 기기에 유지 (키: 신호일) */
+const CHK_ITEMS = ['목표 비중·주문 금액 확인 (아래 내 포트폴리오)',
+                   '한국장 09:05~15:20 에 주문 실행',
+                   '체결가 기록 (아래 체결 기록 — 보유 자동 반영)'];
+function chkKey(){ return 'b_chk_' + (ASOF || new Date().toISOString().slice(0, 10)); }
+function chkGet(){ try{ return JSON.parse(localStorage.getItem(chkKey()) || '[]'); }catch(e){ return []; } }
+function chkHtml(){
+  const st = chkGet();
+  const all = CHK_ITEMS.every((_, i) => st[i]);
+  return `<div class="chk">${all ? '<div class="done">✅ 실행 확인 완료</div>' : ''}`
+    + CHK_ITEMS.map((t, i) =>
+      `<label><input type="checkbox" data-i="${i}" ${st[i] ? 'checked' : ''}> ${t}</label>`).join('')
+    + `</div>`;
+}
+function wireChk(box){
+  box.querySelectorAll('.chk input').forEach(c => c.addEventListener('change', () => {
+    const st = chkGet(); st[+c.dataset.i] = c.checked;
+    try{ localStorage.setItem(chkKey(), JSON.stringify(st)); }catch(e){}
+    const d = box.querySelector('.chk .done');
+    const all = CHK_ITEMS.every((_, i) => st[i]);
+    if(all && !d) box.querySelector('.chk').insertAdjacentHTML('afterbegin', '<div class="done">✅ 실행 확인 완료</div>');
+    if(!all && d) d.remove();
+  }));
+}
+/* [v90] 실행일 — 시장 시계(krClock, 공휴일 반영)를 재사용해 사람이 날짜 계산 안 하게 */
+function krExecLabel(){
+  const k = krClock(Date.now());
+  if(!k) return '오늘 한국장 09:05~15:20';
+  if(k.state === 'live') return '지금 한국장에서 (15:20 전까지)';
+  if(k.state === 'pre') return '오늘 09:05~15:20';
+  return '다음 한국 거래일 ' + kst(k.at).split(' ')[0] + ' 09:05~15:20';
+}
+
+/* [v90] 체결 기록 — 남기면 보유 수량·현재가 자동 반영 + 기준가 대비 차이(실측 비용 표본) */
+const TKEY = 'b_trades_v1';
+let TRADES = [];
+function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
+function saveTrades(){ try{ localStorage.setItem(TKEY, JSON.stringify(TRADES)); }catch(e){} }
+function effPx(code){
+  const p = PORT.a[code] || {};
+  if(pnum(p.px) > 0) return pnum(p.px);
+  return NAVPX[code] ? NAVPX[code].px : 0;
+}
+function shortName(code){
+  const A = portAssets() || [];
+  const x = A.find(q => q.code === code);
+  return x ? x.name.replace('TIGER ', '').replace('(합성)', '') : code;
+}
+function syncPortInputs(code){
+  const row = document.querySelector(`#portBody .prow[data-code='${code}']`);
+  if(!row) return;
+  const p = PORT.a[code] || {};
+  const q = row.querySelector("input[data-f='qty']"); if(q) q.value = p.qty || '';
+  const x = row.querySelector("input[data-f='px']"); if(x) x.value = p.px || '';
+}
+function drawTlog(){
+  const form = document.getElementById('tlogForm');
+  const A = portAssets();
+  if(!form || !A) return;
+  if(!form.dataset.on){
+    form.dataset.on = '1';
+    form.innerHTML = `<div class="tlform">
+      <select id="tlCode">${A.map(x => `<option value="${x.code}">${x.name.replace('TIGER ', '').replace('(합성)', '')}</option>`).join('')}</select>
+      <select id="tlSide"><option value="buy">매수</option><option value="sell">매도</option></select>
+      <input id="tlQty" type="text" inputmode="numeric" placeholder="수량">
+      <input id="tlPx" type="text" inputmode="numeric" placeholder="체결가(원)">
+      <button id="tlAdd" type="button">기록</button></div>`;
+    document.getElementById('tlAdd').addEventListener('click', () => {
+      const code = document.getElementById('tlCode').value;
+      const side = document.getElementById('tlSide').value;
+      const qty = pnum(document.getElementById('tlQty').value);
+      const px = pnum(document.getElementById('tlPx').value);
+      if(!(qty > 0) || !(px > 0)){ alert('수량과 체결가를 양수로 입력하세요.'); return; }
+      const tp = tzParts(new Date(), SEOUL);   // 체결은 한국장 — 날짜도 KST
+      TRADES.push({d: tp.y + '-' + String(tp.m).padStart(2, '0') + '-' + String(tp.d).padStart(2, '0'),
+                   code, side, qty, px, ref: effPx(code)});
+      saveTrades();
+      const p = PORT.a[code] = PORT.a[code] || {};
+      p.qty = String(Math.max(0, pnum(p.qty) + (side === 'buy' ? qty : -qty)));
+      p.px = String(px);
+      savePort(); syncPortInputs(code);
+      document.getElementById('tlQty').value = ''; document.getElementById('tlPx').value = '';
+      portCompute(); drawTlogList();
+    });
+  }
+  drawTlogList();
+}
+function drawTlogList(){
+  const el = document.getElementById('tlogList');
+  if(!el) return;
+  if(!TRADES.length){ el.innerHTML = '<div class="hint" style="font-size:13px">기록 없음.</div>'; return; }
+  el.innerHTML = TRADES.slice(-8).reverse().map(t => {
+    const i = TRADES.indexOf(t);
+    const dev = t.ref > 0 ? ((t.px / t.ref - 1) * 100).toFixed(2) : null;
+    return `<div class="tlrow"><span>${t.d} <b>${t.side === 'buy' ? '매수' : '매도'}</b> ${shortName(t.code)}
+      ${t.qty}주 @ ${Math.round(t.px).toLocaleString('en-US')}${dev !== null ? ` · 기준가 대비 ${dev > 0 ? '+' : ''}${dev}%` : ''}</span>
+      <span class="x" data-i="${i}" title="기록 취소 — 보유 되돌림">✕</span></div>`;
+  }).join('') + (TRADES.length > 8 ? `<div class="hint" style="font-size:12px">최근 8건 표시 · 총 ${TRADES.length}건 저장</div>` : '');
+  el.querySelectorAll('.x').forEach(x => x.addEventListener('click', () => {
+    const t = TRADES[+x.dataset.i];
+    if(!t) return;
+    const p = PORT.a[t.code] = PORT.a[t.code] || {};
+    p.qty = String(Math.max(0, pnum(p.qty) + (t.side === 'buy' ? -t.qty : t.qty)));
+    savePort(); syncPortInputs(t.code);
+    TRADES.splice(+x.dataset.i, 1); saveTrades();
+    portCompute(); drawTlogList();
+  }));
+}
+
 function paintState(o){
   // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp}
   const isQld = o.state==='QLD';
@@ -1387,14 +1524,23 @@ function paintState(o){
   document.getElementById('ebRule').textContent = S.name;
   document.getElementById('product').innerHTML = isQld ? riskHtml() : defHtml();
 
+  // [v90] 전환일: 실행일(한국 휴장 반영) + 체크리스트. 평시: 「오늘 할 일 없음」 한 줄.
   const box = document.getElementById('changeBox');
+  const al = document.getElementById('actLine');
   if(o.changed_today){
     const ex = (S.exit*100).toFixed(0);
     box.className = 'changed' + (isQld?' toattack':'');
-    box.innerHTML = isQld
-      ? `<b>오늘 전환 신호입니다.</b> 낙폭이 −${Math.abs(ex)}%보다 얕아졌습니다. 오늘 한국장에서 방어 바스켓 전량 매도 → QLD 매수.`
-      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. 오늘 한국장에서 QLD 전량 매도 → 방어 바스켓 매수(아래 비중대로).';
-  } else { box.className=''; box.innerHTML=''; }
+    box.innerHTML = (isQld
+      ? `<b>오늘 전환 신호입니다.</b> 낙폭이 −${Math.abs(ex)}%보다 얕아졌습니다. 방어 바스켓 전량 매도 → QLD 매수.`
+      : '<b>오늘 전환 신호입니다.</b> 낙폭이 −16% 아래로 내려갔습니다. QLD 전량 매도 → 방어 바스켓 매수(아래 비중대로).')
+      + `<br>실행: <b>${krExecLabel()}</b> · 필요한 금액은 아래 <b>내 포트폴리오</b>에.`
+      + chkHtml();
+    wireChk(box);
+    if(al) al.innerHTML = '';
+  } else {
+    box.className=''; box.innerHTML='';
+    if(al) al.innerHTML = `🟢 <b>오늘 할 일 없음</b> — ${isQld?'QLD':'방어 바스켓'} 유지 · 다음 확인: 다음 미국장 종가 후`;
+  }
 
   // [v61] 예전에는 '두 규칙이 갈립니다'로 알렸는데, 규칙이 하나가 됐으므로
   //       같은 정보를 낙폭 위치로 직접 말한다. 알리는 내용은 같다.
@@ -1470,6 +1616,7 @@ function render(){
   const line = last.state==='QLD' ? S.enter : S.exit;
 
   document.getElementById('asof').textContent = last.d + ' 종가 기준';
+  ASOF = last.d;
   paintState({
     state:last.state, changed_today: !!(prev && prev.state!==last.state),
     dd:last.dd*100, close:last.c, high:last.mx,
@@ -1495,6 +1642,7 @@ function renderAuto(j){
   }
   document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
   showStale(j.as_of);
+  ASOF = j.as_of;
   paintState({
     state:st.state, changed_today:st.changed_today,
     dd:j.dd, close:j.close, high:j.high_252,
@@ -1778,6 +1926,7 @@ async function getJSON(p){
 async function boot(){
   loadPrefs();
   loadPort();                              // [v89] 보유 입력 (이 기기)
+  loadTrades();                            // [v90] 체결 기록
   await loadNav();                         // [v89] 현재가 기본값 (전일 종가)
   try{ AUTO = await getJSON('data/signal.json'); }catch(e){ AUTO = null; }
   if(AUTO && AUTO.stats) STATS = AUTO.stats;
