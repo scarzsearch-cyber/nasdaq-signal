@@ -33,7 +33,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (54) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
+research/   (55) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
 deploy/     라이브 파이프라인 — 건드리지 말 것
 data/       화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
 docs/       history/(56 — 전략_v18~v83 보관층) · raw/ · HANDOFF_전체이력
@@ -374,4 +374,5 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 무적 · 기전 68%(재난보험형) · 사각지대 최장 112일 |
 | `research/axis_nextgen.py` | [v87] B+T4 구조 결합 23종 — 관문 N1~N8 사전 고정, **전멸**. 괴리 비대칭·T4 분해·최소 후회 |
 | `research/axis_finalverify.py` | [v88] 최종 검증 — B 비용 ×3 생존(J1) · 지연 비선형(1987 lag=2 −72%) · 감속 회피 23%/기회 77% · 그림자 채점 템플릿 · 실측 수집 감사 |
+| `research/axis_horizon.py` | [v88 부록2] 보유기간별 원금손실 — 1년 21.6% / 5년 0.7% / **10년+ 0.0%** (최악 20년 창 15.9배) |
 | `docs/history/전략_v80~v83.md` | 기록 4편. **v80 §6·§7 = 판정 부속서 (수정 금지)** · v82 = 룰 감사 |
