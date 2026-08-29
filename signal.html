@@ -1095,7 +1095,8 @@ async function drawT4(){
        오늘 T4 목표비중 <b style="color:var(--attack)">${(w * 100).toFixed(0)}%</b>
        (추세 ${votes}/4 · 변동성 ${rv}%) ·
        채택안과 ${agree ? '<b>같은 방향</b>' : '<b style="color:#B45309">다른 방향</b>'} —
-       판정은 <b>3년 + 낙폭 사건 1회 이후</b>, 기준은 사전 고정.
+       판정은 <b>3년 + 낙폭 사건 1회 이후</b>, 사건마다 「미리 줄였나·덜 빠졌나」를
+       사전 고정 기준으로 심사(v80 부속서).
        <a href="guide.html#t4" style="color:var(--attack)">쉬운 설명은 설명서 탭 →</a>`;
   }catch(e){ /* 장부 없음 — 조용히 숨김 */ }
 }
