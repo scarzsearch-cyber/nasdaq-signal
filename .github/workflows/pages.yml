@@ -36,6 +36,7 @@ jobs:
         run: |
           mkdir -p _site/data
           cp signal.html _site/index.html
+          cp guide.html _site/guide.html   # [v78] 설명서 탭
           # [v46] 화면(전략 로직) 자체의 개정 시점을 박는다. 종가 갱신과 별개다.
           python3 deploy/stamp_rev.py _site/index.html
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"

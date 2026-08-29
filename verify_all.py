@@ -226,6 +226,10 @@ def i5_decisions(D):
            '−16 기본·배당 / 헤지6/4 기본★·배당 (v78)')
         ok("화면: 설명서 탭 연결", 'href="guide.html"' in h and os.path.exists('guide.html'),
            '별도 화면 설명서 (v78)')
+        if os.path.exists('.github/workflows/pages.yml'):
+            pg = io.open('.github/workflows/pages.yml', encoding='utf-8').read()
+            ok("배포: guide.html 이 Pages 복사 목록에 있다", 'guide.html' in pg,
+               '빠지면 라이브에서 404 (v78 실사고)')
         if os.path.exists('guide.html'):
             g = io.open('guide.html', encoding='utf-8').read()
             ok("설명서: 필수 절 존재",
