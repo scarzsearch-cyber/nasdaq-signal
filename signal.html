@@ -223,6 +223,12 @@ td.s-schd{color:var(--defend);font-weight:600;}
   font-size:15px;}
 .perf tr.grp td{border-top:1px solid var(--rule);}
 .perf tr.rec td.strat{color:var(--attack);font-weight:700;}   /* [v73] 추천 줄 */
+/* [v79] 참고 4구역(실행시각·성과비교·지평·계좌) 폰트 -2px — 소유자 요청 */
+#execPanel,#perfPanel,#taxPanel{font-size:15px}
+#execPanel h2,#perfPanel h2,#taxPanel h2{font-size:14px}
+#execPanel .hint,#perfPanel .hint,#taxPanel .hint{font-size:14px}
+#execPanel .clock dt{font-size:13px}
+#perfPanel .perf td.scen .per{font-size:11.5px}
 /* [v73] 임계점 거리 게이지 */
 .prox{margin-top:12px;}
 .pbar{height:10px;border-radius:6px;background:var(--rule);overflow:hidden;}
@@ -305,6 +311,22 @@ td.s-schd{color:var(--defend);font-weight:600;}
 
 @media(max-width:600px){
   body{padding:18px 13px 56px;}
+  /* [v79] 모바일 세로(갤럭시 412px 실측) — nowrap 바스켓이 그리드 최소폭을 밀어
+     상태 카드가 683px로 잘리던 문제. min-width:0 으로 수축 허용 + 가로스크롤 격리 */
+  .signal>*,.state,.state>*{min-width:0;}
+  .basket{max-width:100%;}
+  .basket .leg{white-space:normal;font-size:14px;}          /* 공격 다리는 줄바꿈 허용 */
+  .standby .basket{max-width:100%;}                          /* 대기 3종은 한 줄+스크롤 유지 */
+  .standby .basket .leg{white-space:nowrap;font-size:11.5px;padding:3px 6px;}
+  .eyebrow,.verdict,.product{overflow-wrap:anywhere;}
+  .basket .leg b,.basket .code{white-space:nowrap;}          /* 100% · 종목코드는 안 쪼갬 */
+  /* 계산기 표: 세로 찌그러짐 방지 — 머리글 고정폭 + 가로 스크롤 */
+  #calcBody{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  #calcBody table{min-width:540px;}
+  #calcBody th,#calcBody td{white-space:nowrap;}
+  .facts{grid-template-columns:repeat(3,1fr);gap:10px 8px;}
+  .facts .k{font-size:11px;}
+  .facts .v{font-size:15px;}
   .clockbar{grid-template-columns:1fr;}
   .signal{grid-template-columns:1fr;}
   .ruler{height:180px;border-right:none;border-bottom:1px solid var(--rule);}
@@ -458,7 +480,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
     <div class="hint" id="calcNote"></div>
   </div>
 
-  <div class="guide">
+  <div class="guide" id="execPanel">
     <h2>한국장 실행 시각</h2>
     <dl class="clock">
       <dt>05:00 / 06:00</dt>
@@ -575,6 +597,14 @@ td.s-schd{color:var(--defend);font-weight:600;}
 
   <div class="guide" id="trajPanel">
     <h2>위기 궤적 참고</h2>
+    <div class="hint" style="margin-top:0;font-size:13px">
+      읽는 법 — <b>지금 낙폭(파란 선)이 과거 위기들의 같은 「고점 후 경과일」 위치에서
+      얼마나 깊은지</b>를 견주는 그림입니다. 예측이 아니라 현재 위치 확인용.
+      각 위기가 실제로 끈 시간: <b>닷컴 2000</b> 저점까지 2년 7개월(−83%)·전고점 회복 14년 11개월 ·
+      <b>금융위기 2008</b> 1년 1개월(−53%)·회복 3년 2개월 ·
+      <b>코로나 2020</b> 1개월(−29%)·회복 4개월 ·
+      <b>2022 긴축</b> 11개월(−35%)·회복 2년.
+    </div>
     <div id="trajBody">
       <div class="hint" style="margin-top:0">자동 갱신 모드(배포된 링크)에서 과거 4대 위기와 겹쳐 표시됩니다.</div>
     </div>
