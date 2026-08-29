@@ -277,6 +277,13 @@ td.s-schd{color:var(--defend);font-weight:600;}
    [v85] 가로 드래그 최소화(소유자 지시): 기준 열을 그룹 행으로 빼고 전략 열만 고정.
    성과표는 열이 9개라 스크롤이 남지만 한 화면에 지표 3~4열이 보이고,
    같은기간 표는 거의 통째로 들어온다. */
+/* [v112] 모바일 성과표 — 핵심 5열 기본(드래그 0), 보조 4열(Calmar·Sortino·Ulcer·전환)은
+   「전체 지표」 토글로 펼침 (소유자 승인 2026-08-30). 데스크톱·CSV 는 항상 9열 전부. */
+#perfCols{display:none;}
+@media (max-width:700px){
+  #perfCols{display:inline-block;}
+  .perf:not(.allcols) th.sec,.perf:not(.allcols) td.sec{display:none;}
+}
 @media (max-width:700px){
   .perf th,.perf td{padding:6px 6px;font-size:12.5px;}
   .perf th:nth-child(1),.perf td.strat{position:sticky;left:0;z-index:2;
@@ -709,7 +716,8 @@ body.vroutine #t4Panel,body.vroutine #goalPanel{display:none;}
 
   <div class="guide" id="perfPanel" hidden>
     <h2 style="display:flex;align-items:center;gap:10px">성과 비교
-      <button id="perfCsv" class="chipbtn" type="button" style="margin-left:auto">CSV 내보내기</button></h2>
+      <span style="margin-left:auto;display:flex;gap:6px"><button id="perfCols" class="chipbtn"
+        type="button">전체 지표 +</button><button id="perfCsv" class="chipbtn" type="button">CSV 내보내기</button></span></h2>
     <div class="perf" id="perfBody"></div>
     <div class="hint" id="perfNote"></div>
     <h3 class="sub">같은 기간으로 맞추면</h3>
@@ -1118,19 +1126,21 @@ function drawPerf(){
   const panel = document.getElementById('perfPanel');
   if(!STATS){ panel.hidden = true; return; }
   panel.hidden = false;
+  // [v112] class="sec" = 보조 지표 열 — 모바일 기본 화면에서 접힘 (전체 지표 토글로 펼침).
+  //        핵심 5열(전략·최종배수·CAGR·MDD·회복기간)만 남기면 412px 에 드래그 0으로 들어간다.
   const head = `<tr><th>전략</th><th style="text-align:right">최종배수</th>
     <th style="text-align:right">CAGR</th><th style="text-align:right">MDD</th>
-    <th style="text-align:right">Calmar</th><th style="text-align:right">Sortino</th>
-    <th style="text-align:right">회복기간</th><th style="text-align:right">Ulcer</th>
-    <th style="text-align:right">전환</th></tr>`;
+    <th class="sec" style="text-align:right">Calmar</th><th class="sec" style="text-align:right">Sortino</th>
+    <th style="text-align:right">회복기간</th><th class="sec" style="text-align:right">Ulcer</th>
+    <th class="sec" style="text-align:right">전환</th></tr>`;
   // [v61] 규칙 줄 하나 + 벤치마크 두 줄. 벤치마크가 있어야 지표가 읽힌다.
   const cols = m => `<td class="num">${nfmt(m.final)}배</td>
         <td class="num">${neg(m.cagr.toFixed(2))}%</td>
         <td class="num">${neg(m.mdd.toFixed(2))}%</td>
-        <td class="num">${m.calmar.toFixed(3)}</td>
-        <td class="num">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
+        <td class="num sec">${m.calmar.toFixed(3)}</td>
+        <td class="num sec">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
         <td class="num">${uwfmt(m)}</td>
-        <td class="num">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
+        <td class="num sec">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
   // [v63] 기준마다 기간이 다르다는 걸 표에서 바로 보이게 — 최종배수 세로비교 함정 방지
   const per = m => `<span class="per">${m.start.slice(0,7)} ~ ${m.end.slice(0,7)} (${m.years}년)</span>`;
   let body = '';
@@ -1143,7 +1153,7 @@ function drawPerf(){
         <span class="glbl">${s.label}${per(m)}</span></td></tr>`;
       body += `<tr class="${first?'on':(cls||'')}">
         <td class="strat">${vlab}</td>${cols(m)}
-        <td class="num">${m.switches}</td></tr>`;
+        <td class="num sec">${m.switches}</td></tr>`;
       first = false;
     });
   });
@@ -1206,6 +1216,16 @@ function drawHoriz(){
        헤지는 상승 노출 60%라 잔잔한 구간마다 조금 뒤지는 대신 낙폭·회복기간을
        깎습니다 — <b>더 버는 쪽이 아니라 덜 흔들리는 쪽</b>입니다.</p>`;
 }
+
+/* [v112] 모바일 성과표 열 토글 — 화면 상태일 뿐, 저장 안 함 (체결 전체 보기와 같은 패턴) */
+(function(){
+  const b = document.getElementById('perfCols');
+  if(!b) return;
+  b.addEventListener('click', () => {
+    const on = document.getElementById('perfBody').classList.toggle('allcols');
+    b.textContent = on ? '핵심만 −' : '전체 지표 +';
+  });
+})();
 
 /* [v103] 성과표 CSV — 화면과 같은 순회(PERF_SHOW × PERF_VARIANTS)를 그대로 내보낸다.
    유니코드 −(neg)를 쓰지 않고 원시 숫자의 일반 - 로 내보낸다 — 스프레드시트가
