@@ -70,6 +70,13 @@ body{padding:28px 20px 64px;}
 .mkt .when{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);
   width:100%;margin-top:-2px;}
 .mkt.live .cd{color:var(--attack);}
+/* [v107] 평시 시계 한 줄 — 전환 근접(주황/빨강)·전환일에만 2카드로 확장 (세로 −110px) */
+.clockbar.compact{display:block;background:transparent;border:none;}
+.clockline{background:var(--panel);border:1px solid var(--rule);border-radius:2px;
+  padding:8px 14px;font-size:13px;color:var(--muted);line-height:1.55;
+  font-variant-numeric:tabular-nums;}
+.clockline b{color:var(--ink);}
+.clockline.live b{color:var(--attack);}
 
 /* ---- 전략 선택 ---- */
 .pick{margin:22px 0;}   /* [v90] 신호 카드 아래로 이동 — 위쪽 간격 추가 */
@@ -135,6 +142,10 @@ body{padding:28px 20px 64px;}
 .signal{display:grid;grid-template-columns:156px 1fr;gap:0;background:var(--panel);
   border:1px solid var(--rule);border-radius:2px;overflow:hidden;min-height:330px;}
 
+/* [v108] 평시(공격+여유) 눈금자 접기 — 게이지(prox)가 같은 정보를 한 줄로 준다.
+   전환일·근접(주황/빨강)·방어 상태에서는 자동 복원 (모바일 세로 −180px, 소유자 승인) */
+.signal.sigcompact{grid-template-columns:1fr;min-height:0;}
+.signal.sigcompact .ruler{display:none;}
 /* 낙폭 눈금자 (시그니처) */
 .ruler{position:relative;border-right:1px solid var(--rule);background:var(--surface2);padding:22px 0;}
 .track{position:absolute;left:50%;top:22px;bottom:22px;width:2px;background:var(--rule);
@@ -1406,6 +1417,7 @@ let PORT = {d:null, a:{}, cash:0};             // a: {종목코드: {qty, avg, p
 let NAVPX = {};                                // {종목코드: {px, d}}
 let CURSTATE = null;                           // paintState 가 갱신 (내부값: QLD/SCHD)
 let PORT_TOTAL = 0;                            // [v98] portCompute 총 평가액 — 단계 계산기가 재사용
+let CLOCK_FULL = false;                        // [v107] 전환일·근접이면 시계를 2카드로 — paintState 가 갱신
 let ASOF = null;                               // [v90] 신호일 — 체크리스트 키
 
 function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
@@ -2041,6 +2053,12 @@ function paintState(o){
   document.getElementById('fTrig').textContent = num(o.high*0.84);
   paintProx(o, isQld);
 
+  // [v107] 전환일 또는 전환선까지 8%p 미만(주황/빨강 구간)이면 시계·눈금자를 풀 모드로
+  CLOCK_FULL = !!(o.changed_today || (o.gap_pp != null && o.gap_pp < 8));
+  // [v108] 평시(공격 + 여유 구간)엔 눈금자를 접는다 — 게이지가 같은 정보를 한 줄로 준다
+  const sig = document.querySelector('.signal');
+  if(sig) sig.classList.toggle('sigcompact',
+    isQld && !o.changed_today && o.gap_pp != null && o.gap_pp >= 8);
   drawRuler(o.dd/100, color);
   CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
   drawPort();
@@ -2373,11 +2391,23 @@ function drawClock(){
   if(!host) return;
   const now=Date.now();
   const us=usClock(now), kr=krClock(now);
+  const USNM={live:'미국장 개장 중', pre:'미국장 개장 전', closed:'미국장 휴장'};
+  const KRNM={live:'한국장 개장 중', pre:'한국장 개장 전', done:'한국장 마감', closed:'한국장 휴장'};
+  // [v107] 평시엔 한 줄 요약 — 매일 필요한 건 「다음 종가 확정까지 얼마」뿐.
+  //        전환일·전환 근접(CLOCK_FULL)에는 기존 2카드로 자동 확장.
+  if(!CLOCK_FULL){
+    host.className='clockbar compact';
+    const live=(us&&us.state==='live')||(kr&&kr.state==='live');
+    const seg=[];
+    if(us) seg.push(`${USNM[us.state]} — ${us.state==='live'?'종가 확정':'다음 종가'} <b>${dur(us.close-now)}</b> 후`);
+    if(kr) seg.push(`한국장 ${kr.state==='live'?'주문 마감':'개장'} <b>${dur(kr.at-now)}</b> 후`);
+    host.innerHTML=`<div class="clockline${live?' live':''}">${seg.join(' · ')}</div>`;
+    return;
+  }
+  host.className='clockbar';
   const cell=(cls,nm,note,cd,when)=>
     `<div class="mkt${cls?' live':''}"><span class="nm"><span class="dot"></span>${nm}</span>
      <span class="cd">${cd}</span><span class="when">${note}${when?' · '+when:''}</span></div>`;
-  const USNM={live:'미국장 개장 중', pre:'미국장 개장 전', closed:'미국장 휴장'};
-  const KRNM={live:'한국장 개장 중', pre:'한국장 개장 전', done:'한국장 마감', closed:'한국장 휴장'};
   let a='',b='';
   if(us){
     const note=(us.state==='live'?'종가 확정까지':'다음 종가 확정까지')+(us.early?' · 조기마감':'');
