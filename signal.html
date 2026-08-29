@@ -453,6 +453,24 @@ body.vroutine #t4Panel{display:none;}
 /* [v91] 주문 메모 복사 (제미나이 C1+C3 통합) */
 .copybtn{margin-top:8px;padding:7px 14px;font-family:inherit;font-size:14px;font-weight:700;
   cursor:pointer;background:var(--ink);color:#fff;border:none;border-radius:2px;}
+/* [v92] 매수/매도 배지 — 한국 MTS 관행색 (매수=빨강, 매도=파랑). 단어+색 병행(색맹 안전) */
+.bdg{display:inline-block;padding:1px 8px;border-radius:4px;font-weight:800;font-size:13px;
+  color:#fff;font-variant-numeric:tabular-nums;}
+.bdg.buy{background:#C43A3A;}
+.bdg.sell{background:#2B5FC7;}
+/* [v92] 오늘 매매 없는 종목은 흐리게 — 시선을 매매 대상에만 */
+.pbrow.dim{opacity:.45;}
+/* [v92] 데이터 신선도 도트 (상단 기준일 옆) */
+.fdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline;}
+.fdot.g{background:#1F9D55;}
+.fdot.y{background:#E4B63C;}
+.fdot.r{background:#D93025;}
+/* [v92] 예정 주문 프리필 칩 + 백업/복원 */
+.chipbtn{padding:5px 10px;border-radius:8px;border:1px solid var(--rule);background:var(--panel);
+  font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;margin:3px 4px 0 0;}
+.tlio{margin-top:10px;padding-top:8px;border-top:1px dashed var(--rule);}
+.tlio button{padding:5px 10px;border-radius:2px;border:1px solid var(--rule);background:var(--panel);
+  font-family:inherit;font-size:12.5px;color:var(--muted);cursor:pointer;margin-right:6px;}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -1254,6 +1272,19 @@ function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSO
 function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
   try{ localStorage.setItem(PKEY, JSON.stringify(PORT)); }catch(e){} }
 function fmtWon(v){ return Math.round(v).toLocaleString('en-US') + '원'; }
+/* [v92] 어림 금액은 만원/억원 단위 — 0의 개수를 안 세게 (제미나이 E 변형: 병기 대신 대체) */
+function fmtA(v){
+  return v >= 1e8 ? (v / 1e8).toFixed(2) + '억원'
+       : v >= 1e4 ? (v / 1e4).toFixed(1) + '만원'
+       : Math.round(v).toLocaleString('en-US') + '원';
+}
+/* [v92] 데이터 신선도 도트 — 0.1초 판독 (자세한 경고는 기존 stale 박스가 담당) */
+function freshDot(iso){
+  const n = bizDaysSince(iso);
+  const c = n <= 1 ? 'g' : n === 2 ? 'y' : 'r';
+  const t = n <= 1 ? '데이터 최신' : n === 2 ? '2거래일 경과 — 확인 필요' : n + '거래일 경과 — 갱신 필요';
+  return '<span class="fdot ' + c + '" title="' + t + '"></span>';
+}
 function pnum(v){ return parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')) || 0; }
 
 async function loadNav(){
@@ -1353,31 +1384,42 @@ function portCompute(){
 
   if(!anyQty || !(total > 0)){
     act.className = ''; act.innerHTML = ''; comp.innerHTML = '';
+    PLAN = []; tlogChips();
     note.innerHTML = `현재가 기본값은 자동 수집된 <b>전일 종가</b>입니다 — 주문 전 실시간 시세로
       갱신하세요. 보유 수량만 넣으면 현재 비중과 필요한 매매가 계산됩니다.
       <b>자동 주문은 없습니다</b> — 체결은 직접, <b>09:05~15:20</b>.`;
     return;
   }
 
-  let bars = '', sells = [], buys = [], maxdev = 0;
-  rows.forEach(r => {
+  // [v92] 1패스: 조정 계산 → 2패스: 막대 (무매매 종목 흐림은 전체 편차를 알아야 정해짐)
+  let sells = [], buys = [], maxdev = 0;
+  const calc = rows.map(r => {
     const curW = r.val / total * 100;
     const diff = total * r.tgt / 100 - r.val;                    // + 면 매수
     maxdev = Math.max(maxdev, Math.abs(curW - r.tgt));
     const sh = r.px > 0 ? Math.floor(Math.abs(diff) / r.px) : 0; // 주수는 내림
     const shx = diff < 0 ? Math.min(sh, r.qty) : sh;             // 매도는 보유 한도
-    if(diff < 0 && shx > 0) sells.push({r, sh: shx});
-    if(diff > 0 && shx > 0) buys.push({r, sh: shx});
-    bars += `<div class="pbrow">
+    const need = shx > 0 && Math.abs(curW - r.tgt) > 2;
+    if(need && diff < 0) sells.push({r, sh: shx});
+    if(need && diff > 0) buys.push({r, sh: shx});
+    return {r, curW, diff, shx, need};
+  });
+  let bars = '';
+  calc.forEach(c => {
+    const {r, curW, diff, shx, need} = c;
+    bars += `<div class="pbrow${maxdev > 2 && !need ? ' dim' : ''}">
       <div class="pbl"><span>${r.x.name}${r.src ? ` <span style="opacity:.6;font-size:12px">(${r.src})</span>` : ''}</span>
         <b>${curW.toFixed(1)}% → ${r.tgt}%</b></div>
       <div class="pbar2"><div class="cur" style="width:${Math.min(100, curW).toFixed(1)}%"></div>
         <div class="tgt" style="left:${r.tgt}%"></div></div>
-      ${shx > 0 && Math.abs(curW - r.tgt) > 2 ?
-        `<div class="pbd">${diff > 0 ? '매수' : '매도'} 약 <b>${fmtWon(shx * r.px)}</b>
-           (${shx.toLocaleString('en-US')}주 @ ${Math.round(r.px).toLocaleString('en-US')})</div>` : ''}
+      ${need ? `<div class="pbd"><span class="bdg ${diff > 0 ? 'buy' : 'sell'}">${diff > 0 ? '매수' : '매도'}
+           ${shx.toLocaleString('en-US')}주</span> 약 <b>${fmtA(shx * r.px)}</b>
+           @ ${Math.round(r.px).toLocaleString('en-US')}원</div>` : ''}
     </div>`;
   });
+  PLAN = sells.map(s => ({code: s.r.x.code, side: 'sell', qty: s.sh, px: s.r.px}))
+    .concat(buys.map(b => ({code: b.r.x.code, side: 'buy', qty: b.sh, px: b.r.px})));
+  tlogChips();
 
   if(maxdev <= 2){
     act.className = 'ok';
@@ -1385,8 +1427,8 @@ function portCompute(){
       + (isAtk ? '' : ' 방어 비율 재조정은 <b>월 1회</b> 규약입니다.');
   } else {
     const L = [];
-    sells.forEach(s => L.push(`${s.r.x.name} <b style="color:var(--warn)">매도 ${fmtWon(s.sh * s.r.px)}</b> (${s.sh}주)`));
-    buys.forEach(b => L.push(`${b.r.x.name} <b style="color:var(--attack)">매수 ${fmtWon(b.sh * b.r.px)}</b> (${b.sh}주)`));
+    sells.forEach(s => L.push(`<span class="bdg sell">매도 ${s.sh}주</span> ${shortName(s.r.x.code)} · 약 <b>${fmtA(s.sh * s.r.px)}</b>`));
+    buys.forEach(b => L.push(`<span class="bdg buy">매수 ${b.sh}주</span> ${shortName(b.r.x.code)} · 약 <b>${fmtA(b.sh * b.r.px)}</b>`));
     act.className = 'go';
     act.innerHTML = `🔴 <b>오늘의 행동 — ${stLab} 목표와 ${maxdev.toFixed(1)}%p 차이</b><br>` + L.join('<br>')
       + (isAtk ? '' : `<br><span style="font-size:13px;color:var(--muted)">전환일이 아니라면 —
@@ -1408,7 +1450,7 @@ function portCompute(){
   if(PORT.cash > 0) sum += ` (현금 ${(Math.max(0, PORT.cash) / total * 100).toFixed(1)}% 포함)`;
   if(invest > 0) sum += ` · 평단 기준 손익 <b>${(investVal - invest >= 0 ? '+' : '−') + fmtWon(Math.abs(investVal - invest))}</b>
     (${((investVal / invest - 1) * 100).toFixed(1)}%)`;
-  if(maxdev > 2) sum += ` · 위 조정 후 예상 현금 <b>${fmtWon((PORT.cash || 0) + sellCash - buyCash)}</b>`;
+  if(maxdev > 2) sum += ` · 위 조정 후 예상 현금 <b>${fmtA((PORT.cash || 0) + sellCash - buyCash)}</b>`;
   comp.innerHTML = bars + `<div class="psum">${sum}</div>`
     + (warns.length ? `<div class="pwarn">⚠ ${warns.join(' · ')}</div>` : '');
   note.innerHTML = `주수는 내림(매수)·보유 한도(매도) 기준 · 입력은 이 기기 브라우저에만 저장
@@ -1481,6 +1523,22 @@ function krExecLabel(){
 /* [v90] 체결 기록 — 남기면 보유 수량·현재가 자동 반영 + 기준가 대비 차이(실측 비용 표본) */
 const TKEY = 'b_trades_v1';
 let TRADES = [];
+let PLAN = [];                                  // [v92] 오늘 계산된 예정 주문 (프리필용)
+/* [v92] 예정 주문 칩 — 누르면 체결 기록 입력칸이 채워진다 (16회 입력 → 4클릭+체결가) */
+function tlogChips(){
+  const el = document.getElementById('tlChips');
+  if(!el) return;
+  if(!PLAN.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-top:8px">예정 주문 — 누르면 아래 입력칸이 채워집니다 (체결가만 실제 값으로 고치세요)</div>'
+    + PLAN.map((p, i) => `<button class="chipbtn" type="button" data-i="${i}">${p.side === 'sell' ? '매도' : '매수'} ${shortName(p.code)} ${p.qty}주</button>`).join('');
+  el.querySelectorAll('.chipbtn').forEach(b => b.addEventListener('click', () => {
+    const p = PLAN[+b.dataset.i];
+    document.getElementById('tlCode').value = p.code;
+    document.getElementById('tlSide').value = p.side;
+    document.getElementById('tlQty').value = p.qty;
+    document.getElementById('tlPx').value = Math.round(p.px);
+  }));
+}
 function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
 function saveTrades(){ try{ localStorage.setItem(TKEY, JSON.stringify(TRADES)); }catch(e){} }
 function effPx(code){
@@ -1511,7 +1569,11 @@ function drawTlog(){
       <select id="tlSide"><option value="buy">매수</option><option value="sell">매도</option></select>
       <input id="tlQty" type="text" inputmode="numeric" placeholder="수량">
       <input id="tlPx" type="text" inputmode="numeric" placeholder="체결가(원)">
-      <button id="tlAdd" type="button">기록</button></div>`;
+      <button id="tlAdd" type="button">기록</button></div>
+      <div id="tlChips"></div>
+      <div class="tlio"><button id="tlExp" type="button">백업 복사</button><button
+        id="tlImp" type="button">복원 붙여넣기</button>
+        <span style="font-size:11.5px;color:var(--muted)">보유+체결 전체 JSON — 기기 이동·브라우저 초기화 대비</span></div>`;
     document.getElementById('tlAdd').addEventListener('click', () => {
       const code = document.getElementById('tlCode').value;
       const side = document.getElementById('tlSide').value;
@@ -1527,6 +1589,32 @@ function drawTlog(){
       p.px = String(px);
       savePort(); syncPortInputs(code);
       document.getElementById('tlQty').value = ''; document.getElementById('tlPx').value = '';
+      portCompute(); drawTlogList();
+    });
+    // [v92] 백업/복원 — localStorage 가 유일 저장소라 소실 대비 수단이 필요 (감사 P0)
+    document.getElementById('tlExp').addEventListener('click', () => {
+      const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES});
+      const b = document.getElementById('tlExp');
+      const ok = () => { b.textContent = '복사됨 ✓'; setTimeout(() => { b.textContent = '백업 복사'; }, 1500); };
+      if(navigator.clipboard && navigator.clipboard.writeText)
+        navigator.clipboard.writeText(txt).then(ok, () => prompt('저장해 두세요:', txt));
+      else prompt('저장해 두세요:', txt);
+    });
+    document.getElementById('tlImp').addEventListener('click', () => {
+      const txt = prompt('백업 JSON 을 붙여넣으세요:');
+      if(!txt) return;
+      let j = null;
+      try{ j = JSON.parse(txt); }catch(e){}
+      if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
+        alert('백업 형식이 올바르지 않습니다 — 아무것도 바꾸지 않았습니다.'); return;
+      }
+      if(!confirm('현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
+                  + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return;
+      PORT = j.port; TRADES = j.trades;
+      savePort(); saveTrades();
+      (portAssets() || []).forEach(x => syncPortInputs(x.code));
+      const ci = document.querySelector("#portBody .prow[data-code='_cash'] input");
+      if(ci) ci.value = PORT.cash || '';
       portCompute(); drawTlogList();
     });
   }
@@ -1664,7 +1752,7 @@ function render(){
   const prev = res.length>1 ? res[res.length-2] : null;
   const line = last.state==='QLD' ? S.enter : S.exit;
 
-  document.getElementById('asof').textContent = last.d + ' 종가 기준';
+  document.getElementById('asof').innerHTML = freshDot(last.d) + last.d + ' 종가 기준';
   ASOF = last.d;
   paintState({
     state:last.state, changed_today: !!(prev && prev.state!==last.state),
@@ -1689,7 +1777,7 @@ function renderAuto(j){
   if(!st){                                   // 구버전 signal.json — B 항목이 없음
     AUTO = null; load(); render(); return;
   }
-  document.getElementById('asof').textContent = j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
+  document.getElementById('asof').innerHTML = freshDot(j.as_of) + j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
   showStale(j.as_of);
   ASOF = j.as_of;
   paintState({
