@@ -1,0 +1,21 @@
+name: 알림 테스트
+
+# [v76] secret 등록 후 연결 확인용. Actions 탭에서 수동 실행(Run workflow)하면
+# 등록된 채널(Discord/Telegram)로 테스트 메시지가 간다. 예약 실행 없음.
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: 테스트 발송
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/notify.py "알림 테스트" success "이 메시지가 보이면 연결 성공입니다. 실패 알림과 전환 신호 알림이 이 채널로 옵니다."
