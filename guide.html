@@ -26,7 +26,15 @@ section{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
   padding:18px 20px;margin-bottom:14px;scroll-margin-top:12px}
 h2{font-size:19px;margin-bottom:10px}
 h2 .no{color:var(--attack);margin-right:6px}
-h3{font-size:15.5px;margin:14px 0 6px}
+h3{font-size:15px;margin:18px 0 7px;display:flex;align-items:center;gap:8px}
+h3::before{content:"";width:4px;height:14px;background:var(--attack);border-radius:2px;flex:0 0 auto}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 4px}
+.ph{border:1px solid var(--rule);border-radius:8px;padding:12px 14px;background:rgba(11,95,214,.02)}
+.ph .nm{font-weight:800;color:var(--attack);font-size:14px}
+.ph .eng{font-weight:700;margin-top:3px}
+.ph .job{color:var(--muted);font-size:13px;margin-top:2px}
+.ph .next{font-size:12.5px;margin-top:8px;padding-top:7px;border-top:1px dashed var(--rule)}
+@media(max-width:640px){.flow{grid-template-columns:1fr}}
 p{margin-bottom:10px}
 b.key{color:var(--attack)}
 ul,ol{padding-left:22px;margin-bottom:10px}
@@ -69,9 +77,12 @@ summary{cursor:pointer;font-weight:700}
        그걸 그냥 들고 있을 수 있는 사람은 없습니다. 이 시스템의 규칙은 단순합니다:</p>
     <p style="text-align:center;font-size:17px"><b class="key">QQQ가 최근 1년 고점에서 −16% 넘게 빠지면 → 전량 방어(배당·국채·금)<br>
        −16% 안쪽으로 회복하면 → 전량 복귀</b></p>
-    <p>즉 이건 <b>시장을 이기는 기계가 아니라, 2배 레버리지를 파산 없이 보유하게 해주는 보험</b>입니다.
-       수익의 원천은 레버리지 자체(54년 연 25%)이고, 규칙의 역할은 그 레버리지가 죽는 꼬리를 잘라내는 것
-       (최악 낙폭 −98% → −56%)입니다. 보험료는 잔잔한 구간의 소폭 열세와 연 2~3회의 전환입니다.</p>
+    <p>즉 이건 <b>시장을 이기는 기계가 아니라, 2배 레버리지를 파산 없이 보유하게 해주는 보험</b>입니다.</p>
+    <ul>
+      <li><b>수익의 원천</b> — 레버리지 자체 (54년 연 25%)</li>
+      <li><b>규칙의 역할</b> — 레버리지가 죽는 꼬리를 잘라냄 (최악 낙폭 −98% → −56%)</li>
+      <li><b>보험료</b> — 잔잔한 구간의 소폭 열세 + 연 2~3회의 전환</li>
+    </ul>
   </section>
 
   <section id="routine">
@@ -147,42 +158,46 @@ summary{cursor:pointer;font-weight:700}
 
   <section id="phases">
     <h2><span class="no">⑤</span>자산 단계별 진로 — 형성기 → 감속기 → 인출기</h2>
-    <p>이 시스템은 평생 쓰는 물건이 아니라 <b>자산을 키우는 단계의 기계</b>입니다.
-       돈이 커지면 기계를 갈아타는 시점이 오고, 그 기준은 총액이 아니라
-       <b class="key">"그 돈이 매달 얼마를 만들어 주느냐"</b>로 재는 게 실용적입니다.</p>
+    <p>기계를 갈아타는 기준은 총액이 아니라 <b class="key">"그 돈이 매달 얼마를 만들어 주느냐"</b>입니다.</p>
 
-    <p style="text-align:center;font-size:15px"><b>형성기 (−16 기본)</b> → 목표액의 50~70%부터 <b>감속기 (헤지6/4)</b>
-       → 배당이 생활비를 덮으면 <b>인출기 (SCHD 중심 + 채권·금 지갑)</b></p>
+    <div class="flow">
+      <div class="ph"><div class="nm">1단계 · 형성기</div><div class="eng">−16 기본</div>
+        <div class="job">돈을 키운다 (지금)</div>
+        <div class="next">졸업 조건: <b>목표액의 50~70%</b> 도달</div></div>
+      <div class="ph"><div class="nm">2단계 · 감속기</div><div class="eng">헤지6/4</div>
+        <div class="job">다 온 돈을 지킨다</div>
+        <div class="next">졸업 조건: <b>배당이 생활비를 덮음</b></div></div>
+      <div class="ph"><div class="nm">3단계 · 인출기</div><div class="eng">SCHD 중심 + 채권·금 지갑</div>
+        <div class="job">안 팔고 산다</div>
+        <div class="next">이후: 배당 성장이 물가를 따라감</div></div>
+    </div>
 
     <h3>월 얼마가 나오려면 얼마가 필요한가</h3>
-    <p class="dim">기준: SCHD류 배당 세전 3.5%, 배당소득세 15.4% 뗀 세후 약 3.0%. 환율 고정 가정.
-       세율·수익률이 바뀌면 숫자도 바뀌는 어림값입니다.</p>
+    <p class="dim">기준: 배당 세전 3.5% → 세후 약 3.0%. 환율 고정 가정의 어림값.</p>
     <div class="tblwrap"><table>
       <tr><th>월 목표(세후)</th><th>대략의 상황</th><th class="num">필요 자산</th><th>참고</th></tr>
-      <tr><td>100만원</td><td>일하는 중 — 보조 월급</td><td class="num"><b>약 4.0억</b></td><td>재투자해도, 써도 되는 자유가 생김</td></tr>
-      <tr><td>150만원</td><td>반은퇴</td><td class="num"><b>약 6.1억</b></td><td>바로 아래(5.7억, 연 배당 2,000만원)가 금융소득종합과세
-          문턱 — 이 구간부턴 ISA·연금계좌로 쪼개는 설계가 중요</td></tr>
-      <tr><td>200만원+</td><td>파이어</td><td class="num"><b>약 8.1억</b></td><td>배당 삭감(2008년형)·환율 출렁임 대비 +20% 버퍼 = 9~10억 권장</td></tr>
+      <tr><td>100만원</td><td>일하는 중 — 보조 월급</td><td class="num"><b>약 4.0억</b></td><td>재투자해도, 써도 되는 자유</td></tr>
+      <tr><td>150만원</td><td>반은퇴</td><td class="num"><b>약 6.1억</b></td><td>5.7억(연 배당 2,000만)부터 <b>금융소득종합과세</b> — ISA·연금 분산 설계 필요</td></tr>
+      <tr><td>200만원+</td><td>파이어</td><td class="num"><b>약 8.1억</b></td><td>배당 삭감·환율 대비 +20% 버퍼 → 9~10억 권장</td></tr>
     </table></div>
-    <p>목표를 앞당기는 힘: SCHD류는 배당 자체를 <b>연 8~10%씩 키워온</b> 역사가 있어,
-       목표의 90%쯤에서 전환해도 2~3년이면 배당 성장이 갭을 메웁니다.
-       반대로 원화 월수령액은 달러 연동이라 ±10%대로 출렁이는 건 감수해야 합니다.</p>
 
-    <h3>왜 감속기는 "목표의 50~70%"인가</h3>
-    <p>남은 거리가 <b>"큰 낙폭 한 방"보다 작아지는 지점</b>이기 때문입니다. 거의 다 와서
-       −60%를 맞으면 도달이 4~5년 밀리지만, 헤지6/4의 −46%면 그 손해가 절반입니다.
-       제일 아까운 손실은 결승선 앞의 손실입니다.</p>
-
-    <h3>인출기의 방어자산 — 두 가지 방패</h3>
     <ul>
-      <li><b>배당주(SCHD)</b> = 하락장에도 나오는 월급. 계좌가 반토막 나도 배당은
-          대체로 유지되거나 늘어서, <b>주식을 한 주도 안 팔고 버틸 수 있게</b> 해줍니다.</li>
-      <li><b>채권·금</b> = 현금흐름은 없지만, 하락장에 <b>팔아도 아프지 않은 유일한 지갑</b>.
-          2008년에 방어 바스켓은 +9%였습니다 — 배당으로 모자란 생활비는 여기서 꺼내고,
-          떨어진 주식은 끝까지 안 건드리는 구조가 됩니다.</li>
+      <li><b>목표를 앞당기는 힘</b> — SCHD류는 배당 자체를 연 8~10%씩 키워왔습니다.
+          목표의 90%쯤에서 전환해도 2~3년이면 배당 성장이 갭을 메웁니다.</li>
+      <li><b>흔드는 힘</b> — 원화 월수령액은 달러 연동이라 ±10%대 출렁임은 감수해야 합니다.</li>
+      <li><b>감속기가 "50~70%"인 이유</b> — 남은 거리가 큰 낙폭 한 방보다 작아지는 지점.
+          결승선 앞에서 −60%를 맞으면 4~5년 후퇴지만, 헤지6/4의 −46%면 그 절반입니다.</li>
+    </ul>
+
+    <h3>인출기의 두 방패</h3>
+    <ul>
+      <li><b>배당주(SCHD)</b> = 하락장에도 나오는 월급 — 계좌가 반토막 나도 배당은 대체로
+          유지·성장해서, <b>주식을 한 주도 안 팔고</b> 버티게 해줍니다.</li>
+      <li><b>채권·금</b> = 하락장에 <b>팔아도 아프지 않은 유일한 지갑</b> — 2008년에 방어
+          바스켓은 +9%였습니다. 배당으로 모자란 생활비는 여기서 꺼냅니다.</li>
     </ul>
     <div class="tip">배당 생활의 진짜 실익은 수익률이 아니라 <b>하락장에 "뭘 얼마나 팔까"라는
-      결정 자체가 없어지는 것</b>입니다 — 이 시스템이 규칙으로 재량을 없애온 것과 같은 철학입니다.</div>
+      결정 자체가 없어지는 것</b> — 이 시스템이 규칙으로 재량을 없애온 것과 같은 철학입니다.</div>
   </section>
 
   <section id="t4">
@@ -217,11 +232,14 @@ summary{cursor:pointer;font-weight:700}
        실패하는 것과 대조적입니다.</p>
 
     <h3>그런데 왜 바로 채택하지 않나</h3>
-    <p>딱 하나가 확인이 안 됩니다: <b>"앞으로의 나스닥에서" 채택안보다 돈을 더 벌 것인가.</b>
-       과거 데이터로 재 보면 이 질문의 답은 동전던지기(47.6% vs 52.4%)입니다. 채택안의 수익 우위는
-       닷컴 붕괴라는 단 한 사건에서 왔는데, 그런 사건이 또 올지는 과거를 아무리 파도 알 수 없습니다.
-       그리고 우리는 이미 같은 과거 데이터를 수백 번 재활용했습니다 — <b>시험지를 미리 본 학생의
-       점수는 실력이 아닐 수 있습니다.</b></p>
+    <p>딱 하나가 확인이 안 됩니다: <b>"앞으로의 나스닥에서" 채택안보다 돈을 더 벌 것인가.</b></p>
+    <ul>
+      <li>과거 데이터로 재 보면 이 질문의 답은 <b>동전던지기</b>(약 47% vs 53%)입니다.</li>
+      <li>채택안의 수익 우위는 닷컴 붕괴라는 <b>단 한 사건</b>에서 왔고, 그런 사건이 또 올지는
+          과거를 아무리 파도 알 수 없습니다.</li>
+      <li>게다가 같은 과거 데이터를 이미 수백 번 재활용했습니다 —
+          <b>시험지를 미리 본 학생의 점수는 실력이 아닐 수 있습니다.</b></li>
+    </ul>
 
     <h3>그래서 그림자 장부</h3>
     <p>규칙은 그대로 두고, <b>매일 "T4라면 오늘 얼마를 들고 있었을까"만 장부에 기록</b>합니다.
@@ -238,12 +256,14 @@ summary{cursor:pointer;font-weight:700}
 
   <section id="freeze">
     <h2><span class="no">⑦</span>왜 규칙을 못 바꾸게 잠가뒀나</h2>
-    <p>2026-08-27에 규칙을 <b>동결</b>했습니다. 이유는 하나: 결과를 보고 나서 규칙을 만지면,
-       그 순간부터의 성적은 "실력"인지 "짜맞춤"인지 구분할 수 없게 됩니다. 지난 5년의 연구에서
-       500개가 넘는 "더 좋아 보이는" 후보를 시험했고 전부 과거에만 좋았습니다. 심지어
-       "매 시점 그때까지의 최적값으로 갈아타기"조차 고정 규칙에 <b>모든 구간에서</b> 졌습니다.</p>
-    <p>그래서 화면·코드·문서가 규칙과 어긋나면 배포가 자동으로 막히고(검증 11종), 바꾸고 싶은
-       아이디어는 T4처럼 <b>그림자 장부에서 먼저 자격을 증명</b>해야 합니다.</p>
+    <p>2026-08-27에 규칙을 <b>동결</b>했습니다. 결과를 보고 나서 규칙을 만지면, 그때부터의
+       성적이 "실력"인지 "짜맞춤"인지 구분할 수 없게 되기 때문입니다.</p>
+    <ul>
+      <li>지난 5년간 <b>500개가 넘는 "더 좋아 보이는" 후보</b>를 시험했고 — 전부 과거에만 좋았습니다.</li>
+      <li>"매 시점 그때까지의 최적값으로 갈아타기"조차 고정 규칙에 <b>모든 구간에서</b> 졌습니다.</li>
+      <li>그래서 화면·코드·문서가 규칙과 어긋나면 <b>배포가 자동으로 막히고</b>(검증 11종),
+          바꾸고 싶은 아이디어는 T4처럼 <b>그림자 장부에서 먼저 자격을 증명</b>해야 합니다.</li>
+    </ul>
   </section>
 
   <section id="auto">
