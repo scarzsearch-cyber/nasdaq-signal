@@ -567,6 +567,11 @@ td.s-schd{color:var(--defend);font-weight:600;}
     </div>
   </div>
 
+  <div class="guide" id="t4Panel" hidden>
+    <h2>T4 그림자 추적 <span style="font-size:12px;font-weight:400;color:var(--muted)">평가 전용 — 채택안이 아닙니다</span></h2>
+    <div class="hint" id="t4Body"></div>
+  </div>
+
   <div class="foot">
     성과 수치는 과거 데이터 백테스트 결과이며 미래 수익을 보장하지 않습니다. 투자 자문이 아닙니다.
   </div>
@@ -1022,6 +1027,38 @@ function redraw(){
   drawPerf();
   drawCalc();
   if(AUTO) renderAuto(AUTO); else render();
+}
+
+/* [v75] T4 그림자 표시 — OOS 장부(data/oos_log.csv)의 t4_* 열을 읽어 요약만 보여준다.
+   T4 = 변동성타깃 40% × 추세 다수결 (전략_v68). 판정 규약은 v69 에 사전 고정:
+   3년 + 낙폭 −16% 사건 1회 이후에만 판정. 장부가 없거나 비어 있으면 패널 숨김. */
+async function drawT4(){
+  const panel = document.getElementById('t4Panel');
+  if(!panel) return;
+  try{
+    const res = await fetch('data/oos_log.csv?t=' + Date.now(), {cache: 'no-store'});
+    if(!res.ok) return;
+    const lines = (await res.text()).trim().split(/\r?\n/).map(x => x.replace(/\r$/, ''));
+    if(lines.length < 2) return;
+    const cols = lines[0].split(',');
+    const iA = cols.indexOf('as_of'), iS = cols.indexOf('state'),
+          iV = cols.indexOf('t4_votes'), iR = cols.indexOf('t4_rv'), iW = cols.indexOf('t4_w');
+    if(iW < 0) return;
+    const last = lines[lines.length - 1].split(',');
+    const w = parseFloat(last[iW]), votes = last[iV], rv = last[iR];
+    if(!isFinite(w)) return;
+    const bState = last[iS] === 'QLD' ? 1 : 0;
+    const agree = (w > 0.5) === (bState === 1);
+    panel.hidden = false;
+    document.getElementById('t4Body').innerHTML =
+      `채택안(−16/−16)의 유일한 생존 도전자 <b>T4</b>(변동성타깃 40% × 추세 다수결)를
+       규칙은 건드리지 않고 장부로만 추적 중입니다.
+       기록 <b>${lines.length - 1}영업일</b> (${last[iA]} 기준) ·
+       오늘 T4 목표비중 <b style="color:var(--attack)">${(w * 100).toFixed(0)}%</b>
+       (추세 ${votes}/4 · 변동성 ${rv}%) ·
+       채택안과 ${agree ? '<b>같은 방향</b>' : '<b style="color:#B45309">다른 방향</b>'} —
+       판정은 <b>3년 + 낙폭 사건 1회 이후</b>, 기준은 사전 고정 (전략_v69).`;
+  }catch(e){ /* 장부 없음 — 조용히 숨김 */ }
 }
 
 /* [v73] 포지션 계산기 — 상품 구성·비중은 signal.json(AUTO.risk/AUTO.defensive) 설정에서
@@ -1501,6 +1538,7 @@ async function boot(){
   redraw();
   startClock();
   watchMinibar();
+  drawT4();
   // [v73] 포지션 계산기 컨트롤
   const cc = document.getElementById('calcCash');
   if(cc) cc.addEventListener('input', calcCompute);

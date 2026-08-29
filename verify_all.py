@@ -231,6 +231,9 @@ def i5_decisions(D):
            '원금→목표금액·주수·잔여 (v73)')
         ok("화면: 모바일 고정열(Sticky)",
            "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
+        ok("화면: T4 그림자 패널 (평가 전용)",
+           "function drawT4" in h and 'id="t4Panel"' in h and "채택안이 아닙니다" in h,
+           'oos_log.csv 요약 표시 (v75)')
         # [v63] 같은 기간으로 맞춘 표 — 최종배수 세로비교 함정의 정면 해법
         ok("화면: 같은 기간 비교표가 있다",
            'function drawHoriz' in h and 'id="horizBody"' in h, '최근 5/10/15/20년')
