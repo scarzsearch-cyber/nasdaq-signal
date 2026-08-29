@@ -231,6 +231,11 @@ def i5_decisions(D):
             pg = io.open('.github/workflows/pages.yml', encoding='utf-8').read()
             ok("배포: guide.html 이 Pages 복사 목록에 있다", 'guide.html' in pg,
                '빠지면 라이브에서 404 (v78 실사고)')
+            ok("배포: PWA 파일이 Pages 복사 목록에 있다",
+               'manifest.json' in pg and 'icon-192.png' in pg and 'icon-512.png' in pg
+               and os.path.exists('manifest.json') and os.path.exists('icon-192.png')
+               and os.path.exists('icon-512.png') and 'rel="manifest"' in h,
+               '홈 화면 추가 (v104) — 누락 시 라이브 404, guide.html 사고와 동일 유형')
         if os.path.exists('guide.html'):
             g = io.open('guide.html', encoding='utf-8').read()
             ok("설명서: 필수 절 존재",

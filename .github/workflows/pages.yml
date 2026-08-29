@@ -37,6 +37,10 @@ jobs:
           mkdir -p _site/data
           cp signal.html _site/index.html
           cp guide.html _site/guide.html   # [v78] 설명서 탭
+          # [v104] PWA 홈 화면 추가 — 복사 누락 시 라이브 404 (guide.html v78 실사고와 동일 유형)
+          cp manifest.json _site/manifest.json
+          cp icon-192.png _site/icon-192.png
+          cp icon-512.png _site/icon-512.png
           # [v46] 화면(전략 로직) 자체의 개정 시점을 박는다. 종가 갱신과 별개다.
           python3 deploy/stamp_rev.py _site/index.html
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
