@@ -33,10 +33,10 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (46) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
-deploy/     (6) 라이브 파이프라인 — 건드리지 말 것
-data/       (9) 화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
-docs/       history/(43 — 전략_v18~v64 보관층) · raw/ · HANDOFF_전체이력
+research/   (50) 기각 판정의 재현 코드. 각 파일 상단에 경로보정 3줄
+deploy/     라이브 파이프라인 — 건드리지 말 것
+data/       화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
+docs/       history/(56 — 전략_v18~v83 보관층) · raw/ · HANDOFF_전체이력
 archive/    (4)  v19~v20 폐기본
 ```
 
@@ -302,7 +302,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 | 언제 |
 |---|---|---|
-| `verify_all.py` | **단일 진입점.** 불변식 11종(I1~I11). 3초 | 뭔가 고쳤으면 항상 |
+| `verify_all.py` | **단일 진입점.** 불변식 12종(I1~I12). 4초 | 뭔가 고쳤으면 항상 |
 | `audit_full.py` | 59파일 AST 전수조사 + **시점별 재계산** | 정기 / CI |
 | `audit_all.py` | 채택 결정 재검증 (달러·원화) | 모형을 바꿨을 때 |
 | `verify.py` | 채택안 단독 검산 (140.0배) | 참조 구현 |
@@ -354,8 +354,22 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | 파일 | 역할 |
 |---|---|
 | `data/freeze.json` | **동결된 규칙**·자산·체결규약·비용 + 지문 + 날짜규약 |
-| `data/oos_log.csv` | 동결 이후 하루 한 줄 (append-only). 워크플로가 쌓는다 |
-| `deploy/oos_log.py` | 위를 기록한다. **판단하지 않는다** |
+| `data/oos_log.csv` | 동결 이후 하루 한 줄 (append-only). 워크플로가 쌓는다. T4 그림자 3열 포함 |
+| `deploy/oos_log.py` | 위를 기록한다. **판단하지 않는다.** [v80] qqq.csv 날짜 가드 (미갱신 시 그림자 빈 칸) |
 | `verify_all.py` I11 | 코드·화면이 동결 기록과 다르면 **매 push 마다 실패** |
+| `verify_all.py` I12 | [v82] T4 그림자 열의 정의 위반 감지 |
+| `docs/history/전략_v80` §6·§7 | **T4 그림자 판정 부속서** (사전 등록, 수정 금지) — v69 와 충돌 시 우선 |
 
 **OOS 장부를 보고 문턱을 바꾸면 그 표본이 사라진다.**
+
+---
+
+## 8. v80~v83 — T4 그림자 심층 (2026-08-29)
+
+| 파일 | 역할 |
+|---|---|
+| `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). 판정 규약 전력 분석(3년 창 동전던지기) + 기전 직접 측정(M1 73%·M2 77%) + 무거래 밴드 기각 |
+| `research/axis_t4_synthcrash.py` | 합성 하락장 해부 — 닷컴형 B 60% 구조·2008 은 소수 추첨(~29%). 시간추세 없음 · ¼ 양자화 유효 · 혼합 프런티어 · 비용 민감도 |
+| `research/axis_t4_krcost.py` | 한국비용(0.2%) 내성 변형 9종 — 관문 K1~K7 사전 고정, **전멸** |
+| `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 무적 · 기전 68%(재난보험형) · 사각지대 최장 112일 |
+| `docs/history/전략_v80~v83.md` | 기록 4편. **v80 §6·§7 = 판정 부속서 (수정 금지)** · v82 = 룰 감사 |

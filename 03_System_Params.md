@@ -40,6 +40,9 @@ daily-signal.yml   [v75] 대기 루프 체제 — 트리거 4개(05:17/06:17/07:
   ② nav_collect.py     실물 NAV·괴리율 적립
   ③ oos_log.py         동결 이후 하루 한 줄 append-only (판단하지 않음)
                        + T4 그림자 3열 (t4_votes/t4_rv/t4_w — 평가 전용, v68·v69. 채택안 아님)
+                       + [v80] 날짜 가드 (qqq.csv 미갱신 시 전일 값 오기록 대신 빈 칸)
+                       판정 규약: docs/history/전략_v80 §6·§7 부속서가 v69 에 우선
+                       (사건 단위 M1·M2 기전 관문 · 한도 −29% 고정 · 혼합 0.25B 평가 전용 병기)
 pages.yml            push 시 배포 + stamp_rev.py 가 화면 개정일·커밋 주입
 notify.py            [v73/v77] 실패·전환 알림 — 카카오톡 "나에게 보내기"(권장:
                      KAKAO_REST_API_KEY+KAKAO_REFRESH_TOKEN, 최초 발급은 deploy/kakao_setup.py)
@@ -58,7 +61,7 @@ verify.yml           push 마다 verify_all.py --fast — 실패하면 GitHub �
   + 화면 신선도 배너(미국장 기준 경과 거래일로 계산)가 있다.
 - 화면 3줄 표기: `종가 기준일·자동갱신 시각` / `전략 반영(화면 마지막 커밋)` / `규칙 동결·경과 N영업일`.
 
-## 4. 불변식 I1~I11 (`verify_all.py`, 전체 3초)
+## 4. 불변식 I1~I12 (`verify_all.py`, 전체 4초)
 
 | | 무엇을 막는가 |
 |---|---|
@@ -73,6 +76,7 @@ verify.yml           push 마다 verify_all.py --fast — 실패하면 GitHub �
 | I9 | **폐기 수치 12종**이 현행 문서(`retired_numbers.json`의 current_docs)에 없는가 + 보관 문서 정정 배너 |
 | I10 | 전제 감시 — 나스닥 고유 성질(2배 MDD ≤−90% · 장기 상승 · 전략>보유) 유지 |
 | I11 | **규칙 동결** — 코드·화면이 freeze.json 과 다르면 실패 |
+| I12 | T4 그림자 열 무결성 — votes 0~4 · rv>0 · w∈[0,1] · votes<2 ⟺ w=0 (v82) |
 
 ## 5. 파일 지도 (핵심층만)
 
@@ -83,9 +87,9 @@ data/signal.json      ← 오늘의 신호 (매일 덮어씀)
 data/oos_log.csv      ← 전향적 OOS 장부 (append-only)
 signal.html           ← 화면 (단일 파일)
 deploy/               ← 라이브 파이프라인 5개 — 건드리지 말 것
-verify_all.py         ← 불변식 I1~I11
+verify_all.py         ← 불변식 I1~I12
 reentry_lib.py 등     ← 엔진·데이터 체인 (FILES.md 상세)
-docs/history/         ← 전략_v18~v64 보관 (43개, 온디맨드 참조)
+docs/history/         ← 전략_v18~v83 보관 (56개, 온디맨드 참조. v80 §6·§7 = T4 판정 부속서)
 docs/raw/             ← 각 버전 문서의 원본 출력
 research/             ← 기각 축 재현 스크립트 (04 문서와 1:1)
 ```
