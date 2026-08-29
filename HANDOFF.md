@@ -26,13 +26,15 @@ python verify_all.py
 | 검증 | 자동. `verify.yml` 이 push/매일 실행, 실패하면 **이슈 자동 생성** |
 | 현행 문서 | **루트 `01~04_*.md`** ([v65] 통폐합 — 버전 문서 43개는 `docs/history/` 보관) |
 | 최신 판정 | `docs/history/전략_v59.md` (미래위험 추정 5축 — Oracle **+1030%** 인데 포착 0 이하. 최적복귀일=저점, 산포 41일) |
-| 동결 | **규칙을 바꾸지 마라.** `data/freeze.json` · `verify_all.py` I11 · `data/oos_log.csv` (v57) |
-| **동결** | **규칙을 바꾸지 마라.** `data/freeze.json` · `verify_all.py` I11 · `data/oos_log.csv` |
+| **동결** | **규칙을 바꾸지 마라.** `data/freeze.json` · `verify_all.py` I11 · `data/oos_log.csv` (v57) |
 | 미결 | 아래 §4 |
 
 ---
 
 ## 2. 하지 마라 (전부 시험하고 기각된 것)
+
+> [v82] 기각은 **시험된 맥락 안**에서만 유효하다. 구조가 다른 전략에 적용하려면
+> 그 맥락에서 재시험하라 (예: 시간 잠금 — B 기각(v55) 후 T4 에서 재시험, 별도 기각(v82)).
 
 ### 전략 축
 

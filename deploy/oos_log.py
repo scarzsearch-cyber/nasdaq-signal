@@ -35,7 +35,11 @@ COLS = ['as_of', 'close', 'high_252', 'dd', 'state', 'changed', 'rule', 'fingerp
 #   투표 = #{k ∈ {21,63,126,252} : 종가/종가[k일 전] > 1}
 #   w    = clip(40% / 실현변동성, 0, 1) × 1[투표 ≥ 2]
 #   실현변동성 = 2배 자산 근사 = 2 × (QQQ 일간수익 20일 표본표준편차) × √252
-# 종가 원천은 이 장부의 close 와 같은 data/qqq.csv (비수정) — 장부 안에서 일관되게.
+# 종가 원천은 이 장부의 close 와 같은 data/qqq.csv — 장부 안에서 일관되게.
+# ([v80 정정] 이 캐시는 Yahoo **수정주가**다. 네이버 예비 소스는 최신 봉만 원시로
+#  붙이는데 최신 봉은 두 값이 같다 — update_signal.py [v71] 참조. 구판 주석의
+#  "(비수정)"은 오기였다. 신호 계산엔 영향 없음: 원천 이원화 실측 게이트 불일치
+#  0.04% — research/axis_t4_shadow.py A-3.)
 # 이 파라미터를 나중에 바꾸면 그때까지의 그림자 기록은 무효다(사전 고정이 전부다).
 T4_LOOKS = (21, 63, 126, 252)
 T4_TH = 2
@@ -47,11 +51,18 @@ def t4_shadow(as_of):
     """as_of 종가까지의 데이터로 T4 목표비중을 계산한다. (votes, rv%, w) 또는 None."""
     if not os.path.exists(QQQ):
         return None
-    px = []
+    px, last = [], None
     with io.open(QQQ, encoding='utf-8', newline='') as fh:
         for r in csv.DictReader(fh):
             if r['Date'][:10] <= as_of:
                 px.append(float(r['Close']))
+                last = r['Date'][:10]
+    if last != as_of:
+        # [v80] 가격 파일이 as_of 까지 안 왔다 — 전일 값을 오늘 날짜로 그럴듯하게
+        # 기록하는 것보다 빈 칸이 낫다 (그림자 실패는 본 기록을 해치지 않는다).
+        print('[경고] qqq.csv 마지막 날짜(%s) != as_of(%s) — T4 그림자 빈 칸'
+              % (last, as_of), file=sys.stderr)
+        return None
     if len(px) < max(T4_LOOKS) + 1:
         return None
     votes = sum(1 for k in T4_LOOKS if px[-1] / px[-1 - k] > 1.0)

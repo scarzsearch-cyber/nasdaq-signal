@@ -331,6 +331,38 @@ def i11_freeze():
     ok('OOS 장부가 쌓이고 있다', n >= 1,
        '%d영업일 (동결 %s 이후)' % (n, fz['frozen_at']), warn=(n < 1))
 
+
+# ------------------------------------------------------------------ I12
+def i12_shadow():
+    """[v82] T4 그림자 열 무결성 — 기록이 정의와 모순되면 잡는다.
+
+    재계산 대조는 하지 않는다 — 수정주가 전체 갱신으로 과거 원자료가 미세 조정되므로
+    기록 당시 값과 어긋나는 것이 정상이다(기록은 그날의 동결 코드가 본 값이다).
+    여기서는 **정의상 불변식**만 본다: votes ∈ {0..4} · rv > 0 · w ∈ [0,1] ·
+    (votes < 2 ⟺ w == 0). 위반은 기록 파이프라인 오염을 뜻한다.
+    """
+    head("I12. T4 그림자 열 무결성 (평가 전용 기록 — v69/v80)")
+    p = 'data/oos_log.csv'
+    if not os.path.exists(p):
+        ok('oos_log.csv 존재', False, '파일 없음', warn=True)
+        return
+    import csv
+    bad, n = [], 0
+    with io.open(p, encoding='utf-8', newline='') as fh:
+        for r in csv.DictReader(fh):
+            if (r.get('t4_votes') or '') == '':
+                continue                       # 그림자 실패일은 빈 칸이 정상
+            n += 1
+            try:
+                v = int(r['t4_votes']); rv = float(r['t4_rv']); w = float(r['t4_w'])
+                if not (0 <= v <= 4 and rv > 0 and 0 <= w <= 1
+                        and ((v < 2) == (w == 0))):
+                    bad.append(r['as_of'])
+            except (KeyError, ValueError):
+                bad.append(r.get('as_of', '?'))
+    ok('그림자 기록이 정의와 모순 없음', not bad,
+       '%d행 검사%s' % (n, ' · 위반: ' + ','.join(bad[:3]) if bad else ''))
+
     # [v73] 01 문서 AUTO-STATS 블록이 최신 스냅샷과 같은 끝 날짜인가
     if os.path.exists('01_Strategy_Logic.md') and os.path.exists('data/strategy_stats.json'):
         doc = io.open('01_Strategy_Logic.md', encoding='utf-8').read()
@@ -575,6 +607,7 @@ def main():
     i2_pit(D)
     i3_lag(D)
     i11_freeze()
+    i12_shadow()
     i6_live()
     if not a.fast:
         i4_real(D)
