@@ -127,27 +127,8 @@ body{padding:28px 20px 64px;}
 .chip:hover{border-color:var(--muted);color:var(--ink);}
 .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff;}
 .scennote{font-size:15px;color:var(--muted);line-height:1.55;margin-top:8px;}
-/* [v60] 카드 지표 6개가 각각 뭔지. 비교표 각주는 화면 한참 아래라 여기서 한 번 준다.
-   한 줄 문장으로 두니 폰에서 188px 를 먹었다 — 한 줄에 하나씩 격자로 놓는다. */
-/* [v63] 규칙 카드와 같은 흰 패널. 3칸 x 2줄 — 세로로 쭉 늘어놓으면 안 읽힌다. */
-.metkey{background:var(--panel);border:1px solid var(--rule);border-radius:2px;
-  padding:14px 16px 12px;margin-top:10px;
-  display:grid;grid-template-columns:repeat(3,1fr);gap:13px 20px;
-  font-size:14px;color:var(--muted);line-height:1.5;}
-.metkey b{color:var(--ink);font-weight:600;}
-/* [v64] 한 칸 안을 네 줄로 끊는다 — 이름 / 뜻 / 지금 값 / 눈금.
-   이어 쓰면 어디까지가 정의고 어디부터가 수치인지 안 보인다. */
-.metkey .mk .nm{display:flex;align-items:baseline;gap:7px;
-  font-size:15px;font-weight:700;color:var(--ink);letter-spacing:.03em;}
-.metkey .mk .ar{font-size:12px;font-weight:600;color:var(--attack);
-  letter-spacing:0;white-space:nowrap;}
-.metkey .mk .df{display:block;margin-top:3px;}
-.metkey .mk .rd{display:block;margin-top:7px;color:var(--ink);}
-.metkey .mk .rd b{color:var(--attack);font-weight:700;}
-.metkey .mk .bm{display:block;margin-top:2px;font-size:13px;color:var(--muted);}
-.metkey .dir{grid-column:1/-1;margin-top:2px;padding-top:9px;border-top:1px solid var(--hairline);}
-@media(max-width:900px){ .metkey{grid-template-columns:repeat(2,1fr);} }
-@media(max-width:600px){ .metkey{grid-template-columns:1fr;gap:11px;padding:13px 14px 11px;} }
+/* [v130] 지표 풀이(metkey) 패널 삭제 — 소유자 지시: 성과 비교표에서 다 보인다.
+   심사 등급표(v121)는 성과표 아래 전략별 한 줄(drawPerf)로 이사. 재도입 제안 금지. */
 
 /* ---- 신호 패널 ---- */
 .signal{display:grid;grid-template-columns:156px 1fr;gap:0;background:var(--panel);
@@ -715,7 +696,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
   <div class="pick">
     <h2>규칙</h2>
     <div class="opts" id="opts"></div>
-    <div class="metkey" id="metkey"></div>
     <div class="scen" id="scen"></div>
     <div class="scennote" id="scennote"></div>
   </div>
@@ -844,8 +824,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
   <div class="guide" id="trajPanel">
     <h2>위기 궤적 참고</h2>
     <div class="hint" style="margin-top:0;font-size:13px">
-      읽는 법 — <b>지금 낙폭(파란 선)이 과거 위기들의 같은 「고점 후 경과일」 위치에서
-      얼마나 깊은지</b>를 견주는 그림입니다.
       각 위기가 실제로 끈 시간: <b>닷컴 2000</b> 저점까지 2년 7개월(−83%)·전고점 회복 14년 11개월 ·
       <b>금융위기 2008</b> 1년 1개월(−53%)·회복 3년 2개월 ·
       <b>코로나 2020</b> 1개월(−29%)·회복 4개월 ·
@@ -1087,8 +1065,6 @@ function drawPicker(){
     </div>`;
   }).join('');
 
-  paintMetKey(s);
-
   const sc = document.getElementById('scen');
   if(STATS){
     sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.map(x=>
@@ -1117,87 +1093,11 @@ function drawPicker(){
   }
 }
 
-/* [v62] 지표 풀이 — 정의만 주면 0.547 이 좋은 건지 알 수 없다.
-   각 지표를 **지금 값이 실제로 뜻하는 것**으로 번역해 옆에 붙인다. */
-function paintMetKey(sc){
-  const el = document.getElementById('metkey');
-  if(!el) return;
-  const m = sc ? stratsOf(sc)[sel] : null;
-  // nm 이름 / ar 방향 / df 뜻 / rd 지금 값이 뜻하는 것
-  // [v72] 벤치마크 줄은 뺐다 — 비교는 아래 성과 비교표 한 곳에서만 한다.
-  const row = (nm, ar, df, rd) =>
-    `<div class="mk"><div class="nm">${nm}<span class="ar">${ar}</span></div>` +
-    `<span class="df">${df}</span>` +
-    `${rd?`<span class="rd">${rd}</span>`:''}</div>`;
-  if(!m){ el.innerHTML = ''; return; }
-
-  // MDD → 원금이 얼마가 되나. 백분율보다 금액이 훨씬 빨리 읽힌다. (단위: 만원)
-  const won = x => Math.round(1000 * (1 + x/100));
-  // 만원 단위를 억·조로 접는다 — '2,761,328만원' 은 아무도 못 읽는다
-  const money = w => w >= 1e8 ? (w/1e8).toFixed(1)+'조원'
-                   : w >= 1e4 ? Math.round(w/1e4).toLocaleString('en-US')+'억원'
-                              : Math.round(w).toLocaleString('en-US')+'만원';
-  // Calmar 의 역수 = 최악의 낙폭을 메우는 데 필요한 '연수익 몇 년치'
-  const yrs = x => (1/x).toFixed(1);
-
-  // [v64] 지표마다 자연스러운 말로. MDD 를 '클수록'이라 쓰면 숫자로는 맞아도
-  //       (−44 > −56) 사람은 반대로 읽는다.
-  const UP = '↑ 클수록', DN = '↓ 작을수록';
-  // [v121] 심사평(소유자 요청 2026-08-30) — 통상 눈금의 고정 등급표 + 이 기준 4개
-  //        변형(고점·평균) 대비 위치. 공표 수치의 해석 표시일 뿐 매매 판단·전략 로직 무관.
-  //        Calmar·Sortino 는 수익을 위험으로 나눈 값이라 "수익이 크면 같은 낙폭도
-  //        감내할 만하다"가 지표 자체에 이미 들어 있다. Ulcer 만 수익 보정 없는 순수 고통.
-  const jd = (key, cur, low) => {                // low=true 면 작을수록 좋은 지표
-    if(cur == null || !sc) return '';
-    const vs = PERF_VARIANTS.map(([vk]) => sc[vk] && sc[vk][sel] ? sc[vk][sel][key] : null)
-      .filter(x => x != null);
-    if(vs.length < 2) return '';
-    const best = low ? Math.min(...vs) : Math.max(...vs);
-    const avg  = vs.reduce((a, b) => a + b, 0) / vs.length;
-    const rank = 1 + vs.filter(x => low ? x < cur : x > cur).length;
-    const f = x => key === 'ulcer' ? x.toFixed(1) : x.toFixed(3);
-    return ` · 이 기준 ${vs.length}개 변형 중 <b>${rank}위</b> (최고 ${f(best)} · 평균 ${f(avg)})`;
-  };
-  const gCal = v => v >= 3 ? '탁월' : v >= 1 ? '우수' : v >= 0.5 ? '보통' : '미흡';
-  const gSor = v => v >= 3 ? '탁월' : v >= 1.5 ? '우수' : v >= 1 ? '무난' : '미흡';
-  const gUlc = v => v < 5 ? '낮음' : v < 10 ? '보통' : v < 20 ? '높음' : '매우 높음';
-  // [v74] 54년 시나리오의 "2.2조원"은 산술로는 맞지만 도달 가능한 돈이 아니다
-  //       (세전 + 당시 상품 부재 + 54년 완주 가정). 자(尺)로만 쓰라고 명시한다.
-  const moneyLine = m.years > 35
-    ? `1,000만원 → <b>${money(m.final*1000)}</b> — 계산상 숫자일 뿐 실제로 받을 수 있는
-       돈이 아닙니다(세전 · 당시엔 이 상품이 없었음). 규칙끼리 비교하는 용도입니다`
-    : `1,000만원 → <b>${money(m.final*1000)}</b> (세전)`;
-  el.innerHTML =
-    row('최종배수', UP, '시작 1원이 얼마가 됐나', moneyLine) +
-
-    row('MDD', '↓ 얕을수록', '고점 대비 <b>최악의 한 점</b> — 한 번은 겪는 값',
-        `1,000만원이 <b>${won(m.mdd)}만원</b>까지`) +
-
-    row('회복기간', '↓ 짧을수록', '전고점을 되찾기까지 걸린 <b>최장</b> 기간',
-        `<b>${uwfmt(m)}</b>`) +
-
-    row('CALMAR', UP, '낙폭 대비 효율 — <b>일시적 대폭락</b> 위험을 본다',
-        `${m.calmar.toFixed(3)} — 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움<br>
-         심사: <b>${gCal(m.calmar)}</b> — 통상 1↑ 우수 · 3↑ 탁월 · 장기일수록 낮아지는 게 정상.
-         수익÷낙폭이라 <b>수익이 클수록 같은 MDD 도 후하게</b> 평가되는
-         지표${jd('calmar', m.calmar, false)}`) +
-
-    row('SORTINO', UP, '하락 변동성 대비 수익 — <b>지속적 손실</b> 위험을 본다',
-        m.sortino==null ? '—'
-          : `<b>${m.sortino.toFixed(3)}</b><br>
-             심사: <b>${gSor(m.sortino)}</b> — 통상 1↑ 무난 · 1.5↑ 우수 · 3↑ 탁월.
-             이것도 수익÷위험 지표(분모가 하락 변동성)${jd('sortino', m.sortino, false)}`) +
-
-    row('ULCER', DN, '<b>늘 얼마나 물속이었나</b> — MDD 가 못 보는 평상시의 고통',
-        m.dd_mean==null ? '—'
-          : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`
-            + (m.ulcer == null ? '' : `<br>심사: Ulcer ${m.ulcer.toFixed(1)} —
-               <b>${gUlc(m.ulcer)}</b> — 통상 5↓ 낮음 · 10↑ 높음. 수익 보정이 <b>없는</b>
-               순수 고통 눈금이라(레버리지 전략은 구조적으로 높음) 수익 대비 평가는
-               Calmar·Sortino 몫${jd('ulcer', m.ulcer, true)}`)) +
-
-    '';                                         // [v129] 안내 꼬리줄 제거 — 소유자 지시
-}
+/* [v130] 지표 풀이(paintMetKey) 삭제 — 소유자 지시(성과 비교표로 충분).
+   v121 심사 등급표(통상 눈금 고정 룩업 — 매매 판단 아님)만 남겨 drawPerf 가 쓴다. */
+const gCal = v => v >= 3 ? '탁월' : v >= 1 ? '우수' : v >= 0.5 ? '보통' : '미흡';
+const gSor = v => v >= 3 ? '탁월' : v >= 1.5 ? '우수' : v >= 1 ? '무난' : '미흡';
+const gUlc = v => v < 5 ? '낮음' : v < 10 ? '보통' : v < 20 ? '높음' : '매우 높음';
 
 /* ---------------- 성과 비교표 ---------------- */
 // [v73] 전략 4줄 체제 (벤치마크 줄은 소유자 요청으로 제거 — 데이터는 JSON 에 유지):
@@ -1252,16 +1152,23 @@ function drawPerf(){
   // [v60] 각주를 문단으로 끊는다. 한 덩어리로 이어 쓰면 아무도 안 읽는다.
   //       ① 지표 뜻 ② 왜 두 지표를 더 두나 ③ 읽을 때의 함정 ④ 각 줄의 전제 ⑤ 계산 조건
   // [v62] 요점만. 길게 풀어 쓰면 안 읽힌다 — 자세한 것은 카드 아래 지표 풀이에 있다.
+  // [v130] 이름 읽는 법 문단 삭제(소유자 지시) · 전략별 심사 한 줄 추가 —
+  //        선택된 기준(scen) 수치에 v121 고정 등급표를 대는 해석 표시. 매매 판단 아님.
+  const jsc = scenOf();
+  let judge = '';
+  if(jsc){
+    const jrows = PERF_VARIANTS.map(([vk, vlab]) => {
+      const m = jsc[vk] ? jsc[vk][sel] : null;
+      if(!m) return '';
+      return `<br><b>${vlab}</b> — Calmar ${m.calmar.toFixed(3)} <b>${gCal(m.calmar)}</b>`
+        + (m.sortino == null ? '' : ` · Sortino ${m.sortino.toFixed(3)} <b>${gSor(m.sortino)}</b>`)
+        + (m.ulcer == null ? '' : ` · Ulcer ${m.ulcer.toFixed(1)} <b>${gUlc(m.ulcer)}</b>`);
+    }).join('');
+    if(jrows) judge = `<p><span class="lead">심사</span> — 기준 <b>${jsc.label}</b> ·
+      통상 눈금: Calmar 1↑ 우수·3↑ 탁월 / Sortino 1↑ 무난·1.5↑ 우수 / Ulcer 낮을수록(10↑ 높음)${jrows}</p>`;
+  }
   document.getElementById('perfNote').innerHTML =
-    `<p><span class="lead">이름 읽는 법</span> — <b>−16</b> 은 채택안(항상 QLD 100%),
-       <b>헤지6/4</b> 는 상승장에도 QLD 60%/SCHD 40%(월 1회 재조정)만 드는 저레버리지형.
-       <b>기본</b> = 방어 배당40·국채40·금20, <b>배당</b> = 방어 배당100.
-       넷 다 같은 신호(−16/−16)·같은 체결·같은 비용.
-       <b style="color:var(--attack)">파란 전략명이 추천안</b>입니다 —
-       6/4 는 QLD 10~90% 전수 실측에서 Calmar(폭락 대비 수익 효율) 최고 구간(50~60%)의
-       수익 높은 쪽, 방어는 기본형(54년 실측 MDD −46% vs 배당 −65%).</p>
-
-     <p><span class="lead">주의</span> —
+    `<p><span class="lead">주의</span> —
        <b style="color:var(--attack)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b>
        — 기준끼리는 <b>CAGR 열</b>로. (달러 165배 vs 원화 2,761배도 같은 26.6년으로
        맞추면 165 vs 169.) 이 우위의 <b style="color:var(--ink)">96%는 닷컴 한 사건</b>에서
@@ -1271,7 +1178,7 @@ function drawPerf(){
 
      <p><span class="lead">전제</span> — 「원화」는 환노출 2배 + 슬리피지 0.1%,
        「달러」는 미국 종가 체결. 달러·54년은 나스닥 종합/NDX/QQQ를 이어붙인
-       대리 시계열 — 같은 자산이 아닙니다.</p>`;
+       대리 시계열 — 같은 자산이 아닙니다.</p>` + judge;
   drawHoriz();
 }
 
@@ -1300,13 +1207,10 @@ function drawHoriz(){
     if(hg) body += `<tr class="rec"><td class="strat">헤지6/4 기본</td>${cells(hg)}</tr>`;
   });
   host.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  // [v130] 「여기서 보이는 것」 문단 삭제 — 소유자 지시
   document.getElementById('horizNote').innerHTML =
     `<p>네 값 모두 <b style="color:var(--ink)">${STATS.scenarios[0].strategies.B.end}</b> 에
-       끝나는 같은 창이라 <b>세로로 비교해도 됩니다</b>.</p>
-     <p><span class="lead">여기서 보이는 것</span> —
-       차이는 <b style="color:var(--attack)">기간이 길수록 복리로 벌어집니다</b>.
-       헤지는 상승 노출 60%라 잔잔한 구간마다 조금 뒤지는 대신 낙폭·회복기간을
-       깎습니다 — <b>더 버는 쪽이 아니라 덜 흔들리는 쪽</b>입니다.</p>`;
+       끝나는 같은 창이라 <b>세로로 비교해도 됩니다</b>.</p>`;
 }
 
 /* [v112] 모바일 성과표 열 토글 — 화면 상태일 뿐, 저장 안 함 (체결 전체 보기와 같은 패턴) */
@@ -2905,6 +2809,12 @@ function drawTrajectory(tr){
     g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${gridColor}"/>`+
        `<text x="${PL-6}" y="${Y(lv)+3}" text-anchor="end" font-size="13" fill="${axisColor}" font-family="Pretendard Variable, Pretendard, sans-serif">${lv}%</text>`;
   }
+  // [v130] 가로축 눈금 — 경과 거래일 (위기마다 연도가 달라 날짜 대신 경과일 공통 축)
+  for(const d of [0,100,200,300,400]){
+    if(d > maxLen - 1) continue;
+    if(d > 0) g+=`<line x1="${X(d)}" y1="${PT}" x2="${X(d)}" y2="${H-PB}" stroke="${gridColor}"/>`;
+    g+=`<text x="${X(d)}" y="${H-8}" text-anchor="${d===0?'start':'middle'}" font-size="12" fill="${axisColor}" font-family="Pretendard Variable, Pretendard, sans-serif">${d}일</text>`;
+  }
   const lines = S.exit===S.enter ? [[-16,inkColor]] : [[S.exit*100,'#0B5FD6'],[S.enter*100,'#B8722A']];
   for(const [lv,col] of lines){
     g+=`<line x1="${PL}" y1="${Y(lv)}" x2="${W-PR}" y2="${Y(lv)}" stroke="${col}" stroke-dasharray="3 3" opacity=".6"/>`;
@@ -2916,8 +2826,7 @@ function drawTrajectory(tr){
   }
   let legend=names.map(n=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:15px">
     <span style="width:18px;height:${n==='현재'?3:2}px;background:${COL[n]||'#888'};display:inline-block"></span>${n}</span>`).join('');
-  host.innerHTML=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:480px;height:auto">${g}
-    <text x="${PL}" y="${H-8}" font-size="13" fill="${axisColor}" font-family="Pretendard Variable, Pretendard, sans-serif">고점 이후 경과일 →</text></svg></div>
+  host.innerHTML=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:480px;height:auto">${g}</svg></div>
     <div style="margin-top:8px">${legend}</div>
     <div class="hint">점선은 ${S.exit===S.enter?'전환선 −16%(진입·복귀 공통)':'두 전환선'}.</div>`;
 }
