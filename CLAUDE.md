@@ -1,4 +1,4 @@
-# CLAUDE.md — 이 저장소에서 작업하는 모든 AI 세션의 규칙 (v121)
+# CLAUDE.md — 이 저장소에서 작업하는 모든 AI 세션의 규칙 (v125)
 
 > 어떤 세션이든 이 파일이 먼저 로드된다. 여기와 파일이 어긋나면 **파일이 옳다** —
 > 추측하지 말고 열어서 확인하라. 상세 인수인계는 `HANDOFF.md`.
@@ -38,8 +38,9 @@
   전략 로직 변경 0건])을 먼저 보고하고, 소유자가 승인한 항목만 구현.
 - 구현 후 필수 검증: `python verify_all.py --fast` **실패 0** · 412px 가로 스크롤 0 ·
   콘솔 오류 0 · 기존 localStorage 키(`b_port_v1`, `b_trades_v1`,
-  `b_goal_v1`, `b_lastseen_v1`, `b_lastbackup_v1`, `b_chk_*`, `qqq_signal_*`) 구조 유지
-  (`b_view_v1` 은 v113 에서 폐기 — 로드 시 삭제).
+  `b_goal_v1`, `b_lastseen_v1`, `b_lastbackup_v1`, `b_undo_v1`(v123), `b_chk_*`,
+  `qqq_signal_*`) 구조 유지 (`b_view_v1` 은 v113 에서 폐기 — 로드 시 삭제.
+  IndexedDB `b_autobak_v1` 은 v124 자동 백업 파일 핸들).
 - 커밋: 작업 전 `git pull`. **signal.html 을 바꾸는 커밋 제목에 vNN 필수**
   (화면의 "전략 반영 vNN" 표기가 커밋 제목에서 추출됨 — deploy/stamp_rev.py).
   커밋 메시지에 큰따옴표 금지 (PowerShell 5.1 이 인자를 쪼갠다).
@@ -105,6 +106,14 @@
   + 이 기준 4개 변형 중 순위·최고·평균. 수치 해석 표시일 뿐 매매 판단 아님.
   Calmar·Sortino 는 수익÷위험이라 「수익 크면 낙폭 감내」가 지표에 내장, Ulcer 는
   수익 보정 없음 — 이 구분을 화면에 명시).
+- v122~v125 (소유자 승인 2026-08-30): 체결가 오타 가드(기준가 ±20% 초과 시 확인),
+  복원 되돌리기(덮어쓰기 직전 1세대 스냅샷 `b_undo_v1` + applyState 분리),
+  자동 백업 연결(File System Access — PC 전용, 핸들은 IndexedDB `b_autobak_v1`,
+  입력 변경 시 디바운스 자동 저장, 안드로이드 미지원이라 버튼 자체 숨김),
+  **전환일 리허설 모드**(가상 전환을 paintState 로 시연 — 실데이터 무접촉:
+  saveSeen 차단·체크리스트 `b_chk_rehearsal` 격리(종료 시 삭제)·체결 기록 차단,
+  renderAuto/render 첫 줄 rehClear 로 어떤 재그리기든 리허설 해제).
+- 그 외: 시장 시계, 낙폭 게이지, 내 포트폴리오, 계산기, 성과 비교표,
   ISA 가이드, 위기 궤적, T4 패널, 신선도 경고, 수동 입력 백업.
 
 ## 5. 알려진 공백 (개선 환영 영역)
