@@ -2,10 +2,11 @@
 """
 분기 점검 — 이것 하나만 돌리면 된다.
 
-    python 점검.py
+    python 내가_보는_것/점검.py
 
 흩어진 정기 점검 스크립트를 한 번에 돌리고 **한국어로 결론만** 보여준다.
 경로를 외울 필요도, 어느 파일을 돌릴지 고를 필요도 없다.
+어느 폴더에서 실행해도 된다 — 아래 chdir 이 저장소 루트를 스스로 찾는다.
 
 무엇을 보는가:
   [1] 전제 감시  — 전략이 아직 유효한 조건 안에 있나 (research/surv_map.py)
@@ -13,7 +14,7 @@
   [2] 체결 비용  — 0.2% 가정이 실측과 맞나 (research/exec_cost.py)
 
 언제 돌리나: **분기 1회** (1·4·7·10월 아무 때나). 급할 것 없다.
-자세한 설명: 운영_점검표.md
+자세한 설명: 같은 폴더의 운영_점검표.md
 """
 import io
 import os
@@ -21,7 +22,9 @@ import re
 import subprocess
 import sys
 
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+# 이 파일은 내가_보는_것/ 안에 있으므로 **저장소 루트는 부모 폴더**다.
+# research/ · data/ 를 찾으려면 루트로 내려가야 한다 (어느 위치에서 실행하든 동작).
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     sys.stdout.reconfigure(encoding='utf-8')
 except Exception:
@@ -135,7 +138,7 @@ def main():
         print(' 결과: 할 일 없음 — 전부 정상. 다음 분기에 또 돌리면 된다.')
     print(THIN)
     print(' 이 점검은 전략을 바꾸지 않는다. 이상이 있어도 「지켜본다」가 기본이다.')
-    print(' 자세한 설명: 운영_점검표.md\n')
+    print(' 자세한 설명: 같은 폴더의 운영_점검표.md\n')
 
 
 if __name__ == '__main__':

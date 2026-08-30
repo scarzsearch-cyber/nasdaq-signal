@@ -82,7 +82,7 @@ verify.yml           push 마다 verify_all.py --fast — 실패하면 GitHub �
 ## 5. 파일 지도 (핵심층만)
 
 ```
-01~04_*.md            ← 현행 문서 (이 4개 + 전략_요약.md 목차가 읽기 층)
+01~04_*.md            ← 현행 문서 (이 4개 + 내가_보는_것/전략_요약.md 목차가 읽기 층)
 data/freeze.json      ← 동결 규칙 (기계용 truth)
 data/signal.json      ← 오늘의 신호 (매일 덮어씀)
 data/oos_log.csv      ← 전향적 OOS 장부 (append-only)
