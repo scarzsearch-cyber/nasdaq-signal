@@ -1881,7 +1881,9 @@ function drawTlog(){
       <input id="tlPx" type="text" inputmode="numeric" placeholder="체결가(원)" aria-label="체결가(원)">
       <button id="tlAdd" type="button">기록</button></div>
       <div id="tlChips"></div>
-      <div class="tlio"><button id="tlExpFile" type="button">파일로 저장</button>
+      <div class="tlio"><button id="tlExpFile" type="button">파일로 저장</button><button
+        id="tlShare" type="button" hidden
+        title="백업 파일을 공유 시트로 바로 보내기 — 카톡 나에게 보내기 등">공유</button>
         <label class="file" style="font-size:12.5px;font-weight:400;padding:5px 10px;border-color:var(--rule)">
           파일에서 복원<input type="file" id="tlImpFile" accept=".json,application/json"></label><button
         id="tlExpCsv" type="button">CSV 내보내기</button>
@@ -1906,20 +1908,34 @@ function drawTlog(){
     // [v109] 클립보드 백업 복사/붙여넣기 제거 — v93 파일 방식이 상위호환(잘림·줄바꿈
     //        깨짐 없음)이라 과도기 버튼을 정리. 복원 검증은 applyBackup 이 그대로 담당.
     // [v93] 파일 저장/복원 — 긴 JSON 복붙(잘림·줄바꿈 깨짐) 없이 폰↔PC 이동
-    document.getElementById('tlExpFile').addEventListener('click', () => {
-      // [v114] goal(단계 계산기 목표액) 포함 — v 는 1 유지: goal 없는 옛 파일도,
-      //        goal 을 모르는 옛 화면도 서로 그대로 호환된다 (선택 필드).
-      const txt = JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2);
-      const blob = new Blob([txt], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
+    // [v114] goal(단계 계산기 목표액) 포함 — v 는 1 유지: goal 없는 옛 파일도,
+    //        goal 을 모르는 옛 화면도 서로 그대로 호환된다 (선택 필드).
+    // [v119] 저장·공유가 같은 내용을 쓰도록 공용 헬퍼로 분리.
+    function backupText(){ return JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2); }
+    function backupName(){
       const tp = tzParts(new Date(), SEOUL);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.json';
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+      return 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.json';
+    }
+    document.getElementById('tlExpFile').addEventListener('click', () => {
+      dlBlob(new Blob([backupText()], {type: 'application/json'}), backupName());
       markBackup();                          // [v105] 리마인더 기준일 갱신
     });
+    // [v119] 공유 시트로 백업 직송 — 「파일로 저장 → 다운로드 폴더에서 찾아 → 카톡」
+    //        3단계가 폰에서 1번이 된다. 파일 공유를 지원하는 환경에서만 버튼 표시.
+    (function(){
+      const b = document.getElementById('tlShare');
+      let ok = false;
+      try{ ok = !!(navigator.canShare && navigator.canShare({files: [new File([''], 'b.json', {type: 'application/json'})]})); }
+      catch(e){ ok = false; }
+      if(!b || !ok) return;
+      b.hidden = false;
+      b.addEventListener('click', () => {
+        const f = new File([backupText()], backupName(), {type: 'application/json'});
+        navigator.share({files: [f], title: '나스닥 신호 백업'})
+          .then(() => markBackup())          // 공유를 실제로 마쳤을 때만 백업으로 친다
+          .catch(() => {});                  // 시트 닫기(취소) 포함 — 조용히. 저장 버튼은 그대로 남아 있다
+      });
+    })();
     document.getElementById('tlImpFile').addEventListener('change', (ev) => {
       const f = ev.target.files[0];
       ev.target.value = '';
