@@ -34,8 +34,9 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (56) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
-            예외적으로 산출물 data/crisis_paths.json 이 배포됨). 각 파일 상단에 경로보정 3줄
+research/   (57) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+            예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_gates.py(2026-08-30
+            소유자 지시 가설 실험 — 다자산 추세 이상형 2종, 관문② 탈락). 각 파일 상단에 경로보정 3줄
 deploy/     라이브 파이프라인 — 건드리지 말 것
 data/       화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
 docs/       history/(56 — 전략_v18~v83 보관층) · raw/ · HANDOFF_전체이력
