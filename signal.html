@@ -328,7 +328,11 @@ td.s-schd{color:var(--defend);font-weight:600;}
   border-radius:2px;padding:20px 22px;}
 .guide h2{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-size:16px;font-weight:700;
   letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;}
-/* [v133] .clock/.rules(한국장 실행 시각 상세) 는 guide.html §③으로 이식 — 소유자 지시(화면이 길다) */
+/* [v133] .clock(실행 시각 표)은 guide.html §③ 이식과 함께 삭제 — 소유자 지시(화면이 길다).
+   .rules 는 taxPanel「놓치기 쉬운 것」이 계속 쓰므로 남긴다 (v133 회귀 정정). */
+.rules{font-size:17px;line-height:1.7;color:var(--muted);margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--rule);}
+.rules b{color:var(--ink);}
 /* [v129] .foot 면책 문구 제거 — 소유자 지시(개인 도구, 상기 문구 불필요) */
 
 /* ---- 상단 고정 요약 (스크롤 시) ---- */
@@ -685,7 +689,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
        자동 전환 없음. 목표액만 이 기기에 저장(신규 키 b_goal_v1).
        [v133] 「참고」군(v132)에서 규칙 카드 위로 이동 — 소유자 지시(자주 확인하는 항목). -->
   <div class="guide" id="goalPanel">
-    <h2>내 단계는 어디? <span style="font-size:12px;font-weight:400;color:var(--muted)">— 형성기 / 감속기 / 인출기 · 기준은 설명서 §⑦ · 저장은 이 기기</span></h2>
+    <h2>내 단계는 어디? <span style="font-size:12px;font-weight:400;color:var(--muted)">— 형성기 / 감속기 / 인출기 · 기준은 설명서 §⑦</span></h2>
     <div class="row"><label style="font-size:15px">목표 총자산(원)
       <input type="text" id="goalTarget" inputmode="numeric" placeholder="예: 500,000,000" style="width:160px"></label></div>
     <div id="goalBody" style="margin-top:10px"></div>
@@ -1423,9 +1427,10 @@ function calcCompute(){
   if(left) left.textContent = cash > 0 ? (cash - spentAll).toLocaleString('en-US') + ' 원' : '—';
   const t = new Date();
   document.getElementById('calcNote').innerHTML =
-    `가격은 <b>직접 입력</b> — 주문 직전 호가를 넣으세요(실시간 시세 미연동) ·
+    /* [v134] 「직접 입력」과 「실시간 시세 미연동」은 같은 말 — 한 번만 */
+    `주문 직전 호가를 <b>직접 입력</b>(실시간 시세 미연동) ·
      계산 ${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')} ·
-     주수는 내림, 잔돈은 현금으로 · 체결은 <b>09:05~15:20</b>.`;
+     주수 내림·잔돈은 현금 · 체결 <b>09:05~15:20</b>.`;
 }
 function drawCalc(){
   const body = document.getElementById('calcBody');
@@ -1648,8 +1653,9 @@ function portCompute(){
   if(maxdev > 2) sum += ` · 위 조정 후 예상 현금 <b>${fmtA((PORT.cash || 0) + sellCash - buyCash)}</b>`;
   comp.innerHTML = bars + `<div class="psum">${sum}</div>`
     + (warns.length ? `<div class="pwarn">⚠ ${warns.join(' · ')}</div>` : '');
-  note.innerHTML = `주수는 내림(매수)·보유 한도(매도) 기준 · 입력은 이 기기 브라우저에만 저장
-    ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''} · <b>자동 주문 없음</b> — 체결은 직접, <b>09:05~15:20</b>.`;
+  /* [v134] 「이 기기 브라우저에만 저장」은 패널 제목의 「저장은 이 기기」와 중복 — 삭제 */
+  note.innerHTML = `주수는 내림(매수)·보유 한도(매도)
+    ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''} · <b>자동 주문 없음</b> — 체결은 직접 <b>09:05~15:20</b>.`;
 }
 
 /* [v91] 주문 메모 — MTS 입력·카톡 나에게 보내기용 (제미나이 C1+C3 통합 채택) */
@@ -1672,9 +1678,9 @@ function drawGoal(){
   if(!body) return;
   const t = GOAL && GOAL.target > 0 ? GOAL.target : 0;
   if(!t){
+    /* [v134] 단계 3종은 패널 제목이 이미 나열 — 여기선 생략 */
     body.innerHTML = `<div class="hint" style="font-size:13.5px;margin-top:0">목표 총자산을 입력하면
-      현재 단계(형성기/감속기/인출기)를 보여줍니다 — 진행률은 위
-      <b>내 포트폴리오</b>의 총 평가액(현금 포함)을 그대로 씁니다.</div>`;
+      현재 단계를 보여줍니다 — 진행률은 위 <b>내 포트폴리오</b>의 총 평가액(현금 포함) 기준.</div>`;
     return;
   }
   const cur = PORT_TOTAL || 0;
@@ -1754,7 +1760,7 @@ function tlogChips(){
   const el = document.getElementById('tlChips');
   if(!el) return;
   if(!PLAN.length){ el.innerHTML = ''; return; }
-  el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-top:8px">예정 주문 — 누르면 아래 입력칸이 채워집니다 (체결가만 실제 값으로 고치세요)</div>'
+  el.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-top:8px">예정 주문 — 누르면 입력칸이 채워집니다 (체결가만 수정)</div>'
     + PLAN.map((p, i) => `<button class="chipbtn" type="button" data-i="${i}">${p.side === 'sell' ? '매도' : '매수'} ${shortName(p.code)} ${p.qty}주</button>`).join('');
   el.querySelectorAll('.chipbtn').forEach(b => b.addEventListener('click', () => {
     const p = PLAN[+b.dataset.i];
