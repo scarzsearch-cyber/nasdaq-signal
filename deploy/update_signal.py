@@ -140,6 +140,68 @@ def load_cached():
     return df.sort_index()
 
 
+# [v137] 종가 이상치 가드 — 04 §5-8 이 실측한 공백을 메운다.
+#   실측: ±10% 종가 오류 200회 중 49회가 신호를 바꿨고 최악 −19.1%. 가드가 없었다.
+#   임계값은 실측에서 나온다(임의 임계 금지 — SURVIVAL_MONITOR §11):
+#   QQQ 1999~2026 일간 |수익| 최대 16.84%(2001-01-03) · 99.9분위 10.73% · 20% 초과 0일.
+BIG_MOVE = 0.10        # 이 이상 움직이면 「대조가 필요한 큰 움직임」
+XSRC_TOL = 0.005       # 두 소스가 같은 날 종가에 이 이상 어긋나면 데이터 오류
+
+
+def sanity_check(px, source):
+    """입력 검증 전용 — 전략 파라미터·판정 로직에 일절 관여하지 않는다.
+
+    크기만으로는 「진짜 폭락」과 「데이터 오류」를 구별할 수 없다(둘 다 −10%대가 가능).
+    그래서 큰 움직임일 때만 **다른 소스로 대조**한다.
+
+    ★ 실패 방향 규약 (이 함수의 핵심):
+      · 인프라 문제(대조 소스 불통·형식 변경)에는 **통과**시킨다 — fail open.
+        진짜 폭락일에 대조 소스가 죽었다고 신호를 막으면 04 §5-8 이 실측한
+        「닷컴 방어 진입을 놓치면 −96.5%」가 현실이 된다.
+      · 막는 것은 **두 소스가 실제로 어긋났을 때**와 **값 자체가 불가능할 때**뿐.
+    """
+    if px is None or len(px) == 0:
+        raise RuntimeError("[가드] 시세가 비었다")
+    last = float(px.iloc[-1])
+    if not np.isfinite(last) or last <= 0:
+        raise RuntimeError(f"[가드] 종가가 불가능한 값이다: {last}")
+    if len(px) < 2:
+        return
+    move = last / float(px.iloc[-2]) - 1
+    if abs(move) <= BIG_MOVE:
+        return
+
+    day = px.index[-1]
+    print(f"[가드] 큰 움직임 감지 {move:+.2%} ({day.date()}) — 다른 소스로 대조한다",
+          file=sys.stderr)
+    try:
+        if source == "naver":
+            other = fetch()                      # 야후로 대조
+            ref = float(other.loc[day])
+            oname = "yahoo"
+        else:
+            other = fetch_naver()                # 네이버로 대조 (최신 한 줄)
+            if other.index[-1] != day:
+                print(f"[가드] 대조 소스의 최신일({other.index[-1].date()})이 다르다 "
+                      f"— 대조 불가, 통과시킨다", file=sys.stderr)
+                return
+            ref = float(other.iloc[-1])
+            oname = "naver"
+    except Exception as e:
+        print(f"[가드] 대조 소스 사용 불가({e}) — **통과시킨다**(fail open). "
+              f"진짜 폭락일을 막지 않기 위한 규약이다.", file=sys.stderr)
+        return
+
+    diff = abs(last / ref - 1)
+    if diff > XSRC_TOL:
+        raise RuntimeError(
+            f"[가드] 두 소스가 어긋난다 — 데이터 오류로 판단해 중단한다. "
+            f"{source}={last:.2f} vs {oname}={ref:.2f} (차이 {diff:.2%} > {XSRC_TOL:.1%}). "
+            f"수동 확인 후 재실행하라.")
+    print(f"[가드] 대조 일치({oname}={ref:.2f}, 차이 {diff:.3%}) — 진짜 움직임이다. 진행",
+          file=sys.stderr)
+
+
 def drawdown(px: pd.Series):
     roll_max = px.rolling(LOOKBACK, min_periods=60).max()
     return (px / roll_max - 1), roll_max
@@ -211,6 +273,10 @@ def main():
     if cached is not None:
         px = pd.concat([cached, px])
         px = px[~px.index.duplicated(keep="last")].sort_index()
+
+    # [v137] 이상치 가드 — 반드시 CSV 쓰기 **전**에. 네이버 대조가 옛 캐시를 기준으로
+    # 「더 새로운 날인가」를 판정하므로, 캐시를 덮어쓴 뒤엔 대조가 불가능해진다.
+    sanity_check(px, source)
 
     px.rename("Close").to_frame().to_csv(CSV_PATH, index_label="Date")
 
