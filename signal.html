@@ -1829,13 +1829,9 @@ function tlogChips(){
 }
 function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
 function saveTrades(){ lsSet(TKEY, JSON.stringify(TRADES)); }
-/* [v93] 백업 검증·적용 — 붙여넣기 복원과 파일 복원이 공유 */
-function applyBackup(j){
-  if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
-    alert('백업 형식이 올바르지 않습니다 — 아무것도 바꾸지 않았습니다.'); return false;
-  }
-  if(!confirm('현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
-              + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return false;
+/* [v93] 백업 검증·적용 — 붙여넣기 복원과 파일 복원이 공유
+   [v123] 적용 코어(applyState)를 분리 — 복원 되돌리기(undo)가 같은 경로를 쓴다. */
+function applyState(j){
   PORT = j.port; TRADES = j.trades;
   savePort(); saveTrades();
   if(j.goal && pnum(j.goal.target) > 0){         // [v114] 목표액 — 옛 백업엔 없음(선택 필드)
@@ -1848,6 +1844,37 @@ function applyBackup(j){
   const ci = document.querySelector("#portBody .prow[data-code='_cash'] input");
   if(ci) ci.value = PORT.cash || '';
   portCompute(); drawTlogList();
+}
+/* [v123] 복원 되돌리기 — 확인창을 눌러 버린 실수 복구용 안전망. 덮어쓰기 직전 상태를
+   1세대만 기기 안(b_undo_v1)에 보관하고, 복원 직후에만 되돌리기 칩을 보여준다. */
+const UNDOKEY = 'b_undo_v1';
+function showUndoChip(){
+  const el = document.getElementById('tlogList');
+  if(!el) return;
+  const old = document.getElementById('undoBar');
+  if(old) old.remove();
+  const d = document.createElement('div');
+  d.id = 'undoBar'; d.className = 'hint'; d.style.fontSize = '12px';
+  d.innerHTML = '복원했습니다. 실수라면 — <button id="undoBtn" class="chipbtn" type="button">복원 전으로 되돌리기</button>';
+  el.parentNode.insertBefore(d, el);
+  document.getElementById('undoBtn').addEventListener('click', () => {
+    let u = null;
+    try{ u = JSON.parse(localStorage.getItem(UNDOKEY) || 'null'); }catch(e){}
+    if(!u || !u.port || !Array.isArray(u.trades)){ alert('되돌릴 이전 상태가 없습니다.'); return; }
+    applyState(u);
+    try{ localStorage.removeItem(UNDOKEY); }catch(e){}
+    d.remove();
+  });
+}
+function applyBackup(j){
+  if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
+    alert('백업 형식이 올바르지 않습니다 — 아무것도 바꾸지 않았습니다.'); return false;
+  }
+  if(!confirm('현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
+              + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return false;
+  lsSet(UNDOKEY, JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL, t: kstISO()}));
+  applyState(j);
+  showUndoChip();
   return true;
 }
 /* [v96] Blob 다운로드 공용 — 파일 백업(v93)과 같은 기법, CSV 내보내기와 공유 */
