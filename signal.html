@@ -7,6 +7,8 @@
 <!-- [v104] PWA 홈 화면 추가 — 오프라인 캐시(sw.js)는 신선도 원칙과 충돌해 도입 안 함 -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B5FD6">
+<!-- [v116] 다크 모드 주소창 — 없으면 어두운 화면 위에 파란 주소창만 뜬다. #12181F = 다크 --paper -->
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12181F">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 <style>
@@ -563,6 +565,22 @@ td.s-schd{color:var(--defend);font-weight:600;}
        GitHub 예약 실행은 부하가 걸리면 통째로 건너뛴다(2026-08-26 실제 발생). -->
   <div class="stale" id="stale" hidden></div>
 
+  <!-- [v116] 시스템 경고 한 줄 — 평시 완전 숨김. 콘솔을 못 보는 폰에서 스크립트 오류가
+       나면 지금까지는 반쯤 그려진 화면만 남았다. 메인 블록과 별도 스크립트라
+       메인 블록의 구문 오류까지 잡는다. -->
+  <div class="stale bad" id="sysWarn" hidden></div>
+  <script>
+  window.__sysWarn = function(msg){
+    var el = document.getElementById('sysWarn');
+    if(el){ el.hidden = false; el.textContent = msg; }
+  };
+  (function(){
+    var MSG = '화면 스크립트 오류가 났습니다 — 새로고침 해주세요. 반복되면 브라우저 캐시를 지우고 다시 접속하세요.';
+    window.addEventListener('error', function(){ window.__sysWarn(MSG); });
+    window.addEventListener('unhandledrejection', function(){ window.__sysWarn(MSG); });
+  })();
+  </script>
+
   <div class="minibar" id="minibar">
     <span class="st" id="mbState">—</span>
     <span class="rl" id="mbRule"></span>
@@ -847,11 +865,23 @@ let STATS = null;                                // strategy_stats.json
 let FREEZE = null;                               // data/freeze.json (규칙 동결 기록)
 let KRHOL = null;                                // data/kr_holidays.json (deploy/kr_holidays.py 산출물)
 
+/* [v116] 저장 실패 감지 — 시크릿 모드·저장공간 부족이면 입력이 조용히 증발했다.
+   사용자 입력(수동 종가·보유·체결·목표액·체크리스트)에만 쓴다. 취향값(SKEY 등)은 제외. */
+let LS_WARNED = false;
+function lsSet(k, v){
+  try{ localStorage.setItem(k, v); }
+  catch(e){
+    if(!LS_WARNED && window.__sysWarn){
+      LS_WARNED = true;
+      window.__sysWarn('입력이 이 기기에 저장되지 않습니다 — 시크릿 모드이거나 저장 공간이 부족할 수 있습니다. 지금 입력한 내용은 화면을 닫으면 사라집니다.');
+    }
+  }
+}
 function load(){
   try{ const raw = localStorage.getItem(KEY); if(raw) rows = JSON.parse(raw); }catch(e){}
 }
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(rows)); }catch(e){}
+  lsSet(KEY, JSON.stringify(rows));
 }
 function loadPrefs(){
   try{
@@ -1469,7 +1499,7 @@ let ASOF = null;                               // [v90] 신호일 — 체크리�
 
 function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
 function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
-  try{ localStorage.setItem(PKEY, JSON.stringify(PORT)); }catch(e){} }
+  lsSet(PKEY, JSON.stringify(PORT)); }
 function fmtWon(v){ return Math.round(v).toLocaleString('en-US') + '원'; }
 /* [v92] 어림 금액은 만원/억원 단위 — 0의 개수를 안 세게 (제미나이 E 변형: 병기 대신 대체) */
 function fmtA(v){
@@ -1704,7 +1734,7 @@ function drawGoal(){
   if(GOAL.target > 0) i.value = Math.round(GOAL.target).toLocaleString('en-US');
   i.addEventListener('input', () => {
     GOAL = {target: pnum(i.value)};
-    try{ localStorage.setItem(GKEY, JSON.stringify(GOAL)); }catch(e){}
+    lsSet(GKEY, JSON.stringify(GOAL));
     drawGoal();
   });
   drawGoal();
@@ -1731,7 +1761,7 @@ function chkHtml(){
 function wireChk(box){
   box.querySelectorAll('.chk input').forEach(c => c.addEventListener('change', () => {
     const st = chkGet(); st[+c.dataset.i] = c.checked;
-    try{ localStorage.setItem(chkKey(), JSON.stringify(st)); }catch(e){}
+    lsSet(chkKey(), JSON.stringify(st));
     const d = box.querySelector('.chk .done');
     const all = CHK_ITEMS.every((_, i) => st[i]);
     if(all && !d) box.querySelector('.chk').insertAdjacentHTML('afterbegin', '<div class="done">✅ 실행 확인 완료</div>');
@@ -1767,7 +1797,7 @@ function tlogChips(){
   }));
 }
 function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
-function saveTrades(){ try{ localStorage.setItem(TKEY, JSON.stringify(TRADES)); }catch(e){} }
+function saveTrades(){ lsSet(TKEY, JSON.stringify(TRADES)); }
 /* [v93] 백업 검증·적용 — 붙여넣기 복원과 파일 복원이 공유 */
 function applyBackup(j){
   if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
@@ -1779,7 +1809,7 @@ function applyBackup(j){
   savePort(); saveTrades();
   if(j.goal && pnum(j.goal.target) > 0){         // [v114] 목표액 — 옛 백업엔 없음(선택 필드)
     GOAL = {target: pnum(j.goal.target)};
-    try{ localStorage.setItem(GKEY, JSON.stringify(GOAL)); }catch(e){}
+    lsSet(GKEY, JSON.stringify(GOAL));
     const gi = document.getElementById('goalTarget');
     if(gi) gi.value = Math.round(GOAL.target).toLocaleString('en-US');
   }
