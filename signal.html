@@ -309,6 +309,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .chk label{display:flex;gap:8px;align-items:center;padding:4px 0;cursor:pointer;}
 .chk input{width:18px;height:18px;flex:0 0 auto;}
 .chk .done{font-weight:700;}
+/* [v136] 체크리스트 아래 주문 방법 링크 — 체크 항목과 구분되게 들여쓰기 없이 작게 */
+.chklink{margin-top:6px;font-size:13.5px;}
+.chklink a{color:var(--attack);font-weight:600;}
 .tlform{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center;font-size:14px;}
 .tlform select,.tlform input{padding:6px 6px;}
 .tlform input{width:88px;text-align:right;}
@@ -1730,6 +1733,9 @@ function chkHtml(){
   return `<div class="chk">${all ? '<div class="done">✅ 실행 확인 완료</div>' : ''}`
     + CHK_ITEMS.map((t, i) =>
       `<label><input type="checkbox" data-i="${i}" ${st[i] ? 'checked' : ''}> ${t}</label>`).join('')
+    /* [v136] 주문 방법 링크 — 전환은 연 2~3회뿐이라 그때마다 호가창을 다시 배운다.
+       label 밖에 둔다 (label 안이면 링크를 눌러도 체크박스가 토글된다). */
+    + `<div class="chklink"><a href="guide.html#order">주문 방법 — 괴리율 확인 · 지정가 넣는 법 →</a></div>`
     + `</div>`;
 }
 function wireChk(box){
