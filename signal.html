@@ -1530,7 +1530,7 @@ let ASOF = null;                               // [v90] 신호일 — 체크리�
 
 function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
 function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
-  lsSet(PKEY, JSON.stringify(PORT)); }
+  lsSet(PKEY, JSON.stringify(PORT)); abQueue(); }
 function fmtWon(v){ return Math.round(v).toLocaleString('en-US') + '원'; }
 /* [v92] 어림 금액은 만원/억원 단위 — 0의 개수를 안 세게 (제미나이 E 변형: 병기 대신 대체) */
 function fmtA(v){
@@ -1766,6 +1766,7 @@ function drawGoal(){
   i.addEventListener('input', () => {
     GOAL = {target: pnum(i.value)};
     lsSet(GKEY, JSON.stringify(GOAL));
+    abQueue();                                   // [v124] 목표액도 백업 파일에 들어간다
     drawGoal();
   });
   drawGoal();
@@ -1828,7 +1829,7 @@ function tlogChips(){
   }));
 }
 function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
-function saveTrades(){ lsSet(TKEY, JSON.stringify(TRADES)); }
+function saveTrades(){ lsSet(TKEY, JSON.stringify(TRADES)); abQueue(); }
 /* [v93] 백업 검증·적용 — 붙여넣기 복원과 파일 복원이 공유
    [v123] 적용 코어(applyState)를 분리 — 복원 되돌리기(undo)가 같은 경로를 쓴다. */
 function applyState(j){
@@ -1889,6 +1890,81 @@ function kstStamp(){
   const tp = tzParts(new Date(), SEOUL);
   return tp.y + String(tp.m).padStart(2, '0') + String(tp.d).padStart(2, '0');
 }
+// [v114] goal 포함 — v 는 1 유지: goal 없는 옛 파일·옛 화면과 양방향 호환(선택 필드).
+// [v119] 저장·공유 공용 헬퍼. [v124] 자동 백업도 쓰도록 모듈 스코프로 이동.
+function backupText(){ return JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2); }
+function backupName(ext){
+  return 'nasdaq-signal-backup-' + kstStamp() + '.' + (ext || 'json');
+}
+
+/* [v124] 자동 백업 연결(File System Access) — PC 크롬/엣지 한정(안드로이드 크롬 미지원
+   → 버튼 자체가 안 보임). 파일을 한 번 지정하면 핸들을 IndexedDB 에 보관하고, 입력이
+   바뀔 때마다 그 파일에 백업 JSON 을 다시 쓴다. OneDrive 등 동기화 폴더에 두면
+   반자동 동기화. 서버·토큰 없음 — 파일 백업 확정 원칙(2026-08-30) 안의 자동화다. */
+function abIdb(mode, fn){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('b_autobak_v1', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const tx = r.result.transaction('kv', mode);
+      const req = fn(tx.objectStore('kv'));
+      tx.oncomplete = () => { r.result.close(); res(req && req.result); };
+      tx.onerror = () => { r.result.close(); rej(tx.error); };
+    };
+  });
+}
+let AB_HANDLE = null, AB_TIMER = null, AB_ON = false;
+async function abInit(){
+  if(!('showSaveFilePicker' in window)) return;
+  try{ AB_HANDLE = (await abIdb('readonly', st => st.get('h'))) || null; }catch(e){ AB_HANDLE = null; }
+  if(AB_HANDLE){
+    let p = 'prompt';
+    try{ p = await AB_HANDLE.queryPermission({mode: 'readwrite'}); }catch(e){}
+    AB_ON = (p === 'granted');
+  }
+  abPaint();
+}
+function abPaint(){
+  const b = document.getElementById('tlAuto');
+  if(!b || !('showSaveFilePicker' in window)) return;
+  b.hidden = false;
+  if(!AB_HANDLE){
+    b.textContent = '자동 백업 연결';
+    b.title = 'PC 전용 — 파일을 한 번 지정하면 입력이 바뀔 때마다 자동 저장됩니다. OneDrive 등 동기화 폴더에 두면 폰 복원용으로도 항상 최신.';
+  } else if(AB_ON){
+    b.textContent = '자동 백업 해제';
+    b.title = '연결됨 — 입력이 바뀔 때마다 지정한 파일에 자동 저장 중.';
+  } else {
+    b.textContent = '자동 백업 재연결';
+    b.title = '브라우저가 권한을 다시 요구합니다 — 누르면 이번 세션에 다시 허용.';
+  }
+}
+async function abClick(){
+  try{
+    if(!AB_HANDLE){
+      const h = await showSaveFilePicker({suggestedName: backupName(),
+        types: [{description: '백업 JSON', accept: {'application/json': ['.json']}}]});
+      await abIdb('readwrite', st => st.put(h, 'h'));
+      AB_HANDLE = h; AB_ON = true; abPaint(); abWrite();
+    } else if(AB_ON){
+      await abIdb('readwrite', st => st.delete('h'));
+      AB_HANDLE = null; AB_ON = false; abPaint();
+    } else {
+      const p = await AB_HANDLE.requestPermission({mode: 'readwrite'});
+      if(p === 'granted'){ AB_ON = true; abPaint(); abWrite(); }
+    }
+  }catch(e){ /* 파일 선택 취소 등 — 조용히 */ }
+}
+function abQueue(){ if(AB_ON){ clearTimeout(AB_TIMER); AB_TIMER = setTimeout(abWrite, 1500); } }
+async function abWrite(){
+  if(!AB_HANDLE || !AB_ON) return;
+  try{
+    const w = await AB_HANDLE.createWritable();
+    await w.write(backupText()); await w.close();
+    try{ localStorage.setItem(BKKEY, kstISO()); }catch(e){}  // 자동 저장도 백업 — 리마인더 기준 갱신
+  }catch(e){ AB_ON = false; abPaint(); }                     // 권한 만료 등 → 재연결 상태로
+}
 /* [v105] 백업 리마인더 — localStorage 가 유일 저장소라 30일 넘게 백업이 없으면
    조용한 한 줄로 권장 (배너·닫기 버튼 없음 — 이 화면은 조용한 UI 가 원칙). */
 const BKKEY = 'b_lastbackup_v1';
@@ -1944,7 +2020,8 @@ function drawTlog(){
         title="백업 파일을 공유 시트로 바로 보내기 — 카톡 나에게 보내기 등">공유</button>
         <label class="file" style="font-size:12.5px;font-weight:400;padding:5px 10px;border-color:var(--rule)">
           파일에서 복원<input type="file" id="tlImpFile" accept=".json,.txt,application/json,text/plain"></label><button
-        id="tlExpCsv" type="button">CSV 내보내기</button>
+        id="tlExpCsv" type="button">CSV 내보내기</button><button
+        id="tlAuto" type="button" hidden></button>
         <span style="font-size:11.5px;color:var(--muted)">보유+체결 전체 JSON — 기기 이동·브라우저 초기화 대비</span></div>`;
     document.getElementById('tlAdd').addEventListener('click', () => {
       const code = document.getElementById('tlCode').value;
@@ -1973,14 +2050,7 @@ function drawTlog(){
     // [v109] 클립보드 백업 복사/붙여넣기 제거 — v93 파일 방식이 상위호환(잘림·줄바꿈
     //        깨짐 없음)이라 과도기 버튼을 정리. 복원 검증은 applyBackup 이 그대로 담당.
     // [v93] 파일 저장/복원 — 긴 JSON 복붙(잘림·줄바꿈 깨짐) 없이 폰↔PC 이동
-    // [v114] goal(단계 계산기 목표액) 포함 — v 는 1 유지: goal 없는 옛 파일도,
-    //        goal 을 모르는 옛 화면도 서로 그대로 호환된다 (선택 필드).
-    // [v119] 저장·공유가 같은 내용을 쓰도록 공용 헬퍼로 분리.
-    function backupText(){ return JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2); }
-    function backupName(ext){
-      const tp = tzParts(new Date(), SEOUL);
-      return 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.' + (ext || 'json');
-    }
+    // 백업 내용/파일명 헬퍼는 모듈 스코프(backupText/backupName — v124 에서 이동).
     document.getElementById('tlExpFile').addEventListener('click', () => {
       dlBlob(new Blob([backupText()], {type: 'application/json'}), backupName());
       markBackup();                          // [v105] 리마인더 기준일 갱신
@@ -2029,6 +2099,9 @@ function drawTlog(){
       const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
       dlBlob(new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8'}), 'trades-' + kstStamp() + '.csv');
     });
+    // [v124] \uc790\ub3d9 \ubc31\uc5c5 \u2014 \uc9c0\uc6d0 \ube0c\ub77c\uc6b0\uc800(PC)\uc5d0\uc11c\ub9cc \ubc84\ud2bc\uc774 \ub098\ud0c0\ub09c\ub2e4
+    document.getElementById('tlAuto').addEventListener('click', abClick);
+    abInit();
   }
   drawTlogList();
 }
