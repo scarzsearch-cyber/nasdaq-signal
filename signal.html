@@ -363,6 +363,8 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .stale.bad{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;}
 .stale b{font-weight:800;}
 .stale a{color:inherit;}
+/* [v125] 리허설 모드 — 가상 상황임을 해당 구역 테두리로도 표시 */
+body.rehearsal .signal,body.rehearsal #portPanel{outline:3px dashed var(--defend);outline-offset:3px;}
 .minibar{position:sticky;top:0;z-index:20;display:none;align-items:center;gap:10px;
   background:var(--panel);border:1px solid var(--ink);border-radius:2px;
   padding:9px 13px;margin-bottom:14px;box-shadow:0 3px 12px rgba(22,32,43,.10);}
@@ -584,6 +586,11 @@ td.s-schd{color:var(--defend);font-weight:600;}
   })();
   </script>
 
+  <!-- [v125] 리허설 배너 — 가상 상황임을 스크롤 내내 상단에 고정 표시 -->
+  <div class="stale warn" id="rehBar" hidden style="position:sticky;top:0;z-index:30">🎭
+    <b>리허설 모드</b> — 가상의 전환 상황입니다. 실제 신호가 아니며, 어떤 입력도 기록되지 않습니다.
+    <button class="chipbtn" id="rehEnd" type="button">리허설 끝내기</button></div>
+
   <div class="minibar" id="minibar">
     <span class="st" id="mbState">—</span>
     <span class="rl" id="mbRule"></span>
@@ -728,6 +735,10 @@ td.s-schd{color:var(--defend);font-weight:600;}
       <b>환율은 2배로 실립니다</b> — TIGER 레버리지는 원화 환산 지수의 2배(실측 베타 1.98).
       위기 때 원화 약세가 완충이 되는 방향이었지만, 반대로 갈 수도 있는 환위험입니다.
     </div>
+    <!-- [v125] 전환일 리허설 — 실전은 연 2~3회뿐이라 그날 버벅대는 만큼 손해다(01 §3).
+         가상 상황으로 화면 흐름(신호→체크리스트→계산기→주문 메모)을 미리 연습한다. -->
+    <div style="margin-top:12px"><button class="chipbtn" id="rehBtn" type="button">🎭 전환일 리허설</button>
+      <span style="font-size:12px;color:var(--muted)">— 가상의 전환 상황으로 화면 흐름을 미리 연습 (기록 안 됨)</span></div>
   </div>
 
   <div class="guide" id="perfPanel" hidden>
@@ -1361,6 +1372,7 @@ function watchMinibar(){
    로드 즉시 저장하면 배지가 뜨자마자 의미를 잃는다. 미니바처럼 IO+스크롤 병행. */
 const SEENKEY = 'b_lastseen_v1';
 function saveSeen(){
+  if(REHEARSAL) return;                        // [v125] 가상 상태를 「확인」으로 기록하면 안 된다
   if(!ASOF || !CURSTATE) return;
   try{ localStorage.setItem(SEENKEY, JSON.stringify({d: ASOF, state: CURSTATE})); }catch(e){}
 }
@@ -1780,7 +1792,10 @@ try{ localStorage.removeItem('b_view_v1'); }catch(e){}
 const CHK_ITEMS = ['목표 비중·주문 금액 확인 (아래 내 포트폴리오)',
                    '한국장 09:05~15:20 에 주문 실행',
                    '체결가 기록 (아래 체결 기록 — 보유 자동 반영)'];
-function chkKey(){ return 'b_chk_' + (ASOF || new Date().toISOString().slice(0, 10)); }
+function chkKey(){
+  if(REHEARSAL) return 'b_chk_rehearsal';      // [v125] 리허설 체크는 격리 — 끝나면 삭제
+  return 'b_chk_' + (ASOF || new Date().toISOString().slice(0, 10));
+}
 function chkGet(){ try{ return JSON.parse(localStorage.getItem(chkKey()) || '[]'); }catch(e){ return []; } }
 function chkHtml(){
   const st = chkGet();
@@ -2024,6 +2039,7 @@ function drawTlog(){
         id="tlAuto" type="button" hidden></button>
         <span style="font-size:11.5px;color:var(--muted)">보유+체결 전체 JSON — 기기 이동·브라우저 초기화 대비</span></div>`;
     document.getElementById('tlAdd').addEventListener('click', () => {
+      if(REHEARSAL){ alert('리허설 모드입니다 — 기록되지 않습니다. 먼저 「리허설 끝내기」를 누르세요.'); return; }
       const code = document.getElementById('tlCode').value;
       const side = document.getElementById('tlSide').value;
       const qty = pnum(document.getElementById('tlQty').value);
@@ -2219,6 +2235,45 @@ async function drawDefDur(){
   el.innerHTML = `방어 전환 후 <b>${daysSince(e.d)}일째</b> · 참고: 과거 위기의 방어 기간은
     <b>1개월~2년 7개월</b>로 다양했습니다 (위기 궤적 패널 참고 — 예측 아님).`;
 }
+/* [v125] 전환일 리허설 — 실전(연 2~3회)의 화면 흐름을 가상 상황으로 연습한다.
+   실데이터 무접촉: 신호 카드만 가짜 상태로 다시 그리고(paintState), 확인 저장(saveSeen)·
+   체크리스트 키(chkKey)·체결 기록(tlAdd)은 리허설 중 차단/격리, 끝나면 redraw 로 전면
+   복구(renderAuto/render 첫 줄의 rehClear 가 어떤 경로로 재그려져도 리허설을 해제한다).
+   투자 판단 생성이 아니다 — 기존 규칙 화면을 가상 입력으로 시연할 뿐. */
+let REHEARSAL = false;
+function rehClear(){
+  if(!REHEARSAL) return;
+  REHEARSAL = false;
+  document.body.classList.remove('rehearsal');
+  const bar = document.getElementById('rehBar');
+  if(bar) bar.hidden = true;
+  try{ localStorage.removeItem('b_chk_rehearsal'); }catch(e){}
+}
+function startRehearsal(){
+  if(REHEARSAL) return;
+  if(!AUTO || !CURSTATE){ alert('자동 신호 데이터가 있어야 리허설을 할 수 있습니다.'); return; }
+  REHEARSAL = true;
+  document.body.classList.add('rehearsal');
+  try{ localStorage.removeItem('b_chk_rehearsal'); }catch(e){}   // 매번 새 체크리스트로
+  const toDefense = CURSTATE === 'QLD';        // 지금 공격이면 방어 전환을, 방어면 복귀를 연습
+  const high = AUTO.high_252;
+  const dd = toDefense ? -16.5 : -15.5;        // 전환선(−16)을 방금 넘은 가상 낙폭
+  paintState({
+    state: toDefense ? 'SCHD' : 'QLD', changed_today: true,
+    dd, close: high * (1 + dd / 100), high, next_line: -16, gap_pp: 0.5,
+  });
+  const bar = document.getElementById('rehBar');
+  if(bar) bar.hidden = false;
+  const p = document.querySelector('.signal');
+  if(p) p.scrollIntoView({behavior: 'smooth'});
+}
+function endRehearsal(){ rehClear(); redraw(); }
+(function(){
+  const b = document.getElementById('rehBtn'), e = document.getElementById('rehEnd');
+  if(b) b.addEventListener('click', startRehearsal);
+  if(e) e.addEventListener('click', endRehearsal);
+})();
+
 function paintState(o){
   // o: {state, prev_state, changed_today, dd, close, high, next_line, gap_pp}
   const isQld = o.state==='QLD';
@@ -2323,6 +2378,7 @@ function paintProx(o, isQld){
 }
 
 function render(){
+  rehClear();                                  // [v125] 실데이터로 그리는 순간 리허설 해제
   const S = STRAT[sel];
   const res = compute(S.exit);
   const tbody = document.getElementById('tbody');
@@ -2358,6 +2414,7 @@ function render(){
 }
 
 function renderAuto(j){
+  rehClear();                                  // [v125] 실데이터로 그리는 순간 리허설 해제
   const S = STRAT[sel];
   const st = (j.strategies && j.strategies[sel]) ? j.strategies[sel] : null;
   if(!st){                                   // 구버전 signal.json — B 항목이 없음
