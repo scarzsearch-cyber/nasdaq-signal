@@ -175,6 +175,37 @@ def main():
         print(f'  {nm:<18} {v:<24}{pr}')
     print('  ⚠ 백분위가 높다 = 지금까지 좋았다는 뜻일 뿐, 미래 보증이 아니다 (금지 6·7).')
 
+    # ---- [6] 상품 생존 트립와이어 (2026-08-31 측정 감사) --------------------
+    #   FINAL_AUDIT 은 「상품 이벤트는 대체 교체로 흡수 가능」이라 단언했으나 **트리거가
+    #   없었다.** nav_collect.py 가 이미 시총을 적립하므로 밴드만 얹는다. 전략 무관 —
+    #   전환 신호일에 상품이 정지돼 있으면 그날 하루가 아니라 전환 자체를 놓친다.
+    print('\n[6] 상품 생존 — 4다리 AUM 트립와이어 (data/nav_history.csv)')
+    WATCH4 = {'418660': '공격 레버리지', '458730': '방어 배당',
+              '305080': '방어 국채', '411060': '방어 금'}
+    BAND_WARN, BAND_ALERT = 300, 100          # 억원 — 관리종목/상폐 요건(50억)에 여유를 둔 선
+    try:
+        nav = pd.read_csv('data/nav_history.csv', encoding='utf-8', dtype=str)
+        last = {}
+        for _, r in nav.iterrows():
+            if r['code'] in WATCH4:
+                last[r['code']] = r
+        if not last:
+            raise ValueError('감시 4종목 수집분 없음')
+        for code, lab in WATCH4.items():
+            r = last.get(code)
+            if r is None:
+                print(f'  {code} {lab:<12} 수집분 없음 — nav_collect.py 확인')
+                continue
+            eok = float(r['mktcap_eok'] or 0)
+            st = ('★경보' if eok < BAND_ALERT else
+                  '주의' if eok < BAND_WARN else '정상')
+            print(f'  {code} {lab:<12} 시총 {eok:>8,.0f}억  [{st}]  ({r["as_of"]} 기준)')
+        print(f'  밴드: 정상 ≥{BAND_WARN}억 · 주의 <{BAND_WARN}억 · 경보 <{BAND_ALERT}억')
+        print('  경보 시 할 일: 대체 상품(KODEX 미국나스닥100레버리지 등) 사전 확인 —')
+        print('  국내 상폐는 NAV 정산이라 원금 소실형이 아니나 과세 이벤트+재진입 마찰이 비용.')
+    except Exception as e:                     # 수집분이 없어도 [1]~[5] 는 살아야 한다
+        print(f'  (건너뜀: {e})')
+
 
 if __name__ == '__main__':
     main()
