@@ -77,11 +77,12 @@ summary{cursor:pointer;font-weight:700}
     <a href="#routine">② 평소·전환일 루틴</a>
     <a href="#must">③ 반드시 이해할 6가지</a>
     <a href="#pick">④ −16 기본 vs 헤지6/4</a>
-    <a href="#phases">⑤ 자산 단계별 진로</a>
-    <a href="#t4">⑥ T4 그림자</a>
-    <a href="#freeze">⑦ 왜 규칙을 못 바꾸나</a>
-    <a href="#auto">⑧ 자동화가 하는 일</a>
-    <a href="#faq">⑨ 자주 묻는 질문</a>
+    <a href="#lev">⑤ 배율 다이얼 (미국 직투)</a>
+    <a href="#phases">⑥ 자산 단계별 진로</a>
+    <a href="#t4">⑦ T4 그림자</a>
+    <a href="#freeze">⑧ 왜 규칙을 못 바꾸나</a>
+    <a href="#auto">⑨ 자동화가 하는 일</a>
+    <a href="#faq">⑩ 자주 묻는 질문</a>
   </nav>
 
   <section id="what">
@@ -187,8 +188,64 @@ summary{cursor:pointer;font-weight:700}
       폭락 한복판에서 규칙을 버리는 것입니다 — 그럴 바엔 처음부터 헤지6/4가 낫습니다.</div>
   </section>
 
+  <section id="lev">
+    <h2><span class="no">⑤</span>배율 다이얼 — 미국 직투로 간다면 몇 배가 맞나</h2>
+    <p>국내 실전은 <b>2배 동결</b>입니다(국내 상장 레버리지가 2배 상한이라 선택지 자체가
+       없습니다). 이 절은 <b>훗날 미국 직투로 갈 경우</b>를 위한 연구 기록 요약입니다
+       (2026-08-31, 상세·재현은 저장소 research/LEVERAGE_US.md).</p>
+
+    <h3>다이얼 원리 — QQQ + TQQQ 혼합</h3>
+    <p>미국에선 QQQ(1배)와 TQQQ(3배)를 섞어 배율을 연속으로 만들 수 있습니다.
+       <b>TQQQ 비중 = (목표배율 − 1) ÷ 2</b>. 월 1회만 비율을 맞추면 충분합니다
+       (일일 리밸런스와 54년 실측 차이가 오히려 +12% — 표류가 해롭지 않음).</p>
+    <div class="tblwrap"><table>
+      <tr><th>목표 배율</th><td class="num">2.0</td><td class="num">2.2</td><td class="num">2.4</td><td class="num">3.0</td></tr>
+      <tr><th>TQQQ 비중</th><td class="num">50%</td><td class="num">60%</td><td class="num">70%</td><td class="num">100%</td></tr>
+    </table></div>
+
+    <h3>변하지 않는 것 — 규칙</h3>
+    <p><b class="key">−16/−16 규칙은 배율과 무관하게 그대로입니다.</b> 배율 2·2.5·3 각각에서
+       문턱 −10~−22를 전부 돌린 결과 모든 배율에서 −16이 최적이었고, "3배니까 더 얕게
+       잘라야"는 직관은 틀렸습니다 — 얕은 컷의 톱니 비용(놓친 V자 회복)도 배율만큼
+       커져서 고배율일수록 더 손해입니다. 위험 대비 효율(Calmar)도 배율에 거의
+       무차별(1~3배 전 구간 0.40~0.46) — 즉 <b>"최적 배율"은 수학이 아니라 내 감내선이
+       정합니다.</b></p>
+
+    <h3>감내선 → 배율 (54년 검증 표본 · 합성 잣대 — 배율 간 상대 비교 전용)</h3>
+    <div class="tblwrap"><table>
+      <tr><th>어디까지 견디나</th><th class="num">배율</th><th class="num">최악 낙폭</th><th>비고</th></tr>
+      <tr><td><b>−60% (현행 전제)</b></td><td class="num"><b>2.0</b></td><td class="num">−60.5%</td><td><b>기본값</b> — 현행과 동일</td></tr>
+      <tr><td>−65%</td><td class="num">2.2</td><td class="num">−64.8%</td><td>거의 공짜 구간 (최악의 10년 페널티 ~2%)</td></tr>
+      <tr><td>−70%</td><td class="num">2.4</td><td class="num">−68.7%</td><td>가성비 상한 — 이 위부턴 대가가 가팔라짐</td></tr>
+      <tr><td>−78% + 아래 서약</td><td class="num">3.0</td><td class="num">−78.4%</td><td>서약형 — 최종 부는 2배의 약 15배(54년 잣대)</td></tr>
+    </table></div>
+
+    <h3>배율의 진짜 대가 3가지</h3>
+    <ul>
+      <li><b>대가는 시간이 아니라 깊이</b> — 최장 물속 기간은 2.0~2.6배가 <b>4.2년으로
+          동일</b>합니다(물속 시계는 시장 달력이 정하고, 깊이 판 만큼 회복도 배율 속도라
+          상쇄). 같은 4.2년을 얼마나 깊은 바닥에서 보내느냐만 다릅니다.</li>
+      <li><b>지연 증폭기</b> — 전환을 하루 미루면 날리는 몫이 2배 ×0.61, 3배 ×0.79.
+          배율이 높을수록 당일 체결 규율이 절대 조건이 됩니다.</li>
+      <li><b>최악의 10년에 몰아서 청구</b> — 2000~2009형 구간에선 고배율이 2배에게
+          집니다(3배는 0.83배). 그 한복판에서 배율을 낮추면 최악 시점 매도가 됩니다.</li>
+    </ul>
+
+    <h3>3배의 서약 4개 (전부 서면으로 답할 수 있을 때만)</h3>
+    <ol>
+      <li>이 돈은 <b>20년 이상</b> 안 건드린다</li>
+      <li>계좌 <b>−78%</b>(1억 → 2,160만원)를 규칙 믿고 통과한다</li>
+      <li>2000~2009형 10년에 2배에게 지는 동안에도 <b>배율을 안 바꾼다</b></li>
+      <li>전환 신호가 뜬 날 <b>무조건 당일 체결</b>한다</li>
+    </ol>
+    <p class="dim">참고: 켈리 공식(최적배율 = 초과수익÷분산)에 54년 전체를 넣으면 답이
+       정확히 <b>2.0</b>입니다. 시대별로는 −2.3(70년대)~+5.8(2010년대)로 요동 — 공식을
+       쓰려면 다음 10년의 수익률을 알아야 하므로, 결국 감내선이 답입니다. 세금은
+       해외계좌(양도세 22%) 안에서는 배율 간 순서가 유지됩니다.</p>
+  </section>
+
   <section id="phases">
-    <h2><span class="no">⑤</span>자산 단계별 진로 — 형성기 → 감속기 → 인출기</h2>
+    <h2><span class="no">⑥</span>자산 단계별 진로 — 형성기 → 감속기 → 인출기</h2>
     <p>기계를 갈아타는 기준은 총액이 아니라 <b class="key">"그 돈이 매달 얼마를 만들어 주느냐"</b>입니다.</p>
 
     <div class="flow">
@@ -232,7 +289,7 @@ summary{cursor:pointer;font-weight:700}
   </section>
 
   <section id="t4">
-    <h2><span class="no">⑥</span>T4 그림자 추적 — 언젠가 채택안을 이길지도 모르는 도전자</h2>
+    <h2><span class="no">⑦</span>T4 그림자 추적 — 언젠가 채택안을 이길지도 모르는 도전자</h2>
     <p>화면 맨 아래 "T4 그림자"는 <b>지금 쓰는 규칙이 아니라, 심사 중인 후보</b>입니다.</p>
 
     <h3>T4가 보는 것 — 파도의 높이와 바람의 방향</h3>
@@ -304,7 +361,7 @@ summary{cursor:pointer;font-weight:700}
   </section>
 
   <section id="freeze">
-    <h2><span class="no">⑦</span>왜 규칙을 못 바꾸게 잠가뒀나</h2>
+    <h2><span class="no">⑧</span>왜 규칙을 못 바꾸게 잠가뒀나</h2>
     <p>2026-08-27에 규칙을 <b>동결</b>했습니다. 결과를 보고 나서 규칙을 만지면, 그때부터의
        성적이 "실력"인지 "짜맞춤"인지 구분할 수 없게 되기 때문입니다.</p>
     <ul>
@@ -318,7 +375,7 @@ summary{cursor:pointer;font-weight:700}
   </section>
 
   <section id="auto">
-    <h2><span class="no">⑧</span>자동화가 하는 일 / 당신이 할 일</h2>
+    <h2><span class="no">⑨</span>자동화가 하는 일 / 당신이 할 일</h2>
     <div class="tblwrap"><table>
       <tr><th>자동 (매일)</th><td>새벽 5시대부터 미국 종가를 반복 시도해 반영(보통 05~07시) →
         신호 판정 → 화면 배포 → OOS·T4 장부 기록 → 실패 시 카톡 ❌</td></tr>
@@ -332,7 +389,7 @@ summary{cursor:pointer;font-weight:700}
   </section>
 
   <section id="faq">
-    <h2><span class="no">⑨</span>자주 묻는 질문</h2>
+    <h2><span class="no">⑩</span>자주 묻는 질문</h2>
     <details><summary>왜 하필 −16%인가?</summary>
       <p>낙폭 문턱을 210가지로 바꿔 전부 시험한 결과의 고원 중심입니다. 중요한 건 −16이라는 숫자가
       아니라 <b>−14~−18 어디를 골라도 비슷하게 작동한다</b>는 사실입니다(한 점만 좋은 값은 과적합 신호).
