@@ -34,7 +34,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (82) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+research/   (83) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
