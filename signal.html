@@ -1885,7 +1885,7 @@ function drawTlog(){
         id="tlShare" type="button" hidden
         title="백업 파일을 공유 시트로 바로 보내기 — 카톡 나에게 보내기 등">공유</button>
         <label class="file" style="font-size:12.5px;font-weight:400;padding:5px 10px;border-color:var(--rule)">
-          파일에서 복원<input type="file" id="tlImpFile" accept=".json,application/json"></label><button
+          파일에서 복원<input type="file" id="tlImpFile" accept=".json,.txt,application/json,text/plain"></label><button
         id="tlExpCsv" type="button">CSV 내보내기</button>
         <span style="font-size:11.5px;color:var(--muted)">보유+체결 전체 JSON — 기기 이동·브라우저 초기화 대비</span></div>`;
     document.getElementById('tlAdd').addEventListener('click', () => {
@@ -1912,9 +1912,9 @@ function drawTlog(){
     //        goal 을 모르는 옛 화면도 서로 그대로 호환된다 (선택 필드).
     // [v119] 저장·공유가 같은 내용을 쓰도록 공용 헬퍼로 분리.
     function backupText(){ return JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2); }
-    function backupName(){
+    function backupName(ext){
       const tp = tzParts(new Date(), SEOUL);
-      return 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.json';
+      return 'nasdaq-signal-backup-' + tp.y + String(tp.m).padStart(2,'0') + String(tp.d).padStart(2,'0') + '.' + (ext || 'json');
     }
     document.getElementById('tlExpFile').addEventListener('click', () => {
       dlBlob(new Blob([backupText()], {type: 'application/json'}), backupName());
@@ -1922,18 +1922,24 @@ function drawTlog(){
     });
     // [v119] 공유 시트로 백업 직송 — 「파일로 저장 → 다운로드 폴더에서 찾아 → 카톡」
     //        3단계가 폰에서 1번이 된다. 파일 공유를 지원하는 환경에서만 버튼 표시.
+    // [v120] .txt 로 공유 — 크롬 Web Share 는 확장자 허용목록이 있어 .json 을 거부한다
+    //        (v119 실사고: 공유가 조용히 실패). 내용은 같은 백업 JSON이라 복원 동일.
+    //        취소(AbortError)가 아닌 실패는 이제 조용히 삼키지 않고 알린다.
     (function(){
       const b = document.getElementById('tlShare');
       let ok = false;
-      try{ ok = !!(navigator.canShare && navigator.canShare({files: [new File([''], 'b.json', {type: 'application/json'})]})); }
+      try{ ok = !!(navigator.canShare && navigator.canShare({files: [new File([''], 'b.txt', {type: 'text/plain'})]})); }
       catch(e){ ok = false; }
       if(!b || !ok) return;
       b.hidden = false;
       b.addEventListener('click', () => {
-        const f = new File([backupText()], backupName(), {type: 'application/json'});
+        const f = new File([backupText()], backupName('txt'), {type: 'text/plain'});
         navigator.share({files: [f], title: '나스닥 신호 백업'})
           .then(() => markBackup())          // 공유를 실제로 마쳤을 때만 백업으로 친다
-          .catch(() => {});                  // 시트 닫기(취소) 포함 — 조용히. 저장 버튼은 그대로 남아 있다
+          .catch(err => {
+            if(err && err.name === 'AbortError') return;   // 시트 닫기(취소) — 조용히
+            alert('공유하지 못했습니다 — [파일로 저장]을 이용해 주세요.');
+          });
       });
     })();
     document.getElementById('tlImpFile').addEventListener('change', (ev) => {
