@@ -717,7 +717,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
       LP 호가 의무가 없어 스프레드만 벌어짐), 성과를 깎는 건 몇 시간이 아니라
       <b>하루 단위 지연</b>입니다(1일 126배 → 3일 102배). 휴장이면 다음 개장일에.<br><br>
 
-      <b style="color:var(--attack)">방어 바스켓은 고르지 말고 셋 다</b> — 40/40/20 고정, 월 1회 비율만 맞춥니다.
+      <b style="color:var(--attack)">방어 바스켓은 고르지 말고 셋 다</b> — 40/40/20 고정, 진입일부터 30일마다 비율만 맞춥니다.
       골라 타는 규칙 11종은 전부 기각됐고, 섞는 이유는 수익이 아니라 낙폭입니다
       (MDD −60.5% vs 배당100 −68.1%). 국채 다리는 <b>선물형</b>이라 단기금리만큼 뺀
       수익을 받습니다 — 백테스트도 같은 규약입니다.<br><br>
@@ -1925,9 +1925,16 @@ function drawTlog(){
       const qty = pnum(document.getElementById('tlQty').value);
       const px = pnum(document.getElementById('tlPx').value);
       if(!(qty > 0) || !(px > 0)){ alert('수량과 체결가를 양수로 입력하세요.'); return; }
+      // [v122] 오타 가드 — 기준가와 ±20% 넘게 벌어진 체결가는 기록 전에 한 번 묻는다.
+      //        (30,000 을 300,000 으로 치는 실수를 기록 뒤 괴리%로 발견하면 늦다.)
+      const refPx = effPx(code);
+      if(refPx > 0 && Math.abs(px / refPx - 1) > 0.20 &&
+         !confirm('체결가 ' + Math.round(px).toLocaleString('en-US') + '원이 기준가 '
+           + Math.round(refPx).toLocaleString('en-US') + '원과 '
+           + Math.round(Math.abs(px / refPx - 1) * 100) + '% 차이 납니다.\n오타가 아닌지 확인해 주세요 — 이대로 기록할까요?')) return;
       const tp = tzParts(new Date(), SEOUL);   // 체결은 한국장 — 날짜도 KST
       TRADES.push({d: tp.y + '-' + String(tp.m).padStart(2, '0') + '-' + String(tp.d).padStart(2, '0'),
-                   code, side, qty, px, ref: effPx(code)});
+                   code, side, qty, px, ref: refPx});
       saveTrades();
       const p = PORT.a[code] = PORT.a[code] || {};
       p.qty = String(Math.max(0, pnum(p.qty) + (side === 'buy' ? qty : -qty)));
