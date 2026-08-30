@@ -1216,7 +1216,7 @@ function drawHoriz(){
     });
     const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
     dlBlob(new Blob([String.fromCharCode(0xFEFF) + csv], {type: 'text/csv;charset=utf-8'}),
-           'performance-' + kstStamp() + '.csv');
+           '성과비교_' + kstStamp() + '.csv');            /* [v138] 한국어 파일명 */
   });
 })();
 
@@ -1841,8 +1841,14 @@ function kstStamp(){
 // [v114] goal 포함 — v 는 1 유지: goal 없는 옛 파일·옛 화면과 양방향 호환(선택 필드).
 // [v119] 저장·공유 공용 헬퍼. [v124] 자동 백업도 쓰도록 모듈 스코프로 이동.
 function backupText(){ return JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL}, null, 2); }
+/* [v138] 파일명 한국어 — 소유자가 다운로드 폴더·카톡에서 직접 보는 이름이다
+   (소유자 규약: 내가 읽거나 다루는 것은 한국어 제목).
+   ★ 확장자는 절대 그대로 둔다 — v120 실사고(크롬 Web Share 확장자 허용목록).
+   ★ 공백 대신 밑줄 — 경로·공유에서 잘리는 사고 방지.
+   복원은 파일명을 보지 않고 내용만 읽으므로(FileReader→JSON.parse) 옛 이름의
+   백업도 그대로 복원된다. */
 function backupName(ext){
-  return 'nasdaq-signal-backup-' + kstStamp() + '.' + (ext || 'json');
+  return '나스닥신호_백업_' + kstStamp() + '.' + (ext || 'json');
 }
 
 /* [v124] 자동 백업 연결(File System Access) — PC 크롬/엣지 한정(안드로이드 크롬 미지원
@@ -2046,7 +2052,8 @@ function drawTlog(){
         .concat(TRADES.map(t => [t.d, t.code, shortName(t.code), t.side === 'buy' ? '매수' : '매도',
           t.qty, t.px, t.ref > 0 ? t.ref : '', t.ref > 0 ? ((t.px / t.ref - 1) * 100).toFixed(2) : '']));
       const csv = rows.map(r => r.map(esc).join(',')).join('\r\n');
-      dlBlob(new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8'}), 'trades-' + kstStamp() + '.csv');
+      dlBlob(new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8'}),
+             '\uccb4\uacb0\uae30\ub85d_' + kstStamp() + '.csv');          /* [v138] \ud55c\uad6d\uc5b4 \ud30c\uc77c\uba85 */
     });
     // [v124] \uc790\ub3d9 \ubc31\uc5c5 \u2014 \uc9c0\uc6d0 \ube0c\ub77c\uc6b0\uc800(PC)\uc5d0\uc11c\ub9cc \ubc84\ud2bc\uc774 \ub098\ud0c0\ub09c\ub2e4
     document.getElementById('tlAuto').addEventListener('click', abClick);
