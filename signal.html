@@ -1655,7 +1655,7 @@ function portCompute(){
   if(maxdev <= 2){
     act.className = 'ok';
     act.innerHTML = `🟢 <b>오늘의 행동 — 없음.</b> ${stLab} 목표와 일치합니다 (오차 ≤2%p 표시 기준).`
-      + (isAtk ? '' : ' 방어 비율 재조정은 <b>월 1회</b> 규약입니다.');
+      + (isAtk ? '' : ' 방어 비율 재조정은 <b>진입일부터 30일마다</b> 확인합니다 (아래 카운터).');
   } else {
     const L = [];
     sells.forEach(s => L.push(`<span class="bdg sell">매도 ${s.sh}주</span> ${shortName(s.r.x.code)} · 약 <b>${fmtA(s.sh * s.r.px)}</b>`));
@@ -1663,7 +1663,7 @@ function portCompute(){
     act.className = 'go';
     act.innerHTML = `🔴 <b>오늘의 행동 — ${stLab} 목표와 ${maxdev.toFixed(1)}%p 차이</b><br>` + L.join('<br>')
       + (isAtk ? '' : `<br><span style="font-size:13px;color:var(--muted)">전환일이 아니라면 —
-         방어 비율 재조정은 월 1회 규약입니다.</span>`)
+         방어 비율 재조정은 진입일부터 30일마다입니다 (아래 카운터 참고).</span>`)
       + `<br><button class="copybtn" id="copyOrder" type="button">주문 메모 복사</button>`;
     const cb = document.getElementById('copyOrder');
     if(cb) cb.addEventListener('click', () => {
@@ -2009,7 +2009,10 @@ async function drawTlogList(){
 
 /* [v97] 방어 진입일 — OOS 장부(data/oos_log.csv)를 뒤에서부터 거슬러 현재 방어 연속
    구간의 첫 행을 찾는다. 장부 맨 앞까지 같은 상태면(전환 기록이 장부 밖) 미확정 처리.
-   재조정 기준일 규약(월 1회 「며칠에」)은 미정이라 날짜 카운터가 아니라 경과일만 쓴다. */
+   [v117] 재조정 기준일 규약 확정(소유자 위임 2026-08-30): 진입일부터 30일마다 확인.
+   달력 월 기준은 월말 진입 시 며칠 만에 재조정하는 엣지가 있어 기각 — 진입일 순환은
+   장부에 있는 날짜만으로 계산되고 예외 규칙이 없다. 일정 알림일 뿐 매매 지시가 아니며,
+   실제 차이·수량은 기존 오늘의 행동 표시가 담당한다. */
 let DEF_ENTRY;                                  // undefined=미조회 · null=미확정 · {d}=확정
 async function getDefenseEntryDate(){
   if(DEF_ENTRY !== undefined) return DEF_ENTRY;
@@ -2034,8 +2037,15 @@ async function drawDefDays(){
   const e = await getDefenseEntryDate();
   if(CURSTATE !== 'SCHD' || !e){ el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
-  el.innerHTML = `방어 전환(${e.d}) 후 <b>${daysSince(e.d)}일 경과</b> · 비율 재조정은 <b>월 1회</b> 규약 —
-    마지막 재조정이 언제였는지 직접 기억/기록해 판단하세요.`;
+  const k = daysSince(e.d);
+  const c = k % 30;                              // 주기 내 위치 (0 = 확인일 당일)
+  const head = `방어 전환(${e.d}) 후 <b>${k}일 경과</b>`;
+  if(k >= 30 && c <= 2){                         // 확인일 + 2일 유예 — 주말·며칠 안 연 날 놓침 방지
+    el.innerHTML = head + ` · <b>재조정 확인일</b>입니다 (진입일부터 30일마다${c > 0 ? ` — ${c}일 지남` : ''}) —
+      위 오늘의 행동에서 목표 비중과의 차이를 확인하세요. 휴장이면 다음 개장일에.`;
+  }else{
+    el.innerHTML = head + ` · 다음 재조정 확인일 <b>D-${30 - c}</b> (진입일부터 30일마다)`;
+  }
 }
 /* [v100] 방어 경과일 — 신호 카드에 한 줄. 과거 지속기간 비교는 trajPanel 에 이미 있는
    하드코딩 문구(1개월~2년 7개월)를 재활용 — 새 통계 계산 없음 (과설계 금지). */
