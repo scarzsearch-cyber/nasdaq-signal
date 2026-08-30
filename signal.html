@@ -671,13 +671,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
 
   <!-- [v98] 단계 계산기 — guide.html §5(형성기/감속기/인출기) 참고용. 전략 로직 무개입,
        자동 전환 없음. 목표액만 이 기기에 저장(신규 키 b_goal_v1). -->
-  <div class="guide" id="goalPanel">
-    <h2>내 단계는 어디? <span style="font-size:12px;font-weight:400;color:var(--muted)">— 형성기 / 감속기 / 인출기 · 기준은 설명서 §5 · 저장은 이 기기</span></h2>
-    <div class="row"><label style="font-size:15px">목표 총자산(원)
-      <input type="text" id="goalTarget" inputmode="numeric" placeholder="예: 500,000,000" style="width:160px"></label></div>
-    <div id="goalBody" style="margin-top:10px"></div>
-  </div>
-
   <div class="guide" id="calcPanel">
     <h2>포지션 계산기</h2>
     <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -821,6 +814,18 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     </div>
   </div>
 
+  <div class="guide" id="goalPanel">
+    <h2>내 단계는 어디? <span style="font-size:12px;font-weight:400;color:var(--muted)">— 형성기 / 감속기 / 인출기 · 기준은 설명서 §5 · 저장은 이 기기</span></h2>
+    <div class="row"><label style="font-size:15px">목표 총자산(원)
+      <input type="text" id="goalTarget" inputmode="numeric" placeholder="예: 500,000,000" style="width:160px"></label></div>
+    <div id="goalBody" style="margin-top:10px"></div>
+  </div>
+
+  <div class="guide" id="t4Panel" hidden>
+    <h2>T4 그림자 추적 <span style="font-size:12px;font-weight:400;color:var(--muted)">평가 전용 — 채택안이 아닙니다</span></h2>
+    <div class="hint" id="t4Body"></div>
+  </div>
+
   <div class="guide" id="trajPanel">
     <h2>위기 궤적 참고</h2>
     <div class="hint" style="margin-top:0;font-size:13px">
@@ -848,12 +853,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div id="tmDay" class="hint" style="font-size:12px;margin-top:4px"></div>
     </div>
   </div>
-
-  <div class="guide" id="t4Panel" hidden>
-    <h2>T4 그림자 추적 <span style="font-size:12px;font-weight:400;color:var(--muted)">평가 전용 — 채택안이 아닙니다</span></h2>
-    <div class="hint" id="t4Body"></div>
-  </div>
-
 </div>
 
 <script>
