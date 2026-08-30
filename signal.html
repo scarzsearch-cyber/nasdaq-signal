@@ -287,13 +287,16 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .perf:not(.allcols) th.sec,.perf:not(.allcols) td.sec{display:none;}
 }
 @media (max-width:700px){
-  .perf th,.perf td{padding:6px 6px;font-size:12.5px;}
+  /* [v121] 가로 패딩 6→4px — v112 는 412px 에 여유 0px 로 '정확히' 들어맞았는데,
+     실기기 폰트 렌더링이 1~2px 만 달라져도 미세 드래그가 생겼다(갤럭시 실보고).
+     열당 4px 씩 슬랙을 확보한다. */
+  .perf th,.perf td{padding:6px 4px;font-size:12.5px;}
   .perf th:nth-child(1),.perf td.strat{position:sticky;left:0;z-index:2;
     background:var(--panel);min-width:92px;max-width:92px;font-size:11.5px;
     white-space:normal;line-height:1.3;word-break:keep-all;
     box-shadow:2px 0 3px rgba(0,0,0,.06);}
   .perf tr.on td.strat{background:#F2F6FB;}
-  .perf tr.ghead td{padding:10px 6px 6px;}
+  .perf tr.ghead td{padding:10px 4px 6px;}
   .perf .glbl .per{font-size:11px;}
 }
 
@@ -1104,6 +1107,24 @@ function paintMetKey(sc){
   // [v64] 지표마다 자연스러운 말로. MDD 를 '클수록'이라 쓰면 숫자로는 맞아도
   //       (−44 > −56) 사람은 반대로 읽는다.
   const UP = '↑ 클수록', DN = '↓ 작을수록';
+  // [v121] 심사평(소유자 요청 2026-08-30) — 통상 눈금의 고정 등급표 + 이 기준 4개
+  //        변형(고점·평균) 대비 위치. 공표 수치의 해석 표시일 뿐 매매 판단·전략 로직 무관.
+  //        Calmar·Sortino 는 수익을 위험으로 나눈 값이라 "수익이 크면 같은 낙폭도
+  //        감내할 만하다"가 지표 자체에 이미 들어 있다. Ulcer 만 수익 보정 없는 순수 고통.
+  const jd = (key, cur, low) => {                // low=true 면 작을수록 좋은 지표
+    if(cur == null || !sc) return '';
+    const vs = PERF_VARIANTS.map(([vk]) => sc[vk] && sc[vk][sel] ? sc[vk][sel][key] : null)
+      .filter(x => x != null);
+    if(vs.length < 2) return '';
+    const best = low ? Math.min(...vs) : Math.max(...vs);
+    const avg  = vs.reduce((a, b) => a + b, 0) / vs.length;
+    const rank = 1 + vs.filter(x => low ? x < cur : x > cur).length;
+    const f = x => key === 'ulcer' ? x.toFixed(1) : x.toFixed(3);
+    return ` · 이 기준 ${vs.length}개 변형 중 <b>${rank}위</b> (최고 ${f(best)} · 평균 ${f(avg)})`;
+  };
+  const gCal = v => v >= 3 ? '탁월' : v >= 1 ? '우수' : v >= 0.5 ? '보통' : '미흡';
+  const gSor = v => v >= 3 ? '탁월' : v >= 1.5 ? '우수' : v >= 1 ? '무난' : '미흡';
+  const gUlc = v => v < 5 ? '낮음' : v < 10 ? '보통' : v < 20 ? '높음' : '매우 높음';
   // [v74] 54년 시나리오의 "2.2조원"은 산술로는 맞지만 도달 가능한 돈이 아니다
   //       (세전 + 당시 상품 부재 + 54년 완주 가정). 자(尺)로만 쓰라고 명시한다.
   const moneyLine = m.years > 35
@@ -1120,15 +1141,24 @@ function paintMetKey(sc){
         `<b>${uwfmt(m)}</b>`) +
 
     row('CALMAR', UP, '낙폭 대비 효율 — <b>일시적 대폭락</b> 위험을 본다',
-        `${m.calmar.toFixed(3)} — 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움`) +
+        `${m.calmar.toFixed(3)} — 최악의 낙폭을 <b>${yrs(m.calmar)}년치</b> 수익으로 메움<br>
+         심사: <b>${gCal(m.calmar)}</b> — 통상 1↑ 우수 · 3↑ 탁월 · 장기일수록 낮아지는 게 정상.
+         수익÷낙폭이라 <b>수익이 클수록 같은 MDD 도 후하게</b> 평가되는
+         지표${jd('calmar', m.calmar, false)}`) +
 
     row('SORTINO', UP, '하락 변동성 대비 수익 — <b>지속적 손실</b> 위험을 본다',
         m.sortino==null ? '—'
-          : `<b>${m.sortino.toFixed(3)}</b> — 통상 1 이상 무난 · 1.5 이상 우수`) +
+          : `<b>${m.sortino.toFixed(3)}</b><br>
+             심사: <b>${gSor(m.sortino)}</b> — 통상 1↑ 무난 · 1.5↑ 우수 · 3↑ 탁월.
+             이것도 수익÷위험 지표(분모가 하락 변동성)${jd('sortino', m.sortino, false)}`) +
 
     row('ULCER', DN, '<b>늘 얼마나 물속이었나</b> — MDD 가 못 보는 평상시의 고통',
         m.dd_mean==null ? '—'
-          : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`) +
+          : `평균 <b>고점 대비 −${m.dd_mean.toFixed(1)}%</b> 에서 지냄`
+            + (m.ulcer == null ? '' : `<br>심사: Ulcer ${m.ulcer.toFixed(1)} —
+               <b>${gUlc(m.ulcer)}</b> — 통상 5↓ 낮음 · 10↑ 높음. 수익 보정이 <b>없는</b>
+               순수 고통 눈금이라(레버리지 전략은 구조적으로 높음) 수익 대비 평가는
+               Calmar·Sortino 몫${jd('ulcer', m.ulcer, true)}`)) +
 
     `<div class="dir">전략·벤치마크 비교는 아래 <b>성과 비교표</b> 한 곳에서.</div>`;
 }
@@ -1216,8 +1246,9 @@ const HZ = ['5','10','15','20'];
 function drawHoriz(){
   const host = document.getElementById('horizBody');
   if(!STATS){ host.innerHTML = ''; return; }
+  // [v121] 「최근」은 첫 열에만 — 네 번 반복하면 너비만 먹는다 (소유자 요청).
   const head = `<tr><th>전략</th>` +
-    HZ.map(y=>`<th style="text-align:right">최근 ${y}년</th>`).join('') + `</tr>`;
+    HZ.map((y,i)=>`<th style="text-align:right">${i ? '' : '최근 '}${y}년</th>`).join('') + `</tr>`;
   const cells = m => HZ.map(y=>{
     const v = m.horizons ? m.horizons[y] : null;
     return `<td class="num">${v==null ? '—' : nfmt(v)+'배'}</td>`;
