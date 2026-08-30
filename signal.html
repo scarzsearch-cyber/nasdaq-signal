@@ -356,7 +356,7 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .rules{font-size:17px;line-height:1.7;color:var(--muted);margin-top:16px;
   padding-top:14px;border-top:1px solid var(--rule);}
 .rules b{color:var(--ink);}
-.foot{margin-top:20px;font-size:15px;color:var(--muted);line-height:1.6;}
+/* [v129] .foot 면책 문구 제거 — 소유자 지시(개인 도구, 상기 문구 불필요) */
 
 /* ---- 상단 고정 요약 (스크롤 시) ---- */
 .stale{margin:0 0 14px;padding:12px 14px;border-radius:2px;font-size:18px;line-height:1.6;}
@@ -695,9 +695,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <div class="row"><label style="font-size:15px">목표 총자산(원)
       <input type="text" id="goalTarget" inputmode="numeric" placeholder="예: 500,000,000" style="width:160px"></label></div>
     <div id="goalBody" style="margin-top:10px"></div>
-    <div class="hint" style="font-size:13px">이 화면은 <b>참고용</b>입니다 — 자동 전환은 없으며,
-      공격↔방어 전환 판단은 항상 신호 규칙(−16/−16)을 따르세요. 단계 전환(감속기·인출기)도
-      직접 판단해 실행하는 수동 행위입니다.</div>
   </div>
 
   <div class="guide" id="calcPanel">
@@ -848,7 +845,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <h2>위기 궤적 참고</h2>
     <div class="hint" style="margin-top:0;font-size:13px">
       읽는 법 — <b>지금 낙폭(파란 선)이 과거 위기들의 같은 「고점 후 경과일」 위치에서
-      얼마나 깊은지</b>를 견주는 그림입니다. 예측이 아니라 현재 위치 확인용.
+      얼마나 깊은지</b>를 견주는 그림입니다.
       각 위기가 실제로 끈 시간: <b>닷컴 2000</b> 저점까지 2년 7개월(−83%)·전고점 회복 14년 11개월 ·
       <b>금융위기 2008</b> 1년 1개월(−53%)·회복 3년 2개월 ·
       <b>코로나 2020</b> 1개월(−29%)·회복 4개월 ·
@@ -861,9 +858,8 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
          데이터 없으면(구배포·로컬) 조용히 숨김. -->
     <div id="tmWrap" hidden style="margin-top:14px;padding:12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface2)">
       <div style="font-weight:800;font-size:16px;margin-bottom:2px">🕰️ 위기 타임머신</div>
-      <div class="hint" style="margin-top:0;font-size:12.5px"><b>실제로 벌어졌던 일입니다 —
-        예측이 아니라 과거 재현입니다.</b> 달러 기준(성과표 「달러」와 같은 재료·규약) ·
-        세전 · 고점 후 400거래일 창.</div>
+      <div class="hint" style="margin-top:0;font-size:12.5px"><b>과거의 실제 재현</b>(예측 아님) ·
+        달러 기준 · 세전 · 고점 후 400거래일</div>
       <div id="tmTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
       <div id="tmNums" style="display:flex;gap:26px;margin:10px 0 8px"></div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -878,10 +874,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
   <div class="guide" id="t4Panel" hidden>
     <h2>T4 그림자 추적 <span style="font-size:12px;font-weight:400;color:var(--muted)">평가 전용 — 채택안이 아닙니다</span></h2>
     <div class="hint" id="t4Body"></div>
-  </div>
-
-  <div class="foot">
-    성과 수치는 과거 데이터 백테스트 결과이며 미래 수익을 보장하지 않습니다. 투자 자문이 아닙니다.
   </div>
 
 </div>
@@ -1204,7 +1196,7 @@ function paintMetKey(sc){
                순수 고통 눈금이라(레버리지 전략은 구조적으로 높음) 수익 대비 평가는
                Calmar·Sortino 몫${jd('ulcer', m.ulcer, true)}`)) +
 
-    `<div class="dir">전략·벤치마크 비교는 아래 <b>성과 비교표</b> 한 곳에서.</div>`;
+    '';                                         // [v129] 안내 꼬리줄 제거 — 소유자 지시
 }
 
 /* ---------------- 성과 비교표 ---------------- */
@@ -1813,7 +1805,7 @@ function drawGoal(){
   const t = GOAL && GOAL.target > 0 ? GOAL.target : 0;
   if(!t){
     body.innerHTML = `<div class="hint" style="font-size:13.5px;margin-top:0">목표 총자산을 입력하면
-      현재 단계(형성기/감속기/인출기)를 참고용으로 보여줍니다 — 진행률은 위
+      현재 단계(형성기/감속기/인출기)를 보여줍니다 — 진행률은 위
       <b>내 포트폴리오</b>의 총 평가액(현금 포함)을 그대로 씁니다.</div>`;
     return;
   }
@@ -2294,7 +2286,7 @@ async function drawDefDur(){
   if(CURSTATE !== 'SCHD' || !e){ el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
   el.innerHTML = `방어 전환 후 <b>${daysSince(e.d)}일째</b> · 참고: 과거 위기의 방어 기간은
-    <b>1개월~2년 7개월</b>로 다양했습니다 (위기 궤적 패널 참고 — 예측 아님).`;
+    <b>1개월~2년 7개월</b>로 다양했습니다 (위기 궤적 패널 참고).`;
 }
 /* [v125] 전환일 리허설 — 실전(연 2~3회)의 화면 흐름을 가상 상황으로 연습한다.
    실데이터 무접촉: 신호 카드만 가짜 상태로 다시 그리고(paintState), 확인 저장(saveSeen)·
@@ -2421,8 +2413,7 @@ function paintProx(o, isQld){
     const fill = Math.min(100, Math.abs(o.dd) / 16 * 100);
     const zone = gap >= 8 ? ['yellow', '여유'] : gap >= 3 ? ['orange', '접근'] : ['red', '근접'];
     const warn = zone[0] === 'yellow' ? ''
-      : `<div class="plbl warn">전환 가능성 ${zone[1]} — <b>주문할 방어 바스켓을 미리 확인해 두세요.</b>
-         (예측이 아니라 거리 표시입니다. 실행은 규칙이 합니다)</div>`;
+      : `<div class="plbl warn">전환 가능성 ${zone[1]} — <b>주문할 방어 바스켓을 미리 확인해 두세요.</b></div>`;
     el.innerHTML =
       `<div class="pbar" aria-hidden="true"><div class="pfill ${zone[0]}" style="width:${fill.toFixed(1)}%"></div></div>
        <div class="plbl">방어 트리거(−16%)까지 <b>${gap.toFixed(1)}%p</b> 남음 · 상태: <b>${zone[1]}</b>
@@ -2928,8 +2919,7 @@ function drawTrajectory(tr){
   host.innerHTML=`<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:480px;height:auto">${g}
     <text x="${PL}" y="${H-8}" font-size="13" fill="${axisColor}" font-family="Pretendard Variable, Pretendard, sans-serif">고점 이후 경과일 →</text></svg></div>
     <div style="margin-top:8px">${legend}</div>
-    <div class="hint">규칙(${S.name})은 이 궤적 모양과 무관하게 낙폭 숫자만 봅니다 — 참고용입니다.
-    점선은 ${S.exit===S.enter?'전환선 −16%(진입·복귀 공통)':'두 전환선'}.</div>`;
+    <div class="hint">점선은 ${S.exit===S.enter?'전환선 −16%(진입·복귀 공통)':'두 전환선'}.</div>`;
 }
 
 boot();
