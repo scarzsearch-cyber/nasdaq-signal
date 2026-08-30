@@ -905,6 +905,8 @@ function loadPrefs(){
     // [v61] 규칙은 하나뿐이다. 예전에 저장된 선택값은 지운다.
     if(localStorage.getItem(SKEY) !== 'B') localStorage.removeItem(SKEY);
     const c = localStorage.getItem(CKEY); if(c) scen = c;
+    // [v131] 54년 확장(us_1972)은 화면 기준에서 제외 — 저장된 옛 선택은 기본값으로 보정.
+    if(!PERF_SHOW.includes(scen)) scen = 'kr_1997';
   }catch(e){}
 }
 function savePrefs(){
@@ -1067,7 +1069,8 @@ function drawPicker(){
 
   const sc = document.getElementById('scen');
   if(STATS){
-    sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.map(x=>
+    // [v131] 기준 칩도 성과표와 같은 3기준만 — 54년 확장은 문서·검증 근거로만 (소유자 지시).
+    sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.filter(x=>PERF_SHOW.includes(x.key)).map(x=>
       `<button class="chip" type="button" data-s="${x.key}" aria-pressed="${x.key===scen}">${x.label}</button>`).join('');
     sc.querySelectorAll('.chip[data-s]').forEach(b=>b.addEventListener('click',()=>{
       scen = b.dataset.s; savePrefs(); redraw();
@@ -1170,15 +1173,14 @@ function drawPerf(){
   document.getElementById('perfNote').innerHTML =
     `<p><span class="lead">주의</span> —
        <b style="color:var(--attack)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b>
-       — 기준끼리는 <b>CAGR 열</b>로. (달러 165배 vs 원화 2,761배도 같은 26.6년으로
-       맞추면 165 vs 169.) 이 우위의 <b style="color:var(--ink)">96%는 닷컴 한 사건</b>에서
+       — 기준끼리는 <b>CAGR 열</b>로. (달러 167배 vs 원화 2,800배 차이도 대부분 기간과
+       환율 몫 — 최근 20년으로 맞추면 136배 vs 168배.) 이 우위의 <b style="color:var(--ink)">약 97%는 닷컴 한 사건</b>에서
        나왔고, 2000년형 느린 약세장은 −43~−53%p 완화하지만
        <b style="color:var(--attack)">1987·2020형 급락은 거의 못 피합니다</b>(3%p 안팎).
        느린 약세장 보험이지 만능 방어가 아닙니다.</p>
 
      <p><span class="lead">전제</span> — 「원화」는 환노출 2배 + 슬리피지 0.1%,
-       「달러」는 미국 종가 체결. 달러·54년은 나스닥 종합/NDX/QQQ를 이어붙인
-       대리 시계열 — 같은 자산이 아닙니다.</p>` + judge;
+       「달러」는 미국 종가 체결.</p>` + judge;
   drawHoriz();
 }
 
