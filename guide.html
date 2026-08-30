@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- 주소창 색 — signal.html 과 같은 쌍 (탭을 오가도 색이 튀지 않게) -->
+<meta name="theme-color" content="#0B5FD6">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12181F">
 <title>설명서 — 나스닥 신호</title>
 <style>
 :root{color-scheme:light dark;--paper:#EEF1F4;--panel:#FFFFFF;--ink:#16202B;--muted:#6B7A88;
@@ -100,6 +103,9 @@ summary{cursor:pointer;font-weight:700}
     <h3>평소 (연중 대부분)</h3>
     <p><b>아무것도 안 해도 됩니다.</b> 신호는 매일 새벽 자동 갱신되고, 문제가 생기면 카톡이 옵니다.
        가끔 화면을 열면 게이지가 "여유/접근/근접"으로 거리를 보여줍니다.</p>
+    <p>예외 하나 — <b>방어 기간 중엔 진입일부터 30일마다</b> 비율(배당40·국채40·금20)이
+       흐트러지지 않았는지 확인합니다. 신호 화면의 내 포트폴리오에 D-day 카운터가 있으니
+       날짜를 외울 필요는 없습니다.</p>
     <h3>전환일 (연 2~3회 — 카톡 🔔이 오는 날)</h3>
     <ol>
       <li>화면에서 <b>오늘 전환 신호</b>와 무엇을 사고 팔지 확인</li>
@@ -345,6 +351,22 @@ summary{cursor:pointer;font-weight:700}
       <p>계산 자체는 독립 감사에서 소수점까지 재현됐고 미래 정보 유입도 없습니다. 믿으면 안 되는 건
       숫자가 아니라 <b>"과거가 반복된다"는 가정</b>입니다. 그래서 2026-08-28부터의 성적을
       별도 장부(순수 OOS)에 쌓아 미래 데이터로 계속 재검증합니다.</p></details>
+    <details><summary>내 입력(보유·체결·목표액)은 어디에 저장되나?</summary>
+      <p>보고 있는 <b>그 기기의 브라우저 안</b>에만 저장됩니다 — 서버로 보내지 않습니다.
+      그래서 폰과 PC는 서로의 입력을 모릅니다. 브라우저 데이터를 지우면 같이 지워지므로,
+      신호 화면 → 내 포트폴리오 → <b>체결 기록 · 백업</b>에서 가끔 <b>[파일로 저장]</b>을
+      눌러 두세요. 30일 넘게 백업이 없으면 화면이 조용히 한 줄로 알려줍니다.</p></details>
+    <details><summary>폰↔PC로 데이터를 옮기려면?</summary>
+      <p>옮겨 갈 기기에서 쓸 백업 파일을 만드는 방식입니다: 입력해 둔 기기에서
+      <b>체결 기록 · 백업</b>을 펼쳐 <b>[파일로 저장]</b> → 받은 .json 파일을 카톡 나에게
+      보내기나 드라이브로 옮김 → 다른 기기에서 <b>[파일에서 복원]</b>에 그 파일을 넣으면
+      끝입니다. 백업 한 파일에 보유·체결 기록·목표액이 전부 들어 있습니다.</p></details>
+    <details><summary>백업 .json 파일은 어떻게 여나?</summary>
+      <p>열어 보는 파일이 아닙니다 — 내용 확인이나 편집 없이 <b>[파일에서 복원] 버튼에
+      그대로 넣는</b> 용도입니다. 메모장 등으로 고치면 형식이 깨져 복원이 거부될 수 있습니다.</p></details>
+    <details><summary>크롬 메뉴의 「홈 화면에 추가 / 설치」는 뭔가?</summary>
+      <p>이 화면을 앱처럼 여는 <b>바로가기</b>입니다(파란 N 아이콘). 설치해도 내용과 기능은
+      똑같고, 오프라인 저장은 일부러 하지 않습니다 — 항상 최신 신호만 보여주기 위해서입니다.</p></details>
   </section>
 
   <div class="dim" style="text-align:center">근거 문서: 저장소 01~04_*.md · 상세 실험 기록 docs/history/ · 이 페이지는 요약본입니다.</div>
