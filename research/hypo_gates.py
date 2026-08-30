@@ -78,10 +78,12 @@ def sig_vol(r):
     return v.shift(1).values
 
 
-def sim_multi(legs, cost=COST):
+def sim_multi(legs, cost=COST, cap=True):
     """월초 리밸런스 멀티자산 엔진.
     legs: (기초수익 r_u, 실행상품수익 r_x, 압축배수 k) — 노출 e 에 현금 e/k 소요.
-    노출 e_i = TARGET/(√n_leg · vol_i) × trend_i, 현금합>1 이면 비례 축소."""
+    노출 e_i = TARGET/(√n_leg · vol_i) × trend_i, 현금합>1 이면 비례 축소.
+    cap=False 면 한도 해제 — 부족 현금을 T-bill 금리로 무마찰 차입(기관 선물 가정,
+    개인은 불가능한 관대 조건. 부록 실험 전용)."""
     m = len(legs)
     tr = [sig_trend(l[0]) for l in legs]
     vv = [sig_vol(l[0]) for l in legs]
@@ -99,7 +101,7 @@ def sim_multi(legs, cost=COST):
                 if np.isfinite(vol_j) and vol_j > 1e-6:
                     e[j] = TARGET / (np.sqrt(m) * vol_j) * tr[j][i]
             need = float(np.sum(e / ks))
-            if need > 1.0:
+            if cap and need > 1.0:
                 e *= 1.0 / need
             new_w = e / ks
             turn = float(np.sum(np.abs(new_w - cash_w)))
@@ -156,7 +158,8 @@ def report(name, curve):
 
 def main():
     _check()
-    A = sim_multi([(r_eq1, r_eq1, 1.0), (r_b10, r_b3x, 3.0), (r_gld, r_gld, 1.0)])
+    legsA = [(r_eq1, r_eq1, 1.0), (r_b10, r_b3x, 3.0), (r_gld, r_gld, 1.0)]
+    A = sim_multi(legsA)
     K = sim_multi([(r_eq1, r_eq2, 2.0), (r_b5f, r_b5f, 1.0), (r_gld, r_gld, 1.0)])
     rows = [report('현행 B (−16 mix)', cB), report('A 해외직투 이상형', A), report('K 국내 병용', K)]
     b = rows[0]
@@ -171,6 +174,19 @@ def main():
         g1 = '통과' if r['calmar'] > b['calmar'] * 1.102 else '탈락'
         g2 = '통과' if r['q20'] is not None and r['q20'] >= b['q20'] else '탈락'
         print(f"  {r['name']}: ① {g1} (Calmar {r['calmar']:.3f}) · ② {g2} (5분위 {r['q20']:.1f})")
+
+    # ---- 부록 (소유자 질문 2026-08-30): 같은 구조에서 타깃만 40%로 올리면? ----
+    # A@40 한도내 = 개인 도구 그대로(현금 100% 상한) — 상한이 이미 물려 있으면 10%와 동일해야 함
+    # A@40 무제약 = T-bill 무마찰 차입 가정(기관 선물 전용, 개인 불가·관대 조건)
+    g = globals()
+    g['TARGET'] = 0.40
+    A40c = sim_multi(legsA)
+    A40u = sim_multi(legsA, cap=False)
+    g['TARGET'] = 0.10
+    print('\n[부록] 타깃 40% — 다이얼만 올리면 무슨 일이 나는가')
+    for r in (report('A@40 한도내(개인)', A40c), report('A@40 무제약(기관가정)', A40u)):
+        print(f"{r['name']:<20} {r['final']:>10.1f} {r['cagr']:>7.2f} {r['mdd']:>7.2f} "
+              f"{r['calmar']:>7.3f} {r['q20']:>10.1f}")
 
 
 if __name__ == '__main__':
