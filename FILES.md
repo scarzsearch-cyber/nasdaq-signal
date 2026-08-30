@@ -10,7 +10,7 @@
 전략_요약.md            ★ 이것부터. 전략·근거·결론 5분 요약
 README.md               전략·자동화·파일지도·오류원인·체크리스트
 HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
-CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v117)
+CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v119)
 FILES.md                이 파일
 
 verify_all.py           ★ 검증 단일 진입점 —  python verify_all.py
