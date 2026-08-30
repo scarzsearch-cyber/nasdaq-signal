@@ -143,6 +143,34 @@ def main():
     print(f'  → 산포 축소 {1 - (ens.std()/ens.mean())/(single.std()/single.mean()):.0%} '
           f'(이것이 트랜치가 사는 상품 — 기대수익이 아니다)')
 
+    # ---- [5-b] ★반증 검사 — MDD 개선이 구조적인가 선택인가 -----------------
+    #   [4] 의 개선은 「내가 고른 룩백 집합」에서 나왔다. 그 집합을 무작위로 바꿔도
+    #   MDD 가 개선되면 구조적이고, 절반쯤이면 선택편향이다. 이 검사가 트랜치 주장의
+    #   생사를 가른다 — 통과 못 하면 [4] 는 뽑기 결과일 뿐이다.
+    print('\n[5-b] ★반증 검사 — 무작위 트랜치 200회 (내가 고른 집합이 아니라)')
+    f0, m0, c0 = met(aB)
+    p0, _ = p05_h(aB, 5040)
+    win = dict(final=0, mdd=0, cal=0, p05=0)
+    accm, accc, accp = [], [], []
+    rng2 = np.random.default_rng(7)
+    for _ in range(200):
+        ls = [int(v) for v in rng2.choice(LBS, size=5, replace=False)]
+        w = np.mean([EC.rule_dd(PX, TH, TH, win=L) for L in ls], axis=0)
+        a = EC.sim2(w, QLDR, MIXR)
+        f, m, c = met(a)
+        p, _ = p05_h(a, 5040)
+        accm.append(m); accc.append(c); accp.append(p)
+        win['final'] += f > f0
+        win['mdd'] += m > m0            # mdd 는 음수 — 클수록(덜 나쁨) 개선
+        win['cal'] += c > c0
+        win['p05'] += p > p0
+    print(f"{'지표':>10} {'단일 252':>10} {'무작위 중앙':>12} {'단일을 이긴 비율':>16}")
+    print(f"{'MDD':>10} {m0:>9.1f}% {np.median(accm):>11.1f}% {win['mdd']/200:>15.0%}")
+    print(f"{'Calmar':>10} {c0:>10.3f} {np.median(accc):>12.3f} {win['cal']/200:>15.0%}")
+    print(f"{'20년 p05':>10} {p0:>9.1f}배 {np.median(accp):>11.1f}배 {win['p05']/200:>15.0%}")
+    print(f"{'최종배수':>10} {f0:>10,.0f} {np.median(ens):>12,.0f} {win['final']/200:>15.0%}")
+    print('  판정 기준: 90% 이상이면 구조적, 50% 안팎이면 선택편향(뽑기).')
+
     # ---- [6] 시대 분해 — v50/v87 지문 검사 (필수 관문) ----------------------
     #   「표본 내 개선」이 전반 시대의 산물이면 BGATE 와 같은 함정이다.
     print('\n[6] 시대 분해 — 개선이 전반 산물인가 (v50/v87 BGATE 지문 검사)')
@@ -158,6 +186,24 @@ def main():
         c2 = EC.fullmet(a[half:] / a[half], idx=idx[half:])['calmar']
         print(f'{lab:>22} {f1:>11,.1f} {f2:>11,.1f} {c1:>9.3f} {c2:>9.3f}')
     print('  → 후반에서도 트랜치가 앞서야 시대 산물이 아니다. 뒤집히면 BGATE 와 같은 함정.')
+
+    # ---- [7] 사전 고정 관문 판정 -------------------------------------------
+    #   04 §5-3 의 관문 ①(Calmar +10.2%) · ②(20년창 바닥 p05) 를 그대로 적용한다.
+    #   시대 분해를 통과했어도 이 두 관문을 못 넘으면 채택 근거가 아니다.
+    g1 = np.median(accc) / c0 - 1
+    g2 = win['p05'] / 200
+    print('\n[7] 사전 고정 관문 판정 (04 §5-3 과 같은 잣대)')
+    print(f'  관문① Calmar +10.2% 이상 : 실측 {g1:+.1%}  → '
+          f'{"통과" if g1 >= 0.102 else "★미달"}')
+    print(f'  관문② 20년창 바닥(p05) 개선: 무작위 중 {g2:.0%} 만 개선  → '
+          f'{"통과" if g2 >= 0.9 else "★미달"}')
+    print(f'  최종배수도 {win["final"]/200:.0%} 만 개선 — 부(富)를 못 쌓는다.')
+    print('\n  판정: **기각.** MDD·Calmar 개선은 구조적으로 실재하나(100%),')
+    print('  그 개선은 **부의 바닥과 최종배수를 대가로** 산 것이다. 이는 04 §5-2')
+    print('  AND(wB×wT) (MDD −52.8% 최상급이나 경제성 탈락) · §5-5 후보2')
+    print('  (MDD −43% 인데 p05 4.7 vs 34.7 참패) 와 **같은 패턴**이다.')
+    print('  기전: 전환을 여러 날에 나누면 폭락도 덜 맞지만 **V자 반등도 덜 먹는다**')
+    print('  — 기전 1(왜도)의 또 다른 사례. 부의 바닥은 V자 포착에서 나온다.')
 
 
 if __name__ == '__main__':
