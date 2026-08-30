@@ -840,6 +840,22 @@ body.rehearsal .signal,body.rehearsal #portPanel{outline:3px dashed var(--defend
     <div id="trajBody">
       <div class="hint" style="margin-top:0">자동 갱신 모드(배포된 링크)에서 과거 4대 위기와 겹쳐 표시됩니다.</div>
     </div>
+    <!-- [v127 항목20] 위기 타임머신 — 검증 엔진이 만든 과거 계좌가치 경로를 스크럽.
+         데이터 없으면(구배포·로컬) 조용히 숨김. -->
+    <div id="tmWrap" hidden style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--rule)">
+      <div style="font-weight:700;font-size:14px;margin-bottom:2px">위기 타임머신</div>
+      <div class="hint" style="margin-top:0;font-size:12.5px"><b>실제로 벌어졌던 일입니다 —
+        예측이 아니라 과거 재현입니다.</b> 달러 기준(성과표 「달러」와 같은 재료·규약) ·
+        세전 · 고점 후 400거래일 창.</div>
+      <div id="tmTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
+      <div id="tmNums" style="display:flex;gap:26px;margin:10px 0 8px"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="tmPlay" class="chipbtn" type="button" style="min-width:74px">▶ 재생</button>
+        <input id="tmSlider" type="range" min="0" value="0" step="1" style="flex:1"
+          aria-label="고점 이후 경과일">
+      </div>
+      <div id="tmDay" class="hint" style="font-size:12px;margin-top:4px"></div>
+    </div>
   </div>
 
   <div class="guide" id="t4Panel" hidden>
@@ -2737,6 +2753,72 @@ function startClock(){
 }
 
 /* ---------------- 부팅 ---------------- */
+/* [v127 항목20] 위기 타임머신 — data/crisis_paths.json 을 스크럽한다. 이 데이터는
+   research/build_crisis_paths.py 가 **검증된 엔진(reentry_lib.run) 곡선을 잘라** 만든
+   과거 재현이고(엔진 동치 검증 내장), 여기서 하는 계산은 배열 인덱싱과
+   1,000만원 × 지수 곱셈뿐 — 클라이언트 근사 계산 없음. */
+let TM = null, TM_KEY = null, TM_TIMER = null;
+async function initTimeMachine(){
+  const wrap = document.getElementById('tmWrap');
+  if(!wrap) return;
+  try{
+    const res = await fetch('data/crisis_paths.json?t=' + Date.now(), {cache: 'no-store'});
+    if(!res.ok) return;
+    TM = await res.json();
+  }catch(e){ return; }
+  const keys = Object.keys(TM).filter(k => k !== '_meta');
+  if(!keys.length) return;
+  wrap.hidden = false;
+  document.getElementById('tmTabs').innerHTML = keys.map(k =>
+    `<button class="chip" type="button" data-k="${k}" aria-pressed="false">${k}</button>`).join('');
+  document.querySelectorAll('#tmTabs .chip').forEach(b =>
+    b.addEventListener('click', () => tmSelect(b.dataset.k)));
+  document.getElementById('tmSlider').addEventListener('input', () => { tmStop(); tmPaint(); });
+  document.getElementById('tmPlay').addEventListener('click', tmToggle);
+  tmSelect(keys[0]);
+}
+function tmSelect(k){
+  tmStop();
+  TM_KEY = k;
+  document.querySelectorAll('#tmTabs .chip').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.k === k)));
+  const s = document.getElementById('tmSlider');
+  s.max = TM[k].strategy.length - 1;
+  s.value = 0;
+  tmPaint();
+}
+function tmPaint(){
+  const c = TM[TM_KEY];
+  if(!c) return;
+  const i = Math.min(+document.getElementById('tmSlider').value, c.strategy.length - 1);
+  const cell = (lab, v, color) => `<div><div style="font-size:12px;color:var(--muted)">${lab}</div>
+    <div style="font-variant-numeric:tabular-nums;font-size:20px;font-weight:800;color:${color}">${fmtA(1e7 * v)}</div>
+    <div style="font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">${v >= 1 ? '+' : ''}${((v - 1) * 100).toFixed(1)}%</div></div>`;
+  document.getElementById('tmNums').innerHTML =
+    cell('전략 B 적용', c.strategy[i], 'var(--attack)')
+    + cell('2배 그냥 보유', c.leveraged_hold[i], 'var(--muted)');
+  document.getElementById('tmDay').innerHTML =
+    `1,000만원으로 시작한 두 계좌 · 고점(${c.peak}) 이후 <b>${i}거래일</b> / ${c.strategy.length - 1}일`
+    + (TM_KEY === '닷컴 2000' ? ' — 닷컴은 400일 뒤에도 끝이 아니었습니다(최저점은 2002-10).' : '');
+}
+function tmToggle(){
+  if(TM_TIMER){ tmStop(); return; }
+  const s = document.getElementById('tmSlider');
+  if(+s.value >= +s.max) s.value = 0;
+  document.getElementById('tmPlay').textContent = '⏸ 정지';
+  TM_TIMER = setInterval(() => {                 // 하루 = 100ms — 400일 전체 약 40초
+    const s2 = document.getElementById('tmSlider');
+    if(+s2.value >= +s2.max){ tmStop(); return; }
+    s2.value = +s2.value + 1;
+    tmPaint();
+  }, 100);
+}
+function tmStop(){
+  if(TM_TIMER){ clearInterval(TM_TIMER); TM_TIMER = null; }
+  const b = document.getElementById('tmPlay');
+  if(b) b.textContent = '▶ 재생';
+}
+
 async function getJSON(p){
   const res = await fetch(p+'?t='+Date.now(), {cache:'no-store'});
   if(!res.ok) throw 0;
@@ -2774,6 +2856,7 @@ async function boot(){
   checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
   drawOosHist();                           // [v111] 같은 공용 캐시 — 추가 요청 없음
+  initTimeMachine();                       // [v127] 위기 타임머신 — 데이터 없으면 조용히 숨김
   // [v73] 포지션 계산기 컨트롤
   const cc = document.getElementById('calcCash');
   if(cc) cc.addEventListener('input', calcCompute);
