@@ -1440,6 +1440,24 @@ function loadOosLog(){
 /* [v75] T4 그림자 표시 — OOS 장부(data/oos_log.csv)의 t4_* 열을 읽어 요약만 보여준다.
    T4 = 변동성타깃 40% × 추세 다수결 (전략_v68). 판정 규약은 v69 에 사전 고정:
    3년 + 낙폭 −16% 사건 1회 이후에만 판정. 장부가 없거나 비어 있으면 패널 숨김. */
+/* [v126] T4 동의율 — 승부 판정이 아니다. 두 신호가 같은 방향(공격/방어)을 가리킨
+   빈도라는 순수 상관 통계일 뿐이며, v80 부속서가 폐기한 「창 단위 총성적 판정」과
+   무관하다(그 판정은 별도 프로세스가 사건 단위 사전 고정 기준으로 심사).
+   승/패/스코어류 표현 금지 — 화면 문구도 「상관도」로만 말한다. */
+function t4Agreement(log){
+  const iS = log.cols['state'], iW = log.cols['t4_w'];
+  if(iS == null || iW == null) return null;
+  let n = 0, agree = 0;
+  log.rows.forEach(r => {
+    const w = parseFloat(r[iW]);
+    if(!isFinite(w)) return;               // 그림자 실패일(빈 칸) 제외
+    n++;
+    const bAtk = r[iS] === 'QLD';
+    const tAtk = w > 0.5;
+    if(bAtk === tAtk) agree++;
+  });
+  return n > 0 ? {rate: agree / n * 100, n} : null;
+}
 async function drawT4(){
   const panel = document.getElementById('t4Panel');
   if(!panel) return;
@@ -1463,7 +1481,17 @@ async function drawT4(){
      채택안과 ${agree ? '<b>같은 방향</b>' : '<b style="color:#B45309">다른 방향</b>'} —
      판정은 <b>3년 + 낙폭 사건 1회 이후</b>, 사건마다 「미리 줄였나·덜 빠졌나」를
      사전 고정 기준으로 심사(v80 부속서).
-     <a href="guide.html#t4" style="color:var(--attack)">쉬운 설명은 설명서 탭 →</a>`;
+     <a href="guide.html#t4" style="color:var(--attack)">쉬운 설명은 설명서 탭 →</a>`
+    + (() => {
+        const ag = t4Agreement(log);
+        if(!ag) return '';
+        return `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--rule);
+            font-size:13px;color:var(--muted)">기록 ${ag.n}일 중 <b style="color:var(--ink)">${ag.rate.toFixed(0)}%</b>는
+          같은 방향이었습니다 — <b>승부가 아니라 상관도</b>입니다. 실제 성적 판정은
+          사건 단위 사전 고정 기준(설명서 §⑥)에서만 이뤄집니다.
+          <div class="pbar" aria-hidden="true" style="margin-top:5px;max-width:260px"><div
+            style="height:100%;border-radius:6px;background:var(--muted);opacity:.55;width:${ag.rate.toFixed(0)}%"></div></div></div>`;
+      })();
 }
 
 /* [v73] 포지션 계산기 — 상품 구성·비중은 signal.json(AUTO.risk/AUTO.defensive) 설정에서
