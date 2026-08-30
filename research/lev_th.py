@@ -110,6 +110,36 @@ def main():
     print('  (rv_k = k·std20·√252 → k 가 오르면 VT40 이 노출을 자동 축소 — 실효 배율이'
           '\n   수렴해 「3배의 수익」은 애초에 못 가져간다. 정본 규약의 구조적 귀결)')
 
+    # ---- 축 3 (소유자 후속): 「배수별 최적점 공식」은 가능한가 ----
+    yr = pd.Series(idx).dt.year.values
+    print('\n=== 켈리 최적 배수 k*=초과수익/분산 — 「공식」의 입력이 시대마다 요동한다 ===')
+    for a_, b_ in ((1972, 1980), (1980, 1990), (1990, 2000),
+                   (2000, 2010), (2010, 2020), (2020, 2027)):
+        m = (yr >= a_) & (yr < b_)
+        ex = r1[m] - tb[m]
+        mu, var = ex.mean() * 252, np.var(r1[m], ddof=1) * 252
+        print(f'  {a_}~{b_-1}: 초과수익 {mu:+.1%} · 변동성 {np.sqrt(var):.0%} → k* = {mu/var:+.1f}')
+    ex = r1 - tb
+    print(f'  전체 54년: k* = {ex.mean()*252/(np.var(r1,ddof=1)*252):+.1f}  ← 동결 배수 2.0 과 일치')
+
+    print('\n=== T4@k3 의 VT 를 반쪽에 맞추면 (후반 개량 시도의 실측) ===')
+    print(f"{'VT':>5} {'전반 Calmar':>10} {'전반배수':>9} {'후반 Calmar':>10} {'후반배수':>9}")
+    h = n // 2
+    for VTx in (0.30, 0.40, 0.50, 0.60, 0.80):
+        pxs = pd.Series(np.cumprod(1 + r1), index=idx)
+        votes = sum((pxs / pxs.shift(L) > 1.0).astype(int) for L in R.LOOKS)
+        sd = pd.Series(r1, index=idx).rolling(R.WIN).std(ddof=1)
+        wv = np.clip(VTx / (3.0 * sd * np.sqrt(252)).replace(0, np.nan), 0, 1).fillna(0)
+        wv[votes < R.TH] = 0.0
+        wv.iloc[:max(R.LOOKS)] = 0.0
+        a = EC.sim2(wv.values, np.asarray(lev_r(G.D, 3.0), float), tb)
+        m1 = EC.fullmet(a[:h] / a[0], idx=idx[:h])
+        m2 = EC.fullmet(a[h:] / a[h], idx=idx[h:])
+        print(f'{VTx*100:>4.0f}% {m1["calmar"]:>10.3f} {m1["final"]:>9.0f} '
+              f'{m2["calmar"]:>10.3f} {m2["final"]:>9.0f}')
+    print('  (후반 최적이 지표마다 다르고(30% by Calmar · 60% by 부) 어느 VT 도 후반에서'
+          '\n   B@2(Calmar 0.499·445배)를 지배하지 못한다 — 다이얼의 문제가 아니라 시대의 문제)')
+
 
 if __name__ == '__main__':
     main()
