@@ -313,6 +313,15 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .prow .pchg.up i{color:#C0392B;}
 .prow .pchg.dn i{color:#0B5FD6;}
 .prow .pchg.fl i{color:var(--muted);}
+/* [v146] 괴리율 — 평범(±0.3%)은 흐리게, 1% 초과만 눈에 띄게. 설명서 §③ 기준 그대로. */
+.prow .pdev{display:inline-block;font-size:12px;font-weight:600;margin-top:1px;
+  font-variant-numeric:tabular-nums;color:var(--muted);}
+.prow .pdev.calm{opacity:.62;}
+.prow .pdev.wide{color:var(--defend);font-weight:700;}
+/* [v146] 종목코드 자리를 네이버 금융 바로가기로 — 호가·NAV 를 한 번에 (v135 §③ 안내와 짝) */
+.prow .pnm .ext{opacity:.6;font-size:12.5px;font-variant-numeric:tabular-nums;
+  color:var(--muted);text-decoration:none;}
+.prow .pnm .ext:hover,.prow .pnm .ext:focus{opacity:1;color:var(--attack);text-decoration:underline;}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .prow .pchg.up i{color:#E0604F;}
   :root:not([data-theme="light"]) .prow .pchg.dn i{color:#5B9BF0;}
@@ -1580,6 +1589,24 @@ function chgBadge(code){
   return `<span class="pchg ${c}">${Math.round(r.px).toLocaleString('en-US')}`
        + `<i>${v > 0 ? '+' : ''}${v.toFixed(2)}%</i></span>`;
 }
+/* [v146] 괴리율 — 설명서 §③ 「주문 전에」와 **같은 규약**으로만 말한다.
+     + 프리미엄 = 값어치보다 비싸다 → 살 때 불리
+     − 디스카운트 = 값어치보다 싸다 → 팔 때 불리
+     ±0.3% 안쪽 평범 · 1% 초과면 그 방향이 나에게 불리한지 보고 넣는다.
+   ★ 여기서 「사라/팔라」를 말하지 않는다 — 전환 여부는 −16% 게이트만 정한다. */
+function devBadge(code){
+  const r = priceOf(code);
+  if(!r || r.dev_pct == null || r.nav == null) return '';
+  const d = Number(r.dev_pct);
+  if(!isFinite(d)) return '';
+  const wide = Math.abs(d) >= 1;                 // 설명서의 「1%를 넘어가 있으면」
+  const calm = Math.abs(d) <= 0.3;               // 설명서의 「±0.3% 안쪽이면 평범」
+  const side = d > 0 ? '살 때 불리' : d < 0 ? '팔 때 불리' : '';
+  const cls  = wide ? 'wide' : calm ? 'calm' : 'mid';
+  return `<span class="pdev ${cls}" title="NAV ${Math.round(r.nav).toLocaleString('en-US')}원 대비">`
+       + `괴리 ${d > 0 ? '+' : ''}${d.toFixed(2)}%`
+       + (wide && side ? ` · ${side}` : '') + `</span>`;
+}
 
 async function loadNav(){
   try{
@@ -1622,7 +1649,9 @@ function drawPort(){
       const nav = NAVPX[x.code];
       const live = priceOf(x.code);          // [v145] 있으면 스냅샷 시세를 기본값으로
       html += `<div class="prow" data-code="${x.code}">
-        <span class="pnm">${x.name} <span class="code">${x.code}</span>${chgBadge(x.code)}</span>
+        <span class="pnm">${x.name} <a class="ext" href="https://m.stock.naver.com/domestic/stock/${x.code}/total"
+            target="_blank" rel="noopener noreferrer"
+            aria-label="${x.name} 네이버 금융에서 열기 (호가·NAV)">${x.code} ↗</a>${chgBadge(x.code)}${devBadge(x.code)}</span>
         <span class="pin" data-l="보유 수량"><input data-f="qty" type="text" inputmode="numeric"
           aria-label="${x.name} 보유 수량" value="${p.qty || ''}" placeholder="0"></span>
         <span class="pin" data-l="평단(선택)"><input data-f="avg" type="text" inputmode="numeric"
