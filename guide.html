@@ -60,6 +60,19 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 details{margin:8px 0}
 summary{cursor:pointer;font-weight:700}
 .tblwrap{overflow-x:auto}
+/* [v153] 접이 절 — 평소엔 안 쓰는 내용(T4·미국 직투 배율)을 접어 둔다.
+   summary 가 h2 역할을 겸해 펼쳤을 때 제목이 두 번 나오지 않는다. */
+details.foldsec{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+  margin-bottom:14px;scroll-margin-top:12px;overflow:hidden}
+details.foldsec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;
+  gap:8px;padding:18px 20px;font-size:19px;font-weight:700;background:rgba(11,95,214,.04)}
+details.foldsec>summary::-webkit-details-marker{display:none}
+details.foldsec>summary .no{color:var(--attack);margin-right:2px}
+details.foldsec>summary::after{content:"펼치기 ▾";margin-left:auto;font-size:13px;
+  font-weight:700;color:var(--attack);white-space:nowrap}
+details.foldsec[open]>summary::after{content:"접기 ▴"}
+details.foldsec[open]>summary{border-bottom:1px solid var(--rule)}
+details.foldsec>.foldbody{padding:18px 20px}
 /* 다크 개별 오버라이드 — 같은 특이도의 원본 규칙보다 뒤에 와야 이긴다 (signal v95 교훈) */
 @media (prefers-color-scheme: dark){
   .tabs a.on{color:#12181F;}   /* attack 이 밝아지므로 글자를 어둡게 */
@@ -145,8 +158,7 @@ summary{cursor:pointer;font-weight:700}
     <ol>
       <li>화면에서 <b>오늘 전환 신호</b>와 무엇을 사고 팔지 확인</li>
       <li><b>포지션 계산기</b>에 원금과 현재가를 넣어 주문 수량 계산</li>
-      <li>한국장 <b class="key">09:05~15:20 사이</b>에 전량 전환 (그 밖 시간대는 호가가 벌어짐.
-          몇 시인지는 중요하지 않고, <b>하루를 미루는 것만</b> 성과를 깎습니다)</li>
+      <li>한국장 <b class="key">09:05~15:20 사이</b>에 전량 전환 (아래 「실행 시각 상세」 참조)</li>
       <li>휴장이면 다음 개장일에. 끝.</li>
     </ol>
     <div class="tip">전환일에 가장 어려운 건 주문이 아니라 <b>규칙을 의심하지 않는 것</b> —
@@ -182,10 +194,10 @@ summary{cursor:pointer;font-weight:700}
       <tr><th>09:00~15:30</th><td>같은 날 한국장에서 교체 주문 — 개장 직후·마감 동시호가는
         호가가 벌어지니 <b class="key">09:05~15:20 사이</b>에 넣습니다.</td></tr>
     </table></div>
-    <div class="warn"><b>미루지 마세요</b> — 신호(미국 종가)는 한국 개장 전에 이미 확정되어
-      있습니다. 같은 날 09:05~15:20 아무 때나 체결하면 되고(그 밖은 LP 호가 의무가 없어
-      스프레드만 벌어짐), 성과를 깎는 건 몇 시간이 아니라 <b>하루 단위 지연</b>입니다
-      (1일 지연 시 126배 → 3일 지연 시 102배). 휴장이면 다음 개장일에 넣으면 됩니다.</div>
+    <div class="warn"><b>미루지 마세요</b> — 신호는 한국 개장 전에 이미 확정돼 있어
+      09:05~15:20 아무 때나 체결하면 됩니다. 성과를 깎는 건 몇 시간이 아니라
+      <b>하루 단위 지연</b>입니다(1일 지연 시 126배 → 3일 지연 시 102배).
+      휴장이면 다음 개장일에 넣으면 됩니다.</div>
 
     <!-- id="order": 신호 화면 전환일 체크리스트가 여기로 바로 뛴다 (v136) -->
     <h3 id="order" style="scroll-margin-top:12px">주문 전에 — 괴리율, 30초 설명</h3>
@@ -304,8 +316,9 @@ summary{cursor:pointer;font-weight:700}
       폭락 한복판에서 규칙을 버리는 것입니다 — 그럴 바엔 처음부터 헤지6/4가 낫습니다.</div>
   </section>
 
-  <section id="lev">
-    <h2><span class="no">⑥</span>배율 다이얼 — 미국 직투로 간다면 몇 배가 맞나</h2>
+  <details class="foldsec" id="lev">
+    <summary><span class="no">⑥</span>배율 다이얼 — 미국 직투로 간다면 몇 배가 맞나</summary>
+    <div class="foldbody">
     <p>국내 실전은 <b>2배 동결</b>입니다(국내 상장 레버리지가 2배 상한이라 선택지 자체가
        없습니다). 이 절은 <b>훗날 미국 직투로 갈 경우</b>를 위한 연구 기록 요약입니다
        (2026-08-31, 상세·재현은 저장소 research/LEVERAGE_US.md).</p>
@@ -368,7 +381,8 @@ summary{cursor:pointer;font-weight:700}
        정확히 <b>2.0</b>입니다. 시대별로는 −2.3(70년대)~+5.8(2010년대)로 요동 — 공식을
        쓰려면 다음 10년의 수익률을 알아야 하므로, 결국 감내선이 답입니다. 세금은
        해외계좌(양도세 22%) 안에서는 배율 간 순서가 유지됩니다.</p>
-  </section>
+    </div>
+  </details>
 
   <section id="phases">
     <h2><span class="no">⑦</span>자산 단계별 진로 — 형성기 → 감속기 → 인출기</h2>
@@ -414,8 +428,9 @@ summary{cursor:pointer;font-weight:700}
       결정 자체가 없어지는 것</b> — 이 시스템이 규칙으로 재량을 없애온 것과 같은 철학입니다.</div>
   </section>
 
-  <section id="t4">
-    <h2><span class="no">⑧</span>T4 그림자 추적 — 언젠가 채택안을 이길지도 모르는 도전자</h2>
+  <details class="foldsec" id="t4">
+    <summary><span class="no">⑧</span>T4 그림자 추적 — 언젠가 채택안을 이길지도 모르는 도전자</summary>
+    <div class="foldbody">
     <p>화면 맨 아래 "T4 그림자"는 <b>지금 쓰는 규칙이 아니라, 심사 중인 후보</b>입니다.</p>
 
     <h3>T4가 보는 것 — 파도의 높이와 바람의 방향</h3>
@@ -484,7 +499,8 @@ summary{cursor:pointer;font-weight:700}
       <li><b>참고 병기</b>: 판정 때 ¼·채택안 + ¾·T4 혼합 성적도 함께 계산합니다
           (채택 후보 아님 — 과거 표본에선 두 단독을 모두 이긴 조합이라 기록만).</li>
     </ul>
-  </section>
+    </div>
+  </details>
 
   <section id="freeze">
     <h2><span class="no">⑨</span>왜 규칙을 못 바꾸게 잠가뒀나</h2>
@@ -592,5 +608,24 @@ summary{cursor:pointer;font-weight:700}
 
   <div class="dim" style="text-align:center">근거 문서: 저장소 01~04_*.md · 상세 실험 기록 docs/history/ · 이 페이지는 요약본입니다.</div>
 </div>
+<script>
+/* [v153] #lev·#t4 는 이제 접힌 절 안에 있다 — 목차·다른 화면(신호 카드의 T4 패널)이
+   그 앵커로 들어오면 자동으로 펼친다. 접힌 채로는 브라우저마다 스크롤 위치가 들쭉날쭉하다. */
+(function(){
+  function openFoldTarget(){
+    var id = location.hash.slice(1);
+    if(!id) return;
+    var el = document.getElementById(id);
+    if(!el) return;
+    var d = el.closest('details.foldsec');
+    if(d && !d.open){
+      d.open = true;
+      setTimeout(function(){ el.scrollIntoView({block:'start'}); }, 0);
+    }
+  }
+  openFoldTarget();
+  window.addEventListener('hashchange', openFoldTarget);
+})();
+</script>
 </body>
 </html>
