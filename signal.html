@@ -751,6 +751,8 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div id="tlogForm"></div>
       <div id="tlogList"></div>
     </details>
+    <!-- [v163] 놓친 전환 감사 — 사실만 나열한다. 판단·경고색을 쓰지 않는다. -->
+    <div class="hint" id="missBox" hidden></div>
     <div class="hint" id="portNote"></div>
   </div>
 
@@ -1068,6 +1070,28 @@ async function drawOosHist(){
   const since = tr.length ? daysSince(tr[tr.length - 1][iA]) : null;
   gap.innerHTML = '역대 평균 전환 간격 <b>약 ' + mon.toFixed(1) + '개월</b> (참고 · 예측 아님)'
     + (since == null ? '' : ' · 마지막 전환 후 <b>' + since + '일째</b>');
+}
+
+/* [v163] 놓친 전환 감사 — 장부의 전환일 중 체결 기록이 연결되지 않은 것을 센다.
+   창은 ±10일: 「완전히 놓쳤나」를 넓게 잡는다(v106 tradeDelayMap 의 7일 상한은
+   「얼마나 늦었나」를 재는 다른 목적이라 값이 다르다 — 섞지 않는다).
+   ★ 판단하지 않는다: 안 한 것인지 기록을 안 남긴 것인지는 화면이 알 수 없다. */
+const MISS_WIN = 10;
+async function drawMissed(){
+  const el = document.getElementById('missBox');
+  if(!el) return;
+  const log = await loadOosLog();
+  if(!log){ el.hidden = true; el.innerHTML = ''; return; }
+  const iA = log.cols['as_of'], iC = log.cols['changed'];
+  if(iA == null || iC == null){ el.hidden = true; el.innerHTML = ''; return; }
+  const tds = log.rows.filter(r => r[iC] === '1').map(r => r[iA]);
+  const missed = tds.filter(td => !TRADES.some(t =>
+    Math.abs((Date.parse(t.d) - Date.parse(td)) / 864e5) <= MISS_WIN));
+  if(!missed.length){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = 'OOS 기록 중 체결이 연결되지 않은 전환 <b>' + missed.length + '건</b>: '
+    + missed.join(' · ')
+    + ' — 실제로 놓치신 건지, 체결 기록을 안 남기신 건지는 본인만 아실 수 있습니다.';
 }
 
 /* [v158] 환율 민감도 — 새 모형이 아니다. 설명서 ④-5 「TIGER 레버리지는 원화 환산
@@ -1859,6 +1883,7 @@ function drawPort(){
   }
   portCompute();
   drawTlog();                              // [v90] 체결 기록
+  drawMissed();                            // [v163] 놓친 전환 감사 — 같은 공용 캐시
 }
 
 function portCompute(){
