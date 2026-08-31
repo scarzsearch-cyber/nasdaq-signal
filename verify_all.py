@@ -239,6 +239,9 @@ def i5_decisions(D):
                'guide.html 과 같은 404 유형 (v142)')
             ok("배포: price.json 이 Pages 복사 목록에 있다", 'price.json' in pg,
                '빠지면 시세 배지가 라이브에서만 안 뜬다 (v145)')
+            ok("배포: dd_percentile.json 이 Pages 복사 목록에 있다",
+               'dd_percentile.json' in pg or not os.path.exists('data/dd_percentile.json'),
+               '같은 404 유형 — 로컬에선 보이고 라이브에서만 안 뜬다 (v164)')
             ok("배포: PWA 파일이 Pages 복사 목록에 있다",
                'manifest.json' in pg and 'icon-192.png' in pg and 'icon-512.png' in pg
                and os.path.exists('manifest.json') and os.path.exists('icon-192.png')

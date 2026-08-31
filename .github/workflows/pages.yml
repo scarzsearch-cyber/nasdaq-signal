@@ -57,6 +57,7 @@ jobs:
           # [v140] 자동 파수꾼의 점검 결과 — 사람이 파이썬을 돌리지 않아도 화면에 뜬다
           cp data/ops_check.json _site/data/ 2>/dev/null || echo "ops_check.json 없음 — 점검 줄 숨김"
           cp data/price.json _site/data/ 2>/dev/null || echo "price.json 없음 — 시세 배지 숨김"
+          cp data/dd_percentile.json _site/data/ 2>/dev/null || echo "dd_percentile.json 없음 — 낙폭 백분위 숨김"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

@@ -495,5 +495,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|
 | `deploy/price_now.py` | **[v145] 4다리 시세 스냅샷** → `data/price.json`. 출처는 `nav_collect.py` 와 **같은 엔드포인트**(네이버 ETF 목록, cp949) — 새 의존성 0. 가격·등락률·NAV·괴리율. **★ 표시 전용 · 판정 무접촉** (실패해도 신호 무영향이라 항상 exit 0, 기존 파일을 덮어쓰지 않는다) |
 | `.github/workflows/price.yml` | **[v145]** 한국장 중 30분마다 위를 돌려 커밋. 알림 없음 — 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다 |
+| `research/emit_dd_distribution.py` | **[v164] 낙폭 백분위 산출** → `data/dd_percentile.json`. `hist_defensive.build('chain')['ddv']` 를 **읽기 전용**으로 써 1~99 백분위 경계를 뽑는다. **로컬 수동 실행 · 연 1회 정도**(분포는 하루이틀로 안 변한다) — `build_stats.py`·`build_crisis_paths.py` 와 같은 성격이며 **자동 워크플로에 넣지 않는다**. 원자료를 연장했을 때 다시 돌린다 |
+| `data/dd_percentile.json` | **[v164]** 위 산출물. 화면이 「오늘 낙폭이 54년 중 어느 깊이인가」를 말할 때 읽는 자. **판정에 쓰지 않는다** |
 | `data/price.json` | **[v145]** 위 산출물. 화면 `loadPrice()` 가 읽어 배지·현재가 기본값에만 쓴다. **`update_signal.py` 가 이 파일을 읽으면 verify_all 이 실패한다**(동결 규칙 보호) |
 | `notes.html` | **[v142] 업데이트 노트 — 세 번째 탭.** 단일 파일·바닐라, guide.html 토큰 그대로. 항목마다 **무엇이 / 왜 / 결론** 3필드. 최상단에 「매매 규칙은 한 번도 바뀌지 않았습니다 · 변경 0회」 + 동결 후 경과일(`data/freeze.json` 을 읽고 실패 시 하드코딩 날짜). 필터 4종·시즌 5개·v122 이전은 접힘. **내용은 git 이력·CLAUDE.md §4 에서 뽑은 실제 사건만** |
