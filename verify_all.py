@@ -38,6 +38,7 @@ import argparse
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -267,6 +268,17 @@ def i5_decisions(D):
                '매매 규칙은 한 번도 바뀌지 않았습니다' in n and '변경 0회' in n
                and 'href="./"' in n and 'href="guide.html"' in n,
                '동결 사실이 화면에 남아 있어야 한다 (v142)')
+            # [v148] 패치노트가 구현을 못 따라가는 사고가 한 세션에 두 번 났다
+            # (v144~v147 을 만들고 노트를 안 고침). 자각 대신 관문으로 막는다 —
+            # CLAUDE.md §4 의 최신 vNN 보다 노트가 뒤처지면 배포를 세운다.
+            if os.path.exists('CLAUDE.md'):
+                cm = io.open('CLAUDE.md', encoding='utf-8').read()
+                cv = [int(x) for x in re.findall(r'^- \*\*v(\d+)', cm, re.M)]
+                nvs = [int(x) for x in re.findall(r'class="v">v(\d+)', n)]
+                ok("업데이트 노트가 최신 버전까지 담고 있다",
+                   bool(cv) and bool(nvs) and max(nvs) >= max(cv),
+                   '노트 최신 v%s vs CLAUDE §4 최신 v%s — 뒤처지면 실패 (v148)'
+                   % (max(nvs) if nvs else '?', max(cv) if cv else '?'))
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')

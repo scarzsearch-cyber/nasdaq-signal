@@ -115,6 +115,76 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season>
+    <h2><span class="ver">v144 – v148</span> · 화면에서 바로 알아보게</h2>
+    <div class="season-sub">2026-08-31 · 숫자를 보여주는 데서 그치지 않고, 쓰는 법까지.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v148</span><span class="tag fix">수정</span>
+        <span class="ttl">이 노트가 업데이트를 못 따라가던 문제</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>v144~v147을 만들어 놓고 <b>정작 이 화면을 안 고쳤습니다.</b>
+          아래 네 건이 뒤늦게 올라왔습니다.</dd>
+        <dt>왜</dt><dd>기록은 사람이 기억해서 하는 일이라 <b>빠뜨리면 아무도 모릅니다.</b></dd>
+        <dt>결론</dt><dd class="res">이제 <b>노트가 뒤처지면 배포가 멈춥니다</b> —
+          기억이 아니라 검사가 막습니다. 일부러 뒤처뜨려 실제로 멈추는 것까지 확인했습니다.</dd>
+      </dl>
+    </div>
+
+    <div class="item" data-k="new">
+      <div class="head"><span class="v">v147</span><span class="tag new">신규</span>
+        <span class="ttl">NAV로 조금 더 싸게 사는 법</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>괴리율 배지를 누르면 설명서의 <b>실제 주문 절차</b>로 갑니다 —
+          지정가를 어디에 걸지, 숫자 예시(100주면 39,300원 차이)까지.</dd>
+        <dt>왜</dt><dd>괴리율 숫자만 띄워봐야 <b>쓰는 법을 모르면 소용이 없습니다.</b></dd>
+        <dt>결론</dt><dd class="res">알고 보니 <b>09:05~15:20이 LP 호가 의무 시간대</b>였습니다 —
+          이 시스템이 원래 그 시간에만 체결하게 해둔 이유입니다. 그것만 지켜도 절반은
+          지킨 셈입니다.</dd>
+      </dl>
+    </div>
+
+    <div class="item" data-k="new">
+      <div class="head"><span class="v">v146</span><span class="tag new">신규</span>
+        <span class="ttl">괴리율 표시 · 종목 바로가기 · 바깥 링크</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>자산마다 「괴리 +0.06%」. <b>1%를 넘을 때만</b> 「살 때 불리 /
+          팔 때 불리」가 붙습니다. 종목코드를 누르면 네이버 금융으로 바로 갑니다.</dd>
+        <dt>왜</dt><dd>NAV보다 비싸게 사면 그만큼 손해인데, 그걸 보려면 <b>앱을 따로</b>
+          열어야 했습니다.</dd>
+        <dt>결론</dt><dd class="res">구글 파이낸스·네이버 브리핑을 <b>화면 안에 끼워 넣는 건
+          불가능</b>했습니다(넣어보면 「403 액세스할 수 없습니다」). 링크로 여는 방식만
+          작동해서 설명서 ③에 모아뒀습니다.</dd>
+      </dl>
+    </div>
+
+    <div class="item" data-k="new">
+      <div class="head"><span class="v">v145</span><span class="tag new">신규</span>
+        <span class="ttl">보유 자산 시세를 화면에서</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>4다리 가격과 등락률이 자산 행에 뜹니다. 현재가 입력칸도
+          <b>그 값이 기본</b>으로 채워집니다. 한국장 중 30분마다 갱신.</dd>
+        <dt>왜</dt><dd>수량을 계산하려고 <b>매번 증권앱을 열어</b> 값을 옮겨 적어야 했습니다.</dd>
+        <dt>결론</dt><dd class="res">실시간이 아니라 스냅샷이라 <b>「몇 분 전」을 항상 함께</b>
+          표시합니다. 그리고 이 값은 <b>판정에 쓰지 않습니다</b> — 전환은 여전히 QQQ 종가만
+          보고 정하며, 그 분리를 배포 검사가 막고 있습니다.</dd>
+      </dl>
+    </div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v144</span><span class="tag fix">수정</span>
+        <span class="ttl">시계에 신호등이 없던 문제</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>장이 열렸는지 닫혔는지 <b>한눈에 안 보였습니다.</b>
+          이제 🟢 개장 / 🔴 마감 점이 붙습니다.</dd>
+        <dt>왜</dt><dd><b>v107이 시계를 한 줄로 접으면서 점을 같이 지웠습니다.</b>
+          글자만 남아 티가 안 났고, 그 상태로 쭉 있었습니다.</dd>
+        <dt>결론</dt><dd class="res">서머타임·공휴일은 <b>원래 정확했습니다</b> — 미국 휴장은
+          부활절까지 계산하고, 조기마감(13시)과 한국 공휴일도 반영됩니다. 안 보였던 것뿐입니다.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section data-season>
     <h2><span class="ver">v137 – v143</span> · 손 뗄 수 있게</h2>
     <div class="season-sub">2026-08-31 · 「사람의 개입은 실제 매매할 때만」이 목표였습니다.</div>
 

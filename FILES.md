@@ -489,8 +489,11 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `.github/workflows/monthly-stats.yml` | 매월 1일 성과표·지평표 데이터 최신화 (검증 통과 시에만) |
 | `.github/workflows/notify-test.yml` | **[v76]** secret 등록 후 알림 채널 수동 연결 확인. 예약 실행 없음 |
 
-### 9-9. 화면 (v142)
+### 9-9. 화면·시세 (v142~v147)
 
 | 파일 | 역할 |
 |---|---|
+| `deploy/price_now.py` | **[v145] 4다리 시세 스냅샷** → `data/price.json`. 출처는 `nav_collect.py` 와 **같은 엔드포인트**(네이버 ETF 목록, cp949) — 새 의존성 0. 가격·등락률·NAV·괴리율. **★ 표시 전용 · 판정 무접촉** (실패해도 신호 무영향이라 항상 exit 0, 기존 파일을 덮어쓰지 않는다) |
+| `.github/workflows/price.yml` | **[v145]** 한국장 중 30분마다 위를 돌려 커밋. 알림 없음 — 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다 |
+| `data/price.json` | **[v145]** 위 산출물. 화면 `loadPrice()` 가 읽어 배지·현재가 기본값에만 쓴다. **`update_signal.py` 가 이 파일을 읽으면 verify_all 이 실패한다**(동결 규칙 보호) |
 | `notes.html` | **[v142] 업데이트 노트 — 세 번째 탭.** 단일 파일·바닐라, guide.html 토큰 그대로. 항목마다 **무엇이 / 왜 / 결론** 3필드. 최상단에 「매매 규칙은 한 번도 바뀌지 않았습니다 · 변경 0회」 + 동결 후 경과일(`data/freeze.json` 을 읽고 실패 시 하드코딩 날짜). 필터 4종·시즌 5개·v122 이전은 접힘. **내용은 git 이력·CLAUDE.md §4 에서 뽑은 실제 사건만** |
