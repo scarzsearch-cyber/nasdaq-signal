@@ -162,19 +162,37 @@ def test3():
     sw = int(np.sum(np.abs(np.diff(wB))))
     inatt = float(np.mean(wB))
     print(f'  B: 전환 {sw}회 · 공격 비중 {inatt:.1%} · 최종 {aB[-1]:,.1f}배')
+    # 귀무가설 설계: **구간 길이는 B 그대로 두고 순서만 섞는다.**
+    #   → 전환 횟수·공격 비중·구간 길이 분포가 **정확히 같고**, 다른 것은 「언제」뿐.
+    #   즉 「노출 구조가 아니라 타이밍이 정보를 갖는가」를 직접 시험한다.
+    #   (무작위 절단점 방식은 공격 비중이 50%로 쏠려 B(83%)와 비교 불가 — 폐기)
+    runs = []                                   # [(상태, 길이), ...]
+    s0, ln = wB[0], 1
+    for i in range(1, n):
+        if wB[i] == s0:
+            ln += 1
+        else:
+            runs.append((s0, ln)); s0, ln = wB[i], 1
+    runs.append((s0, ln))
+    att_len = [L for s, L in runs if s == 1.0]
+    def_len = [L for s, L in runs if s == 0.0]
+    first = runs[0][0]
     rng = np.random.default_rng(42)
     outs = []
     for _ in range(2000):
-        # 같은 전환 횟수·같은 공격 비중을 갖는 무작위 0/1 경로
-        cuts = np.sort(rng.choice(np.arange(1, n), size=sw, replace=False))
-        w = np.zeros(n); state = 1.0; prev = 0
-        for c in cuts:
-            w[prev:c] = state; state = 1 - state; prev = c
-        w[prev:] = state
-        if abs(np.mean(w) - inatt) > 0.15:      # 공격 비중이 크게 다르면 버림
-            continue
+        a = rng.permutation(att_len); d = rng.permutation(def_len)
+        w = np.empty(n); pos = 0; ia = idd = 0; st = first
+        while pos < n:
+            L = (a[ia] if ia < len(a) else 1) if st == 1.0 else (d[idd] if idd < len(d) else 1)
+            if st == 1.0:
+                ia += 1
+            else:
+                idd += 1
+            L = min(L, n - pos)
+            w[pos:pos + L] = st; pos += L; st = 1.0 - st
         outs.append(curve(w, r2)[-1])
     outs = np.array(outs)
+    print(f'  귀무: 구간 길이·전환수·공격비중을 B 와 동일하게 두고 **순서만 섞음**')
     pct = float(np.mean(outs < aB[-1]))
     print(f'  무작위 {len(outs)}개: 중앙 {np.median(outs):,.1f}배 · '
           f'p95 {np.quantile(outs,0.95):,.1f}배 · 최대 {outs.max():,.1f}배')
