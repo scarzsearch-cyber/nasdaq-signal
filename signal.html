@@ -823,9 +823,37 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <div class="hint" id="horizNote"></div>
   </div>
 
+  <div class="guide" id="trajPanel" data-fold>
+    <h2>위기 궤적 참고</h2>
+    <div class="hint" style="margin-top:0;font-size:13px">
+      각 위기가 실제로 끈 시간: <b>닷컴 2000</b> 저점까지 2년 7개월(−83%)·전고점 회복 14년 11개월 ·
+      <b>금융위기 2008</b> 1년 1개월(−53%)·회복 3년 2개월 ·
+      <b>코로나 2020</b> 1개월(−29%)·회복 4개월 ·
+      <b>2022 긴축</b> 11개월(−35%)·회복 2년.
+    </div>
+    <div id="trajBody">
+      <div class="hint" style="margin-top:0">자동 갱신 모드(배포된 링크)에서 과거 4대 위기와 겹쳐 표시됩니다.</div>
+    </div>
+    <!-- [v127 항목20] 위기 타임머신 — 검증 엔진이 만든 과거 계좌가치 경로를 스크럽.
+         데이터 없으면(구배포·로컬) 조용히 숨김. -->
+    <div id="tmWrap" hidden style="margin-top:14px;padding:12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface2)">
+      <div style="font-weight:800;font-size:16px;margin-bottom:2px">🕰️ 위기 타임머신</div>
+      <div class="hint" style="margin-top:0;font-size:12.5px"><b>과거의 실제 재현</b>(예측 아님) ·
+        달러 기준 · 세전 · 고점 후 400거래일</div>
+      <div id="tmTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
+      <div id="tmNums" style="display:flex;gap:26px;margin:10px 0 8px"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="tmPlay" class="chipbtn solid" type="button" style="min-width:78px">▶ 재생</button>
+        <input id="tmSlider" type="range" min="0" value="0" step="1" style="flex:1"
+          aria-label="고점 이후 경과일">
+      </div>
+      <div id="tmDay" class="hint" style="font-size:12px;margin-top:4px"></div>
+    </div>
+  </div>
+
   <!-- 수치 출처: axis_isa.py [v33 정정 반영] (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
        갱신하려면  python axis_isa.py --emit  후 아래 표를 맞춰 쓸 것. -->
-  <div class="guide" id="taxPanel" data-fold>
+  <div class="guide" id="taxPanel" data-fold data-foldshut>
     <h2>계좌 — ISA 중개형 · 서민형 기준</h2>
 
     <div class="taxhero">
@@ -898,38 +926,11 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     </div>
   </div>
 
-  <div class="guide" id="t4Panel" data-fold hidden>
+  <div class="guide" id="t4Panel" data-fold data-foldshut hidden>
     <h2>T4 그림자 추적 <span style="font-size:12px;font-weight:400;color:var(--muted)">평가 전용 — 채택안이 아닙니다</span></h2>
     <div class="hint" id="t4Body"></div>
   </div>
 
-  <div class="guide" id="trajPanel" data-fold>
-    <h2>위기 궤적 참고</h2>
-    <div class="hint" style="margin-top:0;font-size:13px">
-      각 위기가 실제로 끈 시간: <b>닷컴 2000</b> 저점까지 2년 7개월(−83%)·전고점 회복 14년 11개월 ·
-      <b>금융위기 2008</b> 1년 1개월(−53%)·회복 3년 2개월 ·
-      <b>코로나 2020</b> 1개월(−29%)·회복 4개월 ·
-      <b>2022 긴축</b> 11개월(−35%)·회복 2년.
-    </div>
-    <div id="trajBody">
-      <div class="hint" style="margin-top:0">자동 갱신 모드(배포된 링크)에서 과거 4대 위기와 겹쳐 표시됩니다.</div>
-    </div>
-    <!-- [v127 항목20] 위기 타임머신 — 검증 엔진이 만든 과거 계좌가치 경로를 스크럽.
-         데이터 없으면(구배포·로컬) 조용히 숨김. -->
-    <div id="tmWrap" hidden style="margin-top:14px;padding:12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface2)">
-      <div style="font-weight:800;font-size:16px;margin-bottom:2px">🕰️ 위기 타임머신</div>
-      <div class="hint" style="margin-top:0;font-size:12.5px"><b>과거의 실제 재현</b>(예측 아님) ·
-        달러 기준 · 세전 · 고점 후 400거래일</div>
-      <div id="tmTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
-      <div id="tmNums" style="display:flex;gap:26px;margin:10px 0 8px"></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button id="tmPlay" class="chipbtn solid" type="button" style="min-width:78px">▶ 재생</button>
-        <input id="tmSlider" type="range" min="0" value="0" step="1" style="flex:1"
-          aria-label="고점 이후 경과일">
-      </div>
-      <div id="tmDay" class="hint" style="font-size:12px;margin-top:4px"></div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -1091,6 +1092,12 @@ function foldRead(){
        return (o && typeof o === 'object') ? o : {}; }catch(e){ return {}; }
 }
 function foldWrite(o){ try{ localStorage.setItem(FOLDKEY, JSON.stringify(o)); }catch(e){} }
+/* [v170] 3상태: 저장값 없음 -> data-foldshut 이 있으면 접힘, 없으면 펼침.
+   저장값(1 접힘 / 0 펼침)이 있으면 그쪽이 항상 이긴다 — 내 선택이 곧 기본값. */
+function foldShut(p, st){
+  const s = (st || foldRead())[p.id || p.getAttribute('data-fold')];
+  return (s === undefined) ? p.hasAttribute('data-foldshut') : !!s;
+}
 function setupFold(){
   const st = foldRead();
   document.querySelectorAll('[data-fold]').forEach(p => {
@@ -1105,12 +1112,13 @@ function setupFold(){
       b.setAttribute('aria-expanded', on ? 'false' : 'true');
       b.setAttribute('aria-label', (on ? '펼치기' : '접기') + ' — ' + head.textContent.trim().slice(0, 24));
     };
-    if(st[id]) p.classList.add('folded');
+    if(foldShut(p, st)) p.classList.add('folded');
     paint();
     b.addEventListener('click', () => {
       p.classList.toggle('folded');
-      const s = foldRead();
-      if(p.classList.contains('folded')) s[id] = 1; else delete s[id];
+      const s = foldRead(), shut = p.classList.contains('folded');
+      if(shut === p.hasAttribute('data-foldshut')) delete s[id];   // 기본값과 같으면 안 남긴다
+      else s[id] = shut ? 1 : 0;
       foldWrite(s);
       paint();
     });

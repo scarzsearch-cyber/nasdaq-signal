@@ -690,6 +690,12 @@ function foldRead(){
        return (o && typeof o === 'object') ? o : {}; }catch(e){ return {}; }
 }
 function foldWrite(o){ try{ localStorage.setItem(FOLDKEY, JSON.stringify(o)); }catch(e){} }
+/* [v170] 3상태: 저장값 없음 -> data-foldshut 이 있으면 접힘, 없으면 펼침.
+   저장값(1 접힘 / 0 펼침)이 있으면 그쪽이 항상 이긴다 — 내 선택이 곧 기본값. */
+function foldShut(p, st){
+  const s = (st || foldRead())[p.id || p.getAttribute('data-fold')];
+  return (s === undefined) ? p.hasAttribute('data-foldshut') : !!s;
+}
 function setupFold(){
   const st = foldRead();
   document.querySelectorAll('[data-fold]').forEach(p => {
@@ -704,12 +710,13 @@ function setupFold(){
       b.setAttribute('aria-expanded', on ? 'false' : 'true');
       b.setAttribute('aria-label', (on ? '펼치기' : '접기') + ' — ' + head.textContent.trim().slice(0, 24));
     };
-    if(st[id]) p.classList.add('folded');
+    if(foldShut(p, st)) p.classList.add('folded');
     paint();
     b.addEventListener('click', () => {
       p.classList.toggle('folded');
-      const s = foldRead();
-      if(p.classList.contains('folded')) s[id] = 1; else delete s[id];
+      const s = foldRead(), shut = p.classList.contains('folded');
+      if(shut === p.hasAttribute('data-foldshut')) delete s[id];   // 기본값과 같으면 안 남긴다
+      else s[id] = shut ? 1 : 0;
       foldWrite(s);
       paint();
     });
@@ -756,7 +763,7 @@ function setupFold(){
     units.forEach(function(u){ u.style.display = ''; });
     openState.forEach(function(was, d){ d.open = was; });
     var saved = foldRead();                       // [v169] 저장해 둔 접힘 상태로 복원
-    units.forEach(function(u){ if(saved[u.id]) u.classList.add('folded'); });
+    units.forEach(function(u){ if(foldShut(u, saved)) u.classList.add('folded'); });
     if(toc) toc.style.display = '';
     msg.hidden = true; msg.textContent = '';
   }
