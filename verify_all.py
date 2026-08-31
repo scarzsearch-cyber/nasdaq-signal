@@ -270,7 +270,11 @@ def i5_decisions(D):
                '동결 사실이 화면에 남아 있어야 한다 (v142)')
             # [v148] 패치노트가 구현을 못 따라가는 사고가 한 세션에 두 번 났다
             # (v144~v147 을 만들고 노트를 안 고침). 자각 대신 관문으로 막는다 —
-            # CLAUDE.md §4 의 최신 vNN 보다 노트가 뒤처지면 배포를 세운다.
+            # CLAUDE.md §4 의 최신 vNN 보다 노트가 뒤처지면 실패시킨다.
+            # ※ 「배포가 멈춘다」가 아니다 — verify.yml 과 pages.yml 은 둘 다 push 트리거로
+            #   **독립 실행**된다. 검증 실패는 이슈(메일)를 열 뿐 배포를 막지 않으며,
+            #   그게 맞다: 문서 검사가 신호 화면을 얼릴 수 있으면 v137 의 fail-open
+            #   원칙(인프라 문제로 진짜 폭락일 신호를 막지 마라)과 정면으로 어긋난다.
             if os.path.exists('CLAUDE.md'):
                 cm = io.open('CLAUDE.md', encoding='utf-8').read()
                 cv = [int(x) for x in re.findall(r'^- \*\*v(\d+)', cm, re.M)]
