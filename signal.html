@@ -361,6 +361,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
 /* [v90] 평시 행동 한 줄 + 전환일 체크리스트 + 체결 기록 */
 .actline{margin-top:10px;font-size:14.5px;color:var(--muted);}
 .actline b{color:var(--ink);}
+/* [v165] 평시 팩트 한 줄 — 세로를 거의 안 먹게 작고 흐리게 */
+.factline{margin-top:5px;font-size:12.5px;color:var(--muted);opacity:.72;line-height:1.5;}
+.factline b{color:var(--muted);font-weight:700;}
 .chk{margin-top:12px;padding-top:10px;border-top:1px dashed rgba(0,0,0,.2);font-size:15px;}
 .chk label{display:flex;gap:8px;align-items:center;padding:4px 0;cursor:pointer;}
 .chk input{width:18px;height:18px;flex:0 0 auto;}
@@ -689,6 +692,9 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       </div>
       <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
       <div class="actline" id="actLine"></div>
+      <!-- [v165] 평시 한 줄 — 이미 발행된 문장만 순환한다(새 통계·새 주장 0건).
+           전환일엔 숨긴다: 그날은 실행 안내가 우선이다. -->
+      <div class="factline" id="factLine" hidden></div>
       <div id="changeBox"></div>
       <div id="disagreeBox"></div>
       <div class="facts">
@@ -1072,6 +1078,33 @@ async function drawOosHist(){
   const since = tr.length ? daysSince(tr[tr.length - 1][iA]) : null;
   gap.innerHTML = '역대 평균 전환 간격 <b>약 ' + mon.toFixed(1) + '개월</b> (참고 · 예측 아님)'
     + (since == null ? '' : ' · 마지막 전환 후 <b>' + since + '일째</b>');
+}
+
+/* [v165] 평시 한 줄 — ★ 새 문장을 짓지 않는다. 아래는 전부 **이미 발행된 문장**을
+   옮겨 담은 것이고, 출처를 각 항목 옆에 적어 두어 나중에 대조할 수 있게 했다.
+   새 통계·새 주장을 여기에 추가하는 것은 금지(투자 판단 문구 자동 생성 금지 규약). */
+const FACTS = [
+  '이 전략 초과수익의 약 <b>97%</b>는 닷컴 붕괴 한 사건에서 나왔습니다.',            // guide ④-2
+  '과거 전환 139번 중 <b>75번(54%)</b>은 전환한 뒤 손해였습니다 — 정상 범위입니다.',  // guide ③
+  '최대 <b>10번을 연속</b>으로 틀린 구간이 있었고, 그동안 누적 −20.4%였습니다.',      // guide ③
+  '역사 표본에서 <b>원금손실 0 문턱은 7년</b>입니다.',                                // guide ②
+  '10년을 버틴 창은 표본 안에서 <b>손실 0%</b>, 중앙 9.96배였습니다.',                // guide ② 표
+  '<b>15년이면 최악의 시작일조차 7배</b>였습니다.',                                   // guide ②
+  '전환을 <b>1일 미루면 126배 → 3일이면 102배</b>가 됩니다.',                         // guide ③
+  '과거 방어 구간은 <b>1개월~2년 7개월</b>로 다양했습니다.',                          // 위기 궤적 패널
+];
+/* 날짜 기반 결정론 — 새로고침해도 하루 동안 같은 문장. */
+function todayFact(){
+  const p = tzParts(new Date(), SEOUL);
+  const doy = Math.floor((Date.UTC(p.y, p.m - 1, p.d) - Date.UTC(p.y, 0, 0)) / 864e5);
+  return FACTS[((doy % FACTS.length) + FACTS.length) % FACTS.length];
+}
+function paintFact(show){
+  const el = document.getElementById('factLine');
+  if(!el) return;
+  if(!show){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = todayFact();
 }
 
 /* [v164] 낙폭 백분위 — 오늘의 낙폭이 54년 분포에서 어느 깊이인가.
@@ -2644,9 +2677,11 @@ function paintState(o){
       + chkHtml();
     wireChk(box);
     if(al) al.innerHTML = '';
+    paintFact(false);                      // [v165] 전환일엔 실행 안내가 우선
   } else {
     box.className=''; box.innerHTML='';
     if(al) al.innerHTML = `🟢 <b>오늘 할 일 없음</b> — ${isQld?'QLD':'방어 바스켓'} 유지 · 다음 확인: 다음 미국장 종가 후`;
+    paintFact(true);
   }
 
   // [v61] 예전에는 '두 규칙이 갈립니다'로 알렸는데, 규칙이 하나가 됐으므로
