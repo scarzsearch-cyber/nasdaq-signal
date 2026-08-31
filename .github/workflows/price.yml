@@ -1,0 +1,44 @@
+# [v145] 4다리 시세 스냅샷 — 소유자가 주식앱을 따로 안 봐도 되게.
+#
+# ★ 전략 무접촉: 신호 판정은 daily-signal.yml 이 QQQ 미국 종가로만 한다(동결 규칙).
+#   이 워크플로는 **화면 표시용 숫자**만 만들며, 실패해도 신호에 영향이 없다.
+#   그래서 알림도 걸지 않는다 — 시세가 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다.
+#
+# 주기: 한국장(09:00~15:30 KST = 00:00~06:30 UTC) 중 30분마다.
+#   GitHub 예약 실행은 슬롯을 통째로 건너뛸 수 있다(wait_close.py 주석의 실측).
+#   그래서 「정확히 30분마다」를 보장하지 않으며, 화면이 스냅샷 시각을 항상 표시한다.
+name: price
+
+on:
+  schedule:
+    - cron: '0,30 0-6 * * 1-5'      # 09:00~15:30 KST 30분 간격 (월~금)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: price
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 시세 수집
+        run: python deploy/price_now.py
+
+      - name: 커밋
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/price.json
+          git diff --cached --quiet && { echo "변경 없음 — 커밋 생략"; exit 0; }
+          git commit -m "chore(price): 시세 스냅샷"
+          git push || { git pull --rebase --autostash origin main && git push; }

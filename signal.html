@@ -83,11 +83,23 @@ body{padding:28px 20px 64px;}
 .mkt.live .cd{color:var(--attack);}
 /* [v107] 평시 시계 한 줄 — 전환 근접(주황/빨강)·전환일에만 2카드로 확장 (세로 −110px) */
 .clockbar.compact{display:block;background:transparent;border:none;}
+/* [v144] 평시 한 줄에도 신호등을 둔다 — v107 이 2카드를 접으면서 .dot 을 같이 잃었다.
+   장중/휴장이 0.1초에 안 보이면 시계로서 값이 없다는 소유자 지적. */
 .clockline{background:var(--panel);border:1px solid var(--rule);border-radius:2px;
-  padding:8px 14px;font-size:13px;color:var(--muted);line-height:1.55;
-  font-variant-numeric:tabular-nums;}
-.clockline b{color:var(--ink);}
-.clockline.live b{color:var(--attack);}
+  padding:9px 13px;font-size:14px;color:var(--muted);line-height:1.6;
+  font-variant-numeric:tabular-nums;display:flex;flex-wrap:wrap;gap:4px 12px;}
+.clockline b{color:var(--ink);font-weight:700;}
+.clockline .seg{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.clockline .sdot{width:9px;height:9px;border-radius:50%;flex:none;
+  background:var(--rule);box-shadow:0 0 0 2px rgba(120,130,140,.12);}
+.clockline .seg.on .sdot{background:#1F9D55;box-shadow:0 0 0 3px rgba(31,157,85,.20);}
+.clockline .seg.off .sdot{background:#C0392B;box-shadow:0 0 0 3px rgba(192,57,43,.16);}
+.clockline .seg.on b{color:#1F9D55;}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .clockline .seg.on .sdot{background:#3FBF77;}
+  :root:not([data-theme="light"]) .clockline .seg.on b{color:#3FBF77;}
+  :root:not([data-theme="light"]) .clockline .seg.off .sdot{background:#E0604F;}
+}
 
 /* ---- 전략 선택 ---- */
 .pick{margin:22px 0;}   /* [v90] 신호 카드 아래로 이동 — 위쪽 간격 추가 */
@@ -293,6 +305,18 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .prow.phead span:first-child{text-align:left;}
 .prow .pnm{font-weight:600;font-size:14.5px;}
 .prow .pnm .code{opacity:.6;font-size:12.5px;font-variant-numeric:tabular-nums;}
+/* [v145] 시세 배지 — 상승 빨강·하락 파랑 (v92 매수/매도 배지와 같은 MTS 관행).
+   판정과 무관한 정보이므로 값만 담백하게 — 화살표·강조 배경을 쓰지 않는다. */
+.prow .pchg{display:block;font-weight:600;font-size:13px;margin-top:1px;
+  font-variant-numeric:tabular-nums;color:var(--muted);}
+.prow .pchg i{font-style:normal;margin-left:5px;font-weight:700;}
+.prow .pchg.up i{color:#C0392B;}
+.prow .pchg.dn i{color:#0B5FD6;}
+.prow .pchg.fl i{color:var(--muted);}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .prow .pchg.up i{color:#E0604F;}
+  :root:not([data-theme="light"]) .prow .pchg.dn i{color:#5B9BF0;}
+}
 .prow input{width:100%;text-align:right;padding:6px 6px;}
 .pbrow{margin-top:11px;}
 .pbrow .pbl{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:4px;}
@@ -1528,6 +1552,35 @@ function freshDot(iso){
 }
 function pnum(v){ return parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')) || 0; }
 
+/* [v145] 4다리 시세 스냅샷 — deploy/price_now.py 산출물. 장중 30분 간격이라
+   실시간이 아니다. **판정에 쓰지 않는다** — 화면 표시 전용이고, 파일이 없거나
+   낡았으면 조용히 숨긴다(신선도 원칙: 옛 값을 새 값인 척 보여주지 않는다). */
+let PRICE = null;
+async function loadPrice(){
+  try{
+    const j = await getJSON('data/price.json');
+    if(j && j.items && Object.keys(j.items).length) PRICE = j;
+  }catch(e){ PRICE = null; }
+}
+/* 스냅샷이 몇 분 전 것인지 — 30분 간격이므로 그 이상 벌어지면 사용자가 알아야 한다. */
+function priceAgeMin(){
+  if(!PRICE || !PRICE.as_of_iso) return null;
+  const t = Date.parse(PRICE.as_of_iso);
+  if(!isFinite(t)) return null;
+  return Math.max(0, Math.round((Date.now() - t) / 60000));
+}
+function priceOf(code){ return (PRICE && PRICE.items && PRICE.items[code]) || null; }
+/* 등락률 배지 — MTS 관행(상승 빨강·하락 파랑, v92 배지와 같은 방향). */
+function chgBadge(code){
+  const r = priceOf(code);
+  if(!r || r.chg_pct == null) return '';
+  const v = Number(r.chg_pct);
+  if(!isFinite(v)) return '';
+  const c = v > 0 ? 'up' : v < 0 ? 'dn' : 'fl';
+  return `<span class="pchg ${c}">${Math.round(r.px).toLocaleString('en-US')}`
+       + `<i>${v > 0 ? '+' : ''}${v.toFixed(2)}%</i></span>`;
+}
+
 async function loadNav(){
   try{
     const res = await fetch('data/nav_history.csv?t=' + Date.now(), {cache:'no-store'});
@@ -1567,14 +1620,17 @@ function drawPort(){
     A.forEach(x => {
       const p = PORT.a[x.code] || {};
       const nav = NAVPX[x.code];
+      const live = priceOf(x.code);          // [v145] 있으면 스냅샷 시세를 기본값으로
       html += `<div class="prow" data-code="${x.code}">
-        <span class="pnm">${x.name} <span class="code">${x.code}</span></span>
+        <span class="pnm">${x.name} <span class="code">${x.code}</span>${chgBadge(x.code)}</span>
         <span class="pin" data-l="보유 수량"><input data-f="qty" type="text" inputmode="numeric"
           aria-label="${x.name} 보유 수량" value="${p.qty || ''}" placeholder="0"></span>
         <span class="pin" data-l="평단(선택)"><input data-f="avg" type="text" inputmode="numeric"
           aria-label="${x.name} 평단가(선택)" value="${p.avg || ''}" placeholder="—"></span>
         <span class="pin" data-l="현재가"><input data-f="px" type="text" inputmode="numeric"
-          aria-label="${x.name} 현재가(원)" value="${p.px || ''}" placeholder="${nav ? Math.round(nav.px).toLocaleString('en-US') : '직접 입력'}"></span>
+          aria-label="${x.name} 현재가(원)" value="${p.px || ''}" placeholder="${
+            live ? Math.round(live.px).toLocaleString('en-US')
+                 : nav ? Math.round(nav.px).toLocaleString('en-US') : '직접 입력'}"></span>
       </div>`;
     });
     html += `<div class="prow" data-code="_cash">
@@ -1697,8 +1753,13 @@ function portCompute(){
   comp.innerHTML = bars + `<div class="psum">${sum}</div>`
     + (warns.length ? `<div class="pwarn">⚠ ${warns.join(' · ')}</div>` : '');
   /* [v134] 「이 기기 브라우저에만 저장」은 패널 제목의 「저장은 이 기기」와 중복 — 삭제 */
+  /* [v145] 시세는 실시간이 아니라 스냅샷이다 — 몇 분 전 값인지 항상 밝힌다. */
+  const age = priceAgeMin();
+  const pxNote = (PRICE && age != null)
+    ? ` · 시세 <b>${PRICE.as_of_kst.slice(11)}</b> 기준(${age < 60 ? age + '분 전'
+        : Math.floor(age / 60) + '시간 전'})` : '';
   note.innerHTML = `주수는 내림(매수)·보유 한도(매도)
-    ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''} · <b>자동 주문 없음</b> — 체결은 직접 <b>09:05~15:20</b>.`;
+    ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''}${pxNote} · <b>자동 주문 없음</b> — 체결은 직접 <b>09:05~15:20</b>.`;
 }
 
 /* [v91] 주문 메모 — MTS 입력·카톡 나에게 보내기용 (제미나이 C1+C3 통합 채택) */
@@ -2658,10 +2719,15 @@ function drawClock(){
   if(!CLOCK_FULL){
     host.className='clockbar compact';
     const live=(us&&us.state==='live')||(kr&&kr.state==='live');
+    // [v144] 장별로 신호등 1개씩 — 초록=개장 중, 빨강=닫힘. 문구만으로는 티가 안 났다.
     const seg=[];
-    if(us) seg.push(`${USNM[us.state]} — ${us.state==='live'?'종가 확정':'다음 종가'} <b>${dur(us.close-now)}</b> 후`);
-    if(kr) seg.push(`한국장 ${kr.state==='live'?'주문 마감':'개장'} <b>${dur(kr.at-now)}</b> 후`);
-    host.innerHTML=`<div class="clockline${live?' live':''}">${seg.join(' · ')}</div>`;
+    const one=(on,label,txt)=>`<span class="seg ${on?'on':'off'}"><span class="sdot"
+      role="img" aria-label="${on?'개장 중':'닫힘'}"></span>${label} ${txt}</span>`;
+    if(us) seg.push(one(us.state==='live', USNM[us.state],
+      `— ${us.state==='live'?'종가 확정':'다음 종가'} <b>${dur(us.close-now)}</b> 후`));
+    if(kr) seg.push(one(kr.state==='live', KRNM[kr.state],
+      `— ${kr.state==='live'?'주문 마감':'개장'} <b>${dur(kr.at-now)}</b> 후`));
+    host.innerHTML=`<div class="clockline${live?' live':''}">${seg.join('')}</div>`;
     return;
   }
   host.className='clockbar';
@@ -2769,6 +2835,7 @@ async function boot(){
   loadPort();                              // [v89] 보유 입력 (이 기기)
   loadTrades();                            // [v90] 체결 기록
   await loadNav();                         // [v89] 현재가 기본값 (전일 종가)
+  await loadPrice();                       // [v145] 시세 스냅샷 — drawPort 보다 먼저 와야 배지가 붙는다
   try{ AUTO = await getJSON('data/signal.json'); }
   catch(e){
     AUTO = null;

@@ -236,6 +236,8 @@ def i5_decisions(D):
                '빠지면 라이브에서 404 (v78 실사고)')
             ok("배포: notes.html 이 Pages 복사 목록에 있다", 'notes.html' in pg,
                'guide.html 과 같은 404 유형 (v142)')
+            ok("배포: price.json 이 Pages 복사 목록에 있다", 'price.json' in pg,
+               '빠지면 시세 배지가 라이브에서만 안 뜬다 (v145)')
             ok("배포: PWA 파일이 Pages 복사 목록에 있다",
                'manifest.json' in pg and 'icon-192.png' in pg and 'icon-512.png' in pg
                and os.path.exists('manifest.json') and os.path.exists('icon-192.png')
@@ -246,6 +248,17 @@ def i5_decisions(D):
             ok("설명서: 필수 절 존재",
                'id="t4"' in g and '반드시 이해' in g and '그림자' in g and 'href="./"' in g,
                'T4 상세 + 이해 필수 6가지 + 돌아가기 탭')
+        # [v145] 시세 스냅샷은 **표시 전용**이다. 신호 생성 경로가 이 파일을 읽는
+        # 순간 동결 규칙(QQQ 미국 종가만)이 깨진다 — 그 결합을 기계로 막는다.
+        if os.path.exists('deploy/price_now.py'):
+            up = (io.open('deploy/update_signal.py', encoding='utf-8').read()
+                  if os.path.exists('deploy/update_signal.py') else '')
+            ok("시세: 신호 생성이 price.json 을 읽지 않는다",
+               'price.json' not in up and 'price_now' not in up,
+               '판정은 QQQ 종가만 — 시세는 화면 표시 전용 (v145)')
+            ok("시세: 화면이 시세를 표시 경로로만 쓴다",
+               'loadPrice' in h and 'chgBadge' in h,
+               'price.json 은 배지·현재가 기본값에만 (v145)')
         if os.path.exists('notes.html'):
             n = io.open('notes.html', encoding='utf-8').read()
             # [v142] 업데이트 노트의 핵심 메시지는 「규칙은 안 바뀌었다」 — 이게 사라지면
