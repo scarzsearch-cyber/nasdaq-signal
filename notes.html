@@ -74,10 +74,14 @@ h2 .ver{color:var(--attack);font-variant-numeric:tabular-nums}
 
 details.more{margin-top:12px}
 details.more summary{cursor:pointer;font-weight:700;font-size:13.5px;color:var(--attack);
-  list-style:none;padding:7px 12px;border:1px solid var(--attack);border-radius:8px;
+  list-style:none;padding:9px 12px;border:1px solid var(--attack);border-radius:8px;
   background:var(--acc-bg);text-align:center}
 details.more summary::-webkit-details-marker{display:none}
+/* 열림/닫힘을 글자로 — signal.html v128 foldbox 와 같은 관행 */
+details.more summary::after{content:" 펼치기 ▾";font-weight:800}
+details.more[open] summary::after{content:" 접기 ▴"}
 details.more[open] summary{margin-bottom:6px}
+.cnt{font-variant-numeric:tabular-nums}
 .dim{color:var(--muted);font-size:13px}
 .foot{color:var(--muted);font-size:12.5px;margin-top:16px;text-align:center}
 @media (prefers-color-scheme: dark){ .tabs a.on{color:#12181F;} }
@@ -98,7 +102,7 @@ details.more[open] summary{margin-bottom:6px}
       <span>규칙 동결 <b id="frzDate">2026-08-27</b></span>
       <span id="frzDays">동결 후 —일</span>
       <span>규칙 변경 <b>0회</b></span>
-      <span>화면 개정 <b id="revCnt">v141</b></span>
+      <span>최신 화면 <b id="revCnt">—</b></span>
     </div>
   </div>
 
@@ -111,8 +115,33 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season>
-    <h2><span class="ver">v137 – v141</span> · 손 뗄 수 있게</h2>
+    <h2><span class="ver">v137 – v143</span> · 손 뗄 수 있게</h2>
     <div class="season-sub">2026-08-31 · 「사람의 개입은 실제 매매할 때만」이 목표였습니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v143</span><span class="tag fix">수정</span>
+        <span class="ttl">「이전 업데이트 더 보기」가 비어 보이던 문제</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>버튼을 눌러도 <b>아무 일도 안 일어나는 것처럼</b> 보였습니다.</dd>
+        <dt>왜</dt><dd>페이지 끝까지 내려가면 그 버튼이 화면 하단(915px 중 778px)에 걸립니다.
+          펼쳐진 내용 <b>4,182px가 전부 화면 아래</b>로 들어가는데 스크롤은 그대로라
+          화면이 1픽셀도 안 변했습니다.</dd>
+        <dt>결론</dt><dd class="res">펼칠 때 화면이 따라 올라갑니다. 버튼에
+          <b>건수(13건)와 펼치기/접기 표시</b>도 붙였습니다.</dd>
+      </dl>
+    </div>
+
+    <div class="item" data-k="new">
+      <div class="head"><span class="v">v142</span><span class="tag new">신규</span>
+        <span class="ttl">이 화면 — 업데이트 노트 탭</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>세 번째 탭. 항목마다 <b>무엇이 · 왜 · 결론</b>을 함께 적습니다.</dd>
+        <dt>왜</dt><dd>화면이 자주 바뀌는데 <b>왜 바뀌었는지 남는 곳이 없었습니다.</b>
+          특히 없앤 기능은 이유가 안 남으면 나중에 다시 넣자는 얘기가 나옵니다.</dd>
+        <dt>결론</dt><dd class="res">이 목록에 <b>매매 규칙 변경은 하나도 없습니다</b> —
+          그 사실을 맨 위에 고정해 두는 것이 이 화면의 목적이기도 합니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="new">
       <div class="head"><span class="v">v141</span><span class="tag new">신규</span>
@@ -201,7 +230,7 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 접기: 그 이전 ══════════ -->
   <details class="more">
-    <summary>이전 업데이트 더 보기 (v90 – v130)</summary>
+    <summary>이전 업데이트 <span class="cnt" id="moreCnt">13</span>건 (v90 – v130)</summary>
 
     <section data-season>
       <h2><span class="ver">v122 – v130</span> · 안전장치와 정리</h2>
@@ -390,6 +419,34 @@ details.more[open] summary{margin-bottom:6px}
   fetch('data/freeze.json').then(function(r){ return r.ok ? r.json() : null; })
     .then(function(j){ if(j && j.frozen_at) paint(j.frozen_at); })
     .catch(function(){});
+  // 최신 화면 번호는 **목록의 첫 항목에서 뽑는다** — 하드코딩하면 항목을 추가할 때마다
+  // 손으로 고쳐야 하고 반드시 낡는다(이 저장소가 반복해 낸 오류 유형).
+  var top = document.querySelector('.item .v');
+  var rev = document.getElementById('revCnt');
+  if(top && rev) rev.textContent = (top.textContent.trim().split(/[·\s]/)[0] || '—');
+})();
+
+// 접힌 목록 — 건수를 실제 항목 수에서 채우고, 펼칠 때 화면을 따라 올린다.
+//   버그였던 것: 페이지 끝까지 내려가면 이 바가 화면 하단(778/915)에 걸리는데,
+//   펼쳐진 4,200px 가 전부 화면 **아래**로 들어가고 스크롤은 그대로라
+//   화면이 1픽셀도 안 변한다 → 「텅 비었다」로 보인다 (2026-08-31 소유자 보고).
+(function(){
+  var more = document.querySelector('details.more');
+  if(!more) return;
+  var cnt = document.getElementById('moreCnt');
+  if(cnt) cnt.textContent = more.querySelectorAll('.item').length;
+  var sum = more.querySelector('summary');
+  if(!sum) return;
+  sum.addEventListener('click', function(){
+    if(more.open) return;         // 지금 열려 있으면 이번 탭은 「접기」다
+    // 펼침은 click 의 기본 동작이라 이 핸들러 뒤에 일어난다 — 레이아웃이 갱신된
+    // 다음에 재야 한다. rAF 는 화면이 배경이면 안 도므로 setTimeout 을 쓴다.
+    setTimeout(function(){
+      var y = more.getBoundingClientRect().top + window.scrollY - 8;
+      try{ window.scrollTo({ top: y, behavior: 'smooth' }); }
+      catch(e){ window.scrollTo(0, y); }   // 옛 브라우저
+    }, 0);
+  });
 })();
 
 // 필터 — 항목의 data-k 로 걸러 본다. 빈 시즌은 통째로 숨긴다.
