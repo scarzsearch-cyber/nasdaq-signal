@@ -315,9 +315,15 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .prow .pchg.fl i{color:var(--muted);}
 /* [v146] 괴리율 — 평범(±0.3%)은 흐리게, 1% 초과만 눈에 띄게. 설명서 §③ 기준 그대로. */
 .prow .pdev{display:inline-block;font-size:12px;font-weight:600;margin-top:1px;
-  font-variant-numeric:tabular-nums;color:var(--muted);}
+  font-variant-numeric:tabular-nums;color:var(--muted);text-decoration:none;}
 .prow .pdev.calm{opacity:.62;}
 .prow .pdev.wide{color:var(--defend);font-weight:700;}
+/* [v147] 「?」 — 눌러서 쓰는 법을 볼 수 있다는 표시. 평소엔 얌전하게. */
+.prow .pdev .q{display:inline-block;margin-left:4px;width:13px;height:13px;line-height:13px;
+  text-align:center;border-radius:50%;border:1px solid currentColor;font-size:9.5px;
+  font-weight:700;vertical-align:1px;opacity:.75;}
+.prow .pdev:hover,.prow .pdev:focus{color:var(--attack);opacity:1;text-decoration:underline;}
+.prow .pdev:hover .q,.prow .pdev:focus .q{opacity:1;text-decoration:none;}
 /* [v146] 종목코드 자리를 네이버 금융 바로가기로 — 호가·NAV 를 한 번에 (v135 §③ 안내와 짝) */
 .prow .pnm .ext{opacity:.6;font-size:12.5px;font-variant-numeric:tabular-nums;
   color:var(--muted);text-decoration:none;}
@@ -1603,9 +1609,12 @@ function devBadge(code){
   const calm = Math.abs(d) <= 0.3;               // 설명서의 「±0.3% 안쪽이면 평범」
   const side = d > 0 ? '살 때 불리' : d < 0 ? '팔 때 불리' : '';
   const cls  = wide ? 'wide' : calm ? 'calm' : 'mid';
-  return `<span class="pdev ${cls}" title="NAV ${Math.round(r.nav).toLocaleString('en-US')}원 대비">`
+  // [v147] 배지를 누르면 설명서의 「NAV로 조금 더 싸게 사는 법」으로 — 숫자만 있고
+  //        쓰는 법이 없으면 소용이 없다는 소유자 지적. 화면은 얇게, 상세는 설명서(v134·v136).
+  return `<a class="pdev ${cls}" href="guide.html#navtip"
+       title="NAV ${Math.round(r.nav).toLocaleString('en-US')}원 대비 · 눌러서 쓰는 법 보기">`
        + `괴리 ${d > 0 ? '+' : ''}${d.toFixed(2)}%`
-       + (wide && side ? ` · ${side}` : '') + `</span>`;
+       + (wide && side ? ` · ${side}` : '') + `<span class="q">?</span></a>`;
 }
 
 async function loadNav(){
