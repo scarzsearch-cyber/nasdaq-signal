@@ -1,0 +1,130 @@
+name: 자동 파수꾼
+
+# [v140] 기존 알림은 「워크플로가 돌다가 실패했을 때」만 온다(if: failure()).
+# 정작 무서운 것은 그 반대다 — **아무 일도 안 일어나는 것**:
+#   ① 예약이 통째로 건너뛰어 신호가 며칠째 그대로 (실패가 아니라 알림도 없다)
+#   ② 카카오 토큰이 죽어 정작 전환일에 알림이 안 감 (경고가 stderr 로만 나갔다)
+#   ③ 분기 점검을 사람이 기억해서 돌려야 했던 것
+# 이 워크플로가 셋을 대신 본다. 평시에는 아무 말도 하지 않는다.
+#
+# 전략 무접촉 — 판정·파라미터·장부는 읽기만 한다.
+
+on:
+  schedule:
+    - cron: '40 23 * * 0-4'   # 08:40 KST 평일 (UTC 하루 밀림) — 한국장 개장 20분 전
+    - cron: '10 0 * * 1'      # 09:10 KST 월요일 — 자동 점검(전제·상품·비용)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      # 월요일 슬롯(과 수동 실행)에서만 무거운 점검을 돌린다.
+      WEEKLY: ${{ github.event.schedule == '10 0 * * 1' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # ① 신호가 며칠째 그대로인가 — 3영업일마다 한 번만 알린다(알림 피로 방지)
+      - name: 신호 신선도
+        id: stale
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py stale
+
+      # ② 알림 채널이 살아 있나 — 메시지는 보내지 않고 자격증명만 확인(평시 소음 0)
+      - name: 알림 채널 생존
+        id: chan
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py channel
+
+      - name: 의존성 설치
+        if: env.WEEKLY == 'true'
+        run: pip install pandas numpy
+
+      # ③ 사람이 돌리던 점검을 대신 돌린다 → data/ops_check.json (화면이 읽는다)
+      - name: 자동 점검
+        id: chk
+        if: env.WEEKLY == 'true'
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py check
+
+      # 화면 배포는 다음 「일일 신호 갱신」이 끌고 간다(pages.yml 이 그 완료를 구독).
+      # 주 1회 갱신되는 파일이라 최대 1영업일 지연은 무의미 — 배포를 두 배로 돌리지 않는다.
+      - name: 점검 결과 커밋
+        if: env.WEEKLY == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ops_check.json
+          if git diff --staged --quiet; then
+            echo "변경 없음"
+          else
+            LV=$(python3 -c "import json;print(json.load(open('data/ops_check.json'))['level'])")
+            git commit -m "ops: 자동 점검 — Level ${LV}"
+            # 「일일 신호 갱신」과 시간대가 겹칠 수 있다(대기 루프가 최대 170분).
+            # 그쪽이 먼저 밀어 넣었으면 rebase 후 재시도한다 — 쓰는 파일이 달라 충돌은 없다.
+            git push || { git pull --rebase --autostash origin main && git push; }
+          fi
+
+      # 사람이 개입해야 하는 상황이면 이슈로도 남긴다 — 카톡이 죽었을 때의 마지막 통로
+      # (GitHub 이 이슈를 메일로 보낸다). 라벨이 같은 열린 이슈가 있으면 댓글로 잇는다.
+      - name: 이상이면 이슈 열기
+        if: steps.stale.outputs.alert == '1' || steps.chan.outputs.alert == '1' || steps.chk.outputs.alert == '1'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              '자동 파수꾼이 사람이 봐야 할 상태를 찾았습니다.',
+              '',
+              `로그: ${url}`,
+              '',
+              '- **신호 신선도** — 자동 갱신이 멈췄다면 화면의 낙폭·상태가 옛 종가 기준입니다.',
+              '- **알림 채널** — 이대로면 전환일에 알림이 오지 않습니다.',
+              '- **자동 점검** — 전제·상품·비용 중 하나가 주의선을 넘었습니다.',
+              '',
+              '어느 쪽인지는 위 로그에 한국어로 찍혀 있습니다.',
+              '**전략을 바꾸는 일이 아닙니다** — 기본 대응은 「지켜본다」입니다.'
+            ].join('\n');
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'watchdog'
+            });
+            if (open.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `파수꾼 알림 — ${new Date().toISOString().slice(0,10)}`,
+                body, labels: ['watchdog']
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open[0].number, body
+              });
+            }

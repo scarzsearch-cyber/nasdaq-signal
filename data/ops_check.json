@@ -1,0 +1,64 @@
+{
+ "as_of": "2026-08-31",
+ "level": 0,
+ "level_msg": "정상 — 유지",
+ "todo": [],
+ "vars": [
+  {
+   "name": "지수 10년 CAGR",
+   "value": 20.6,
+   "state": "정상",
+   "warn_at": 4.1
+  },
+  {
+   "name": "지수 20년 CAGR",
+   "value": 16.9,
+   "state": "정상",
+   "warn_at": 9.5
+  },
+  {
+   "name": "지수 3년 변동성",
+   "value": 20.5,
+   "state": "정상",
+   "warn_at": 35.6
+  },
+  {
+   "name": "2배 드래그 3년",
+   "value": 8.1,
+   "state": "정상",
+   "warn_at": 11.7
+  }
+ ],
+ "aum": [
+  {
+   "code": "418660",
+   "name": "공격 레버리지",
+   "eok": 6555,
+   "state": "정상"
+  },
+  {
+   "code": "458730",
+   "name": "방어 배당",
+   "eok": 43104,
+   "state": "정상"
+  },
+  {
+   "code": "305080",
+   "name": "방어 국채",
+   "eok": 2161,
+   "state": "정상"
+  },
+  {
+   "code": "411060",
+   "name": "방어 금",
+   "eok": 42188,
+   "state": "정상"
+  }
+ ],
+ "exec": {
+  "switches": 0,
+  "need": 20,
+  "nav_days": 4
+ },
+ "ok": true
+}

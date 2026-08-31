@@ -26,7 +26,8 @@ VIX/공포탐욕 등 매크로 지표 추가 · 국내 종가로 신호 재기.
 ## 2. 자동화 — 사용자가 할 일은 없다
 
 ```
-매 평일 22:30 / 23:30 / 00:30 UTC   daily-signal.yml
+매 평일 20:17 / 21:17 / 22:47 / 00:17 UTC   daily-signal.yml   (= 05:17~09:17 KST)
+   └ deploy/wait_close.py      종가가 확정될 때까지 240초 간격 재시도(최대 170분)
    └ deploy/update_signal.py   QQQ 종가 → data/signal.json
    └ deploy/nav_collect.py     국내 ETF 실측 NAV 한 줄 적립
         ↓ (성공하면)
@@ -35,7 +36,17 @@ VIX/공포탐욕 등 매크로 지표 추가 · 국내 종가로 신호 재기.
 매 평일 01:00 UTC               verify.yml  ← [v37 신설]
    └ verify_all.py             불변식 12종 검사. 실패하면 **이슈 자동 생성**
    └ audit_full.py             59개 파일 전수조사 + 시점별 재계산
+
+매 평일 23:40 UTC (08:40 KST)   watchdog.yml  ← [v140 신설] 자동 파수꾼
+   └ watchdog.py stale         신호가 3영업일 밀렸나 → 개장 전에 카톡
+   └ watchdog.py channel       알림 채널이 살아 있나 (메시지 무발송 확인)
+월요일 00:10 UTC (09:10 KST)
+   └ watchdog.py check         점검.py 자동 실행 → data/ops_check.json → 화면 한 줄
 ```
+
+**위 셋의 알림은 전부 `if: failure()` 였다** — 워크플로가 「실패」가 아니라
+**아예 안 돌면** 아무 말도 안 온다(GitHub 이 슬롯을 통째로 버린 실적이 있다).
+`watchdog.yml` 이 그 침묵을 감시한다. **사용자가 정기적으로 돌려야 할 스크립트는 없다.**
 
 **예약 슬롯이 3개인 이유**: GitHub 은 부하가 걸리면 예약 실행을 **통째로 버린다**
 (2026-08-26 에 실제로 발생, 종가가 하루 밀렸다). 한 번 놓쳐도 한국장 개장 전에 따라잡는다.

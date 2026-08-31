@@ -53,6 +53,8 @@ jobs:
           cp data/nav_history.csv _site/data/ 2>/dev/null || echo "nav_history.csv 없음 — 가격 직접 입력"
           # [v127] 위기 타임머신 (research/build_crisis_paths.py 수동 생성분)
           cp data/crisis_paths.json _site/data/ 2>/dev/null || echo "crisis_paths.json 없음 — 타임머신 숨김"
+          # [v140] 자동 파수꾼의 점검 결과 — 사람이 파이썬을 돌리지 않아도 화면에 뜬다
+          cp data/ops_check.json _site/data/ 2>/dev/null || echo "ops_check.json 없음 — 점검 줄 숨김"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

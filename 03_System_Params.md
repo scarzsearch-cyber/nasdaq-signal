@@ -56,6 +56,16 @@ monthly-stats.yml    매월 1일 07:17 UTC (미·한 장 모두 휴장 시각) �
                      원자료 연장(append-only·수정주가 비율 이음·장중 가드) 후
                      build_stats.py 재계산, verify_all 통과 시에만 커밋 (v72)
 verify.yml           push 마다 verify_all.py --fast — 실패하면 GitHub 이슈 자동 생성
+watchdog.yml         [v140] 자동 파수꾼 — **「실패」가 아니라 「아예 안 돈 것」을 잡는다**
+                     (기존 알림은 전부 if: failure() 라 워크플로가 스킵되면 침묵했다)
+  ① watchdog.py stale    평일 08:40 KST — signal.json as_of 가 3영업일 밀리면 카톡
+                         (3영업일마다 1회만 · 한국장 개장 20분 전)
+  ② watchdog.py channel  평일 — 카카오 refresh 교환·Telegram getMe 로 **무발송** 생존 확인.
+                         죽었으면 살아 있는 다른 채널 + GitHub 이슈(메일)로 알린다
+  ③ watchdog.py check    월요일 09:10 KST — 내가_보는_것/점검.py --json →
+                         data/ops_check.json (전제 Level·느린 변수 4종·4다리 AUM·비용 진행률).
+                         화면이 읽는다(drawOpsCheck). 알림은 **상태가 나빠졌을 때만**
+                         (Level 상승·새 AUM 경보) — 밴드·규약은 무변경, 주기만 분기→주
 ```
 
 - 예약 실행은 부하 시 **통째로 건너뛸 수 있다** (2026-08-26 실제 발생) — 그래서 예비 슬롯 2개

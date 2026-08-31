@@ -7,7 +7,10 @@
 ## 폴더 구조 (2026-08-27 v39 정리)
 
 ```
-내가_보는_것/전략_요약.md  ★ 이것부터. 전략·근거·결론 5분 요약
+내가_보는_것/          ★ 소유자용 (한국어). 여기 밖의 파일은 소유자에게 시키지 않는다
+  전략_요약.md          이것부터. 전략·근거·결론 5분 요약 + AI 문서 지도
+  운영_점검표.md         「내가 언제 뭘 해야 하나」 — 직접 하는 일은 매매 2가지뿐(v140)
+  점검.py               자동 점검을 직접 돌려보고 싶을 때만 (--json 은 파수꾼이 쓴다)
 README.md               전략·자동화·파일지도·오류원인·체크리스트
 HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
 CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v131)
@@ -34,7 +37,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (84) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+research/   (93) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
@@ -84,6 +87,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
 | `deploy/kakao_keepalive.py` | [v77] 카카오 refresh 토큰 매일 연명·자동 교체 |
 | `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
+| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `channel`(알림 채널 생존, **메시지 무발송**) · `check`(점검.py 자동 실행 → `data/ops_check.json`). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
 | `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
@@ -92,10 +96,12 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행 |
+| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
 | `data/crisis_paths.json` | 위기 타임머신(v127) 데이터 — 위기 4구간의 전략/2배보유 계좌가치 경로. `research/build_crisis_paths.py` 산출물, **로컬 수동 실행**(build_stats 와 같은 포지션 — 원자료 갱신 시 재실행) |
+| `data/ops_check.json` | **[v140] 자동 점검 결과** — 전제 감시 Level·느린 변수 4종·4다리 AUM·체결비용 진행률. `deploy/watchdog.py check` 산출물(주 1회), 화면 `drawOpsCheck()` 가 읽는다. **사람이 파이썬을 돌리지 않아도 되는 이유가 이 파일이다** |
 | `data/qqq.csv` | 라이브 파이프라인용 QQQ 시계열 |
 | `.gitignore` | — |
 

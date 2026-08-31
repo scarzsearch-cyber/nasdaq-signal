@@ -556,6 +556,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
         <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
         <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
         <div class="frz" id="oosHist" title="동결 이후 OOS 장부에 쌓인 실측 기록입니다. 전환이 기록될수록 표본이 자랍니다."></div>
+        <div class="frz" id="opsChk" title="전략이 서 있는 전제(지수 수익률·변동성·2배 드래그)와 4다리 상품의 생존, 체결비용 가정을 자동으로 점검한 결과입니다. 주 1회 자동 실행되며, 이상이 있을 때만 위에 배너가 뜹니다."></div>
       </details>
       <button class="seenbdg" id="seenBadge" hidden type="button">🔔 지난 확인 이후 전환됨</button>
     </div>
@@ -580,6 +581,10 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     window.addEventListener('unhandledrejection', function(){ window.__sysWarn(MSG); });
   })();
   </script>
+
+  <!-- [v140] 자동 점검 배너 — 평시 완전 숨김. 사람이 파이썬을 돌리지 않아도
+       전제·상품·비용 이상이 여기로 온다 (자동 파수꾼이 주 1회 채운다). -->
+  <div class="stale warn" id="opsWarn" hidden></div>
 
   <!-- [v125] 리허설 배너 — 가상 상황임을 스크롤 내내 상단에 고정 표시 -->
   <div class="stale warn" id="rehBar" hidden style="position:sticky;top:0;z-index:30">🎭
@@ -942,6 +947,41 @@ async function drawOosHist(){
   const tr = log.rows.filter(r => r[iC] === '1');
   el.innerHTML = 'OOS 장부 <b>' + log.rows.length + '영업일</b> · 전환 <b>' + tr.length + '회</b>'
     + (tr.length ? ' · 마지막 ' + tr[tr.length - 1][iA] : '');
+}
+
+/* [v140] 자동 점검 결과 — 예전에는 사람이 분기마다 python 을 돌려야 알 수 있던 것이다.
+   자동 파수꾼(.github/workflows/watchdog.yml)이 주 1회 돌려 data/ops_check.json 에
+   남기고, 이 함수가 그것만 읽는다. 화면에서 계산하지 않는다(근사 계산 0).
+   평시엔 접힌 「버전 · 동결」 안의 한 줄, 할 일이 있을 때만 상단 배너. */
+async function drawOpsCheck(){
+  const el = document.getElementById('opsChk');
+  const warn = document.getElementById('opsWarn');
+  if(!el) return;
+  let j;
+  try{ j = await getJSON('data/ops_check.json'); }
+  catch(e){ el.textContent = ''; return; }        // 파일 없으면 조용히 숨김
+  const todo = j.todo || [];
+  const age = j.as_of ? Math.floor((Date.now() - Date.parse(j.as_of)) / 864e5) : null;
+  const stale = age != null && age > 21;           // 파수꾼 자체가 멈췄나 (주 1회 기준)
+  el.innerHTML = '자동 점검 <b>' + (j.as_of || '?') + '</b> · '
+    + (todo.length ? '<b>확인할 것 ' + todo.length + '건</b>' : '이상 없음')
+    + (stale ? ' · <b>' + age + '일째 갱신 없음</b>' : '');
+  if(!warn) return;
+  if(!todo.length){ warn.hidden = true; warn.textContent = ''; return; }
+  warn.hidden = false;
+  warn.textContent = '';                           // 항목은 textContent 로만 넣는다
+  const h = document.createElement('b');
+  h.textContent = '🔎 자동 점검에서 확인할 것 ' + todo.length + '건 (' + (j.as_of || '') + ')';
+  warn.appendChild(h);
+  todo.forEach(t => {
+    warn.appendChild(document.createElement('br'));
+    warn.appendChild(document.createTextNode('· ' + String(t)));
+  });
+  const tail = document.createElement('div');
+  tail.style.fontSize = '13px';
+  tail.textContent = '전략을 바꾸는 일이 아닙니다 — 기본 대응은 「지켜본다」입니다. '
+    + 'AI에게 이 줄을 그대로 보여주면 됩니다.';
+  warn.appendChild(tail);
 }
 
 function neg(s){ return String(s).replace(/-/g,'−'); }
@@ -2751,6 +2791,7 @@ async function boot(){
   checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
   drawOosHist();                           // [v111] 같은 공용 캐시 — 추가 요청 없음
+  drawOpsCheck();                          // [v140] 자동 점검 결과 — 없으면 조용히 숨김
   initTimeMachine();                       // [v127] 위기 타임머신 — 데이터 없으면 조용히 숨김
   // [v73] 포지션 계산기 컨트롤
   const cc = document.getElementById('calcCash');

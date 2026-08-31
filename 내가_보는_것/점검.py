@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-분기 점검 — 이것 하나만 돌리면 된다.
+점검 — 전략이 서 있는 땅이 아직 멀쩡한가.
 
-    python 내가_보는_것/점검.py
+**[v140] 이제 이걸 직접 돌릴 의무는 없다.** GitHub Actions 의 「자동 파수꾼」이
+매주 대신 돌리고, 결과를 화면(오늘의 신호 → 버전·동결)에 한 줄로 띄운다.
+이상이 생겼을 때만 카톡이 온다. 이 파일은 **직접 확인하고 싶을 때만** 쓴다.
 
-흩어진 정기 점검 스크립트를 한 번에 돌리고 **한국어로 결론만** 보여준다.
-경로를 외울 필요도, 어느 파일을 돌릴지 고를 필요도 없다.
+    python 내가_보는_것/점검.py          ← 사람이 읽는 출력
+    python 내가_보는_것/점검.py --json   ← 자동화가 읽는 출력 (파수꾼이 쓴다)
+
 어느 폴더에서 실행해도 된다 — 아래 chdir 이 저장소 루트를 스스로 찾는다.
 
 무엇을 보는가:
@@ -13,10 +16,9 @@
                    느린 변수 4종의 분포 위치 + 4다리 상품 생존(AUM)
   [2] 체결 비용  — 0.2% 가정이 실측과 맞나 (research/exec_cost.py)
 
-언제 돌리나: **분기 1회** (1·4·7·10월 아무 때나). 급할 것 없다.
 자세한 설명: 같은 폴더의 운영_점검표.md
 """
-import io
+import json
 import os
 import re
 import subprocess
@@ -32,6 +34,14 @@ except Exception:
 
 LINE = '=' * 62
 THIN = '-' * 62
+
+JSON_MODE = '--json' in sys.argv[1:]
+
+
+def say(*a):
+    """사람이 읽는 줄. --json 일 때는 아무것도 찍지 않는다(출력이 JSON 하나여야 하므로)."""
+    if not JSON_MODE:
+        print(*a)
 
 
 def run(script):
@@ -58,16 +68,23 @@ def pick(out, *keys):
 def main():
     from datetime import date
     todo = []
+    # 자동화(파수꾼)와 화면이 읽는 결과. 사람이 읽는 출력과 **같은 계산에서 나온다** —
+    # 두 벌로 만들지 않는다(수치가 갈리는 사고를 여기서 원천 차단).
+    R = {'as_of': str(date.today()), 'level': 0, 'level_msg': '', 'todo': [],
+         'vars': [], 'aum': [], 'exec': {}, 'ok': True}
 
-    print(f'\n{LINE}\n 분기 점검 — {date.today()}\n{LINE}')
+    say(f'\n{LINE}\n 점검 — {date.today()}\n{LINE}')
 
     # ---- [1] 전제 감시 -----------------------------------------------------
-    print('\n[1/2] 전제 감시 — 전략이 아직 유효한 조건 안에 있나')
+    say('\n[1/2] 전제 감시 — 전략이 아직 유효한 조건 안에 있나')
     ok1, out1 = run(os.path.join('research', 'surv_map.py'))
     if not ok1:
-        print('  ★ 실행 실패 — 아래 원문을 확인하라')
-        print('  ' + out1.strip().splitlines()[-1] if out1.strip() else '')
-        todo.append('전제 감시 스크립트가 실패했다 — 개발자(AI)에게 원문을 보여줄 것')
+        say('  ★ 실행 실패 — 아래 원문을 확인하라')
+        say('  ' + out1.strip().splitlines()[-1] if out1.strip() else '')
+        todo.append('전제 감시 스크립트가 실패했다 — AI에게 원문을 보여줄 것')
+        R['ok'] = False
+        R['level'] = -1
+        R['level_msg'] = '점검 실패 — 계산이 돌지 않았다'
     else:
         # SURVIVAL_MONITOR §F 의 감시 밴드 — 실측 분위에서 나온 값(임의 임계 아님).
         #   (이름, 주의선, 역사범위밖선, 방향)  방향 'lo'=작아지면 나쁨, 'hi'=커지면 나쁨
@@ -81,11 +98,12 @@ def main():
             if m:
                 cur.setdefault(m.group(1).strip(), float(m.group(2)))
         warn, out_of_range = [], []
-        print('  · 느린 변수 4종 (전략이 서 있는 땅이 흔들리는가)')
+        say('  · 느린 변수 4종 (전략이 서 있는 땅이 흔들리는가)')
         for nm, w, x, d in BANDS:
             v = cur.get(nm)
             if v is None:
-                print(f'    {nm:<14} 값을 못 읽음')
+                say(f'    {nm:<14} 값을 못 읽음')
+                R['vars'].append({'name': nm, 'value': None, 'state': '못 읽음'})
                 continue
             bad_w = (v < w) if d == 'lo' else (v > w)
             bad_x = (v < x) if d == 'lo' else (v > x)
@@ -94,51 +112,73 @@ def main():
                 out_of_range.append(nm)
             elif bad_w:
                 warn.append(nm)
-            print(f'    {nm:<14} {v:>+7.1f}%   [{st}]  (주의선 {w:+.1f}%)')
+            say(f'    {nm:<14} {v:>+7.1f}%   [{st}]  (주의선 {w:+.1f}%)')
+            R['vars'].append({'name': nm, 'value': v, 'state': st, 'warn_at': w})
         lvl = 3 if out_of_range else (2 if len(warn) >= 2 else (1 if warn else 0))
-        MSG = {0: '정상 — 유지', 1: '주의 — 다음 분기에 다시 확인',
+        MSG = {0: '정상 — 유지', 1: '주의 — 다음에 다시 확인',
                2: '경고 — 재검토 연구 개시(전략 변경 아님)',
                3: '역사 범위 밖 — 유지 여부 재검증'}
-        print(f'\n  ▶ 판정: **Level {lvl} · {MSG[lvl]}**')
+        say(f'\n  ▶ 판정: **Level {lvl} · {MSG[lvl]}**')
+        R['level'], R['level_msg'] = lvl, MSG[lvl]
         if lvl >= 1:
-            todo.append(f'전제 감시 Level {lvl} — {MSG[lvl]} (설명서: SURVIVAL_MONITOR §F)')
+            todo.append(f'전제 감시 Level {lvl} · {MSG[lvl]} '
+                        f'(뜻은 운영_점검표.md 「자동 점검이 보는 것」)')
 
         # 상품 생존
-        print('\n  · 4다리 상품 생존(AUM) — 살 물건이 아직 있는가')
+        say('\n  · 4다리 상품 생존(AUM) — 살 물건이 아직 있는가')
         for ln in pick(out1, '[정상]', '[주의]', '[★경보]'):
-            print('    ' + ln.strip())
+            say('    ' + ln.strip())
+            m = re.match(r'\s*(\d{6})\s+(\S.*?)\s+시총\s+([\d,]+)억\s+\[(\S+)\]', ln)
+            if m:
+                R['aum'].append({'code': m.group(1), 'name': m.group(2).strip(),
+                                 'eok': int(m.group(3).replace(',', '')),
+                                 'state': m.group(4)})
         if '[★경보]' in out1:
-            todo.append('상품 AUM 경보 — 대체 상품 확인 필요 (SURVIVAL_MONITOR §F-2)')
+            todo.append('상품 AUM 경보 — 대체 상품 확인 필요 (상장폐지되면 전환 자체를 못 한다)')
         elif '[주의]' in out1:
-            todo.append('상품 AUM 주의 — 다음 분기에 다시 확인')
+            todo.append('상품 AUM 주의 — 다음에 다시 확인')
 
     # ---- [2] 체결 비용 -----------------------------------------------------
-    print('\n[2/2] 체결 비용 — 0.2% 가정이 실측과 맞나')
+    say('\n[2/2] 체결 비용 — 0.2% 가정이 실측과 맞나')
     ok2, out2 = run(os.path.join('research', 'exec_cost.py'))
     if not ok2:
-        print('  ★ 실행 실패')
-        todo.append('체결비용 스크립트가 실패했다 — 개발자(AI)에게 알릴 것')
+        say('  ★ 실행 실패')
+        todo.append('체결비용 스크립트가 실패했다 — AI에게 알릴 것')
+        R['ok'] = False
     else:
         for ln in pick(out2, '진행률', '수집', '모형 슬리피지'):
-            print('  ' + ln.strip())
+            say('  ' + ln.strip())
+        m = re.search(r'진행률\s+(\d+)/(\d+)', out2)
+        if m:
+            R['exec']['switches'] = int(m.group(1))
+            R['exec']['need'] = int(m.group(2))
+        m = re.search(r'수집\s+(\d+)\s*영업일', out2)
+        if m:
+            R['exec']['nav_days'] = int(m.group(1))
         if '판정 가능' in out2:
             todo.append('체결비용 표본이 찼다 — 비용 가정을 실측으로 교체할 시점')
         elif '★모형 초과' in out2:
             # 표본이 아직 적을 때는 「할 일」이 아니라 관찰 기록으로만 남긴다.
-            print('  ▶ 참고: 괴리가 모형을 넘지만 **표본이 부족해 판정하지 않는다.**')
-            print('    손익분기가 편도 2.5%(모형의 25배)라 결론이 뒤집힐 여지는 낮다.')
+            say('  ▶ 참고: 괴리가 모형을 넘지만 **표본이 부족해 판정하지 않는다.**')
+            say('    손익분기가 편도 2.5%(모형의 25배)라 결론이 뒤집힐 여지는 낮다.')
 
     # ---- 결론 --------------------------------------------------------------
-    print(f'\n{THIN}')
+    R['todo'] = todo
+    if JSON_MODE:
+        print(json.dumps(R, ensure_ascii=False))
+        return
+
+    say(f'\n{THIN}')
     if todo:
-        print(f' 할 일 {len(todo)}건')
+        say(f' 할 일 {len(todo)}건')
         for i, t in enumerate(todo, 1):
-            print(f'   {i}. {t}')
+            say(f'   {i}. {t}')
     else:
-        print(' 결과: 할 일 없음 — 전부 정상. 다음 분기에 또 돌리면 된다.')
-    print(THIN)
-    print(' 이 점검은 전략을 바꾸지 않는다. 이상이 있어도 「지켜본다」가 기본이다.')
-    print(' 자세한 설명: 같은 폴더의 운영_점검표.md\n')
+        say(' 결과: 할 일 없음 — 전부 정상.')
+    say(THIN)
+    say(' 이 점검은 전략을 바꾸지 않는다. 이상이 있어도 「지켜본다」가 기본이다.')
+    say(' 평소엔 자동 파수꾼이 매주 대신 돌린다 — 결과는 화면 「버전 · 동결」에 뜬다.')
+    say(' 자세한 설명: 같은 폴더의 운영_점검표.md\n')
 
 
 if __name__ == '__main__':
