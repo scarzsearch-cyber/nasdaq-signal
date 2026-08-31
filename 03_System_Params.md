@@ -60,6 +60,9 @@ watchdog.yml         [v140] 자동 파수꾼 — **「실패」가 아니라 「
                      (기존 알림은 전부 if: failure() 라 워크플로가 스킵되면 침묵했다)
   ① watchdog.py stale    평일 08:40 KST — signal.json as_of 가 3영업일 밀리면 카톡
                          (3영업일마다 1회만 · 한국장 개장 20분 전)
+  ①-b watchdog.py rebalance  평일 — 방어 중 30일 재조정일이면 그날 아침 카톡.
+                         진입일 규약은 signal.html getDefenseEntryDate 와 동일(장부 밖이면
+                         미확정 — 안 알린다). 주기일이 주말이면 다음 평일, 주기당 정확히 1회
   ② watchdog.py channel  평일 — 카카오 refresh 교환·Telegram getMe 로 **무발송** 생존 확인.
                          죽었으면 살아 있는 다른 채널 + GitHub 이슈(메일)로 알린다
   ③ watchdog.py check    월요일 09:10 KST — 내가_보는_것/점검.py --json →

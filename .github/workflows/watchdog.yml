@@ -47,6 +47,17 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 deploy/watchdog.py stale
 
+      # ①-b 오늘이 방어 재조정일인가 — 전환일엔 알림이 가는데 재조정일엔 안 갔다.
+      # 둘 다 실제 매매인데 한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
+      - name: 방어 재조정일
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py rebalance
+
       # ② 알림 채널이 살아 있나 — 메시지는 보내지 않고 자격증명만 확인(평시 소음 0)
       - name: 알림 채널 생존
         id: chan

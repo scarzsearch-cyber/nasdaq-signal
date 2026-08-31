@@ -39,6 +39,7 @@ VIX/공포탐욕 등 매크로 지표 추가 · 국내 종가로 신호 재기.
 
 매 평일 23:40 UTC (08:40 KST)   watchdog.yml  ← [v140 신설] 자동 파수꾼
    └ watchdog.py stale         신호가 3영업일 밀렸나 → 개장 전에 카톡
+   └ watchdog.py rebalance     오늘이 방어 30일 재조정일인가 → 카톡 (주기당 1회)
    └ watchdog.py channel       알림 채널이 살아 있나 (메시지 무발송 확인)
 월요일 00:10 UTC (09:10 KST)
    └ watchdog.py check         점검.py 자동 실행 → data/ops_check.json → 화면 한 줄

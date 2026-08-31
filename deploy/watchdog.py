@@ -17,8 +17,13 @@
 전략 무접촉. 판정·파라미터·장부를 읽기만 하고 쓰지 않는다
 (쓰는 것은 `data/ops_check.json` 하나 — 화면에 보여줄 점검 결과다).
 
+  ④ 방어 재조정일을 **화면을 열어야만** 알 수 있던 것
+     → 전환일엔 카톡이 가는데 30일 재조정일엔 안 갔다. 둘 다 「실제 매매」인데
+     한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
+
 사용:
     python3 deploy/watchdog.py stale      # 신호가 며칠째 그대로인가
+    python3 deploy/watchdog.py rebalance  # 오늘이 방어 재조정일인가 (30일 주기)
     python3 deploy/watchdog.py channel    # 알림 채널이 살아 있는가 (메시지 안 보냄)
     python3 deploy/watchdog.py check      # 점검.py 자동 실행 → data/ops_check.json
 
@@ -115,6 +120,62 @@ def mode_stale():
     notify('신호가 갱신되지 않고 있습니다', 'failure',
            f'마지막 종가 {as_of} · {n}영업일째 그대로입니다.\n'
            '자동 갱신이 멈췄을 수 있습니다. 화면의 낙폭·상태는 옛 종가 기준입니다.')
+
+
+# --------------------------------------------------------------------------
+# ①-b 방어 재조정일 — 전환일은 알림이 가는데 재조정일은 「화면을 열어야」 알 수 있었다
+# --------------------------------------------------------------------------
+def defense_entry():
+    """현재 방어 연속 구간의 첫 날. signal.html getDefenseEntryDate 와 같은 규약.
+
+    장부 맨 앞까지 같은 상태면(전환 기록이 장부 밖) **미확정**으로 본다 — 없는
+    날짜를 지어내느니 알리지 않는 쪽이 옳다."""
+    import csv
+    p = os.path.join('data', 'oos_log.csv')
+    if not os.path.exists(p):
+        return None
+    with open(p, encoding='utf-8') as f:
+        rows = [r for r in csv.DictReader(f) if r.get('as_of')]
+    if not rows or rows[-1].get('state') != 'SCHD':
+        return None
+    k = len(rows) - 1
+    while k > 0 and rows[k - 1].get('state') == 'SCHD':
+        k -= 1
+    if k == 0 and rows[0].get('changed') != '1':
+        return None                                # 전환 기록이 장부 밖 — 미확정
+    return rows[k]['as_of']
+
+
+def rebalance_due(entry_iso, today):
+    """(알릴 날인가, 경과일) — v117 규약: 진입일부터 30일마다.
+
+    주기일이 주말이면 **그 다음 평일**로 민다 (파수꾼은 평일에만 돈다).
+    한국 휴장일은 밀지 않는다 — 화면의 「휴장이면 다음 개장일에」 규약과 같게 둔다.
+    상태를 저장하지 않고도 주기당 정확히 한 번만 참이 되는 계산이다."""
+    e = date.fromisoformat(entry_iso)
+    k = (today - e).days
+    if k < 30:
+        return False, k
+    target = e + timedelta(days=30 * (k // 30))
+    while target.weekday() >= 5:                   # 토·일 → 다음 평일
+        target += timedelta(days=1)
+    return today == target, k
+
+
+def mode_rebalance():
+    e = defense_entry()
+    if not e:
+        print('방어 상태가 아니거나 진입일 미확정 — 할 일 없음')
+        return
+    today = kst_today()
+    due, k = rebalance_due(e, today)
+    print(f'방어 진입 {e} · {k}일 경과 · 오늘 재조정일? {due}')
+    if not due:
+        return
+    # 이상이 아니라 **일정**이다 — alert 를 켜지 않는다(이슈를 열 일이 아니다).
+    notify('방어 비율 재조정일', 'signal',
+           f'방어 전환({e}) 후 {k}일 — 비율 40/40/20 확인일입니다.\n'
+           '화면의 「오늘의 행동」이 몇 주를 사고팔지 계산해 줍니다. 휴장이면 다음 개장일에.')
 
 
 # --------------------------------------------------------------------------
@@ -218,7 +279,8 @@ def mode_check():
            + '\n(전략을 바꾸는 일이 아닙니다 — 기본 대응은 「지켜본다」입니다.)')
 
 
-MODES = {'stale': mode_stale, 'channel': mode_channel, 'check': mode_check}
+MODES = {'stale': mode_stale, 'rebalance': mode_rebalance,
+         'channel': mode_channel, 'check': mode_check}
 
 
 def main():
