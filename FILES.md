@@ -37,11 +37,11 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/   (94) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+research/   (95) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
-            eng_common/sp500/kospi · ENGINE_RESEARCH.md(엔진 교체 연구 — 04 §5-5) + FINAL_AUDIT.md(8항목 최종 감사) + surv_map/alert · SURVIVAL_MONITOR.md(생존성·감시 체계 — 04 §5-6) + lev_opt/lev_th · LEVERAGE_US.md(미국 배율) + ext_ibs/ext_vr · EXT_INFINITE.md(무한매수법·VR 비교+수집) + def_bond(방어 국채 만기·통화 — 04 §5-16).
+            eng_common/sp500/kospi · ENGINE_RESEARCH.md(엔진 교체 연구 — 04 §5-5) + FINAL_AUDIT.md(8항목 최종 감사) + surv_map/alert · SURVIVAL_MONITOR.md(생존성·감시 체계 — 04 §5-6) + lev_opt/lev_th · LEVERAGE_US.md(미국 배율) + ext_ibs/ext_vr · EXT_INFINITE.md(무한매수법·VR 비교+수집) + def_bond/def_equity(방어 국채 만기·통화 04 §5-16 · 방어 배합 코너 04 §5-17).
             각 파일 상단에 경로보정 3줄
 deploy/     라이브 파이프라인 — 건드리지 말 것
 data/       화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
