@@ -37,6 +37,7 @@ jobs:
           mkdir -p _site/data
           cp signal.html _site/index.html
           cp guide.html _site/guide.html   # [v78] 설명서 탭
+          cp notes.html _site/notes.html   # [v142] 업데이트 노트 탭
           # [v104] PWA 홈 화면 추가 — 복사 누락 시 라이브 404 (guide.html v78 실사고와 동일 유형)
           cp manifest.json _site/manifest.json
           cp icon-192.png _site/icon-192.png

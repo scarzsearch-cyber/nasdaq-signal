@@ -488,3 +488,9 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `deploy/wait_close.py` | **[v75]** 종가 확정 대기 루프 — GitHub 예약 실행이 슬롯을 통째로 건너뛰는 실측 사례에 대응 |
 | `.github/workflows/monthly-stats.yml` | 매월 1일 성과표·지평표 데이터 최신화 (검증 통과 시에만) |
 | `.github/workflows/notify-test.yml` | **[v76]** secret 등록 후 알림 채널 수동 연결 확인. 예약 실행 없음 |
+
+### 9-9. 화면 (v142)
+
+| 파일 | 역할 |
+|---|---|
+| `notes.html` | **[v142] 업데이트 노트 — 세 번째 탭.** 단일 파일·바닐라, guide.html 토큰 그대로. 항목마다 **무엇이 / 왜 / 결론** 3필드. 최상단에 「매매 규칙은 한 번도 바뀌지 않았습니다 · 변경 0회」 + 동결 후 경과일(`data/freeze.json` 을 읽고 실패 시 하드코딩 날짜). 필터 4종·시즌 5개·v122 이전은 접힘. **내용은 git 이력·CLAUDE.md §4 에서 뽑은 실제 사건만** |

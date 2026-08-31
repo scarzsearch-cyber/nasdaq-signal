@@ -227,10 +227,15 @@ def i5_decisions(D):
            '−16 기본·배당 / 헤지6/4 기본·배당, 추천=파란 전략명 (v85)')
         ok("화면: 설명서 탭 연결", 'href="guide.html"' in h and os.path.exists('guide.html'),
            '별도 화면 설명서 (v78)')
+        ok("화면: 업데이트 노트 탭 연결",
+           'href="notes.html"' in h and os.path.exists('notes.html'),
+           '세 번째 탭 (v142)')
         if os.path.exists('.github/workflows/pages.yml'):
             pg = io.open('.github/workflows/pages.yml', encoding='utf-8').read()
             ok("배포: guide.html 이 Pages 복사 목록에 있다", 'guide.html' in pg,
                '빠지면 라이브에서 404 (v78 실사고)')
+            ok("배포: notes.html 이 Pages 복사 목록에 있다", 'notes.html' in pg,
+               'guide.html 과 같은 404 유형 (v142)')
             ok("배포: PWA 파일이 Pages 복사 목록에 있다",
                'manifest.json' in pg and 'icon-192.png' in pg and 'icon-512.png' in pg
                and os.path.exists('manifest.json') and os.path.exists('icon-192.png')
@@ -241,6 +246,14 @@ def i5_decisions(D):
             ok("설명서: 필수 절 존재",
                'id="t4"' in g and '반드시 이해' in g and '그림자' in g and 'href="./"' in g,
                'T4 상세 + 이해 필수 6가지 + 돌아가기 탭')
+        if os.path.exists('notes.html'):
+            n = io.open('notes.html', encoding='utf-8').read()
+            # [v142] 업데이트 노트의 핵심 메시지는 「규칙은 안 바뀌었다」 — 이게 사라지면
+            # 이 화면은 그냥 변경 목록이 되고, 동결의 의미가 화면에서 사라진다.
+            ok("업데이트 노트: 규칙 무변경 선언 + 돌아가기 탭",
+               '매매 규칙은 한 번도 바뀌지 않았습니다' in n and '변경 0회' in n
+               and 'href="./"' in n and 'href="guide.html"' in n,
+               '동결 사실이 화면에 남아 있어야 한다 (v142)')
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')
