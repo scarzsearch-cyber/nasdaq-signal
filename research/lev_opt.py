@@ -123,8 +123,11 @@ def main():
         a02 = bcurve(k, cost=0.002)
         alag = bcurve(k, lag=2)
         m02 = EC.fullmet(a02, tb, idx)
+        # [정정 2026-08-31] curves 는 KS 격자로만 채워져 k=2.25 에서 KeyError 로 죽었다.
+        # 그 자리에서 기준선을 계산한다 — 격자를 안 건드리므로 [1]~[3] 출력은 불변.
+        base = curves[k] if k in curves else bcurve(k)
         print(f'{k:>5.2f} {a02[-1]:>10.0f} {m02["calmar"]:>10.3f} {alag[-1]:>10.0f} '
-              f'{alag[-1]/curves[k][-1]:>9.2f}')
+              f'{alag[-1]/base[-1]:>9.2f}')
 
     print(f'\n[5] 혼합 구현 — k=2.5 를 QQQ+TQQQ 로 (w_TQQQ=(k−1)/2=0.75)')
     r1x = np.asarray(lev_r(G.D, 1.0), float)

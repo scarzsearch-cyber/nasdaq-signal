@@ -3,7 +3,7 @@
   "basis": "us_2000 달러 — deploy/build_stats.py sc_us_2000 과 동일 재료·규약 (reentry_lib.run, 방어 40/40/20 월간 재조정, 세전)",
   "days": 400,
   "engine_check": "전체 곡선 final 167.315 == strategy_stats us_2000 B.final 167.315",
-  "generated": "2026-08-30",
+  "generated": "2026-08-31",
   "note": "과거 재현이다 — 예측이 아니다. 갱신은 research/build_crisis_paths.py 수동 실행."
  },
  "닷컴 2000": {
