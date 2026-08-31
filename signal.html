@@ -613,6 +613,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
         <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
         <div class="frz" id="oosHist" title="동결 이후 OOS 장부에 쌓인 실측 기록입니다. 전환이 기록될수록 표본이 자랍니다."></div>
         <div class="frz" id="opsChk" title="전략이 서 있는 전제(지수 수익률·변동성·2배 드래그)와 4다리 상품의 생존, 체결비용 가정을 자동으로 점검한 결과입니다. 주 1회 자동 실행되며, 이상이 있을 때만 위에 배너가 뜹니다."></div>
+        <div class="frz" id="together" title="이 기기에서 화면을 처음 연 날부터 셉니다. 전환 목격 수는 동결 이후 OOS 장부에 기록된 것만 셀 수 있습니다."></div>
       </details>
       <button class="seenbdg" id="seenBadge" hidden type="button">🔔 지난 확인 이후 전환됨</button>
     </div>
@@ -1025,6 +1026,36 @@ async function drawOosHist(){
   }
   el.innerHTML = 'OOS 장부 <b>' + log.rows.length + '영업일</b> · 전환 <b>' + tr.length + '회</b>'
     + (tr.length ? ' · 마지막 ' + tr[tr.length - 1][iA] : '') + cmp;
+}
+
+/* [v157] 함께한 날 — 이 기기에서 화면을 처음 연 날부터. 서버가 모르는 값이라
+   localStorage 에만 산다(백업 대상 아님 — 기기별로 다른 게 자연스럽다).
+   ★ 전환 목격 수는 **OOS 장부에 있는 것만** 셀 수 있다. 장부는 동결일(2026-08-28)
+     부터라 그 이전에 화면을 열었더라도 그 구간은 셀 수 없다 — 문구에 명시한다. */
+const FSKEY = 'b_firstseen_v1';
+function firstSeen(){
+  let d = null;
+  try{ d = localStorage.getItem(FSKEY); }catch(e){}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d || '')){    // 없거나 형식이 깨졌으면 오늘로 1회 기록
+    d = kstISO();
+    try{ localStorage.setItem(FSKEY, d); }catch(e){}
+  }
+  return d;
+}
+async function drawTogether(){
+  const el = document.getElementById('together');
+  if(!el) return;
+  const from = firstSeen();
+  const days = daysSince(from) + 1;             // 처음 연 날이 1일째
+  let seen = null;
+  const log = await loadOosLog();
+  if(log){
+    const iA = log.cols['as_of'], iC = log.cols['changed'];
+    if(iA != null && iC != null)
+      seen = log.rows.filter(r => r[iC] === '1' && r[iA] >= from).length;
+  }
+  el.innerHTML = '함께한 지 <b>' + days + '일째</b>'
+    + (seen == null ? '' : ' · 그동안 전환 <b>' + seen + '번</b> 목격(동결 이후 기록 기준)');
 }
 
 /* [v140] 자동 점검 결과 — 예전에는 사람이 분기마다 python 을 돌려야 알 수 있던 것이다.
@@ -2981,6 +3012,7 @@ async function boot(){
   checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
   drawOosHist();                           // [v111] 같은 공용 캐시 — 추가 요청 없음
+  drawTogether();                          // [v157] 함께한 날 — 같은 캐시 재사용
   drawOpsCheck();                          // [v140] 자동 점검 결과 — 없으면 조용히 숨김
   initTimeMachine();                       // [v127] 위기 타임머신 — 데이터 없으면 조용히 숨김
   // [v73] 포지션 계산기 컨트롤
