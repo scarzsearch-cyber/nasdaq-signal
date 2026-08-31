@@ -72,6 +72,13 @@ h2 .ver{color:var(--attack);font-variant-numeric:tabular-nums}
 .item dd.res{color:var(--ink)}
 .item dd.res::before{content:"→ ";color:var(--muted)}
 
+/* [v169] 시즌 접기 */
+.foldbtn{margin-left:auto;flex:0 0 auto;font-family:inherit;font-size:12.5px;font-weight:700;
+  color:var(--attack);background:var(--acc-bg);border:1px solid var(--attack);
+  border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap}
+[data-fold]>h2{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+[data-fold].folded>*:not(h2){display:none !important}
+[data-fold].folded>h2{margin-bottom:0}
 details.more{margin-top:12px}
 details.more summary{cursor:pointer;font-weight:700;font-size:13.5px;color:var(--attack);
   list-style:none;padding:9px 12px;border:1px solid var(--attack);border-radius:8px;
@@ -114,7 +121,7 @@ details.more[open] summary{margin-bottom:6px}
   </nav>
 
   <!-- ══════════ 최신 ══════════ -->
-  <section data-season>
+  <section data-season id="sea167" data-fold>
     <h2><span class="ver">v167</span> · 설명서 다시 정리</h2>
     <div class="season-sub">2026-09-01 · 순서를 바꾸고, 긴 절엔 결론을 먼저.</div>
 
@@ -133,7 +140,7 @@ details.more[open] summary{margin-bottom:6px}
     </div>
   </section>
 
-  <section data-season>
+  <section data-season id="sea165" data-fold>
     <h2><span class="ver">v165 – v166</span> · 흐름과 리듬</h2>
     <div class="season-sub">2026-09-01 · 순서를 보이게, 조용한 날에 한 줄.</div>
 
@@ -164,7 +171,7 @@ details.more[open] summary{margin-bottom:6px}
     </div>
   </section>
 
-  <section data-season>
+  <section data-season id="sea161" data-fold>
     <h2><span class="ver">v161 – v164</span> · 맥락을 같이 보여주기</h2>
     <div class="season-sub">2026-09-01 · 숫자 옆에 「그래서 이게 어느 정도인가」를.</div>
 
@@ -208,7 +215,7 @@ details.more[open] summary{margin-bottom:6px}
     </div>
   </section>
 
-  <section data-season>
+  <section data-season id="sea154" data-fold>
     <h2><span class="ver">v154 – v160</span> · 매일 쓰는 화면 다듬기</h2>
     <div class="season-sub">2026-09-01 · 작은 편의 7가지. 규칙은 그대로.</div>
 
@@ -306,7 +313,7 @@ details.more[open] summary{margin-bottom:6px}
 
   </section>
 
-  <section data-season>
+  <section data-season id="sea144" data-fold>
     <h2><span class="ver">v144 – v153</span> · 화면에서 바로 알아보게</h2>
     <div class="season-sub">2026-08-31 · 숫자를 보여주는 데서 그치지 않고, 쓰는 법까지.</div>
 
@@ -449,7 +456,7 @@ details.more[open] summary{margin-bottom:6px}
     </div>
   </section>
 
-  <section data-season>
+  <section data-season id="sea137" data-fold>
     <h2><span class="ver">v137 – v143</span> · 손 뗄 수 있게</h2>
     <div class="season-sub">2026-08-31 · 「사람의 개입은 실제 매매할 때만」이 목표였습니다.</div>
 
@@ -520,7 +527,7 @@ details.more[open] summary{margin-bottom:6px}
   </section>
 
   <!-- ══════════ v131~v136 ══════════ -->
-  <section data-season>
+  <section data-season id="sea131" data-fold>
     <h2><span class="ver">v131 – v136</span> · 화면을 깎아내기</h2>
     <div class="season-sub">2026-08-31 · 「난잡한 건 싫지만 정보를 읽는 건 좋다」의 균형점 찾기.</div>
 
@@ -567,7 +574,7 @@ details.more[open] summary{margin-bottom:6px}
   <details class="more">
     <summary>이전 업데이트 <span class="cnt" id="moreCnt">13</span>건 (v90 – v130)</summary>
 
-    <section data-season>
+    <section data-season id="sea122" data-fold>
       <h2><span class="ver">v122 – v130</span> · 안전장치와 정리</h2>
       <div class="season-sub">2026-08-30 · 실수해도 되돌릴 수 있게, 그리고 덜어내기.</div>
 
@@ -617,7 +624,7 @@ details.more[open] summary{margin-bottom:6px}
       </div>
     </section>
 
-    <section data-season>
+    <section data-season id="sea107" data-fold>
       <h2><span class="ver">v107 – v121</span> · 세로를 줄이기</h2>
       <div class="season-sub">2026-08-30 · 412px 세로 화면에서 스크롤을 줄이는 작업.</div>
 
@@ -679,7 +686,7 @@ details.more[open] summary{margin-bottom:6px}
       </div>
     </section>
 
-    <section data-season>
+    <section data-season id="sea90" data-fold>
       <h2><span class="ver">v90 – v106</span> · 실전에서 쓸 수 있게</h2>
       <div class="season-sub">2026-08-30 · 백테스트 화면에서 「오늘 뭘 할지」 화면으로.</div>
 
@@ -719,7 +726,7 @@ details.more[open] summary{margin-bottom:6px}
       </div>
     </section>
 
-    <section data-season>
+    <section data-season id="seax" data-fold>
       <h2><span class="ver">동결</span> · 2026-08-27</h2>
       <div class="season-sub">그 전에 있었던 일 — 이 화면의 출발점.</div>
       <div class="item" data-k="doc">
@@ -742,6 +749,44 @@ details.more[open] summary{margin-bottom:6px}
 </div>
 
 <script>
+/* [v169] 패널 접기 — 소유자 지시. 접은 상태를 기억해 새로고침해도 유지한다.
+   기본은 「펼침」이고, 접은 것만 b_fold_v1 에 남는다(내 선택이 곧 기본값).
+   ★ DOM 을 재구성하지 않는다: 제목(h2)만 남기고 형제들을 CSS 로 숨길 뿐이라
+     화면 곳곳의 getElementById 가 그대로 살아 있다(요소는 DOM 에 남는다).
+   ★ localStorage 는 오리진 단위라 세 화면이 한 저장소를 공유한다 — id 만 겹치지 않으면 된다. */
+const FOLDKEY = 'b_fold_v1';
+function foldRead(){
+  try{ const o = JSON.parse(localStorage.getItem(FOLDKEY) || '{}');
+       return (o && typeof o === 'object') ? o : {}; }catch(e){ return {}; }
+}
+function foldWrite(o){ try{ localStorage.setItem(FOLDKEY, JSON.stringify(o)); }catch(e){} }
+function setupFold(){
+  const st = foldRead();
+  document.querySelectorAll('[data-fold]').forEach(p => {
+    const id = p.id || p.getAttribute('data-fold');
+    const head = p.querySelector('h2');
+    if(!id || !head || head.querySelector('.foldbtn')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'foldbtn';
+    const paint = () => {
+      const on = p.classList.contains('folded');
+      b.textContent = on ? '펼치기 ▾' : '접기 ▴';
+      b.setAttribute('aria-expanded', on ? 'false' : 'true');
+      b.setAttribute('aria-label', (on ? '펼치기' : '접기') + ' — ' + head.textContent.trim().slice(0, 24));
+    };
+    if(st[id]) p.classList.add('folded');
+    paint();
+    b.addEventListener('click', () => {
+      p.classList.toggle('folded');
+      const s = foldRead();
+      if(p.classList.contains('folded')) s[id] = 1; else delete s[id];
+      foldWrite(s);
+      paint();
+    });
+    head.appendChild(b);
+  });
+}
+
 // 동결 후 경과일 — data/freeze.json 을 읽는다 (없으면 하드코딩 날짜로 계산)
 (function(){
   function paint(iso){
@@ -751,6 +796,7 @@ details.more[open] summary{margin-bottom:6px}
     var t = document.getElementById('frzDays');
     if(t && isFinite(n) && n >= 0) t.textContent = '동결 후 ' + n + '일';
   }
+  setupFold();          // [v169] 시즌 접기
   paint('2026-08-27');
   fetch('data/freeze.json').then(function(r){ return r.ok ? r.json() : null; })
     .then(function(j){ if(j && j.frozen_at) paint(j.frozen_at); })
@@ -804,6 +850,12 @@ details.more[open] summary{margin-bottom:6px}
     // 걸러 보는 중엔 접힌 이전 목록을 자동으로 펼친다 (숨은 곳에 결과가 있으면 혼란)
     var more = document.querySelector('details.more');
     if(more && f !== 'all') more.open = true;
+    /* [v169] 접어 둔 시즌도 마찬가지 — 필터에 걸렸는데 접혀 있으면 빈 칸으로 보인다.
+       저장된 접힘 자체는 건드리지 않는다(화면만 임시로 펼침): 「전체」로 돌아오면 복원. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fold]'), function(s){
+      if(f === 'all'){ if(foldRead()[s.id]) s.classList.add('folded'); }
+      else if(!s.hidden) s.classList.remove('folded');
+    });
   });
 })();
 </script>

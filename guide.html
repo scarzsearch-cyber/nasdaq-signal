@@ -73,6 +73,13 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 details{margin:8px 0}
 summary{cursor:pointer;font-weight:700}
 .tblwrap{overflow-x:auto}
+/* [v169] 절 접기 — 제목만 남기고 형제를 숨긴다. 접이 절(foldsec)은 이미 details 라 제외. */
+.foldbtn{margin-left:auto;flex:0 0 auto;font-family:inherit;font-size:12.5px;font-weight:700;
+  color:var(--attack);background:rgba(11,95,214,.06);border:1px solid var(--attack);
+  border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap}
+[data-fold]>h2{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+[data-fold].folded>*:not(h2){display:none !important}
+[data-fold].folded>h2{margin-bottom:0}
 /* [v167] 긴 절의 한 줄 요약 — 이것만 읽어도 그 절의 결론은 안다 */
 .tldr{border-left:3px solid var(--attack);background:rgba(11,95,214,.05);
   padding:8px 13px;border-radius:0 8px 8px 0;margin:0 0 12px;font-size:14px;line-height:1.6}
@@ -129,7 +136,7 @@ details.foldsec>.foldbody{padding:18px 20px}
     <a href="#t4">⑪ T4 그림자 (참고)</a>
   </nav>
 
-  <section id="what">
+  <section id="what" data-fold>
     <h2><span class="no">①</span>이 시스템은 무엇을 하는 물건인가 — 30초 요약</h2>
     <p>나스닥 2배 레버리지(QLD류)는 반세기에 몇 번씩 <b>원금의 98%가 사라지는 구간</b>을 지나갑니다.
        규칙은 하나입니다:</p>
@@ -144,7 +151,7 @@ details.foldsec>.foldbody{padding:18px 20px}
   </section>
 
 
-  <section id="horizon">
+  <section id="horizon" data-fold>
     <h2><span class="no">②</span>몇 년 굴릴 수 있는가 — 기간이 거의 모든 것을 정한다</h2>
     <p>이 전략에서 가장 중요한 선택은 규칙도 배율도 아니라 <b class="key">몇 년을 버틸 수
        있는가</b>입니다. 아래는 54년 검증 표본에서 시작일을 하루씩 밀며 잰
@@ -176,7 +183,7 @@ details.foldsec>.foldbody{padding:18px 20px}
        사람의 도구입니다.</p>
   </section>
 
-  <section id="routine">
+  <section id="routine" data-fold>
     <h2><span class="no">③</span>평소에 할 일 · 전환일에 할 일</h2>
     <div class="tldr"><b>평소엔 할 일이 없습니다.</b> 카톡이 오는 날(연 2~3회)만 09:05~15:20에 전량 전환하면 끝 — 아래는 그때 흔들리지 않기 위한 배경입니다.</div>
     <h3>평소 (연중 대부분)</h3>
@@ -287,7 +294,7 @@ details.foldsec>.foldbody{padding:18px 20px}
       계산됩니다.</p>
   </section>
 
-  <section id="must">
+  <section id="must" data-fold>
     <h2><span class="no">④</span>반드시 이해하고 있어야 할 6가지</h2>
     <div class="tldr"><b>여섯 가지 다 「그럴 수 있다」를 미리 아는 용도입니다.</b> −56% 낙폭·4.7년 물속·급락 무방비는 고장이 아니라 설계된 대가입니다.</div>
 
@@ -329,7 +336,7 @@ details.foldsec>.foldbody{padding:18px 20px}
        하느냐</b>가 더 큰 결정입니다. 화면의 모든 성과표는 세전입니다.</p>
   </section>
 
-  <section id="pick">
+  <section id="pick" data-fold>
     <h2><span class="no">⑤</span>−16 기본 vs 헤지6/4 — 나는 어느 쪽인가</h2>
     <div class="tblwrap"><table>
       <tr><th></th><th>−16 기본 (채택안)</th><th>헤지6/4 기본</th></tr>
@@ -348,7 +355,7 @@ details.foldsec>.foldbody{padding:18px 20px}
       폭락 한복판에서 규칙을 버리는 것입니다 — 그럴 바엔 처음부터 헤지6/4가 낫습니다.</div>
   </section>
 
-  <section id="phases">
+  <section id="phases" data-fold>
     <h2><span class="no">⑥</span>자산 단계별 진로 — 형성기 → 감속기 → 인출기</h2>
     <div class="tldr"><b>기준은 총액이 아니라 「그 돈이 매달 얼마를 만들어 주느냐」입니다.</b> 목표의 50~70%에 이르면 감속기를 검토합니다.</div>
     <p>기계를 갈아타는 기준은 총액이 아니라 <b class="key">"그 돈이 매달 얼마를 만들어 주느냐"</b>입니다.</p>
@@ -393,7 +400,7 @@ details.foldsec>.foldbody{padding:18px 20px}
       결정 자체가 없어지는 것</b> — 이 시스템이 규칙으로 재량을 없애온 것과 같은 철학입니다.</div>
   </section>
 
-  <section id="freeze">
+  <section id="freeze" data-fold>
     <h2><span class="no">⑦</span>왜 규칙을 못 바꾸게 잠가뒀나</h2>
     <p>2026-08-27에 규칙을 <b>동결</b>했습니다. 결과를 보고 나서 규칙을 만지면, 그때부터의
        성적이 "실력"인지 "짜맞춤"인지 구분할 수 없게 되기 때문입니다.</p>
@@ -408,7 +415,7 @@ details.foldsec>.foldbody{padding:18px 20px}
     </ul>
   </section>
 
-  <section id="auto">
+  <section id="auto" data-fold>
     <h2><span class="no">⑧</span>자동화가 하는 일 / 당신이 할 일</h2>
     <div class="tldr"><b>1~3단계는 자동, 4단계(주문)만 사람이 합니다.</b> 실제 매매 두 가지는 모두 카톡이 먼저 옵니다.</div>
     <div class="tip"><b>이 두 화면(오늘의 신호 · 설명서)만으로 충분합니다.</b>
@@ -479,7 +486,7 @@ details.foldsec>.foldbody{padding:18px 20px}
       비상용으로 안전한 방향입니다. 시스템이 살아나면 화면 판정이 우선입니다.</p>
   </section>
 
-  <section id="faq">
+  <section id="faq" data-fold>
     <h2><span class="no">⑨</span>자주 묻는 질문</h2>
     <div class="tldr"><b>궁금한 것만 펼쳐 보세요.</b> 위 검색창에 단어를 넣으면 접힌 답 안까지 찾아 자동으로 펼칩니다.</div>
     <details><summary>왜 하필 −16%인가?</summary>
@@ -672,6 +679,44 @@ details.foldsec>.foldbody{padding:18px 20px}
   <div class="dim" style="text-align:center">근거 문서: 저장소 01~04_*.md · 상세 실험 기록 docs/history/ · 이 페이지는 요약본입니다.</div>
 </div>
 <script>
+/* [v169] 패널 접기 — 소유자 지시. 접은 상태를 기억해 새로고침해도 유지한다.
+   기본은 「펼침」이고, 접은 것만 b_fold_v1 에 남는다(내 선택이 곧 기본값).
+   ★ DOM 을 재구성하지 않는다: 제목(h2)만 남기고 형제들을 CSS 로 숨길 뿐이라
+     화면 곳곳의 getElementById 가 그대로 살아 있다(요소는 DOM 에 남는다).
+   ★ localStorage 는 오리진 단위라 세 화면이 한 저장소를 공유한다 — id 만 겹치지 않으면 된다. */
+const FOLDKEY = 'b_fold_v1';
+function foldRead(){
+  try{ const o = JSON.parse(localStorage.getItem(FOLDKEY) || '{}');
+       return (o && typeof o === 'object') ? o : {}; }catch(e){ return {}; }
+}
+function foldWrite(o){ try{ localStorage.setItem(FOLDKEY, JSON.stringify(o)); }catch(e){} }
+function setupFold(){
+  const st = foldRead();
+  document.querySelectorAll('[data-fold]').forEach(p => {
+    const id = p.id || p.getAttribute('data-fold');
+    const head = p.querySelector('h2');
+    if(!id || !head || head.querySelector('.foldbtn')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'foldbtn';
+    const paint = () => {
+      const on = p.classList.contains('folded');
+      b.textContent = on ? '펼치기 ▾' : '접기 ▴';
+      b.setAttribute('aria-expanded', on ? 'false' : 'true');
+      b.setAttribute('aria-label', (on ? '펼치기' : '접기') + ' — ' + head.textContent.trim().slice(0, 24));
+    };
+    if(st[id]) p.classList.add('folded');
+    paint();
+    b.addEventListener('click', () => {
+      p.classList.toggle('folded');
+      const s = foldRead();
+      if(p.classList.contains('folded')) s[id] = 1; else delete s[id];
+      foldWrite(s);
+      paint();
+    });
+    head.appendChild(b);
+  });
+}
+
 /* [v153] #lev·#t4 는 이제 접힌 절 안에 있다 — 목차·다른 화면(신호 카드의 T4 패널)이
    그 앵커로 들어오면 자동으로 펼친다. 접힌 채로는 브라우저마다 스크롤 위치가 들쭉날쭉하다. */
 (function(){
@@ -688,6 +733,7 @@ details.foldsec>.foldbody{padding:18px 20px}
   }
   openFoldTarget();
   window.addEventListener('hashchange', openFoldTarget);
+  setupFold();   // [v169] 절 접기 버튼 + 저장된 접힘 복원
 })();
 
 /* [v156] 설명서 안 검색 — 일치하지 않는 절을 숨긴다(하이라이트보다 간결).
@@ -709,6 +755,8 @@ details.foldsec>.foldbody{padding:18px 20px}
   function reset(){
     units.forEach(function(u){ u.style.display = ''; });
     openState.forEach(function(was, d){ d.open = was; });
+    var saved = foldRead();                       // [v169] 저장해 둔 접힘 상태로 복원
+    units.forEach(function(u){ if(saved[u.id]) u.classList.add('folded'); });
     if(toc) toc.style.display = '';
     msg.hidden = true; msg.textContent = '';
   }
@@ -730,6 +778,9 @@ details.foldsec>.foldbody{padding:18px 20px}
       });
     });
     if(toc) toc.style.display = 'none';   // 숨긴 절로 가는 목차는 혼란만 준다
+    /* [v169] 접어 둔 절이 검색에 걸리면 빈 칸으로 보인다 — 화면만 임시로 펼친다.
+       저장된 접힘은 그대로 두고, 검색을 지우면 reset() 이 복원한다. */
+    units.forEach(function(u){ if(u.style.display !== 'none') u.classList.remove('folded'); });
     msg.hidden = false;
     msg.textContent = hit ? ('「' + box.value.trim() + '」 — ' + hit + '개 절에서 찾음')
                           : ('「' + box.value.trim() + '」 — 일치하는 내용이 없습니다');

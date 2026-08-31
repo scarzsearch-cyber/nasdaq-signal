@@ -359,6 +359,13 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .pbrow .pbd{font-size:13.5px;color:var(--muted);margin-top:4px;}
 .pbrow .pbd b{color:var(--ink);}
 /* [v90] 평시 행동 한 줄 + 전환일 체크리스트 + 체결 기록 */
+/* [v169] 패널 접기 — 제목만 남기고 형제를 숨긴다(DOM 은 그대로). */
+.foldbtn{margin-left:auto;flex:0 0 auto;font-family:inherit;font-size:12.5px;font-weight:700;
+  color:var(--attack);background:var(--acc-bg);border:1px solid var(--attack);
+  border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;}
+[data-fold]>h2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+[data-fold].folded>*:not(h2){display:none !important;}
+[data-fold].folded>h2{margin-bottom:0;}
 .actline{margin-top:10px;font-size:14.5px;color:var(--muted);}
 .actline b{color:var(--ink);}
 /* [v165] 평시 팩트 한 줄 — 세로를 거의 안 먹게 작고 흐리게 */
@@ -747,7 +754,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
   <!-- [v89] 내 포트폴리오 — 보유 입력 → 목표(전략 B)와 비교 → 오늘의 행동.
        자동 주문 없음. 전략 로직 무변경 — 목표비중은 signal.json 설정에서 읽는다.
        [v90] 계산기보다 위로 (매일 쓰는 것이 먼저) + 체결 기록(실측 비용 표본). -->
-  <div class="guide" id="portPanel">
+  <div class="guide" id="portPanel" data-fold>
     <h2>내 포트폴리오 <span style="font-size:12px;font-weight:400;color:var(--muted)">— 보유를 입력하면 전략 B 목표와 비교합니다 · 저장은 이 기기</span></h2>
     <div id="portAction"></div>
     <div class="actline" id="defDays" hidden></div>
@@ -764,7 +771,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <div class="hint" id="portNote"></div>
   </div>
 
-  <div class="guide" id="calcPanel">
+  <div class="guide" id="calcPanel" data-fold>
     <h2>포지션 계산기</h2>
     <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <label>투입 원금(원) <input type="text" id="calcCash" inputmode="numeric" placeholder="10,000,000" style="width:130px"></label>
@@ -798,14 +805,14 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
   <!-- [v98] 단계 계산기 — guide.html §⑥(형성기/감속기/인출기) 참고용. 전략 로직 무개입,
        자동 전환 없음. 목표액만 이 기기에 저장(신규 키 b_goal_v1).
        [v133] 「참고」군(v132)에서 규칙 카드 위로 이동 — 소유자 지시(자주 확인하는 항목). -->
-  <div class="guide" id="goalPanel">
+  <div class="guide" id="goalPanel" data-fold>
     <h2>내 단계는 어디? <span style="font-size:12px;font-weight:400;color:var(--muted)">— 형성기 / 감속기 / 인출기 · 기준은 설명서 §⑥</span></h2>
     <div class="row"><label style="font-size:15px">목표 총자산(원)
       <input type="text" id="goalTarget" inputmode="numeric" placeholder="예: 500,000,000" style="width:160px"></label></div>
     <div id="goalBody" style="margin-top:10px"></div>
   </div>
 
-  <div class="guide" id="perfPanel" hidden>
+  <div class="guide" id="perfPanel" data-fold hidden>
     <h2 style="display:flex;align-items:center;gap:10px">성과 비교
       <span style="margin-left:auto;display:flex;gap:6px"><button id="perfCols" class="chipbtn"
         type="button">전체 지표 +</button><button id="perfCsv" class="chipbtn" type="button">CSV 내보내기</button></span></h2>
@@ -818,7 +825,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
 
   <!-- 수치 출처: axis_isa.py [v33 정정 반영] (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
        갱신하려면  python axis_isa.py --emit  후 아래 표를 맞춰 쓸 것. -->
-  <div class="guide" id="taxPanel">
+  <div class="guide" id="taxPanel" data-fold>
     <h2>계좌 — ISA 중개형 · 서민형 기준</h2>
 
     <div class="taxhero">
@@ -891,12 +898,12 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     </div>
   </div>
 
-  <div class="guide" id="t4Panel" hidden>
+  <div class="guide" id="t4Panel" data-fold hidden>
     <h2>T4 그림자 추적 <span style="font-size:12px;font-weight:400;color:var(--muted)">평가 전용 — 채택안이 아닙니다</span></h2>
     <div class="hint" id="t4Body"></div>
   </div>
 
-  <div class="guide" id="trajPanel">
+  <div class="guide" id="trajPanel" data-fold>
     <h2>위기 궤적 참고</h2>
     <div class="hint" style="margin-top:0;font-size:13px">
       각 위기가 실제로 끈 시간: <b>닷컴 2000</b> 저점까지 2년 7개월(−83%)·전고점 회복 14년 11개월 ·
@@ -1071,6 +1078,44 @@ async function drawOosHist(){
   const since = tr.length ? daysSince(tr[tr.length - 1][iA]) : null;
   gap.innerHTML = '역대 평균 전환 간격 <b>약 ' + mon.toFixed(1) + '개월</b> (참고 · 예측 아님)'
     + (since == null ? '' : ' · 마지막 전환 후 <b>' + since + '일째</b>');
+}
+
+/* [v169] 패널 접기 — 소유자 지시. 접은 상태를 기억해 새로고침해도 유지한다.
+   기본은 「펼침」이고, 접은 것만 b_fold_v1 에 남는다(내 선택이 곧 기본값).
+   ★ DOM 을 재구성하지 않는다: 제목(h2)만 남기고 형제들을 CSS 로 숨길 뿐이라
+     화면 곳곳의 getElementById 가 그대로 살아 있다(요소는 DOM 에 남는다).
+   ★ localStorage 는 오리진 단위라 세 화면이 한 저장소를 공유한다 — id 만 겹치지 않으면 된다. */
+const FOLDKEY = 'b_fold_v1';
+function foldRead(){
+  try{ const o = JSON.parse(localStorage.getItem(FOLDKEY) || '{}');
+       return (o && typeof o === 'object') ? o : {}; }catch(e){ return {}; }
+}
+function foldWrite(o){ try{ localStorage.setItem(FOLDKEY, JSON.stringify(o)); }catch(e){} }
+function setupFold(){
+  const st = foldRead();
+  document.querySelectorAll('[data-fold]').forEach(p => {
+    const id = p.id || p.getAttribute('data-fold');
+    const head = p.querySelector('h2');
+    if(!id || !head || head.querySelector('.foldbtn')) return;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'foldbtn';
+    const paint = () => {
+      const on = p.classList.contains('folded');
+      b.textContent = on ? '펼치기 ▾' : '접기 ▴';
+      b.setAttribute('aria-expanded', on ? 'false' : 'true');
+      b.setAttribute('aria-label', (on ? '펼치기' : '접기') + ' — ' + head.textContent.trim().slice(0, 24));
+    };
+    if(st[id]) p.classList.add('folded');
+    paint();
+    b.addEventListener('click', () => {
+      p.classList.toggle('folded');
+      const s = foldRead();
+      if(p.classList.contains('folded')) s[id] = 1; else delete s[id];
+      foldWrite(s);
+      paint();
+    });
+    head.appendChild(b);
+  });
 }
 
 /* [v165] 평시 한 줄 — ★ 새 문장을 짓지 않는다. 아래는 전부 **이미 발행된 문장**을
@@ -3140,6 +3185,7 @@ async function boot(){
   watchMinibar();
   checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
+  setupFold();                             // [v169] 접기 버튼 + 저장된 접힘 복원
   drawOosHist();                           // [v111] 같은 공용 캐시 — 추가 요청 없음
   drawTogether();                          // [v157] 함께한 날 — 같은 캐시 재사용
   ['fxBase','fxNew','fxVal'].forEach(id => {          // [v158] 환율 계산기 입력
