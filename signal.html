@@ -1850,7 +1850,15 @@ function portCompute(){
     const p = PORT.a[x.code] || {};
     const qty = pnum(p.qty), avg = pnum(p.avg);
     let px = pnum(p.px), src = '';
-    if(!(px > 0) && NAVPX[x.code]){ px = NAVPX[x.code].px; src = NAVPX[x.code].d.slice(5) + ' 종가'; }
+    if(!(px > 0) && NAVPX[x.code]){
+      px = NAVPX[x.code].px; src = NAVPX[x.code].d.slice(5) + ' 종가';
+      // [v159] 자동값(전일 종가)을 쓰는 중인데 그 값 자체가 오래된 경우.
+      //   기존 「마지막 입력이 N일 전」(PORT.d 기준)과 다른 문제다 — 그건 사용자가
+      //   손으로 넣은 시각, 이건 nav_history.csv 가 며칠째 안 갱신된 것.
+      //   사용자가 직접 현재가를 넣었으면(px>0) 이 분기를 아예 안 탄다.
+      const age = daysSince(NAVPX[x.code].d);
+      if(age >= 3) warns.push(x.name + ': 자동 현재가가 ' + age + '일 전 값입니다 — 확인 필요');
+    }
     if(qty < 0) warns.push(x.name + ': 수량이 음수입니다');
     if(pnum(p.px) < 0) warns.push(x.name + ': 가격이 0 이하입니다');
     if(qty > 0 && !(px > 0)) warns.push(x.name + ': 현재가 누락 — 입력 전까지 계산 제외');
