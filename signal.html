@@ -180,6 +180,19 @@ body{padding:28px 20px 64px;}
 .eyebrow .rule{letter-spacing:0.06em;}
 .verdict{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-weight:900;font-size:clamp(38px,7.6vw,56px);
   line-height:0.98;letter-spacing:-0.035em;margin-bottom:4px;}
+/* [v149] 판정 + 시세를 한 줄에 — 판정은 왼쪽, 시세는 오른쪽 끝에 붙는다. */
+.vrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.vrow .verdict{flex:0 1 auto;}
+.vpx{flex:0 0 auto;text-align:right;text-decoration:none;color:var(--muted);
+  font-size:15px;font-variant-numeric:tabular-nums;line-height:1.35;}
+.vpx .px{display:block;font-size:19px;font-weight:700;color:var(--ink);}
+.vpx .cd{display:block;font-size:11.5px;opacity:.65;letter-spacing:.02em;}
+.vpx i{font-style:normal;font-weight:700;}
+.vpx i.up{color:#C0392B;} .vpx i.dn{color:#0B5FD6;} .vpx i.fl{color:var(--muted);}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .vpx i.up{color:#E0604F;}
+  :root:not([data-theme="light"]) .vpx i.dn{color:#5B9BF0;}
+}
 .product{font-size:18px;color:var(--muted);line-height:1.5;margin-bottom:20px;}
 .product b{color:var(--ink);font-weight:600;}
 .facts{margin-top:auto;border-top:1px solid var(--rule);padding-top:16px;
@@ -651,7 +664,13 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <!-- [v101] aria-live: 스크린리더가 공격↔방어 전환을 자동으로 읽는다 -->
     <div class="state" aria-live="polite">
       <div class="eyebrow"><span id="eyebrow">보유할 자산</span><span class="rule" id="ebRule"></span></div>
-      <div class="verdict" id="verdict">—</div>
+      <!-- [v149] 판정 옆 빈자리에 「내가 든 것의 오늘 시세」 — 공격일 때만 뜬다.
+           방어는 3종이라 한 숫자로 합치면 어느 앱에서도 대조할 수 없는 값이 되므로
+           넣지 않는다(합성 숫자 금지). 판정에는 쓰이지 않는다. -->
+      <div class="vrow">
+        <div class="verdict" id="verdict">—</div>
+        <a class="vpx" id="vpx" href="guide.html#navtip" hidden></a>
+      </div>
       <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
       <div class="actline" id="actLine"></div>
       <div id="changeBox"></div>
@@ -1063,11 +1082,32 @@ function defHtml(){
   return `<div class="basket">${basketLegs()}</div>
     <div class="bsub">${D.label} · ${D.rebalance} · <b>비중 고정</b> — 셋을 다 삽니다</div>`;
 }
+/* [v149] 판정 옆 시세 — 공격 자산(418660) 하나만. 스냅샷이라 언제 잰 값인지 같이 쓴다.
+   방어 상태에서는 숨긴다: 3종을 한 숫자로 합치면 어느 앱에서도 대조할 수 없다. */
+function paintVpx(isQld){
+  const el = document.getElementById('vpx');
+  if(!el) return;
+  const R = AUTO && AUTO.risk;
+  const r = (isQld && R) ? priceOf(R.code) : null;
+  if(!r || r.px == null){ el.hidden = true; el.innerHTML = ''; return; }
+  const v = (r.chg_pct == null) ? null : Number(r.chg_pct);
+  const c = (v == null || !isFinite(v)) ? 'fl' : v > 0 ? 'up' : v < 0 ? 'dn' : 'fl';
+  const pct = (v == null || !isFinite(v)) ? '' : `<i class="${c}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</i>`;
+  const age = priceAgeMin();
+  const when = (PRICE && age != null)
+    ? `${PRICE.as_of_kst.slice(11)} 기준` : '';
+  el.hidden = false;
+  el.title = `${R.name} ${R.code} · 눌러서 괴리율·주문 요령 보기`;
+  el.innerHTML = `<span class="px">${Math.round(r.px).toLocaleString('en-US')}원</span>`
+               + `${pct}<span class="cd">${R.code}${when ? ' · ' + when : ''}</span>`;
+}
+
 /* 공격 상태에서도 "전환되면 뭘 사야 하는지" 를 미리 보여준다 */
 function riskHtml(){
   const R = AUTO && AUTO.risk;
   const head = R
-    ? `나스닥100 <b>2배</b> · <span class="leg"><b>100%</b> ${R.name} <span class="code">${R.code}</span></span>`
+    // [v149] 「2배 ·」 뒤의 가운뎃점은 칩이 다음 줄로 내려가면서 홀로 남았다 — 뗀다.
+    ? `나스닥100 <b>2배</b> <span class="leg"><b>100%</b> ${R.name} <span class="code">${R.code}</span></span>`
     : '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>';
   const legs = basketLegs();
   if(!legs) return head;
@@ -2371,6 +2411,7 @@ function paintState(o){
   document.getElementById('eyebrow').textContent = isQld ? '공격 — 보유할 자산' : '방어 — 보유할 자산';
   document.getElementById('ebRule').textContent = S.name;
   document.getElementById('product').innerHTML = isQld ? riskHtml() : defHtml();
+  paintVpx(isQld);
 
   // [v90] 전환일: 실행일(한국 휴장 반영) + 체크리스트. 평시: 「오늘 할 일 없음」 한 줄.
   const box = document.getElementById('changeBox');
@@ -2606,6 +2647,7 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   document.getElementById('tbl').hidden = true;
   document.getElementById('verdict').textContent='—';
   document.getElementById('verdict').style.color='var(--ink)';
+  paintVpx(false);                       // [v149] 판정이 없으면 시세도 숨긴다
   document.getElementById('asof').textContent='데이터 없음';
   ['fDd','fClose','fMax','fNext','fGap'].forEach(id=>document.getElementById(id).textContent='—');
   document.getElementById('changeBox').innerHTML='';
