@@ -45,7 +45,7 @@ FXP = 'data/hist/fred_DEXKOUS.csv'
 TARGETS = [
     ('458730', 'TIGER 미국배당다우존스', 'div'),
     ('305080', 'TIGER 미국채10년선물', 'ust5'),
-    ('308620', 'KODEX 미국채10년선물', 'ust5'),
+    ('308620', 'KODEX 미국10년국채선물', 'ust5'),
     ('411060', 'ACE KRX금현물', 'gold'),
     ('132030', 'KODEX 골드선물(H)', 'gold_h'),
     ('418660', 'TIGER 미국나스닥100레버리지', 'lev'),
