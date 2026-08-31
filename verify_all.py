@@ -277,7 +277,10 @@ def i5_decisions(D):
             #   원칙(인프라 문제로 진짜 폭락일 신호를 막지 마라)과 정면으로 어긋난다.
             if os.path.exists('CLAUDE.md'):
                 cm = io.open('CLAUDE.md', encoding='utf-8').read()
-                cv = [int(x) for x in re.findall(r'^- \*\*v(\d+)', cm, re.M)]
+                # 「v154~v160」 같은 범위 표기도 있으므로 줄 안의 모든 vNN 을 본다
+                # (앞 숫자만 읽으면 최신이 v160 인데 v154 로 비교해 관문이 헐거워진다)
+                cv = [int(x) for ln in re.findall(r'^- \*\*.*$', cm, re.M)
+                      for x in re.findall(r'v(\d+)', ln)]
                 nvs = [int(x) for x in re.findall(r'class="v">v(\d+)', n)]
                 ok("업데이트 노트가 최신 버전까지 담고 있다",
                    bool(cv) and bool(nvs) and max(nvs) >= max(cv),
