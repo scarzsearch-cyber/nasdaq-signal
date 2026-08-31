@@ -43,7 +43,20 @@ h3::before{content:"";width:4px;height:14px;background:var(--attack);border-radi
 .ph .eng{font-weight:700;margin-top:3px}
 .ph .job{color:var(--muted);font-size:13px;margin-top:2px}
 .ph .next{font-size:12.5px;margin-top:8px;padding-top:7px;border-top:1px dashed var(--rule)}
-@media(max-width:640px){.flow{grid-template-columns:1fr}}
+/* [v166] 5단계 흐름 — 넓은 화면에선 5열, 좁으면 아래 미디어쿼리가 1열로 떨군다 */
+.flow5{grid-template-columns:repeat(5,1fr);gap:8px}
+.flow5 .ph{padding:10px 11px}
+.flow5 .nm{font-size:12.5px}
+.flow5 .eng{font-size:13.5px}
+.flow5 .job{font-size:12px}
+.flow5 .next{font-size:11.5px}
+/* 사람이 하는 단계만 강조 — 다크에서도 토큰을 따라간다 */
+.ph.mine{border-color:var(--attack);background:rgba(11,95,214,.06)}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .ph.mine{background:rgba(91,155,240,.12)}
+}
+@media(max-width:900px){.flow5{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.flow,.flow5{grid-template-columns:1fr}}
 p{margin-bottom:10px}
 b.key{color:var(--attack)}
 ul,ol{padding-left:22px;margin-bottom:10px}
@@ -535,6 +548,32 @@ details.foldsec>.foldbody{padding:18px 20px}
       결과만 이 화면에 올라옵니다(신호 화면의 「버전 · 동결」 안 한 줄, 이상이 있으면 상단 배너).
       당신의 개입은 <b>실제로 주식을 사고파는 두 가지</b> — 전환일 주문과 방어 중 30일 재조정 —
       으로 끝입니다.</div>
+
+    <!-- [v166] 신호가 흘러가는 순서 — 아래 표는 「누가 무엇을 하나」이고
+         이건 「어떤 순서로 흐르나」다. 카드별 상세 접기는 넣지 않는다: 상세는
+         바로 아래 표가 이미 맡고 있어 이중 서술이 된다(v134 중용선). -->
+    <h3>신호가 흘러가는 순서</h3>
+    <div class="flow flow5">
+      <div class="ph"><div class="nm">1 · 새벽</div><div class="eng">신호 판정</div>
+        <div class="job">미국 종가로 −16% 여부 결정</div>
+        <div class="next">자동 · 05~07시</div></div>
+      <div class="ph"><div class="nm">2 · 직후</div><div class="eng">장부 기록</div>
+        <div class="job">그날의 판정을 되돌릴 수 없게 남김</div>
+        <div class="next">자동 · 되돌리지 않음</div></div>
+      <div class="ph"><div class="nm">3 · 아침</div><div class="eng">화면·알림</div>
+        <div class="job">「오늘 할 일」로 번역 · 전환일엔 카톡</div>
+        <div class="next">자동 · 한국 개장 전</div></div>
+      <div class="ph mine">
+        <div class="nm">4 · 낮</div><div class="eng">당신이 주문</div>
+        <div class="job">전량 전환 — <b>이것만 사람이 합니다</b></div>
+        <div class="next">09:05~15:20 · 연 2~3회</div></div>
+      <div class="ph"><div class="nm">5 · 선택</div><div class="eng">체결 기록</div>
+        <div class="job">남기면 보유가 자동 반영</div>
+        <div class="next">안 해도 규칙은 그대로</div></div>
+    </div>
+    <p class="dim">1~3은 손댈 것이 없고, <b>4만 사람이 합니다</b>. 5는 편의 기능입니다.
+      각 단계에서 무엇이 실제로 도는지는 아래 표에 있습니다.</p>
+
     <div class="tblwrap"><table>
       <tr><th>자동 (매일)</th><td>새벽 5시대부터 미국 종가를 반복 시도해 반영(보통 05~07시) →
         신호 판정 → 화면 배포 → OOS·T4 장부 기록 → 실패 시 카톡 ❌</td></tr>
