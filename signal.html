@@ -805,13 +805,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <div id="goalBody" style="margin-top:10px"></div>
   </div>
 
-  <div class="pick">
-    <h2>규칙</h2>
-    <div class="opts" id="opts"></div>
-    <div class="scen" id="scen"></div>
-    <div class="scennote" id="scennote"></div>
-  </div>
-
   <div class="guide" id="perfPanel" hidden>
     <h2 style="display:flex;align-items:center;gap:10px">성과 비교
       <span style="margin-left:auto;display:flex;gap:6px"><button id="perfCols" class="chipbtn"
@@ -1336,74 +1329,11 @@ function riskHtml(){
       <div class="basket">${legs}</div></div>`;
 }
 
-function drawPicker(){
-  const host = document.getElementById('opts');
-  const s = scenOf();
-  host.innerHTML = ORDER.map(k=>{
-    const S = STRAT[k];
-    const m  = s ? stratsOf(s)[k] : null;
-
-    // [v72] 카드는 채택안의 값만 보여준다 — 벤치마크 비교는 아래 성과 비교표에 있다.
-    const cell = (label, val) =>
-      `<div><div class="k">${label}</div><div class="v">${val}</div></div>`;
-    let mets = '';
-    if(m){
-      // [v45] 최종배수를 맨 앞에 둔다.
-      // [v60] 뒤 두 개는 MDD 가 못 재는 것을 잰다 — MDD 는 최악의 '한 점'이라
-      //       얕지만 몇 년 끄는 곡선과 깊지만 반년에 되찾는 곡선을 구분 못 한다.
-      const F = {
-        final:     x => nfmt(x.final),
-        mdd:       x => neg(x.mdd.toFixed(1))+'%',
-        calmar:    x => x.calmar.toFixed(3),
-        sortino:   x => x.sortino==null?'—':x.sortino.toFixed(3),
-        uw_months: x => uwfmt(x),
-        ulcer:     x => x.ulcer==null?'—':x.ulcer.toFixed(1),
-      };
-      const row = (lab, key) => cell(lab, F[key](m));
-      mets = row('최종배수','final') + row('MDD','mdd')
-           + row('CALMAR','calmar') + row('SORTINO','sortino')
-           + row('회복기간','uw_months') + row('ULCER','ulcer');
-    } else {
-      mets = ['최종배수','MDD','CALMAR','SORTINO','회복기간','ULCER']
-               .map(x=>cell(x,'—')).join('');
-    }
-    // [v61] 규칙이 하나뿐이라 고르는 UI 가 아니다. 버튼이 아니라 패널이다.
-    return `<div class="opt only" data-k="${k}">
-      <div class="nm">${S.name}<span class="tag">${S.tag}</span></div>
-      <div class="desc">${S.desc}</div>
-      <div class="mets">${mets}</div>
-    </div>`;
-  }).join('');
-
-  const sc = document.getElementById('scen');
-  if(STATS){
-    // [v131] 기준 칩도 성과표와 같은 3기준만 — 54년 확장은 문서·검증 근거로만 (소유자 지시).
-    sc.innerHTML = '<span class="lab">기준</span>' + STATS.scenarios.filter(x=>PERF_SHOW.includes(x.key)).map(x=>
-      `<button class="chip" type="button" data-s="${x.key}" aria-pressed="${x.key===scen}">${x.label}</button>`).join('');
-    sc.querySelectorAll('.chip[data-s]').forEach(b=>b.addEventListener('click',()=>{
-      scen = b.dataset.s; savePrefs(); redraw();
-    }));
-    const cur = scenOf(), mm = stratsOf(cur)[sel];
-    // [v45] 표본이 너무 짧아 순위를 믿으면 안 되는 구간은 그렇게 적는다.
-    // 실물 TIGER 3.2년 구간은 전환이 B 6회 / A 2회뿐이다. v41 이 정한 최소
-    // 표본(독립 위기 19회)에 한참 못 미쳐 여기서 A 가 이겨도 근거가 못 된다.
-    const thin = mm.switches < 19
-      ? ` <b style="color:var(--defend)">표본이 얇습니다 — 전환 ${mm.switches}회.</b>`
-        + ` 판단 최소치(독립 위기 19회)에 못 미쳐 이 구간의 순위는 근거가 못 됩니다`
-        + ` (전략_v41 §5, v43 §2-3).`
-      : '';
-    document.getElementById('scennote').innerHTML =
-      // [v60] 기간과 CAGR 을 같이 적는다. 최종배수는 기간이 다르면 비교가 안 되는
-      //       숫자인데(달러 26.6년 165배 vs 원화 29.6년 2,761배), 탭을 갈아타며
-      //       나란히 보게 되어 있어서 여기서 기간을 정규화한 수치를 함께 준다.
-      `${cur.note} <b style="color:var(--ink)">${mm.start} ~ ${mm.end}</b>`
-      + ` (${mm.years}년 · 연 ${neg(mm.cagr.toFixed(1))}%)` + thin;
-  } else {
-    sc.innerHTML = '';
-    document.getElementById('scennote').textContent = '';
-  }
-}
-
+/* [v168] 규칙 패널(drawPicker) 삭제 — 소유자 지시(성과 비교표와 중복).
+   기준 칩도 같이 사라지지만 성과표는 PERF_SHOW 3기준을 **모두 나열**하므로 정보 손실 0.
+   scen 은 심사 한 줄의 기준으로만 남아 기본값(kr_1997)에 고정된다.
+   ★ 다만 「표본이 얇습니다(전환 19회 미만)」 경고는 이 패널에만 있던 고유 정보라
+     drawPerf 의 각주로 옮겼다 — 패널을 지우면서 경고까지 지우지 않는다. */
 /* [v130] 지표 풀이(paintMetKey) 삭제 — 소유자 지시(성과 비교표로 충분).
    v121 심사 등급표(통상 눈금 고정 룩업 — 매매 판단 아님)만 남겨 drawPerf 가 쓴다. */
 const gCal = v => v >= 3 ? '탁월' : v >= 1 ? '우수' : v >= 0.5 ? '보통' : '미흡';
@@ -1478,6 +1408,15 @@ function drawPerf(){
     if(jrows) judge = `<p><span class="lead">심사</span> — 기준 <b>${jsc.label}</b> ·
       통상 눈금: Calmar 1↑ 우수·3↑ 탁월 / Sortino 1↑ 무난·1.5↑ 우수 / Ulcer 낮을수록(10↑ 높음)${jrows}</p>`;
   }
+  /* [v168] 「표본이 얇다」 경고 — 삭제한 규칙 패널에만 있던 고유 정보를 여기로 옮겼다.
+     v41 §5 가 정한 최소 표본(독립 위기 19회)에 못 미치는 기준은 순위가 근거가 못 된다. */
+  const thin = STATS.scenarios.filter(x => PERF_SHOW.includes(x.key))
+    .map(x => { const m = x.strategies && x.strategies[sel];
+                return (m && m.switches < 19) ? `${x.label}(전환 ${m.switches}회)` : ''; })
+    .filter(Boolean);
+  if(thin.length) judge += `<p><span class="lead">표본</span> —
+    <b style="color:var(--defend)">${thin.join(' · ')}</b> 는 판단 최소치(독립 위기 19회)에
+    못 미칩니다 — 이 기준의 순위는 근거가 못 됩니다(전략_v41 §5).</p>`;
   document.getElementById('perfNote').innerHTML =
     `<p><span class="lead">주의</span> —
        <b style="color:var(--attack)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b>
@@ -1650,7 +1589,6 @@ function checkSeenBadge(){
 
 /* ---------------- 메인 렌더 ---------------- */
 function redraw(){
-  drawPicker();
   drawPerf();
   drawCalc();
   if(AUTO) renderAuto(AUTO); else render();
