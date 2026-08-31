@@ -368,6 +368,9 @@ td.s-schd{color:var(--defend);font-weight:600;}
 /* [v136] 체크리스트 아래 주문 방법 링크 — 체크 항목과 구분되게 들여쓰기 없이 작게 */
 .chklink{margin-top:6px;font-size:13.5px;}
 .chklink a{color:var(--attack);font-weight:600;}
+/* [v160] 못 한 날 안내 — 체크리스트 맨 아래, 담담하게 */
+.chkmiss{margin-top:8px;padding-top:7px;border-top:1px dashed var(--rule);
+  font-size:13px;color:var(--muted);line-height:1.55;}
 .tlform{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center;font-size:14px;}
 .tlform select,.tlform input{padding:6px 6px;}
 .tlform input{width:88px;text-align:right;}
@@ -2034,6 +2037,10 @@ function chkHtml(){
     /* [v136] 주문 방법 링크 — 전환은 연 2~3회뿐이라 그때마다 호가창을 다시 배운다.
        label 밖에 둔다 (label 안이면 링크를 눌러도 체크박스가 토글된다). */
     + `<div class="chklink"><a href="guide.html#order">주문 방법 — 괴리율 확인 · 지정가 넣는 법 →</a></div>`
+    /* [v160] 못 한 날의 안내 — 전환일에만 뜨므로 평소엔 보이지 않는다.
+       수치는 01_Strategy_Logic.md §3 의 기존 문장(v21 §4.3)을 그대로 인용한다. */
+    + `<div class="chkmiss">오늘 못 하셨다면 — 다음 한국 거래일에 실행하세요.
+       하루 이틀 밀려도 전략의 뼈대는 유지됩니다(신호일의 <b>94.9%</b>는 무지연 체결).</div>`
     + `</div>`;
 }
 function wireChk(box){
