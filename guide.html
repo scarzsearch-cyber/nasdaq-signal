@@ -60,6 +60,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 details{margin:8px 0}
 summary{cursor:pointer;font-weight:700}
 .tblwrap{overflow-x:auto}
+/* [v156] 검색창 */
+#gsearch{width:100%;padding:9px 12px;margin:0 0 10px;border:1px solid var(--rule);
+  border-radius:8px;font-family:inherit;font-size:14px;background:var(--panel);color:var(--ink)}
+#gsearch:focus{outline:none;border-color:var(--attack)}
+#gsearchMsg{margin:0 0 14px}
 /* [v153] 접이 절 — 평소엔 안 쓰는 내용(T4·미국 직투 배율)을 접어 둔다.
    summary 가 h2 역할을 겸해 펼쳤을 때 제목이 두 번 나오지 않는다. */
 details.foldsec{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
@@ -84,6 +89,11 @@ details.foldsec>.foldbody{padding:18px 20px}
   <nav class="tabs"><a href="./">오늘의 신호</a><a class="on" href="guide.html">설명서</a><a href="notes.html">업데이트</a></nav>
   <h1>설명서</h1>
   <div class="lede">쓰는 사람이 반드시 이해해야 할 것들 — 수학·금융 지식 없이 읽히게 썼습니다.</div>
+
+  <!-- [v156] 검색 — 절이 11개라 「어디 있더라」가 실제 비용이다. 접힌 절·FAQ 안까지 찾는다. -->
+  <input type="search" id="gsearch" placeholder="검색 (예: 재조정, 괴리율, T4)"
+    aria-label="설명서 안에서 검색" autocomplete="off">
+  <div id="gsearchMsg" class="dim" hidden></div>
 
   <nav class="toc">
     <a href="#what">① 30초 요약</a>
@@ -625,6 +635,52 @@ details.foldsec>.foldbody{padding:18px 20px}
   }
   openFoldTarget();
   window.addEventListener('hashchange', openFoldTarget);
+})();
+
+/* [v156] 설명서 안 검색 — 일치하지 않는 절을 숨긴다(하이라이트보다 간결).
+   ★ textContent 를 쓴다: innerText 는 렌더링 결과라 **접힌 details 안이 안 읽힌다.**
+     이 화면은 FAQ 9개와 접이 절 2개가 전부 접혀 있어 innerText 로는 대부분을 못 찾는다. */
+(function(){
+  var box = document.getElementById('gsearch');
+  var msg = document.getElementById('gsearchMsg');
+  var wrap = document.querySelector('.wrap');
+  var toc = document.querySelector('.toc');
+  if(!box || !wrap) return;
+
+  var units = Array.prototype.filter.call(wrap.children, function(el){
+    return el.tagName === 'SECTION' || el.classList.contains('foldsec');
+  });
+  var openState = new Map();          // 검색 전 열림 상태 — 지우면 그대로 되돌린다
+  wrap.querySelectorAll('details').forEach(function(d){ openState.set(d, d.open); });
+
+  function reset(){
+    units.forEach(function(u){ u.style.display = ''; });
+    openState.forEach(function(was, d){ d.open = was; });
+    if(toc) toc.style.display = '';
+    msg.hidden = true; msg.textContent = '';
+  }
+
+  box.addEventListener('input', function(){
+    var q = box.value.trim().toLowerCase();
+    if(!q){ reset(); return; }
+    // 매 검색마다 열림 상태를 원위치 — 앞 검색에서 펼쳐진 항목이 남으면 결과가 헷갈린다
+    openState.forEach(function(was, d){ d.open = was; });
+    var hit = 0;
+    units.forEach(function(u){
+      var has = u.textContent.toLowerCase().indexOf(q) >= 0;
+      u.style.display = has ? '' : 'none';
+      if(!has) return;
+      hit++;
+      if(u.tagName === 'DETAILS') u.open = true;              // 접이 절 자체
+      u.querySelectorAll('details').forEach(function(d){       // 그 안의 FAQ 항목
+        if(d.textContent.toLowerCase().indexOf(q) >= 0) d.open = true;
+      });
+    });
+    if(toc) toc.style.display = 'none';   // 숨긴 절로 가는 목차는 혼란만 준다
+    msg.hidden = false;
+    msg.textContent = hit ? ('「' + box.value.trim() + '」 — ' + hit + '개 절에서 찾음')
+                          : ('「' + box.value.trim() + '」 — 일치하는 내용이 없습니다');
+  });
 })();
 </script>
 </body>
