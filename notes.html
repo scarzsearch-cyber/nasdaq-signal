@@ -122,8 +122,26 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v168 – v178</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v168 – v179</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v179</span><span class="tag fix">수정</span>
+        <span class="ttl">보이는 현재가와 계산에 쓰는 현재가가 달랐던 것</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>자산 행에는 <b>39,390원</b>이 떠 있는데 아래 총 평가는
+          <b>39,200원</b>으로 계산하고 있었습니다. <b>같은 줄에 현재가가 둘</b>이었던
+          셈이고, 280주 기준 <b>53,200원</b>이 어긋났습니다
+          (손익 +280원 → 실제로는 <b>+53,480원</b>).</dd>
+        <dt>왜</dt><dd>시세 기능을 넣을 때 <b>입력칸에 보이는 값만</b> 새 시세로 바꾸고
+          <b>계산하는 쪽은 예전 자료를 그대로</b> 두었습니다. 화면과 계산이 서로 다른
+          곳을 보고 있었습니다.</dd>
+        <dt>결론</dt><dd class="res">이제 <b>한 곳에서만</b> 자동 현재가를 정하고
+          화면·계산·5분 갱신이 모두 그것을 씁니다 — <b>구조적으로 다시 갈라질 수 없습니다.</b>
+          더 최신인 자료를 자동으로 고르므로, 시세 수집이 멈춰도 있는 것 중 새 값을 씁니다.
+          <b>현재가를 직접 넣으시면 언제나 그 값이 우선</b>입니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix">
       <div class="head"><span class="v">v178</span><span class="tag fix">수정</span>

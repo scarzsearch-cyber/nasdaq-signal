@@ -1894,8 +1894,8 @@ async function refreshPrice(){
       nm.querySelectorAll('.pchg, .pdev').forEach(e => e.remove());
       nm.insertAdjacentHTML('beforeend', chgBadge(code) + devBadge(code));
     }
-    const inp = row.querySelector('input[data-f="px"]'), live = priceOf(code);
-    if(inp && live) inp.placeholder = Math.round(live.px).toLocaleString('en-US');
+    const inp = row.querySelector('input[data-f="px"]'), auto = curPx(code);   // [v179]
+    if(inp && auto) inp.placeholder = Math.round(auto.px).toLocaleString('en-US');
   });
   paintVpx(VPX_QLD);                       // 신호 카드의 공격 자산 시세
   try{ portCompute(); }catch(e){}          // 「시세 N분 전」 줄 + 평가액
@@ -1939,6 +1939,26 @@ function portAssets(){
     .concat(D.legs.map(l => ({code: l.code, name: l.name, atk: 0, def: l.weight})));
 }
 
+/* [v179] 자동 현재가의 **단일 진입점** — 화면과 계산이 반드시 같은 값을 쓰게 한다.
+   ★ 만든 이유(소유자 실보고): v145 가 입력칸 placeholder 만 시세 스냅샷으로 바꾸고
+     **계산은 nav_history 에 남겨 뒀다.** 같은 줄에 현재가가 둘이었다 —
+     화면 39,390 vs 총평가 계산 39,200 (280주면 53,200원 차이).
+   ★ 우선순위는 고정 순서가 아니라 **「더 최신인 쪽」**이다. 시세 수집이 죽으면
+     nav_history 가 더 새 값일 수 있고 그때는 그쪽을 써야 한다.
+   ※ nav_history 의 `close` 열은 **당일분에 한해 종가가 아니다** — nav_collect 는
+     daily-signal(05:17~09:17 KST)에 얹혀 돌아 개장 직후 값이 찍힌다
+     (2026-09-01 실측 39,200 · 거래량 42,381 vs 전일 180,055). 그래서 장이 끝난 뒤엔
+     price.json 쪽이 그날의 진짜 종가다.
+   ※ 사용자가 현재가를 직접 넣었으면 이 함수는 아예 안 쓰인다(입력이 언제나 우선). */
+function curPx(code){
+  const live = priceOf(code), nav = NAVPX[code];
+  const ld = (PRICE && PRICE.as_of_kst) ? String(PRICE.as_of_kst).slice(0, 10) : '';
+  if(live && live.px > 0 && ld && (!nav || ld >= nav.d))
+    return {px: live.px, src: String(PRICE.as_of_kst).slice(11) + ' 시세', d: ld};
+  if(nav && nav.px > 0) return {px: nav.px, src: nav.d.slice(5) + ' 종가', d: nav.d};
+  return null;
+}
+
 function drawPort(){
   const body = document.getElementById('portBody');
   if(!body) return;
@@ -1955,8 +1975,7 @@ function drawPort(){
       <span>평단가(선택)</span><span>현재가(원)</span></div>`;
     A.forEach(x => {
       const p = PORT.a[x.code] || {};
-      const nav = NAVPX[x.code];
-      const live = priceOf(x.code);          // [v145] 있으면 스냅샷 시세를 기본값으로
+      const auto = curPx(x.code);            // [v145·v179] 계산과 **같은** 자동 현재가
       html += `<div class="prow" data-code="${x.code}">
         <span class="pnm">${x.name} <a class="ext" href="https://m.stock.naver.com/domestic/stock/${x.code}/total"
             target="_blank" rel="noopener noreferrer"
@@ -1967,8 +1986,7 @@ function drawPort(){
           aria-label="${x.name} 평단가(선택)" value="${p.avg || ''}" placeholder="—"></span>
         <span class="pin" data-l="현재가"><input data-f="px" type="text" inputmode="numeric"
           aria-label="${x.name} 현재가(원)" value="${p.px || ''}" placeholder="${
-            live ? Math.round(live.px).toLocaleString('en-US')
-                 : nav ? Math.round(nav.px).toLocaleString('en-US') : '직접 입력'}"></span>
+            auto ? Math.round(auto.px).toLocaleString('en-US') : '직접 입력'}"></span>
       </div>`;
     });
     html += `<div class="prow" data-code="_cash">
@@ -2003,14 +2021,19 @@ function portCompute(){
     const p = PORT.a[x.code] || {};
     const qty = pnum(p.qty), avg = pnum(p.avg);
     let px = pnum(p.px), src = '';
-    if(!(px > 0) && NAVPX[x.code]){
-      px = NAVPX[x.code].px; src = NAVPX[x.code].d.slice(5) + ' 종가';
-      // [v159] 자동값(전일 종가)을 쓰는 중인데 그 값 자체가 오래된 경우.
-      //   기존 「마지막 입력이 N일 전」(PORT.d 기준)과 다른 문제다 — 그건 사용자가
-      //   손으로 넣은 시각, 이건 nav_history.csv 가 며칠째 안 갱신된 것.
-      //   사용자가 직접 현재가를 넣었으면(px>0) 이 분기를 아예 안 탄다.
-      const age = daysSince(NAVPX[x.code].d);
-      if(age >= 3) warns.push(x.name + ': 자동 현재가가 ' + age + '일 전 값입니다 — 확인 필요');
+    if(!(px > 0)){
+      // [v179] placeholder 와 **같은 진입점**을 쓴다. 종전엔 여기만 nav_history 를
+      //   보고 있어서 화면과 계산이 다른 값을 썼다(소유자 실보고).
+      const auto = curPx(x.code);
+      if(auto){
+        px = auto.px; src = auto.src;
+        // [v159] 자동값을 쓰는 중인데 그 값 자체가 오래된 경우.
+        //   기존 「마지막 입력이 N일 전」(PORT.d 기준)과 다른 문제다 — 그건 사용자가
+        //   손으로 넣은 시각, 이건 자동 수집이 며칠째 멈춘 것.
+        //   사용자가 직접 현재가를 넣었으면(px>0) 이 분기를 아예 안 탄다.
+        const age = daysSince(auto.d);
+        if(age >= 3) warns.push(x.name + ': 자동 현재가가 ' + age + '일 전 값입니다 — 확인 필요');
+      }
     }
     if(qty < 0) warns.push(x.name + ': 수량이 음수입니다');
     if(pnum(p.px) < 0) warns.push(x.name + ': 가격이 0 이하입니다');
