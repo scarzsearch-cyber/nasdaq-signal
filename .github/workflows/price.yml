@@ -59,7 +59,9 @@ jobs:
             echo "시세 변화 없음 — 브랜치 갱신 생략"; exit 0
           fi
           git checkout -q --orphan price-tmp
-          git rm -rq --cached . > /dev/null
+          # -f 필수: 방금 수집이 data/price.json 을 고쳐 놔서 인덱스와 어긋난다.
+          #   --cached 라 작업트리 파일은 그대로 남는다(다음 줄에서 다시 add 한다).
+          git rm -rqf --cached . > /dev/null
           git add -f data/price.json
           git commit -q -m "price: $(date -u +%Y-%m-%dT%H:%MZ) 스냅샷 (항상 커밋 1개)"
           git push -qf origin price-tmp:price-data
