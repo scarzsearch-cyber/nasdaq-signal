@@ -152,35 +152,12 @@ body{padding:28px 20px 64px;}
    심사 등급표(v121)는 성과표 아래 전략별 한 줄(drawPerf)로 이사. 재도입 제안 금지. */
 
 /* ---- 신호 패널 ---- */
-.signal{display:grid;grid-template-columns:156px 1fr;gap:0;background:var(--panel);
-  border:1px solid var(--rule);border-radius:2px;overflow:hidden;min-height:330px;}
-
-/* [v108] 평시(공격+여유) 눈금자 접기 — 게이지(prox)가 같은 정보를 한 줄로 준다.
-   전환일·근접(주황/빨강)·방어 상태에서는 자동 복원 (모바일 세로 −180px, 소유자 승인) */
-.signal.sigcompact{grid-template-columns:1fr;min-height:0;}
-.signal.sigcompact .ruler{display:none;}
-/* 낙폭 눈금자 (시그니처) */
-.ruler{position:relative;border-right:1px solid var(--rule);background:var(--surface2);padding:22px 0;}
-.track{position:absolute;left:50%;top:22px;bottom:22px;width:2px;background:var(--rule);
-  transform:translateX(-50%);}
-.tick{position:absolute;left:0;right:0;display:flex;align-items:center;gap:6px;padding-left:12px;}
-.tick .lbl{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);
-  width:50px;text-align:right;}
-.tick .bar{height:1px;flex:1;background:var(--rule);}
-.tick.major .bar{height:2px;}
-.tick.enter .lbl,.tick.enter .bar{color:var(--defend);background:var(--defend);}
-.tick.enter .lbl{background:none;font-weight:600;}
-.tick.exit .lbl,.tick.exit .bar{color:var(--attack);background:var(--attack);}
-.tick.exit .lbl{background:none;font-weight:600;}
-.tick.both .bar{background:linear-gradient(90deg,var(--defend),var(--attack));height:2px;}
-.tick.both .lbl{color:var(--ink);font-weight:600;}
-.marker{position:absolute;left:0;right:0;display:flex;align-items:center;
-  transition:top .5s cubic-bezier(.2,.7,.3,1);}
-.marker .dot{width:11px;height:11px;border-radius:50%;margin-left:calc(50% - 5.5px);
-  border:2px solid var(--panel);box-shadow:0 0 0 1.5px currentColor;}
-.marker .val{position:absolute;left:0;font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;
-  font-size:15px;font-weight:600;padding-left:4px;}
-
+/* [v183] 낙폭 눈금자 삭제 — v108 이 이미 「게이지(prox)가 같은 정보를 한 줄로 준다」고
+   적어놓고 평시에만 접어 뒀던 것이다. 게이지는 거리·문턱·전환 기준가·막대를 다 주는데
+   눈금자는 위치만 준다(부분집합). 남아 있던 상태(전환일·근접·방어)가 하필 화면이 가장
+   긴 상태였다. 이제 카드는 한 열이다. **재도입 제안 금지.** */
+.signal{display:grid;grid-template-columns:1fr;gap:0;background:var(--panel);
+  border:1px solid var(--rule);border-radius:2px;overflow:hidden;}
 /* 상태 카드 */
 .state{padding:26px 28px;display:flex;flex-direction:column;}
 .eyebrow{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;letter-spacing:0.14em;
@@ -207,6 +184,14 @@ body{padding:28px 20px 64px;}
 /* [v181] 판정 바로 아래에 붙인다 — 판정과 자산은 한 덩어리다(소유자 지시). */
 .product{font-size:18px;color:var(--muted);line-height:1.45;margin:-2px 0 14px;}
 .product b{color:var(--ink);font-weight:600;}
+/* [v183] 카드 안 접이 — 예고(전환되면 살 것)와 계산 재료. 제목은 항상 보인다. */
+.signal .foldsec>summary{cursor:pointer;list-style:none;font-size:13.5px;color:var(--muted);
+  letter-spacing:.02em;padding:2px 0;}
+.signal .foldsec>summary::-webkit-details-marker{display:none;}
+.signal .foldsec>summary::after{content:' ▾';opacity:.7;}
+.signal .foldsec[open]>summary::after{content:' ▴';}
+.factmore{margin-top:10px;}
+.factmore .facts{margin-top:8px;border-top:0;padding-top:0;}
 .facts{margin-top:auto;border-top:1px solid var(--rule);padding-top:16px;
   display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:16px 12px;}
 .fact .k{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);
@@ -505,7 +490,6 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .facts .v{font-size:15px;}
   .clockbar{grid-template-columns:1fr;}
   .signal{grid-template-columns:1fr;}
-  .ruler{height:180px;border-right:none;border-bottom:1px solid var(--rule);}
   .opts{grid-template-columns:1fr;}
   .state{padding:20px 18px;}
   .io,.guide{padding:17px 16px;}
@@ -685,13 +669,6 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
   <!-- [v90] 3초 테스트: 첫 화면 주인공은 규칙 설명이 아니라 오늘의 판정이다.
        규칙 카드·지표 풀이는 계산기 아래로 내렸다 (내용 무변경). -->
   <div class="signal">
-    <div class="ruler" id="ruler">
-      <div class="track"></div>
-      <div class="marker" id="marker" style="top:22px">
-        <span class="val" id="markerVal"></span>
-        <span class="dot"></span>
-      </div>
-    </div>
     <!-- [v101] aria-live: 스크린리더가 공격↔방어 전환을 자동으로 읽는다 -->
     <div class="state" aria-live="polite">
       <div class="eyebrow"><span id="eyebrow">보유할 자산</span><span class="rule" id="ebRule"></span></div>
@@ -718,12 +695,18 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
           <div class="dchg" id="fDdChg" hidden></div>
           <!-- [v164] 역사 분포에서의 위치 — 순수 위치 정보(판단어 금지) -->
           <div class="dchg fl" id="fDdPct" hidden></div></div>
-        <div class="fact"><div class="k">QQQ 종가</div><div class="v" id="fClose">—</div></div>
-        <div class="fact"><div class="k">252일 고점</div><div class="v" id="fMax">—</div></div>
-        <div class="fact"><div class="k">다음 전환선</div><div class="v" id="fNext">—</div></div>
         <div class="fact"><div class="k">여유</div><div class="v" id="fGap">—</div></div>
-        <div class="fact"><div class="k">전환 기준가</div><div class="v" id="fTrig">—</div></div>
       </div>
+      <!-- [v183] 아래 넷은 위 두 값을 만든 **재료**다 — 상태가 아니라 근거라서 접는다
+           (v180 기준: 상태는 밖, 기록·근거는 안). 계산은 그대로 돌고 값도 그대로 들어간다. -->
+      <details class="foldsec factmore"><summary>계산 재료 보기</summary>
+        <div class="facts">
+          <div class="fact"><div class="k">QQQ 종가</div><div class="v" id="fClose">—</div></div>
+          <div class="fact"><div class="k">252일 고점</div><div class="v" id="fMax">—</div></div>
+          <div class="fact"><div class="k">다음 전환선</div><div class="v" id="fNext">—</div></div>
+          <div class="fact"><div class="k">전환 기준가</div><div class="v" id="fTrig">—</div></div>
+        </div>
+      </details>
       <div class="prox" id="proxBox"></div>
       <div class="actline" id="defDur" hidden></div>
     </div>
@@ -1400,9 +1383,10 @@ function riskHtml(){
     : '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>';
   const legs = basketLegs();
   if(!legs) return head;
+  // [v183] 예고는 접는다 — 오늘 할 일이 아니다(전환일이 오면 방어 화면이 같은 것을 준다).
   return `<div class="basket">${head}</div>
-    <div class="standby"><span class="lbl">전환되면 살 것 &mdash; 셋 다, 비중 고정</span>
-      <div class="basket">${legs}</div></div>`;
+    <details class="standby foldsec"><summary>전환되면 살 것 &mdash; 셋 다, 비중 고정</summary>
+      <div class="basket">${legs}</div></details>`;
 }
 
 /* [v168] 규칙 패널(drawPicker) 삭제 — 소유자 지시(성과 비교표와 중복).
@@ -2800,11 +2784,6 @@ function paintState(o){
 
   // [v107] 전환일 또는 전환선까지 8%p 미만(주황/빨강 구간)이면 시계·눈금자를 풀 모드로
   CLOCK_FULL = !!(o.changed_today || (o.gap_pp != null && o.gap_pp < 8));
-  // [v108] 평시(공격 + 여유 구간)엔 눈금자를 접는다 — 게이지가 같은 정보를 한 줄로 준다
-  const sig = document.querySelector('.signal');
-  if(sig) sig.classList.toggle('sigcompact',
-    isQld && !o.changed_today && o.gap_pp != null && o.gap_pp >= 8);
-  drawRuler(o.dd/100, color);
   CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
   drawPort();
   drawDefDays();                           // [v97] 방어 상태에서만 보임
@@ -2852,7 +2831,6 @@ function render(){
   if(res.length===0){
     document.getElementById('asof').textContent = '데이터 없음';
     tbl.hidden = true;
-    drawRuler(0, 'var(--ink)');
     return;
   }
   const last = res[res.length-1];
@@ -2913,39 +2891,6 @@ function renderAuto(j){
   drawTrajectory(j.trajectories);
 }
 
-function drawRuler(dd, color){
-  const ruler = document.getElementById('ruler');
-  ruler.querySelectorAll('.tick').forEach(e=>e.remove());
-  const S = STRAT[sel];
-  const TOP=0, BOT=-0.30;
-  const pos = x => 22 + (TOP - x)/(TOP-BOT) * (ruler.clientHeight - 44);
-  const ticks = [
-    {v:0,     t:'0%',   cls:'major'},
-    {v:-0.05, t:'−5%',  cls:''},
-  ];
-  if(S.exit === S.enter){
-    ticks.push({v:S.enter, t:'−16%', cls:'major both'});
-  } else {
-    ticks.push({v:S.exit,  t:neg((S.exit*100).toFixed(0))+'%',  cls:'major exit'});
-    ticks.push({v:S.enter, t:neg((S.enter*100).toFixed(0))+'%', cls:'major enter'});
-  }
-  ticks.push({v:-0.22, t:'−22%', cls:''});
-  ticks.push({v:-0.30, t:'−30%', cls:''});
-  ticks.forEach(k=>{
-    const el = document.createElement('div');
-    el.className = 'tick '+k.cls;
-    el.style.top = pos(k.v)+'px';
-    el.innerHTML = `<span class="lbl">${k.t}</span><span class="bar"></span>`;
-    ruler.appendChild(el);
-  });
-  const m = document.getElementById('marker');
-  const clamped = Math.max(BOT, Math.min(TOP, dd));
-  m.style.top = pos(clamped)+'px';
-  m.style.color = color;
-  const mv = document.getElementById('markerVal');
-  mv.textContent = neg((dd*100).toFixed(1))+'%';
-  mv.style.color = color;
-}
 
 function setMsg(t, isErr){
   const el = document.getElementById('msg');
@@ -3006,7 +2951,6 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   paintDdPct(null);                              // [v164] 백분위도 같이 지운다
   document.getElementById('changeBox').innerHTML='';
   document.getElementById('disagreeBox').innerHTML='';
-  document.getElementById('ruler').querySelectorAll('.tick').forEach(e=>e.remove());
   setMsg('전체 삭제됨');
 });
 
