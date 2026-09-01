@@ -53,6 +53,7 @@
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.parse
@@ -350,6 +351,51 @@ def mode_price():
 # --------------------------------------------------------------------------
 # ③ 점검 자동 실행 — 사람이 기억해서 파이썬을 돌릴 의무를 없앤다
 # --------------------------------------------------------------------------
+PROTO_EVAL = os.path.join('research', 'oos_protocol_b.py')
+PB_RANK = {'ok': 0, 'error': 1, 'warn': 1, 'invalid': 2, 'outside': 2}
+
+
+def protocol_status(env):
+    """[2026-09-02 · v188] B 판정 규약(02 §5-1 · data/oos_protocol_b.json) 평가기를 돌려 **요약만** 돌려준다.
+
+    판정은 평가기(research/oos_protocol_b.py --oos)가 하고 여기서는 읽기만 한다 — 파수꾼은
+    규칙·장부·규약을 한 글자도 쓰지 않는다. 평가기가 죽어도 주간 점검을 해치지 않는다
+    (빈 요약 대신 'error' 로 남겨 화면에 보이게 한다 — 조용히 사라지는 것이 가장 나쁘다).
+    verdict: ok · warn(주의) · outside(역사 밖 → 재검토) · invalid(규약 지문 불일치) · error.
+    """
+    if not os.path.exists(PROTO_EVAL):
+        return None
+    try:
+        p = subprocess.run([sys.executable, PROTO_EVAL, '--oos'], capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', env=env, timeout=900)
+        txt, rc = (p.stdout or ''), p.returncode
+    except Exception as e:                                  # 시간 초과·실행 불가
+        print(f'[경고] 판정 규약 평가기 실행 실패: {e}')
+        return {'verdict': 'error', 'events': None, 'line': '평가기 실행 실패', 'drift': False,
+                'todo': 'B 판정 규약 평가기가 돌지 않았다 — AI 에게 확인 요청', 'exit': None}
+    m = re.search(r'동결 이후 도피 사건 (\d+)건', txt)
+    events = int(m.group(1)) if m else None
+    drift = '역사 기저율이 등록값과 다르다' in txt
+    # ★ 종료코드만으로 판정하지 않는다 — 파이썬이 예외로 죽어도 exit 1 이라, rc 만 보면
+    #   「평가기 크래시」가 「역사 밖」으로 둔갑한다(단위 검사에서 실제로 났다). 문구가 있어야 판정이다.
+    if '지문 불일치' in txt:
+        v, line = 'invalid', '규약 지문 불일치'
+        todo = 'B 판정 규약 JSON 이 수정됐다(지문 불일치) — 02 §5-1 절차대로 날짜·이유를 남겨야 한다'
+    elif '판정: **역사 밖' in txt:
+        v, line = 'outside', '역사 밖 — 재검토 연구 개시'
+        todo = 'B 판정 규약: 역사 밖 — 재검토 연구 개시 (02 §5-1). 자동 변경은 없다'
+    elif '판정: 주의' in txt:
+        v, line, todo = 'warn', '주의', 'B 판정 규약: 주의 (02 §5-1) — 기록·알림만'
+    elif rc == 0 and events is not None and '판정: 재검토 사유 없음' in txt:
+        v, line, todo = 'ok', '사건 %d건 — 재검토 사유 없음' % events, None
+    else:
+        v, line, todo = 'error', '평가기 출력을 읽지 못했다', 'B 판정 규약 평가기 출력을 읽지 못했다 — AI 에게 확인 요청'
+        print((p.stderr or '')[-600:])
+    if drift and todo is None:
+        todo = 'B 판정 규약 기저율이 등록값과 다르다(원자료 갱신?) — 판정 전에 원인 확인'
+    return {'verdict': v, 'events': events, 'line': line, 'drift': drift, 'todo': todo, 'exit': rc}
+
+
 def mode_check():
     prev = {}
     if os.path.exists(OPSCHK):
@@ -378,10 +424,19 @@ def mode_check():
                '주간 자동 점검이 돌지 않았습니다 — AI에게 확인을 요청하세요.')
         return
 
+    # [v188] B 판정 규약(02 §5-1) — 평가기를 같이 돌려 요약만 얹는다. v177 heartbeat 와 같은 자리
+    # (이미 쓰고 커밋하는 파일)라 새 파일·새 커밋이 없다. 이상이면 todo 한 줄 → 기존 배너·알약·카톡 경로.
+    pb = protocol_status(env)
+    if pb is not None:
+        cur['protocol_b'] = pb
+        if pb.get('todo'):
+            cur['todo'] = list(cur.get('todo') or []) + [pb['todo']]
+
     with open(OPSCHK, 'w', encoding='utf-8') as f:
         json.dump(cur, f, ensure_ascii=False, indent=1)
         f.write('\n')
-    print(f"Level {cur.get('level')} · {cur.get('level_msg')} · 할 일 {len(cur.get('todo') or [])}건")
+    print(f"Level {cur.get('level')} · {cur.get('level_msg')} · 할 일 {len(cur.get('todo') or [])}건"
+          + (f" · 판정 규약 {pb['line']}" if pb else ''))
     out('written', 1)
 
     # 알림 규칙: **나빠졌을 때만** 말한다. 같은 상태가 계속되면 조용하다
@@ -389,7 +444,11 @@ def mode_check():
     lv0, lv1 = int(prev.get('level', 0) or 0), int(cur.get('level', 0) or 0)
     bad0 = {a['code'] for a in (prev.get('aum') or []) if a.get('state') != '정상'}
     bad1 = {a['code'] for a in (cur.get('aum') or []) if a.get('state') != '정상'}
-    worse = (lv1 > lv0) or bool(bad1 - bad0) or (not cur.get('ok', True) and prev.get('ok', True))
+    pb0, pb1 = (prev.get('protocol_b') or {}), (cur.get('protocol_b') or {})
+    worse = ((lv1 > lv0) or bool(bad1 - bad0) or (not cur.get('ok', True) and prev.get('ok', True))
+             # [v188] 판정 규약이 나빠진 것(정상→주의→역사 밖)·기저율 표류가 새로 생긴 것도 「악화」다
+             or PB_RANK.get(pb1.get('verdict'), 0) > PB_RANK.get(pb0.get('verdict'), 0)
+             or (bool(pb1.get('drift')) and not pb0.get('drift')))
     if not (cur.get('todo') and worse):
         print('상태 악화 없음 — 알림 생략')
         return
