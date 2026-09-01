@@ -8,3 +8,7 @@ Thumbs.db
 
 # French 원자료 추출본 — data/hist/ff_*.zip 에서 hist_defensive._ensure_ff() 가 자동 생성
 data/hist/ff_tmp/
+
+# [v176] 시세 스냅샷은 main 이력에 안 쌓는다 — price-data 브랜치가 원본이다.
+#   로컬에 있어도 되지만(있으면 로컬 서버에서 배지가 보인다) 커밋하지 않는다.
+data/price.json

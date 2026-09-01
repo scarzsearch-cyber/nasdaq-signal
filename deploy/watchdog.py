@@ -21,6 +21,11 @@
      → 전환일엔 카톡이 가는데 30일 재조정일엔 안 갔다. 둘 다 「실제 매매」인데
      한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
 
+  ⑥ [v176] **시세 수집이 죽은** 경우 (price.yml / price-data 브랜치)
+     → v176 부터 시세는 브랜치에만 있고, 못 읽으면 화면이 배지를 **숨긴다**
+     (옛 값을 새 값인 척 안 보여주는 게 옳다). 다만 **「안 보이는 것」을 사람이
+     알아챈다는 보장이 없다** — v173 에서 6시간 묵은 값을 아무도 못 본 것과 같다.
+
   ⑤ [v171] **성과 스냅샷이 안 갱신되는** 경우 (monthly-stats.yml 이 건너뜀)
      → ① 과 같은 구멍인데 **훨씬 안 보인다**: 신호는 매일이라 며칠만 밀려도
      화면 신선도 도트가 티를 내지만, 성과표는 월 1회라 두 달이 밀려도 화면이
@@ -32,6 +37,7 @@
     python3 deploy/watchdog.py rebalance  # 오늘이 방어 재조정일인가 (30일 주기)
     python3 deploy/watchdog.py channel    # 알림 채널이 살아 있는가 (메시지 안 보냄)
     python3 deploy/watchdog.py stats      # 성과 스냅샷이 갱신되고 있는가 (월 1회)
+    python3 deploy/watchdog.py price      # 시세 수집이 살아 있는가 (price-data 브랜치)
     python3 deploy/watchdog.py check      # 점검.py 자동 실행 → data/ops_check.json
 
 각 모드는 **항상 0 으로 끝난다**(감시가 파이프라인을 죽이면 안 된다).
@@ -71,6 +77,12 @@ STALE_N = 3
 #     (31 로 조이면 월말에 정상 상태로도 울리고, 62 로 늘리면 두 달을 놓친다).
 # 신호(STALE_N)와 달리 이건 **매매와 무관**하다 — 알림 문구가 그 점을 먼저 말한다.
 STATS_STALE = 45
+
+# [v176] 시세 스냅샷이 이 영업일 수만큼 밀리면 알린다.
+#   파수꾼은 평일 08:40(개장 전)에 도므로, 정상이면 최신 스냅샷은 **전 거래일 15:55**
+#   = 1영업일 전이다. 금→월도 1영업일, 월요일이 휴장이어도 2영업일.
+#   그래서 신호와 같은 3을 쓴다 — 정상 상태에서 절대 안 울린다.
+PRICE_STALE = 3
 
 
 def out(key, val):
@@ -294,6 +306,41 @@ def mode_stats():
 
 
 # --------------------------------------------------------------------------
+# ②-c [v176] 시세 수집 생존 — price-data 브랜치가 갱신되고 있는가
+# --------------------------------------------------------------------------
+def mode_price():
+    """시세는 main 에 없다(v176) — price-data 브랜치에 항상 커밋 1개로 덮인다.
+
+    수집이 죽으면 배포가 파일을 못 싣고 화면은 배지를 숨긴다. 그게 옳은 실패지만
+    **조용하다** — 여기서 폰으로 말해 준다. 전략과 무관하다(표시 전용)."""
+    try:
+        subprocess.run(['git', 'fetch', '-q', '--depth=1', 'origin', 'price-data'],
+                       check=True, timeout=120)
+        raw = subprocess.check_output(['git', 'show', 'FETCH_HEAD:data/price.json'],
+                                      text=True, encoding='utf-8', timeout=60)
+        as_of = str(json.loads(raw)['as_of_kst'])[:10]
+        d = date.fromisoformat(as_of)
+    except Exception as e:
+        # 브랜치가 아직 없을 수도 있다(첫 도입 직후) — 그건 사고가 아니다.
+        print(f'[정보] price-data 를 읽지 못했다: {type(e).__name__} — 첫 도입 직후면 정상')
+        return
+    n = biz_days_since(as_of)
+    print(f'시세 스냅샷 {as_of} · {n}영업일 경과 (문턱 {PRICE_STALE})')
+    if n < PRICE_STALE:
+        print('정상 — 알림 없음')
+        return
+    if n % PRICE_STALE:
+        print(f'{n}영업일째 — 이미 알렸으므로 이번엔 발송 생략')
+        return
+    out('alert', 1)
+    notify('시세가 수집되지 않고 있습니다', 'failure',
+           f'화면의 자산 시세가 {as_of} 이후 {n}영업일째 그대로입니다.\n'
+           '화면에서는 가격·괴리 배지가 사라져 있을 것입니다(옛 값을 보여주지 않습니다).\n'
+           '★ 매매와는 무관합니다 — 신호·전환 판정은 QQQ 종가만 보며 따로 갱신됩니다.\n'
+           '주문할 땐 증권사 앱 값을 쓰시면 됩니다.')
+
+
+# --------------------------------------------------------------------------
 # ③ 점검 자동 실행 — 사람이 기억해서 파이썬을 돌릴 의무를 없앤다
 # --------------------------------------------------------------------------
 def mode_check():
@@ -346,14 +393,15 @@ def mode_check():
 
 
 MODES = {'stale': mode_stale, 'rebalance': mode_rebalance,
-         'channel': mode_channel, 'stats': mode_stats, 'check': mode_check}
+         'channel': mode_channel, 'stats': mode_stats, 'price': mode_price,
+         'check': mode_check}
 
 
 def main():
     m = sys.argv[1] if len(sys.argv) > 1 else ''
     if m not in MODES:
         raise SystemExit('사용: python3 deploy/watchdog.py '
-                 '{stale|rebalance|channel|stats|check}')
+                 '{stale|rebalance|channel|stats|price|check}')
     try:
         MODES[m]()
     except Exception as e:                        # 감시가 파이프라인을 죽이지 않는다

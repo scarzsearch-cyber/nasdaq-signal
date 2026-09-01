@@ -82,6 +82,17 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 deploy/watchdog.py stats
 
+      # ②-c [v176] 시세 수집이 살아 있나 — 죽으면 화면에서 배지가 조용히 사라진다.
+      - name: 시세 수집 생존
+        id: price
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py price
+
       - name: 의존성 설치
         if: env.WEEKLY == 'true'
         run: pip install pandas numpy
@@ -119,7 +130,7 @@ jobs:
       # 사람이 개입해야 하는 상황이면 이슈로도 남긴다 — 카톡이 죽었을 때의 마지막 통로
       # (GitHub 이 이슈를 메일로 보낸다). 라벨이 같은 열린 이슈가 있으면 댓글로 잇는다.
       - name: 이상이면 이슈 열기
-        if: steps.stale.outputs.alert == '1' || steps.chan.outputs.alert == '1' || steps.stats.outputs.alert == '1' || steps.chk.outputs.alert == '1'
+        if: steps.stale.outputs.alert == '1' || steps.chan.outputs.alert == '1' || steps.stats.outputs.alert == '1' || steps.price.outputs.alert == '1' || steps.chk.outputs.alert == '1'
         uses: actions/github-script@v7
         with:
           script: |
@@ -132,6 +143,7 @@ jobs:
               '- **신호 신선도** — 자동 갱신이 멈췄다면 화면의 낙폭·상태가 옛 종가 기준입니다.',
               '- **알림 채널** — 이대로면 전환일에 알림이 오지 않습니다.',
               '- **성과 스냅샷** — 월간 갱신이 건너뛰어 성과 비교표가 낡았습니다(매매와 무관).',
+              '- **시세 수집** — 자산 가격·괴리 배지가 화면에서 사라져 있습니다(매매와 무관).',
               '- **자동 점검** — 전제·상품·비용 중 하나가 주의선을 넘었습니다.',
               '',
               '어느 쪽인지는 위 로그에 한국어로 찍혀 있습니다.',
