@@ -21,10 +21,17 @@
      → 전환일엔 카톡이 가는데 30일 재조정일엔 안 갔다. 둘 다 「실제 매매」인데
      한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
 
+  ⑤ [v171] **성과 스냅샷이 안 갱신되는** 경우 (monthly-stats.yml 이 건너뜀)
+     → ① 과 같은 구멍인데 **훨씬 안 보인다**: 신호는 매일이라 며칠만 밀려도
+     화면 신선도 도트가 티를 내지만, 성과표는 월 1회라 두 달이 밀려도 화면이
+     똑같아 보인다. 매매와 무관하지만 「지금 내 전략이 어떤 성적인가」의
+     근거가 조용히 낡는다.
+
 사용:
     python3 deploy/watchdog.py stale      # 신호가 며칠째 그대로인가
     python3 deploy/watchdog.py rebalance  # 오늘이 방어 재조정일인가 (30일 주기)
     python3 deploy/watchdog.py channel    # 알림 채널이 살아 있는가 (메시지 안 보냄)
+    python3 deploy/watchdog.py stats      # 성과 스냅샷이 갱신되고 있는가 (월 1회)
     python3 deploy/watchdog.py check      # 점검.py 자동 실행 → data/ops_check.json
 
 각 모드는 **항상 0 으로 끝난다**(감시가 파이프라인을 죽이면 안 된다).
@@ -57,6 +64,13 @@ CHECKPY = os.path.join('내가_보는_것', '점검.py')
 #   · 4일(2001 9/11) 급의 사태라면 알림이 오는 쪽이 맞다.
 # 화면 배너는 2 초과에서 노랑, 4 초과에서 빨강 — 그 사이에서 폰으로 먼저 알린다.
 STALE_N = 3
+
+# [v171] 성과 스냅샷이 이 날수만큼 묵으면 알린다.
+#   · 정상 주기는 매월 1일이므로 최대 31일. 한 번 건너뛰면 다음 기회는 62일 뒤다.
+#   · 45 는 **한 번 건너뛴 것을 다음 예약일이 오기 전에** 잡는 자리다
+#     (31 로 조이면 월말에 정상 상태로도 울리고, 62 로 늘리면 두 달을 놓친다).
+# 신호(STALE_N)와 달리 이건 **매매와 무관**하다 — 알림 문구가 그 점을 먼저 말한다.
+STATS_STALE = 45
 
 
 def out(key, val):
@@ -228,6 +242,58 @@ def mode_channel():
 
 
 # --------------------------------------------------------------------------
+# ②-b [v171] 성과 스냅샷 신선도 — monthly-stats.yml 이 「안 돈」 경우를 잡는다
+# --------------------------------------------------------------------------
+def mode_stats():
+    """성과 비교표의 원천이 갱신되고 있는가.
+
+    monthly-stats.yml 도 실패 알림이 `if: failure()` 뿐이라 **예약 슬롯이 통째로
+    건너뛴 경우**를 못 잡는다 — ① 과 같은 구멍이다. 다만 훨씬 덜 보인다:
+    신호는 매일이라 화면 신선도 도트가 티를 내지만 성과표는 월 1회라
+    두 달이 밀려도 화면이 똑같아 보인다.
+
+    파일을 읽기만 한다. 스냅샷을 여기서 다시 만들지 않는다 —
+    그건 monthly-stats.yml 의 일이고, 그쪽은 verify_all 전체를 통과해야만 커밋한다."""
+    p = os.path.join('data', 'strategy_stats.json')
+    if not os.path.exists(p):
+        print('strategy_stats.json 없음 — 첫 실행이면 정상')
+        return
+    try:
+        j = json.load(open(p, encoding='utf-8'))
+        gen = str(j['generated_at'])[:10]
+        d = date.fromisoformat(gen)
+    except Exception as e:
+        print(f'[경고] strategy_stats.json 을 읽지 못했다: {e}')
+        out('alert', 1)
+        notify('성과 스냅샷 파일 손상', 'failure',
+               'data/strategy_stats.json 을 읽지 못했습니다 — 성과 비교표가 비어 보일 수 있습니다.\n'
+               '매매와는 무관합니다: 신호·전환 판정은 이 파일을 쓰지 않습니다.')
+        return
+    # 곡선 끝날짜는 알림 문구에만 쓴다(없어도 감시는 돈다).
+    end = ''
+    try:
+        end = (j['scenarios'][0]['strategies']['B']['end'] or '')
+    except Exception:
+        pass
+    n = (kst_today() - d).days
+    print(f'성과 스냅샷 {gen} 생성 · {n}일 경과 (문턱 {STATS_STALE})'
+          + (f' · 곡선 {end} 까지' if end else ''))
+    if n < STATS_STALE:
+        print('정상 — 알림 없음')
+        return
+    # 매일 같은 말을 반복하면 정작 전환일 알림을 무시하게 된다 — 7일마다 한 번만.
+    if (n - STATS_STALE) % 7:
+        print(f'{n}일째 — 이미 알렸으므로 이번엔 발송 생략(7일 간격)')
+        return
+    out('alert', 1)
+    notify('성과표가 갱신되지 않고 있습니다', 'failure',
+           f'성과 비교표가 {gen} 이후 {n}일째 그대로입니다'
+           + (f' (곡선 {end} 까지).' if end else '.') + '\n'
+           '월간 스냅샷(매월 1일 16:17)이 건너뛰었거나 검증에서 막혔을 수 있습니다.\n'
+           '★ 매매와는 무관합니다 — 신호·전환 판정은 매일 따로 갱신됩니다.')
+
+
+# --------------------------------------------------------------------------
 # ③ 점검 자동 실행 — 사람이 기억해서 파이썬을 돌릴 의무를 없앤다
 # --------------------------------------------------------------------------
 def mode_check():
@@ -280,13 +346,14 @@ def mode_check():
 
 
 MODES = {'stale': mode_stale, 'rebalance': mode_rebalance,
-         'channel': mode_channel, 'check': mode_check}
+         'channel': mode_channel, 'stats': mode_stats, 'check': mode_check}
 
 
 def main():
     m = sys.argv[1] if len(sys.argv) > 1 else ''
     if m not in MODES:
-        raise SystemExit('사용: python3 deploy/watchdog.py {stale|channel|check}')
+        raise SystemExit('사용: python3 deploy/watchdog.py '
+                 '{stale|rebalance|channel|stats|check}')
     try:
         MODES[m]()
     except Exception as e:                        # 감시가 파이프라인을 죽이지 않는다

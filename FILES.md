@@ -87,7 +87,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
 | `deploy/kakao_keepalive.py` | [v77] 카카오 refresh 토큰 매일 연명·자동 교체 |
 | `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
-| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · `check`(점검.py 자동 실행 → `data/ops_check.json`). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
+| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · `check`(점검.py 자동 실행 → `data/ops_check.json`). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
 | `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
@@ -96,7 +96,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행 |
-| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
+| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171] 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
