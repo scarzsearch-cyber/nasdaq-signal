@@ -42,7 +42,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/  (101.py+7.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+research/  (102.py+7.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
@@ -436,6 +436,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/wfa_thresh.py` | **정정 WFA 를 재현 가능하게 고정** — 두 엔진 × 결함/정정 2×2 · 훈련길이 8종 · Calmar 변형 | 04 §5-13 **정정3** · 12/12 재현 + §-1 ⑧ 위반 적발 |
 | `research/oos_protocol_b.py` | **B 자체의 OOS 판정 규약 — 기저율 측정(기본) + 평가기(`--oos`)** (T4 는 v80 §6 에 있는데 B 에는 없었다). 사건 단위 A·B·R 관문의 역사 기저율 + 룩백 200 그림자 정보량 + 부재 비용 표. `--oos` 는 `data/oos_protocol_b.json` 을 동결 이후 사건에 기계적으로 적용(지문 검사 · 기저율 자기검산 · 사건 0 이면 「판정 불가 — 정상」) | 04 §5-23 · **등록 완료 2026-09-02** (02 §5-1 · I13) · 전략 무변경 · **[v188] 파수꾼 `check` 가 주 1회 자동 실행** |
 | `research/free_design.py` | **[실험] 관문에서 자유로운 설계 3안 + 검증 배터리** (소유자 「이전 룰·관문에서 자유롭게, 검증은 전부」) — X1 장중 재난 스탑(NDX OHLC) · X2 방어 인버스 슬리브 · X3 SOX 2배 엔진. 배터리(10y p05·4블록·홀드아웃·CSCV PBO·집중도)·통과 기준·예측을 **결과 전 등록**. 자료 캐시 `data/hist/yahoo_{NDX,SOX}_ohlc.csv`(Yahoo · 월간 갱신 밖 · 실험 전용) | 04 §5-24 · **3/3 실패** · 선견 한 칸 적발(§5-24 E) |
+| `research/lookback200.py` | **[실험] 룩백 200 검증** (소유자 「어떤 룰보다 최우선 — 왜 200 이어야 하는지 근거까지」, §5-14 D 재탐색 금지를 이 질문에 한해 해제) — §5-14 D 격자 표 **첫 재현(15/15)** · 정면 비교+관문 ①② · 갈린 구간 전수 분해(격차 = 재진입 4건) · 고원 · 전 시작일 · 사건 단위 · WFA 3종 · CSCV · 블록 · 타 시장 4개 · 약세장 군 시간 구조 · 동결 이후 OOS | 04 §5-25 · **유지** — Calmar +5.4% 관문① 미달 · 사전 식별 불가 · 타 시장 0/4 · 「하필 200」은 2023 의 산물 |
 
 ### 9-3. 엔진 교체 (성장 엔진을 나스닥 아닌 것으로)
 
