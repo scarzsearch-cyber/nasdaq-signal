@@ -87,7 +87,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
 | `deploy/kakao_keepalive.py` | [v77] 카카오 refresh 토큰 매일 연명·자동 교체 |
 | `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
-| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · `check`(점검.py 자동 실행 → `data/ops_check.json`). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
+| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · `check`(점검.py 자동 실행 → `data/ops_check.json`) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
 | `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
@@ -101,7 +101,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
 | `data/crisis_paths.json` | 위기 타임머신(v127) 데이터 — 위기 4구간의 전략/2배보유 계좌가치 경로. `research/build_crisis_paths.py` 산출물, **로컬 수동 실행**(build_stats 와 같은 포지션 — 원자료 갱신 시 재실행) |
-| `data/ops_check.json` | **[v140] 자동 점검 결과** — 전제 감시 Level·느린 변수 4종·4다리 AUM·체결비용 진행률. `deploy/watchdog.py check` 산출물(주 1회), 화면 `drawOpsCheck()` 가 읽는다. **사람이 파이썬을 돌리지 않아도 되는 이유가 이 파일이다** |
+| `data/ops_check.json` | **[v140] 자동 점검 결과** — 전제 감시 Level·느린 변수 4종·4다리 AUM·체결비용 진행률. `deploy/watchdog.py check` 산출물(주 1회), 화면 `drawOpsCheck()` 가 읽는다. **[v177] `heartbeat` 키**(마지막 생존 알림 「달」)도 여기 얹혀 있다 — 새 파일을 안 만들려고 얹은 것이라 점검 내용과는 무관하다. **사람이 파이썬을 돌리지 않아도 되는 이유가 이 파일이다** |
 | `data/retired_numbers.json` | **폐기된 공표 수치 대장** — v36 정정 등으로 죽은 값. `verify_all` I9 가 이 목록을 현행 문서에서 찾아 남아 있으면 실패시킨다(버전 문서는 그 시대 기록이라 허용하되 정정 배너를 요구) |
 | `data/qqq.csv` | 라이브 파이프라인용 QQQ 시계열 |
 | `.gitignore` | — |

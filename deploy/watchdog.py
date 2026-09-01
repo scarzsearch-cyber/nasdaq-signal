@@ -21,6 +21,12 @@
      → 전환일엔 카톡이 가는데 30일 재조정일엔 안 갔다. 둘 다 「실제 매매」인데
      한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
 
+  ⑦ [v177] **전부 조용한 것이 정상인지 죽은 것인지 구별이 안 되던 것**
+     → 위 알림은 전부 「이상할 때만」이다. 그래서 **침묵에 두 가지 뜻**이 있었다.
+     특히 공개 저장소는 **60일간 활동이 없으면 예약 실행이 통째로 꺼지는데**(공식 문서)
+     그러면 **파수꾼도 같이 꺼져** 「꺼졌다」고 말해 줄 것이 남지 않는다.
+     한 달에 한 번 살아 있다고 말해 두면 **그것이 안 오는 것 자체가 신호**가 된다.
+
   ⑥ [v176] **시세 수집이 죽은** 경우 (price.yml / price-data 브랜치)
      → v176 부터 시세는 브랜치에만 있고, 못 읽으면 화면이 배지를 **숨긴다**
      (옛 값을 새 값인 척 안 보여주는 게 옳다). 다만 **「안 보이는 것」을 사람이
@@ -39,6 +45,7 @@
     python3 deploy/watchdog.py stats      # 성과 스냅샷이 갱신되고 있는가 (월 1회)
     python3 deploy/watchdog.py price      # 시세 수집이 살아 있는가 (price-data 브랜치)
     python3 deploy/watchdog.py check      # 점검.py 자동 실행 → data/ops_check.json
+    python3 deploy/watchdog.py heartbeat  # 월 1회 「살아 있음」 (안 오면 그게 신호)
 
 각 모드는 **항상 0 으로 끝난다**(감시가 파이프라인을 죽이면 안 된다).
 사람이 개입해야 하는 상황이면 GITHUB_OUTPUT 에 `alert=1` 을 남긴다 —
@@ -392,16 +399,76 @@ def mode_check():
            + '\n(전략을 바꾸는 일이 아닙니다 — 기본 대응은 「지켜본다」입니다.)')
 
 
+# --------------------------------------------------------------------------
+# ④ [v177] 월 1회 「살아 있음」 — 침묵이 정보가 되게 한다
+# --------------------------------------------------------------------------
+def mode_heartbeat():
+    """한 달에 한 번 「정상 작동 중」을 보낸다. **안 오면 그게 신호다.**
+
+    다른 알림은 전부 「이상할 때만」이라 조용한 것이 정상인지 죽은 것인지 구별이
+    안 됐다. 특히 공개 저장소는 **60일간 활동이 없으면 예약 실행이 통째로 꺼지고**
+    (공식 문서) 그러면 파수꾼도 같이 꺼져 알려 줄 것이 남지 않는다.
+
+    ★ 상태는 `data/ops_check.json` 에 얹는다 — 주간 점검이 **이미 쓰고 커밋하는**
+      파일이라 새 파일도 새 커밋도 안 늘어난다(v176 에서 없앤 이력 소음을 되살리지
+      않는다). 「달」만 비교하므로 슬롯이 건너뛰어도 다음 주에 보낸다."""
+    if not os.path.exists(OPSCHK):
+        print('ops_check.json 없음 — 주간 점검이 먼저 돌아야 한다')
+        return
+    try:
+        j = json.load(open(OPSCHK, encoding='utf-8'))
+    except Exception as e:
+        print(f'[경고] ops_check.json 을 읽지 못했다: {e} — 이번 달은 건너뛴다')
+        return
+
+    ym = kst_today().strftime('%Y-%m')
+    if str(j.get('heartbeat') or '') == ym:
+        print(f'{ym} 은 이미 보냈다 — 생략')
+        return
+
+    # 알림에 실을 사실들 (하나라도 못 읽으면 그 줄만 빠진다 — 심장박동을 막지 않는다)
+    lines = []
+    try:
+        as_of = json.load(open(SIGNAL, encoding='utf-8'))['as_of']
+        lines.append(f'· 신호 {as_of} ({biz_days_since(as_of)}영업일 전)')
+    except Exception:
+        lines.append('· 신호 — 읽지 못했습니다')
+    try:
+        subprocess.run(['git', 'fetch', '-q', '--depth=1', 'origin', 'price-data'],
+                       check=True, timeout=120)
+        pj = json.loads(subprocess.check_output(
+            ['git', 'show', 'FETCH_HEAD:data/price.json'],
+            text=True, encoding='utf-8', timeout=60))
+        lines.append(f"· 시세 {pj['as_of_kst']}")
+    except Exception:
+        pass                                  # 시세는 표시 전용 — 없으면 그냥 뺀다
+    lv = j.get('level')
+    if lv is not None:
+        lines.append(f"· 점검 Level {lv} — {j.get('level_msg') or ''}".rstrip(' —'))
+
+    notify('자동화 정상 작동 중', 'signal',
+           '한 달에 한 번 보내는 생존 확인입니다.\n' + '\n'.join(lines) + '\n\n'
+           '★ 이 알림이 **다음 달에 안 오면** 자동화가 멈춘 것입니다 — 그때만 손보시면 됩니다.\n'
+           '(이상이 있으면 이 알림과 별개로 즉시 따로 갑니다.)')
+
+    j['heartbeat'] = ym
+    with open(OPSCHK, 'w', encoding='utf-8') as f:
+        json.dump(j, f, ensure_ascii=False, indent=1)
+        f.write('\n')
+    out('written', 1)
+    print(f'{ym} 살아 있음 알림 발송 · ops_check.json 에 기록')
+
+
 MODES = {'stale': mode_stale, 'rebalance': mode_rebalance,
          'channel': mode_channel, 'stats': mode_stats, 'price': mode_price,
-         'check': mode_check}
+         'check': mode_check, 'heartbeat': mode_heartbeat}
 
 
 def main():
     m = sys.argv[1] if len(sys.argv) > 1 else ''
     if m not in MODES:
         raise SystemExit('사용: python3 deploy/watchdog.py '
-                 '{stale|rebalance|channel|stats|price|check}')
+                 '{stale|rebalance|channel|stats|price|check|heartbeat}')
     try:
         MODES[m]()
     except Exception as e:                        # 감시가 파이프라인을 죽이지 않는다

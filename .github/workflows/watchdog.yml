@@ -109,6 +109,20 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 deploy/watchdog.py check
 
+      # ④ [v177] 월 1회 「살아 있음」 — 다른 알림은 전부 「이상할 때만」이라
+      #   침묵이 정상인지 죽은 건지 구별이 안 됐다. 특히 60일 무활동이면 예약 실행이
+      #   통째로 꺼지는데(공식 문서) 그러면 이 파수꾼도 같이 꺼진다.
+      #   상태는 ops_check.json 에 얹으므로 새 파일·새 커밋이 안 늘어난다.
+      - name: 살아 있음 알림 (월 1회)
+        if: env.WEEKLY == 'true'
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py heartbeat
+
       # 화면 배포는 다음 「일일 신호 갱신」이 끌고 간다(pages.yml 이 그 완료를 구독).
       # 주 1회 갱신되는 파일이라 최대 1영업일 지연은 무의미 — 배포를 두 배로 돌리지 않는다.
       - name: 점검 결과 커밋
@@ -121,7 +135,7 @@ jobs:
             echo "변경 없음"
           else
             LV=$(python3 -c "import json;print(json.load(open('data/ops_check.json'))['level'])")
-            git commit -m "ops: 자동 점검 — Level ${LV}"
+            git commit -m "ops: 자동 점검 — Level ${LV} (+생존 기록)"
             # 「일일 신호 갱신」과 시간대가 겹칠 수 있다(대기 루프가 최대 170분).
             # 그쪽이 먼저 밀어 넣었으면 rebase 후 재시도한다 — 쓰는 파일이 달라 충돌은 없다.
             git push || { git pull --rebase --autostash origin main && git push; }
