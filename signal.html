@@ -198,6 +198,8 @@ body{padding:28px 20px 64px;}
 .vpx .cd{display:block;font-size:11.5px;opacity:.65;letter-spacing:.02em;}
 .vpx i{font-style:normal;font-weight:700;}
 .vpx i.up{color:#C0392B;} .vpx i.dn{color:#0B5FD6;} .vpx i.fl{color:var(--muted);}
+/* [v182] 재조정 확인일이면 그 칸만 강조 — 실제 매매가 있는 날이다. */
+#vdday.due .px{color:#B45309;}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .vpx i.up{color:#E0604F;}
   :root:not([data-theme="light"]) .vpx i.dn{color:#5B9BF0;}
@@ -699,6 +701,9 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div class="vrow">
         <div class="verdict" id="verdict">—</div>
         <a class="vpx" id="vpx" href="guide.html#navtip" hidden></a>
+        <!-- [v182] 방어일 때 같은 자리 — 30일 재조정 D-day. 공격의 시세와 자리를 나눠 쓴다
+             (둘은 동시에 뜨지 않는다). 누르면 아래 포트폴리오로 간다. -->
+        <a class="vpx" id="vdday" href="#portPanel" hidden></a>
       </div>
       <div class="product" id="product">QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.</div>
       <div class="actline" id="actLine"></div>
@@ -1364,6 +1369,11 @@ function defHtml(){
 let VPX_QLD = false;                     // [v173] 시세 갱신 때 같은 상태로 다시 그리려고
 function paintVpx(isQld){
   VPX_QLD = isQld;
+  // [v182] 같은 자리를 나눠 쓰므로, 공격이면 D-day 쪽을 반드시 접는다.
+  if(isQld){
+    const dd = document.getElementById('vdday');
+    if(dd){ dd.hidden = true; dd.innerHTML = ''; dd.classList.remove('due'); }
+  }
   const el = document.getElementById('vpx');
   if(!el) return;
   const R = AUTO && AUTO.risk;
@@ -2677,6 +2687,24 @@ function paintDdChg(diff){
   el.className = 'dchg ' + c;
   el.textContent = '전일 대비 ' + (diff > 0 ? '+' : '') + neg(diff.toFixed(2)) + '%p';
 }
+/* [v182] 판정 옆 재조정 D-day (방어 전용).
+   ★ 아래 카운터(drawDefDays)와 **같은 함수·같은 식**을 쓴다 — 한 화면에 두 개의
+     재조정일이 생기면 안 된다(v179 에서 화면과 계산이 갈렸던 사고의 재발 방지). */
+async function drawVDday(){
+  const el = document.getElementById('vdday');
+  if(!el) return;
+  const hide = () => { el.hidden = true; el.innerHTML = ''; el.classList.remove('due'); };
+  if(CURSTATE !== 'SCHD') return hide();
+  const e = await getDefenseEntryDate();
+  if(CURSTATE !== 'SCHD' || !e) return hide();   // 진입일 미확정이면 안 만든다(v140 규약)
+  const k = daysSince(e.d), c = k % 30;
+  const due = (k >= 30 && c <= 2);               // v117: 확인일 + 2일 유예
+  el.hidden = false;
+  el.classList.toggle('due', due);
+  el.innerHTML = due
+    ? '<span class="px">재조정일</span><span class="cd">비중 확인 · 눌러서 계산</span>'
+    : '<span class="px">D-' + (30 - c) + '</span><span class="cd">재조정 확인일까지</span>';
+}
 async function drawDefDays(){
   const el = document.getElementById('defDays');
   if(!el) return;
@@ -2780,6 +2808,7 @@ function paintState(o){
   CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
   drawPort();
   drawDefDays();                           // [v97] 방어 상태에서만 보임
+  drawVDday();                             // [v182] 판정 옆 D-day (방어 전용)
   drawDefDur();                            // [v100] 방어 상태에서만 보임 (신호 카드)
 }
 
