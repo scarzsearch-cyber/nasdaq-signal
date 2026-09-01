@@ -33,32 +33,32 @@
   {
    "code": "418660",
    "name": "공격 레버리지",
-   "eok": 6501,
+   "eok": 6488,
    "state": "정상"
   },
   {
    "code": "458730",
    "name": "방어 배당",
-   "eok": 42975,
+   "eok": 43118,
    "state": "정상"
   },
   {
    "code": "305080",
    "name": "방어 국채",
-   "eok": 2155,
+   "eok": 2145,
    "state": "정상"
   },
   {
    "code": "411060",
    "name": "방어 금",
-   "eok": 40754,
+   "eok": 40922,
    "state": "정상"
   }
  ],
  "exec": {
   "switches": 0,
   "need": 20,
-  "nav_days": 5
+  "nav_days": 6
  },
  "ok": true
 }
