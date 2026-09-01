@@ -2198,17 +2198,90 @@ function showUndoChip(){
     d.remove();
   });
 }
-function applyBackup(j){
-  if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)){
+function applyBackup(j, from){
+  // [v186] 살균을 여기서 한 번 더 — 파일 경로로 들어와도 같은 문을 지난다.
+  j = sanitizeBackup(j);
+  if(!j){
     alert('백업 형식이 올바르지 않습니다 — 아무것도 바꾸지 않았습니다.'); return false;
   }
-  if(!confirm('현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
+  // [v186] 출처를 밝힌다 — 실수로 남의 링크를 눌렀을 때 알아채라고.
+  const src = from === '링크' ? '⚠ 링크로 받은 백업입니다.\n\n' : '';
+  if(!confirm(src + '현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
               + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return false;
   lsSet(UNDOKEY, JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL, t: kstISO()}));
   applyState(j);
   showUndoChip();
   return true;
 }
+/* [v186] ★ 백업 내용 살균 — 링크 복원을 열면서 **필수**가 된 것.
+   applyBackup 의 기존 검증은 껍데기만 본다(v===1 · port 객체 · trades 배열).
+   값은 `innerHTML` 템플릿에 그대로 들어간다(drawTlogList 의 ${t.d},
+   drawPort 의 value="${p.qty}") — 파일 복원은 **자기 파일**이라 넘어갔지만
+   링크는 **남이 보낸 URL** 이라 조작된 값으로 스크립트가 돌 수 있고,
+   그러면 같은 오리진의 localStorage(장부 전체)가 털린다.
+   여기서 한 번 막으면 **파일 복원도 같이 안전해진다.**
+   규칙: 기대 타입·문자집합으로 **강제**하고, 벗어나면 그 항목을 **버린다**. */
+const OK_CODE = /^\d{6}$/;                      // 국내 종목코드 6자리
+const OK_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function sNum(v){ const n = Number(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+  return isFinite(n) ? n : 0; }
+function sQty(v){                                // 입력칸에 그대로 들어가는 문자열
+  return String(v == null ? '' : v).replace(/[^0-9.,]/g, '').slice(0, 20);
+}
+function sanitizeBackup(j){
+  if(!j || j.v !== 1 || typeof j.port !== 'object' || !j.port || !Array.isArray(j.trades)) return null;
+  const a = {};
+  const src = (j.port && typeof j.port.a === 'object' && j.port.a) ? j.port.a : {};
+  Object.keys(src).forEach(c => {
+    if(!OK_CODE.test(c)) return;                 // 코드가 아니면 통째로 버린다
+    const p = src[c] || {};
+    a[c] = {qty: sQty(p.qty), avg: sQty(p.avg), px: sQty(p.px)};
+  });
+  const port = {d: OK_DATE.test(String(j.port.d || '')) ? j.port.d : null,
+                a, cash: sNum(j.port.cash)};
+  const trades = j.trades.filter(t => t && OK_DATE.test(String(t.d || ''))
+                                   && OK_CODE.test(String(t.code || ''))
+                                   && (t.side === 'buy' || t.side === 'sell'))
+    .slice(0, 2000)                              // 터무니없이 긴 장부는 자른다
+    .map(t => ({d: t.d, code: String(t.code), side: t.side,
+                qty: sNum(t.qty), px: sNum(t.px), ref: sNum(t.ref)}));
+  const out = {v: 1, port, trades};
+  const g = sNum(j.goal && j.goal.target);
+  if(g > 0) out.goal = {target: g};
+  return out;
+}
+
+/* [v186] 링크 백업 — fragment(#)에 싣는다. **query(?)가 아니다**: fragment 는 서버로
+   전송되지 않아 Pages 로그·카톡 미리보기 봇에 자산 데이터가 남지 않는다.
+   base64url(+/= 제거)인 이유: 메신저 자동 링크가 `=` 를 잘라 복원이 깨질 수 있다.
+   압축 JSON 인 이유: backupText() 는 사람이 읽으라고 들여쓴다 — 링크에선 낭비다. */
+const LINK_MAX = 6000;                           // 이보다 길면 파일 방식으로 보낸다
+function b64urlEnc(s){
+  return btoa(unescape(encodeURIComponent(s)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDec(s){
+  const t = s.replace(/-/g, '+').replace(/_/g, '/');
+  return decodeURIComponent(escape(atob(t + '==='.slice((t.length + 3) % 4))));
+}
+function backupLink(){
+  const compact = JSON.stringify(JSON.parse(backupText()));   // 같은 원천, 공백만 제거
+  const enc = b64urlEnc(compact);
+  return {url: location.origin + location.pathname + '#backup=' + enc, len: enc.length};
+}
+/* 받는 쪽 — 로드 직후 한 번. ★ 처리하든 안 하든 **hash 를 지운다**:
+   안 지우면 ① 새로고침마다 확인창 ② 히스토리·최근 탭에 자산 URL 잔류
+   ③ 그 링크를 실수로 다시 전달하면 옛 데이터가 딸려간다. */
+function consumeBackupLink(){
+  const m = /^#backup=(.+)$/.exec(location.hash || '');
+  if(!m) return;
+  history.replaceState(null, '', location.pathname);   // 먼저 지운다 (실패해도 남지 않게)
+  let j = null;
+  try{ j = sanitizeBackup(JSON.parse(b64urlDec(m[1]))); }catch(e){ j = null; }
+  if(!j){ alert('링크의 백업을 읽지 못했습니다 — 아무것도 바꾸지 않았습니다.'); return; }
+  applyBackup(j, '링크');
+}
+
 /* [v96] Blob 다운로드 공용 — 파일 백업(v93)과 같은 기법, CSV 내보내기와 공유 */
 function dlBlob(blob, name){
   const url = URL.createObjectURL(blob);
@@ -2228,11 +2301,14 @@ function backupText(){ return JSON.stringify({v: 1, port: PORT, trades: TRADES, 
    navigator.share() 가 성공으로 끝나는 것은 **공유 시트가 닫혔다**는 뜻이지
    상대 앱이 파일을 받았다는 뜻이 아니다 — v119·v178 두 번의 조용한 실패가 그 증거다.
    v105 백업 리마인더는 공유를 백업으로 치므로, 확인을 한 번 권하는 편이 정직하다. */
-function shareNote(){
+function shareNote(kind){
   const el = document.getElementById('tlShareNote');
   if(!el) return;
-  el.textContent = '보냈습니다 — 카톡에 파일(.txt)이 왔는지 확인하세요. '
-    + '글자만 왔다면 [파일로 저장]을 쓰세요.';
+  el.textContent = kind === '링크'
+    ? '링크를 만들었습니다 — 받은 기기에서 그 링크를 열면 복원 확인창이 뜹니다. '
+      + '한 번 쓰면 주소에서 지워집니다.'
+    : '보냈습니다 — 카톡에 파일(.txt)이 왔는지 확인하세요. '
+      + '글자만 왔다면 [파일로 저장]을 쓰세요.';
   el.hidden = false;
   clearTimeout(shareNote._t);
   shareNote._t = setTimeout(() => { el.hidden = true; }, 20000);
@@ -2367,7 +2443,9 @@ function drawTlog(){
       <div id="tlChips"></div>
       <div class="tlio"><button id="tlExpFile" type="button">파일로 저장</button><button
         id="tlShare" type="button" hidden
-        title="백업 파일을 공유 시트로 바로 보내기 — 카톡 나에게 보내기 등">공유</button>
+        title="백업 파일을 공유 시트로 바로 보내기 — 카톡 나에게 보내기 등">공유</button><button
+        id="tlLink" type="button"
+        title="백업을 링크 하나로 만들어 보냅니다 — 받은 기기에서 열면 복원됩니다">링크로 보내기</button>
         <label class="file" style="font-size:13px;font-weight:600;padding:6px 11px;border-radius:8px;border-color:var(--ink)">
           파일에서 복원<input type="file" id="tlImpFile" accept=".json,.txt,application/json,text/plain"></label><button
         id="tlExpCsv" type="button">CSV 내보내기</button><button
@@ -2402,6 +2480,28 @@ function drawTlog(){
     //        깨짐 없음)이라 과도기 버튼을 정리. 복원 검증은 applyBackup 이 그대로 담당.
     // [v93] 파일 저장/복원 — 긴 JSON 복붙(잘림·줄바꿈 깨짐) 없이 폰↔PC 이동
     // 백업 내용/파일명 헬퍼는 모듈 스코프(backupText/backupName — v124 에서 이동).
+    // [v186] 링크로 보내기 — 파일(.txt) 공유를 **대체하지 않고 병행**한다
+    //   (카톡이 안 되는 환경·이메일에서는 파일 방식이 여전히 필요하다).
+    document.getElementById('tlLink').addEventListener('click', () => {
+      const {url, len} = backupLink();
+      if(len > LINK_MAX){
+        alert('체결 기록이 많아 링크가 너무 깁니다(' + len.toLocaleString('en-US')
+              + '자) — [파일로 저장]을 이용해 주세요.');
+        return;
+      }
+      const done = () => { markBackup(); shareNote('링크'); };
+      if(navigator.share){
+        navigator.share({url})                 // ★ url 필드 하나만 (v178 교훈)
+          .then(done)
+          .catch(err => { if(!(err && err.name === 'AbortError'))
+            alert('공유하지 못했습니다 — [파일로 저장]을 이용해 주세요.'); });
+      }else if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(done)
+          .catch(() => alert('링크를 복사하지 못했습니다 — [파일로 저장]을 이용해 주세요.'));
+      }else{
+        alert('이 환경에서는 링크를 만들 수 없습니다 — [파일로 저장]을 이용해 주세요.');
+      }
+    });
     document.getElementById('tlExpFile').addEventListener('click', () => {
       dlBlob(new Blob([backupText()], {type: 'application/json'}), backupName());
       markBackup();                          // [v105] 리마인더 기준일 갱신
@@ -3146,6 +3246,7 @@ async function boot(){
   drawFx();
   drawOpsCheck();                          // [v140] 자동 점검 결과 — 없으면 조용히 숨김
   initTimeMachine();                       // [v127] 위기 타임머신 — 데이터 없으면 조용히 숨김
+  consumeBackupLink();                     // [v186] 링크 복원 — 장부·화면이 다 선 뒤에 (덮이지 않게)
 }
 
 /* [v95] SVG 색은 렌더 시점에 굳으므로, OS 테마가 바뀌면 마지막 데이터로 다시 그린다 */
