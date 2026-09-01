@@ -516,6 +516,38 @@ def i12_shadow():
            '%s (build_stats 가 자동 갱신)' % endd)
 
 
+# ------------------------------------------------------------------ I13
+def i13_protocol():
+    """[2026-09-02] B 자체의 OOS 판정 규약 — 사후 수정 방지.
+
+    T4 에는 v80 §6 부속서가 있었지만 B 에는 없었다(04 §5-23). 등록된 규약은
+    data/oos_protocol_b.json 이고 지문이 맞지 않으면 실패한다 — 사건이 쌓인 뒤
+    관문을 손대는 것(사후 재량)을 **실수로는** 못 하게 한다. 고치려면 지문을
+    의도적으로 갱신하고 02 §5-1 에 날짜·이유를 남겨야 한다.
+    지문 규약 = research/oos_protocol_b.py fingerprint() 와 동일.
+    """
+    head("I13. B 판정 규약 지문 — 사후 수정 방지 (02 §5-1)")
+    p = 'data/oos_protocol_b.json'
+    if not os.path.exists(p):
+        ok('oos_protocol_b.json 존재', False, '파일 없음', warn=True)
+        return
+    import hashlib
+    j = json.load(io.open(p, encoding='utf-8'))
+    body = {k: v for k, v in j.items() if k != 'fingerprint'}
+    fp = hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False,
+                                   separators=(',', ':')).encode('utf-8')).hexdigest()[:16]
+    ok('규약 지문 일치', fp == j.get('fingerprint'), f"재계산 {fp} vs 기록 {j.get('fingerprint')}")
+    if os.path.exists('data/freeze.json'):
+        F = json.load(io.open('data/freeze.json', encoding='utf-8'))
+        ok('규약이 가리키는 동결 지문 = freeze.json',
+           j['applies_to']['freeze_fingerprint'] == F['fingerprint'], F['fingerprint'])
+    if os.path.exists('02_Risk_Management.md'):
+        doc = io.open('02_Risk_Management.md', encoding='utf-8').read()
+        ok('02 §5-1 이 같은 지문을 적고 있다', j['fingerprint'] in doc, '문서 ↔ JSON 결합')
+    ok('평가기 존재', os.path.exists('research/oos_protocol_b.py'),
+       'python research/oos_protocol_b.py --oos')
+
+
 def i6_live():
     head("I6. 라이브 정합 — signal.json 이 재계산과 맞는가")
     if not os.path.exists('data/signal.json') or not os.path.exists('data/qqq.csv'):
@@ -751,6 +783,7 @@ def main():
     i3_lag(D)
     i11_freeze()
     i12_shadow()
+    i13_protocol()
     i6_live()
     if not a.fast:
         i4_real(D)

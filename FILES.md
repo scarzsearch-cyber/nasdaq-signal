@@ -375,6 +375,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|
 | `data/freeze.json` | **동결된 규칙**·자산·체결규약·비용 + 지문 + 날짜규약 |
 | `data/oos_log.csv` | 동결 이후 하루 한 줄 (append-only). 워크플로가 쌓는다. T4 그림자 3열 포함 |
+| `data/oos_protocol_b.json` | **[2026-09-02] B 자체의 OOS 판정 규약** (기계용 원본 + 지문). T4 는 v80 §6 에 있었는데 B 에는 없던 것 — 사건 정의·관문 A(재난 지급 7/7)·B(보험료 P05/최악)·R(3년 롤링)·대응(재검토까지). 사람용은 02 §5-1, 평가는 `research/oos_protocol_b.py --oos` |
+| `verify_all.py` I13 | 위 JSON 의 지문이 다르면 **실패** — 사건이 쌓인 뒤 관문을 손대는 것(사후 재량)을 실수로는 못 하게 |
 | `deploy/oos_log.py` | 위를 기록한다. **판단하지 않는다.** [v80] qqq.csv 날짜 가드 (미갱신 시 그림자 빈 칸) |
 | `verify_all.py` I11 | 코드·화면이 동결 기록과 다르면 **매 push 마다 실패** |
 | `verify_all.py` I12 | [v82] T4 그림자 열의 정의 위반 감지 |
@@ -432,7 +434,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/era_start.py` | **「인터넷이 당연해진 시기를 기점으로 잡으면」** (소유자 질문) — 기점별 비교 · 전 시작일 분포 · **가르는 축(창의 MDD)** | 04 §5-21 · 기점 가설 **기각** |
 | `research/pbo_thresh.py` | **문턱 격자의 PBO** — `audit_pbo` 우주에 문턱이 없던 빈칸을 충전(CSCV S=8) + 잡음 대조군 + ⓐ 반증 | 04 §5-22 · PBO 0.40~0.83 |
 | `research/wfa_thresh.py` | **정정 WFA 를 재현 가능하게 고정** — 두 엔진 × 결함/정정 2×2 · 훈련길이 8종 · Calmar 변형 | 04 §5-13 **정정3** · 12/12 재현 + §-1 ⑧ 위반 적발 |
-| `research/oos_protocol_b.py` | **[실험] B 자체의 OOS 판정 규약 — 기저율 측정** (T4 는 v80 §6 에 있는데 B 에는 없었다). 사건 단위 M1·M2·R 후보의 역사 기저율 + 룩백 200 그림자 정보량 + 부재 비용 표 | 04 §5-23 · **소유자 컨펌 대기** · 전략 무변경 |
+| `research/oos_protocol_b.py` | **B 자체의 OOS 판정 규약 — 기저율 측정(기본) + 평가기(`--oos`)** (T4 는 v80 §6 에 있는데 B 에는 없었다). 사건 단위 A·B·R 관문의 역사 기저율 + 룩백 200 그림자 정보량 + 부재 비용 표. `--oos` 는 `data/oos_protocol_b.json` 을 동결 이후 사건에 기계적으로 적용(지문 검사 · 기저율 자기검산 · 사건 0 이면 「판정 불가 — 정상」) | 04 §5-23 · **등록 완료 2026-09-02** (02 §5-1 · I13) · 전략 무변경 |
 
 ### 9-3. 엔진 교체 (성장 엔진을 나스닥 아닌 것으로)
 

@@ -1,0 +1,86 @@
+{
+ "name": "B 자체의 OOS 판정 규약 (부속서)",
+ "registered_at": "2026-09-02",
+ "registered_by": "소유자 지시 「일단 규약 부속서 등록 해봐」 (2026-09-02) — 관문 결합·실패 시 대응 방식은 위임",
+ "immutable": "이후 수정 금지. 고치려면 지문을 의도적으로 갱신해야 하며(verify_all I13), 고친 날짜와 이유를 02 §5-1 에 남긴다. 동결 이후 사건이 하나라도 판정에 들어간 뒤의 수정은 사후 재량이다.",
+ "applies_to": {
+  "rule": "-16/-16",
+  "freeze_fingerprint": "16201b974d4e383b",
+  "oos_start": "2026-08-28"
+ },
+ "engine": {
+  "module": "research/eng_common.py (rule_dd · sim2)",
+  "sample_start": "1972-02-07",
+  "attack": "2배 합성 (2r − c_daily, QLD 역산 드래그)",
+  "defense": "배당/국채선물/금 40/40/20 월 1회 재조정",
+  "benchmark_H": "2배 합성 그냥 보유 (매매 없음)",
+  "cost_one_way": 0.001,
+  "why": "기저율을 잰 엔진과 같은 엔진으로 OOS 도 재구성한다 — 원화 실측이 아니라 달러 모형이다. 엔진을 바꾸면 기저율도 다시 재야 한다."
+ },
+ "event": {
+  "definition": "마감 판정 w 가 1→0 (도피 신호일). 장부 oos_log.csv 의 state QLD→SCHD 에 대응",
+  "independent_gap_trading_days": 252,
+  "window_trading_days": [
+   -63,
+   252
+  ],
+  "judge_only_when_window_full": true
+ },
+ "gates": {
+  "A_disaster_payout": {
+   "applies_when": "H 사건창 MDD ≤ −0.50",
+   "test": "B 사건창 MDD > H 사건창 MDD (B 가 얕다)",
+   "history": {
+    "pass": 7,
+    "n": 7
+   },
+   "on_fail": "역사 범위 밖 → 재검토 연구 개시",
+   "fail_means": "「느린 약세장 보험」 기전이 그 재난에서 작동하지 않았다",
+   "pass_means": "보험이 지급됐다 — 유지의 근거"
+  },
+  "B_premium": {
+   "stat": "사건창 B/H 총수익비 − 1 (음수 = 보험료)",
+   "warn_below": -0.333,
+   "outside_history_below": -0.411,
+   "history": {
+    "median": -0.051,
+    "p10": -0.293,
+    "p05": -0.333,
+    "worst": -0.411,
+    "n": 70
+   },
+   "on_warn": "기록 + 알림 한 줄 (변경 없음)",
+   "on_outside": "재검토 연구 개시",
+   "fail_means": "보험료가 역사보다 비싸졌다 — 기전 붕괴가 아니라 국면 변화일 수 있다"
+  },
+  "R_rolling_3y": {
+   "stat": "3년(756거래일) 롤링 B/H − 1",
+   "warn_below": -0.315,
+   "outside_history_below": -0.493,
+   "history": {
+    "median": -0.011,
+    "p10": -0.242,
+    "p05": -0.315,
+    "worst": -0.493,
+    "share_negative": 0.62,
+    "nonoverlap_windows": 17.3
+   },
+   "computable_from": "동결 + 756거래일 — 그 전엔 계산하지 않는다",
+   "note": "B 는 3년 창의 62% 에서 H 에 진다. 이 관문은 「지고 있다」가 아니라 「역사보다 크게 지고 있다」만 잡는다"
+  }
+ },
+ "judgment": {
+  "when": "달력이 아니라 사건 — 각 독립 사건의 +252 거래일이 찬 시점에 그 사건을 판정. R 은 계산 가능해진 뒤 상시",
+  "A_discriminates_with": "사건 1건 (역사 7/7 이므로 1회 실패가 곧 역사 밖)",
+  "combination": "어느 관문이든 「역사 밖」 1건 → 재검토 연구 개시. 「주의」는 기록·알림만",
+  "response": {
+   "warn": "기록 + 화면/알림 한 줄. 자동 변경 없음",
+   "outside_history": "재검토 연구 개시 — SURVIVAL_MONITOR §F 의 전제 감시(Level)와 함께 읽는다. 결론이 「규칙 폐기」「배율 인하」일 수는 있다",
+   "never": "자동 매매 변경 · 이 규약을 근거로 한 문턱 재조정 (그건 OOS 재시작이 필요한 별개 절차 — freeze.json principle)"
+  }
+ },
+ "does_not_answer": "「−16 이 −14 보다 나은가」 — 이웃 문턱 판별은 OOS 몇 십 년이 필요하다 (04 §5-22 D). 이 규약은 「B 가 역사처럼 작동하는가」만 묻는다",
+ "evaluator": "python research/oos_protocol_b.py --oos",
+ "base_rates_source": "python research/oos_protocol_b.py (동결 이전 데이터, 2026-09-02 실행)",
+ "fingerprint": "c7f4f90ba8340e5a"
+}
