@@ -325,6 +325,47 @@ def i5_decisions(D):
                not miss,
                ('FILES.md 미등재 %d건: %s (v172)' % (len(miss), ', '.join(miss[:5])))
                if miss else '검사 대상 %d개 전부 등재' % sum(1 for p in tk if _watched(p)))
+        # [2026-09-02] 공유용_별도전략/ 격리 관문 — 소유자 규정:
+        #   「저 스크립트는 우리 전략을 **빌려 써도 된다**. 우리 게 이상한 걸
+        #    흡수해서 **손상되지 않기만** 하면 된다.」
+        # 즉 방향이 하나다: 읽기(빌려쓰기)는 자유, **쓰기(오염)는 차단**.
+        # 그 폴더는 FILES.md 관문 밖이라(의도) 아무도 안 보므로, 이 검사가 유일한 감시다.
+        # ★ 자각이 아니라 관문으로 (v148) — 그 폴더는 다른 세션이 계속 파일을 늘린다.
+        SHARE = '공유용_별도전략'
+        if os.path.isdir(SHARE):
+            bad, unk, wr = [], [], 0
+            for fn in sorted(os.listdir(SHARE)):
+                if not fn.endswith('.py'):
+                    continue
+                src = io.open(os.path.join(SHARE, fn), encoding='utf-8').read()
+                # 변수에 담아 쓰는 경우까지 훑는다: path = '...' 뒤 open(path,'w')
+                lit = dict(re.findall(r"^\s*(\w+)\s*=\s*['\"]([^'\"]+\.(?:json|csv|md|txt|py|html))['\"]",
+                                      src, re.M))
+                tgt = (re.findall(r"open\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"][wa]", src)
+                       + re.findall(r"\.to_csv\(\s*['\"]([^'\"]+)['\"]", src))
+                for v in re.findall(r"open\(\s*(\w+)\s*,\s*['\"][wa]", src) + \
+                         re.findall(r"\.to_csv\(\s*(\w+)\s*[,)]", src):
+                    t = lit.get(v)
+                    # ★ 실행 중에 정해지는 경로는 **경고**로 둔다(실패 아님).
+                    #   그 폴더는 다른 세션이 계속 파일을 늘리는 자리라, 여기서 딱딱하게
+                    #   실패시키면 빨간불이 상시가 되고 **관문이 무시당한다**(v172 교훈).
+                    #   실제 위험(우리 파일을 이름으로 지목해 덮어쓰기)은 리터럴이 잡는다.
+                    (tgt if t else unk).append(t or '%s(%s)' % (fn, v))
+                for t in tgt:
+                    wr += 1
+                    if not t.replace('\\', '/').startswith(SHARE + '/'):
+                        bad.append('%s -> %s' % (fn, t))
+                # 라이브 파이프라인을 부르면 안 된다 (읽기 엔진과 다르다)
+                if re.search(r"^\s*(from|import)\s+deploy", src, re.M):
+                    bad.append('%s -> deploy 임포트' % fn)
+            ok("공유용_별도전략 이 본 전략을 오염시키지 않는다",
+               not bad,
+               ('★ 폴더 밖 쓰기/파이프라인 호출 %d건: %s' % (len(bad), '; '.join(bad[:3])))
+               if bad else '쓰기 %d곳 전부 %s/ 안 · deploy 임포트 0 (읽기는 자유)' % (wr, SHARE))
+            if unk:
+                ok("공유용: 경로가 실행 중 정해지는 쓰기", False,
+                   '%d건 — 눈으로 확인 필요: %s' % (len(unk), ', '.join(unk[:3])), warn=True)
+
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')
