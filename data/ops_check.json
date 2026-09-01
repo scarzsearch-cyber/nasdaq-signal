@@ -60,5 +60,6 @@
   "need": 20,
   "nav_days": 6
  },
- "ok": true
+ "ok": true,
+ "heartbeat": "2026-09"
 }
