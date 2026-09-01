@@ -184,21 +184,20 @@ body{padding:28px 20px 64px;}
 /* [v181] 판정 바로 아래에 붙인다 — 판정과 자산은 한 덩어리다(소유자 지시). */
 .product{font-size:18px;color:var(--muted);line-height:1.45;margin:-2px 0 14px;}
 .product b{color:var(--ink);font-weight:600;}
-/* [v183] 카드 안 접이 — 예고(전환되면 살 것)와 계산 재료. 제목은 항상 보인다. */
-.signal .foldsec>summary{cursor:pointer;list-style:none;font-size:13.5px;color:var(--muted);
-  letter-spacing:.02em;padding:2px 0;}
-.signal .foldsec>summary::-webkit-details-marker{display:none;}
-.signal .foldsec>summary::after{content:' ▾';opacity:.7;}
-.signal .foldsec[open]>summary::after{content:' ▴';}
-.factmore{margin-top:10px;}
-.factmore .facts{margin-top:8px;border-top:0;padding-top:0;}
 .facts{margin-top:auto;border-top:1px solid var(--rule);padding-top:16px;
   display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:16px 12px;}
 .fact .k{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:14px;color:var(--muted);
   letter-spacing:0.05em;margin-bottom:3px;}
-.fact .v{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:21px;font-weight:600;}
+/* [v184] ★ 줄상자 고정 — 소유자가 「여유 12.2%p 가 −3.83% 와 라인이 안 맞는다」고 잡았다.
+   원인: 특수 마이너스 −(U+2212)가 Pretendard 에 없어 **대체 글꼴**로 그려지고,
+   그 글꼴의 자연 줄상자가 5px 더 크다(실측: −3.83% 24px vs 12.2%p 19px).
+   line-height:normal 이라 **글자에 따라 칸 높이가 달라졌다.** 값을 고정하면 사라진다.
+   ※ 이 버그는 v183 이 만든 게 아니다 — 원래 있었는데 「현재 낙폭」과 「여유」가
+     서로 다른 행이라 눈에 안 띄었을 뿐이다. */
+.fact .v{font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:21px;font-weight:600;
+  line-height:1.2;}
 /* [v154] 전일 대비 낙폭 변화 — 낙폭이 얕아지면(회복) attack, 깊어지면 defend 톤 */
-.fact .dchg{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:1px;}
+.fact .dchg{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:1px;line-height:1.35;}
 .fact .dchg.up{color:var(--attack);} .fact .dchg.dn{color:var(--defend);}
 .fact .dchg.fl{color:var(--muted);}
 .changed{background:#FFF4E0;border-left:3px solid var(--defend);padding:11px 14px;
@@ -695,18 +694,12 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
           <div class="dchg" id="fDdChg" hidden></div>
           <!-- [v164] 역사 분포에서의 위치 — 순수 위치 정보(판단어 금지) -->
           <div class="dchg fl" id="fDdPct" hidden></div></div>
+        <div class="fact"><div class="k">QQQ 종가</div><div class="v" id="fClose">—</div></div>
+        <div class="fact"><div class="k">252일 고점</div><div class="v" id="fMax">—</div></div>
+        <div class="fact"><div class="k">다음 전환선</div><div class="v" id="fNext">—</div></div>
         <div class="fact"><div class="k">여유</div><div class="v" id="fGap">—</div></div>
+        <div class="fact"><div class="k">전환 기준가</div><div class="v" id="fTrig">—</div></div>
       </div>
-      <!-- [v183] 아래 넷은 위 두 값을 만든 **재료**다 — 상태가 아니라 근거라서 접는다
-           (v180 기준: 상태는 밖, 기록·근거는 안). 계산은 그대로 돌고 값도 그대로 들어간다. -->
-      <details class="foldsec factmore"><summary>계산 재료 보기</summary>
-        <div class="facts">
-          <div class="fact"><div class="k">QQQ 종가</div><div class="v" id="fClose">—</div></div>
-          <div class="fact"><div class="k">252일 고점</div><div class="v" id="fMax">—</div></div>
-          <div class="fact"><div class="k">다음 전환선</div><div class="v" id="fNext">—</div></div>
-          <div class="fact"><div class="k">전환 기준가</div><div class="v" id="fTrig">—</div></div>
-        </div>
-      </details>
       <div class="prox" id="proxBox"></div>
       <div class="actline" id="defDur" hidden></div>
     </div>
@@ -1383,10 +1376,10 @@ function riskHtml(){
     : '나스닥100 <b>2배</b> · 국내 매매는 <b>TIGER 미국나스닥100레버리지(합성)</b>';
   const legs = basketLegs();
   if(!legs) return head;
-  // [v183] 예고는 접는다 — 오늘 할 일이 아니다(전환일이 오면 방어 화면이 같은 것을 준다).
+  // [v184] v183 의 접기 되돌림 — 소유자가 써 보고 「이상하다」. 원래대로 펼쳐 둔다.
   return `<div class="basket">${head}</div>
-    <details class="standby foldsec"><summary>전환되면 살 것 &mdash; 셋 다, 비중 고정</summary>
-      <div class="basket">${legs}</div></details>`;
+    <div class="standby"><span class="lbl">전환되면 살 것 &mdash; 셋 다, 비중 고정</span>
+      <div class="basket">${legs}</div></div>`;
 }
 
 /* [v168] 규칙 패널(drawPicker) 삭제 — 소유자 지시(성과 비교표와 중복).

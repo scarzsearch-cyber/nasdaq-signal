@@ -122,8 +122,24 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v168 – v183</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v168 – v184</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v184</span><span class="tag fix">수정</span>
+        <span class="ttl">접기 되돌림 · 숫자가 줄이 안 맞던 것</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>v183에서 접었던 <b>「전환되면 살 것」과 계산 재료 4개를
+          도로 폈습니다</b>(눈금자 삭제는 그대로 둡니다). 그리고 <b>「여유 12.2%p」가
+          「−3.83%」와 줄이 안 맞던 것</b>을 고쳤습니다.</dd>
+        <dt>왜</dt><dd>접어 보니 오히려 불편했습니다. 줄 안 맞음은 원인이 뜻밖이었습니다 —
+          <b>빼기 기호(−)가 글꼴에 없어서</b> 다른 글꼴로 그려지는데, 그 글꼴이
+          <b>5px 더 높습니다.</b> 그래서 <b>−가 든 칸만 아래로 밀려</b> 있었습니다.</dd>
+        <dt>결론</dt><dd class="res">칸 높이를 고정해서 어떤 숫자가 들어와도 줄이 맞습니다.
+          ※ <b>이건 v183이 만든 문제가 아닙니다</b> — 원래 있었는데 두 칸이 서로 다른
+          줄에 있어서 안 보였을 뿐입니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="del">
       <div class="head"><span class="v">v183</span><span class="tag del">삭제</span>
