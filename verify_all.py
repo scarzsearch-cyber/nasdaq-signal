@@ -328,9 +328,13 @@ def i5_decisions(D):
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')
-        ok("화면: 포지션 계산기",
-           "function drawCalc" in h and 'id="calcPanel"' in h and "잔여 현금" in h,
-           '원금→목표금액·주수·잔여 (v73)')
+        # [v185] 포지션 계산기 삭제 — 검사를 없애지 않고 **책임을 물려받은 쪽**으로 옮긴다.
+        #   「이 돈으로 몇 주 사면 되나」는 이제 포트폴리오의 「오늘의 행동」이 한다
+        #   (현금을 넣으면 매수 주수·소요금액·잔여현금까지 나온다 — v185 실측).
+        ok("화면: 오늘의 행동(주수·금액 지시)",
+           "function portCompute" in h and 'id="portAction"' in h
+           and "오늘의 행동" in h and "주문 메모 복사" in h,
+           '보유+현금 → 목표비중 차이 → 매수/매도 주수 (v89·v185)')
         ok("화면: 모바일 고정열(Sticky)",
            "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
         ok("화면: T4 그림자 패널 (평가 전용)",

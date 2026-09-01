@@ -458,23 +458,6 @@ td.s-schd{color:var(--defend);font-weight:600;}
   .standby .basket .leg{white-space:nowrap;font-size:11.5px;padding:3px 6px;}
   .eyebrow,.verdict,.product{overflow-wrap:anywhere;}
   .basket .leg b,.basket .code{white-space:nowrap;}          /* 100% · 종목코드는 안 쪼갬 */
-  /* [v85] 계산기: 가로 스크롤 제거 — 자산명 줄 + 숫자 4칸 줄의 2단 카드형 */
-  #calcBody thead{display:none;}
-  #calcBody table{display:block;margin-top:10px;}
-  #calcBody tbody{display:block;}
-  #calcBody tr{display:grid;grid-template-columns:1fr 1.25fr 0.65fr 1.1fr;gap:2px 8px;
-    padding:8px 0;border-bottom:1px solid var(--hairline);}
-  #calcBody td{display:block;border:none;padding:0;white-space:nowrap;font-size:13.5px;}
-  #calcBody tr[data-code] td:first-child{grid-column:1/4;white-space:normal;word-break:keep-all;}
-  #calcBody tr[data-code] td:nth-child(2){text-align:right;font-weight:600;}
-  #calcBody td:nth-child(n+3)::before{display:block;font-size:10.5px;color:var(--muted);}
-  #calcBody td:nth-child(3)::before{content:'목표금액';}
-  #calcBody td:nth-child(4)::before{content:'현재가 입력';}
-  #calcBody td:nth-child(5)::before{content:'주수';}
-  #calcBody td:nth-child(6)::before{content:'소요금액';}
-  #calcBody td input{width:100% !important;padding:6px 5px;text-align:right;}
-  #calcBody tr:not([data-code]){grid-template-columns:1fr auto;}   /* 잔여 현금 줄 */
-  #calcBody tr:not([data-code]) td{text-align:right;}
   /* [v89] 포트폴리오 입력: 자산명 줄 + 입력 3칸 줄 (가로 스크롤 없음) */
   #portBody .prow{grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 8px;}
   #portBody .prow.phead{display:none;}
@@ -747,23 +730,9 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     <!-- [v163] 놓친 전환 감사 — 사실만 나열한다. 판단·경고색을 쓰지 않는다. -->
     <div class="hint" id="missBox" hidden></div>
     <div class="hint" id="portNote"></div>
-  </div>
-
-  <div class="guide" id="calcPanel" data-fold>
-    <h2>포지션 계산기</h2>
-    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <label>투입 원금(원) <input type="text" id="calcCash" inputmode="numeric" placeholder="10,000,000" style="width:130px"></label>
-      <label>전략 <select id="calcStrat">
-        <option value="adopted">채택안 −16/−16</option>
-        <option value="hedge">헤지6/4</option></select></label>
-      <label>상태 <select id="calcSide">
-        <option value="attack">공격</option>
-        <option value="defense">방어</option></select></label>
-    </div>
-    <div id="calcBody"></div>
-    <div class="hint" id="calcNote"></div>
-
-    <!-- [v158] 환율 민감도 — 「환율 변동도 2배」(설명서 ④-5)를 그대로 적용하는 산수.
+    <!-- [v158·v185] 환율 민감도 — v185 에서 계산기가 사라지며 이리로 옮겼다.
+         원래 PORT_ATK(포트폴리오의 공격 평가액)를 쓰므로 여기가 제자리다.
+         (옛 주석) 환율 민감도 — 「환율 변동도 2배」(설명서 ④-5)를 그대로 적용하는 산수.
          환율은 signal.json 에 없고 브라우저 직접 조회는 CORS 로 막히므로(v145 실측)
          사용자가 직접 넣는다. 방어 상태에서는 배수가 다리마다 달라 계산하지 않는다. -->
     <details id="fxPanel" class="foldbox" style="margin-top:14px">
@@ -1642,7 +1611,6 @@ function checkSeenBadge(){
 /* ---------------- 메인 렌더 ---------------- */
 function redraw(){
   drawPerf();
-  drawCalc();
   if(AUTO) renderAuto(AUTO); else render();
 }
 
@@ -1721,69 +1689,6 @@ async function drawT4(){
           <div class="pbar" aria-hidden="true" style="margin-top:5px;max-width:260px"><div
             style="height:100%;border-radius:6px;background:var(--muted);opacity:.55;width:${ag.rate.toFixed(0)}%"></div></div></div>`;
       })();
-}
-
-/* [v73] 포지션 계산기 — 상품 구성·비중은 signal.json(AUTO.risk/AUTO.defensive) 설정에서
-   읽는다 (코드 하드코딩 없음). 헤지 공격측 비중만 상수 (전략_v72 정의: QLD60/배당40). */
-const HEDGE_ATT_W = 60;
-const CALC_PRICE = {};                 // {종목코드: 입력한 현재가}
-function calcLegs(strat, side){
-  const R = AUTO && AUTO.risk, D = AUTO && AUTO.defensive;
-  if(!R || !D || !D.legs || !D.legs.length) return null;
-  const div = D.legs.find(l => /배당/.test(l.name)) || D.legs[0];
-  if(side === 'defense')
-    return D.legs.map(l => ({code: l.code, name: l.name, w: l.weight}));
-  if(strat === 'hedge')
-    return [{code: R.code, name: R.name, w: HEDGE_ATT_W},
-            {code: div.code, name: div.name, w: 100 - HEDGE_ATT_W}];
-  return [{code: R.code, name: R.name, w: 100}];
-}
-function calcCompute(){
-  const cashEl = document.getElementById('calcCash');
-  if(!cashEl) return;
-  const cash = parseFloat((cashEl.value || '').replace(/[^0-9.]/g, '')) || 0;
-  let spentAll = 0;
-  document.querySelectorAll('#calcBody tr[data-code]').forEach(tr => {
-    const code = tr.dataset.code, w = parseFloat(tr.dataset.w);
-    const p = parseFloat((tr.querySelector('input').value || '').replace(/[^0-9.]/g, '')) || 0;
-    CALC_PRICE[code] = tr.querySelector('input').value;
-    const target = cash * w / 100;
-    const shares = p > 0 ? Math.floor(target / p) : 0;
-    const spent = shares * p;
-    spentAll += spent;
-    tr.querySelector('.c-target').textContent = target > 0 ? Math.round(target).toLocaleString('en-US') : '—';
-    tr.querySelector('.c-shares').textContent = p > 0 && cash > 0 ? shares.toLocaleString('en-US') + '주' : '—';
-    tr.querySelector('.c-spent').textContent = p > 0 && cash > 0 ? Math.round(spent).toLocaleString('en-US') : '—';
-  });
-  const left = document.getElementById('calcLeft');
-  if(left) left.textContent = cash > 0 ? (cash - spentAll).toLocaleString('en-US') + ' 원' : '—';
-  const t = new Date();
-  document.getElementById('calcNote').innerHTML =
-    /* [v134] 「직접 입력」과 「실시간 시세 미연동」은 같은 말 — 한 번만 */
-    `주문 직전 호가를 <b>직접 입력</b>(실시간 시세 미연동) ·
-     계산 ${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')} ·
-     주수 내림·잔돈은 현금 · 체결 <b>09:05~15:20</b>.`;
-}
-function drawCalc(){
-  const body = document.getElementById('calcBody');
-  if(!body) return;
-  const strat = (document.getElementById('calcStrat') || {}).value || 'adopted';
-  const side = (document.getElementById('calcSide') || {}).value || 'attack';
-  const legs = calcLegs(strat, side);
-  if(!legs){ body.innerHTML = '<div class="hint">신호 데이터를 불러오면 계산할 수 있습니다.</div>'; return; }
-  body.innerHTML = `<table><thead><tr><th>자산</th><th style="text-align:right">비중</th>
-      <th style="text-align:right">목표금액(원)</th><th style="text-align:right">현재가(원)</th>
-      <th style="text-align:right">매수 주수</th><th style="text-align:right">소요금액(원)</th></tr></thead><tbody>` +
-    legs.map(l => `<tr data-code="${l.code}" data-w="${l.w}">
-      <td>${l.name} <span class="code">${l.code}</span></td>
-      <td class="num">${l.w}%</td><td class="num c-target">—</td>
-      <td class="num"><input type="text" inputmode="numeric" style="width:90px;text-align:right"
-           aria-label="${l.name} 현재가(원)" value="${CALC_PRICE[l.code] || ''}" placeholder="예: 25,000"></td>
-      <td class="num c-shares">—</td><td class="num c-spent">—</td></tr>`).join('') +
-    `<tr><td colspan="5" style="text-align:right"><b>잔여 현금</b></td>
-      <td class="num" id="calcLeft">—</td></tr></tbody></table>`;
-  body.querySelectorAll('input').forEach(i => i.addEventListener('input', calcCompute));
-  calcCompute();
 }
 
 /* ---------------- 내 포트폴리오 [v89] ----------------
@@ -3241,13 +3146,6 @@ async function boot(){
   drawFx();
   drawOpsCheck();                          // [v140] 자동 점검 결과 — 없으면 조용히 숨김
   initTimeMachine();                       // [v127] 위기 타임머신 — 데이터 없으면 조용히 숨김
-  // [v73] 포지션 계산기 컨트롤
-  const cc = document.getElementById('calcCash');
-  if(cc) cc.addEventListener('input', calcCompute);
-  ['calcStrat', 'calcSide'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('change', drawCalc);
-  });
 }
 
 /* [v95] SVG 색은 렌더 시점에 굳으므로, OS 테마가 바뀌면 마지막 데이터로 다시 그린다 */
