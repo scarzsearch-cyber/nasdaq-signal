@@ -289,6 +289,42 @@ def i5_decisions(D):
                    bool(cv) and bool(nvs) and max(nvs) >= max(cv),
                    '노트 최신 v%s vs CLAUDE §4 최신 v%s — 뒤처지면 실패 (v148)'
                    % (max(nvs) if nvs else '?', max(cv) if cv else '?'))
+        # [v172] 파일 지도가 실제 파일을 못 따라가는 사고 — v148 에 49건 났다
+        # (research/*.py 를 만들고 FILES.md 에 안 올림). 자각 대신 관문으로 막는다.
+        # ★ 폭을 좁게 잡는다: 사람이 새로 만드는 자리(스크립트·워크플로·화면·산출물)만
+        #   본다. data/hist/** 같은 원자료까지 넣으면 오탐이 나 관문이 무시당한다.
+        # ★ git 은 한글 경로를 \353\263\265 처럼 이스케이프해 뱉는다(실측 131건) —
+        #   core.quotepath=false 가 없으면 「내가_보는_것/」이 통째로 검사에서 빠진다.
+        if os.path.exists('FILES.md'):
+            fmap = io.open('FILES.md', encoding='utf-8').read()
+            try:
+                import subprocess
+                tk = subprocess.run(['git', '-c', 'core.quotepath=false', 'ls-files'],
+                                    capture_output=True, text=True, encoding='utf-8',
+                                    timeout=60).stdout.splitlines()
+            except Exception:
+                tk = []
+            tk = [t.strip().replace('\\', '/') for t in tk if t.strip()]
+
+            def _watched(p):
+                if p.startswith('archive/') or p.startswith('docs/'):
+                    return False                      # 옛 기록 — 지도의 대상이 아니다
+                if p.startswith(('deploy/', 'research/', 'audit/')) and p.endswith(('.py', '.md')):
+                    return True
+                if p.startswith('내가_보는_것/'):
+                    return True
+                if p.startswith('.github/workflows/'):
+                    return True
+                if '/' not in p and p.endswith(('.py', '.html')):
+                    return True
+                return bool(re.match(r'data/[^/]+\.(json|csv)$', p))
+
+            miss = [p for p in tk if _watched(p)
+                    and os.path.basename(p) not in fmap]
+            ok("파일 지도가 실제 파일을 따라잡았다",
+               not miss,
+               ('FILES.md 미등재 %d건: %s (v172)' % (len(miss), ', '.join(miss[:5])))
+               if miss else '검사 대상 %d개 전부 등재' % sum(1 for p in tk if _watched(p)))
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')
@@ -305,11 +341,15 @@ def i5_decisions(D):
            'function drawHoriz' in h and 'id="horizBody"' in h, '최근 5/10/15/20년')
         ok("화면: 기준마다 실제 구간을 적는다", 'class="per"' in h, '시작~끝 (n.n년)')
         # [v60] 6개를 다 그리는가. 최종배수를 빼면 실물 3.2년 구간이 왜곡돼 보인다.
-        # [v61] 렌더가 cell(...) 에서 row(...) 로 바뀌었다 — 둘 다 허용한다.
-        for lab in ('최종배수', 'MDD', 'CALMAR', 'SORTINO', '회복기간', 'ULCER'):
-            ok("화면: %s 를 보여준다" % lab,
-               ("row('%s'" % lab) in h or ("cell('%s'" % lab) in h,
-               '지표 6종')
+        # [v61] 렌더가 cell(...) → row(...) 로 바뀌어 둘 다 허용했었다.
+        # [v172] ★ v168 이 규칙 패널(drawPicker)을 지우면서 이 6개가 조용히 깨졌다.
+        #   지표는 화면에 그대로 있다 — 성과표(drawPerf)가 그린다. 검사만 삭제된
+        #   함수를 겨누고 있었다. 검사의 **뜻**(지표 6종이 화면에 다 있는가)은 그대로
+        #   두고 **보는 곳**만 살아 있는 렌더로 옮긴다. 지표를 실제로 빼면 여전히 실패한다.
+        #   ※ 라벨 대소문자도 화면을 따른다(옛 검사는 drawPicker 의 CALMAR 표기였다).
+        for lab in ('최종배수', 'MDD', 'Calmar', 'Sortino', '회복기간', 'Ulcer'):
+            ok("화면: %s 를 보여준다" % lab, ('>%s</th>' % lab) in h,
+               '지표 6종 — 성과표 열 머리 (v172)')
         ok("화면: Ulcer 설명이 정의문이 아니다", '낙폭의 제곱평균' not in h,
            '「늘 얼마나 물속이었나」로 읽히게')
         # [v130] 지표 풀이(metkey) 패널과 체감 풀이 5종은 소유자 지시로 삭제됨
@@ -334,8 +374,12 @@ def i5_decisions(D):
         for bad in ('배당50/금50', '배당50 / 금50'):
             ok("화면: 폐기 조합 '%s' 없음" % bad, bad not in h,
                'v23 채택안은 배당40/국채40/금20')
-        ok("화면: 기준 설명줄에 CAGR 이 있다", '연 ${neg(mm.cagr.toFixed(1))}%' in h,
-           '최종배수는 기간이 다르면 비교 불가 — 정규화 수치를 함께 준다')
+        # [v172] 같은 회귀. 옛 문자열은 drawPicker 의 기준 설명줄이었다 —
+        # 그 역할(기간이 다른 최종배수를 정규화 수치와 함께 준다)은 지금 성과표의
+        # CAGR 열 + 세로비교 경고가 맡는다. 둘 다 있어야 통과한다.
+        ok("화면: 최종배수 옆에 CAGR 과 세로비교 경고가 있다",
+           '>CAGR</th>' in h and '세로로 비교하면 안 됩니다' in h,
+           '최종배수는 기간이 다르면 비교 불가 — 정규화 수치를 함께 준다 (v172)')
 
         # [v46] 화면 개정 시점 주입 자리. 없으면 배포 때 stamp_rev.py 가 실패한다.
         MARK = "const HTML_REV = '__HTML' + '_REV__';"

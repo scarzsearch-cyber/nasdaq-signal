@@ -36,8 +36,11 @@ jobs:
       - name: 빠른 검증 (엔진 동치 · 미래참조 · 라이브 정합)
         run: python3 verify_all.py --fast
 
-      - name: 전체 검증 (예약 실행·수동 실행만)
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      # [v172] push 에서도 돈다. 종전엔 예약·수동에서만 돌아서 **화면 검사 전체가
+      # push 경로에 없었고**, v168 이 규칙 패널을 지우며 깨뜨린 지표 검사 7건을
+      # 아무도 못 잡았다(다음 예약 실행까지 열려 있는 구멍). 로컬 실측 3~4초라
+      # push 마다 돌려도 비용이 없다. 전수조사(audit_full)는 무거우므로 그대로 둔다.
+      - name: 전체 검증
         run: python3 verify_all.py
 
       - name: 전수조사 (예약 실행·수동 실행만)

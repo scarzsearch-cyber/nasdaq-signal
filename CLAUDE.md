@@ -1,4 +1,4 @@
-# CLAUDE.md — 이 저장소에서 작업하는 모든 AI 세션의 규칙 (v171)
+# CLAUDE.md — 이 저장소에서 작업하는 모든 AI 세션의 규칙 (v172)
 
 > 어떤 세션이든 이 파일이 먼저 로드된다. 여기와 파일이 어긋나면 **파일이 옳다** —
 > 추측하지 말고 열어서 확인하라. 상세 인수인계는 `HANDOFF.md`.
@@ -179,6 +179,8 @@
   `check_hold()` (axis_defmix.py) 가 그 본보기이고, 그 경우엔 max 로 충분하다.
   단일 파일(signal.html) 문구·CSS 작업엔 ultra 를 제안하지 않는다.
 - 구현 후 필수 검증: `python verify_all.py --fast` **실패 0** · 412px 가로 스크롤 0 ·
+  ⚠ **[v172] 화면 요소·함수를 지웠으면 `--fast` 가 아니라 `python verify_all.py` 전체로 돌려라**
+  — 화면 문자열 검사는 fast 에 없다. v168 이 그래서 7건을 깨뜨린 채 지나갔다.
   콘솔 오류 0 · 기존 localStorage 키(`b_port_v1`, `b_trades_v1`,
   `b_goal_v1`, `b_lastseen_v1`, `b_lastbackup_v1`, `b_undo_v1`(v123), `b_firstseen_v1`(v157), `b_fold_v1`(v169), `b_chk_*`,
   `qqq_signal_*`) 구조 유지 (`b_view_v1` 은 v113 에서 폐기 — 로드 시 삭제.
@@ -624,6 +626,35 @@
   겸사겸사 `main()` 사용법 문자열에 빠져 있던 `rebalance`·`check` 도 채웠다.
   ※ `deploy/*` 수정이라 통상 ultra 제안 조건 ⓑ 이지만, **환원 대신 전수 검산이 가능한
   날짜 함수**(rebalance_due 와 같은 모양)라 ⓓ 단서에 따라 max 로 충분하다고 판단.
+- **v172 (소유자 지시 — 「관문 넣고, 쓸데없는 스킬은 막아줘」)**: 세 갈래.
+  ⓐ **파일 지도 관문**(verify_all): 추적 파일이 `FILES.md` 에 없으면 실패. v148 에 49건
+  났던 사고를 자각 대신 관문으로 막는다. **폭을 좁게** 잡았다 — deploy/research/audit 의
+  `.py`·`.md` · `내가_보는_것/` · workflows · 루트 `.py`/`.html` · `data/` 최상위만
+  (archive·docs·data/hist 제외. 넓히면 오탐이 나 관문이 무시당한다). **검사 대상 164개.**
+  ★ **git 은 한글 경로를 이스케이프해 뱉는다(실측 131건)** — `core.quotepath=false` 가
+  없으면 「내가_보는_것/」이 통째로 검사에서 빠진다. 만들자마자 **실제 누락 2건**을
+  잡아냈다(`research/MEASUREMENT_AUDIT.md` · `data/retired_numbers.json`) — 등재 완료.
+  ⓑ **★ v168 회귀 정정 — 이 관문을 만들다 발견했다.** 규칙 패널(`drawPicker`)을 지우면서
+  **지표 6종 검사 + CAGR 검사 7건이 조용히 깨져 있었다.** 지표는 화면에 그대로 있다
+  (성과표가 그린다) — **검사만 삭제된 함수를 겨누고 있었다.** 검사의 뜻은 그대로 두고
+  보는 곳만 살아 있는 렌더(`>최종배수</th>` 등 열 머리)로 옮겼다.
+  **왜 못 잡았나**: ① 로컬 필수 검증이 `--fast` 인데 **화면 검사는 fast 에 없다**,
+  ② verify.yml 의 전체 검증이 **예약·수동에서만** 돌았다. → **전체 검증을 push 에도**
+  걸었다(실측 3~4초). 교훈: **§2 가 「verify_all 은 화면 문자열까지 검사한다」고 이미
+  경고했는데 나는 --fast 만 돌렸다.** 화면 요소를 지우면 `verify_all.py` 를 **전체로** 돌려라.
+  ⓒ **스킬 차단**(`.claude/settings.local.json` 의 `skillOverrides`, 프로젝트 로컬·gitignore).
+  `theme-factory`·`web-artifacts-builder`·`algorithmic-art`·`morning`·`setup-writing-style`
+  = **off**. 근거 — **theme-factory**: 이 화면의 색은 취향이 아니라 **규약**이다
+  (매수 빨강·매도 파랑은 MTS 관행 v92, 공격 파랑은 판정 상태와 묶임). **web-artifacts-builder**:
+  React/Tailwind 는 빌드 단계를 만드는데, **빌드 없는 단일 파일이 v141 비상 수동 판정의
+  전제**다. **morning**: v140 이 없앤 「정기 확인 의무」를 되살리고 세 탭 **바깥**에
+  화면을 만든다 — §3 웹사이트 자족 원칙 위반(신호 화면의 「오늘 할 일 없음」이 그 역할).
+  **setup-writing-style**: 「소유자가 본인 이름으로 보낼 글」용인데 여기 글은 소유자가 읽는 글.
+  **algorithmic-art**: p5.js 외부 의존 + 세로만 늘린다. **켜 둔 것**: `skill-creator`·
+  `import-memory` + 문서형 4종(xlsx/pptx/pdf/docx). **재제안 전에 이 문단을 볼 것.**
+  ※ **스킬을 새로 만드는 것은 보류**로 판정했다 — 이 저장소가 지는 지점은 「절차를 빠뜨리는
+  것」인데, **스킬은 내가 불러야 작동한다.** 빠뜨림이 문제인 상황에 「기억해서 부르는 도구」는
+  같은 실패를 반복한다. v148 이 이미 답을 냈다 — **재발 방지는 자각이 아니라 관문으로.**
 - 그 외: 시장 시계, 낙폭 게이지, 내 포트폴리오, 계산기, 성과 비교표,
   ISA 가이드, 위기 궤적, T4 패널, 신선도 경고, 수동 입력 백업.
 

@@ -122,8 +122,24 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v168 – v171</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v168 – v172</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v172</span><span class="tag fix">수정</span>
+        <span class="ttl">화면 검사 7건이 깨져 있던 것</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>v168에서 「규칙」 칸을 지울 때, <b>지표가 화면에 다 있는지
+          확인하던 자동 검사 7건이 같이 깨졌습니다.</b> 화면은 멀쩡했고 — 지표는 성과표에
+          그대로 있습니다 — <b>검사만 없어진 칸을 계속 보고 있었습니다.</b></dd>
+        <dt>왜</dt><dd>매번 돌리는 빠른 검사에는 <b>화면 검사가 들어 있지 않고</b>,
+          전체 검사는 예약된 날에만 돌았습니다. 그래서 열흘이든 한 달이든
+          <b>아무도 모른 채 지나갈 수 있었습니다.</b></dd>
+        <dt>결론</dt><dd class="res"><b>전체 검사를 매번 돌리도록</b> 바꿨습니다(3~4초).
+          겸사겸사 <b>새 파일이 파일 목록에 빠지면 실패</b>하는 검사도 넣었고,
+          만들자마자 <b>실제 누락 2건</b>을 찾아냈습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="new">
       <div class="head"><span class="v">v171</span><span class="tag new">신규</span>

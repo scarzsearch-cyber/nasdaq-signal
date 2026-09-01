@@ -41,7 +41,7 @@ research/   (95) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
-            eng_common/sp500/kospi · ENGINE_RESEARCH.md(엔진 교체 연구 — 04 §5-5) + FINAL_AUDIT.md(8항목 최종 감사) + surv_map/alert · SURVIVAL_MONITOR.md(생존성·감시 체계 — 04 §5-6) + lev_opt/lev_th · LEVERAGE_US.md(미국 배율) + ext_ibs/ext_vr · EXT_INFINITE.md(무한매수법·VR 비교+수집) + def_bond/def_equity(방어 국채 만기·통화 04 §5-16 · 방어 배합 코너 04 §5-17).
+            eng_common/sp500/kospi · ENGINE_RESEARCH.md(엔진 교체 연구 — 04 §5-5) + FINAL_AUDIT.md(8항목 최종 감사) + surv_map/alert · SURVIVAL_MONITOR.md(생존성·감시 체계 — 04 §5-6) + lev_opt/lev_th · LEVERAGE_US.md(미국 배율) + ext_ibs/ext_vr · EXT_INFINITE.md(무한매수법·VR 비교+수집) + def_bond/def_equity(방어 국채 만기·통화 04 §5-16 · 방어 배합 코너 04 §5-17) + horizon_ess/dsr_b/isa_pension · MEASUREMENT_AUDIT.md(측정 감사 — 「손실 0 문턱 7년」의 유효표본 병기 규약).
             각 파일 상단에 경로보정 3줄
 deploy/     라이브 파이프라인 — 건드리지 말 것
 data/       화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
@@ -102,6 +102,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
 | `data/crisis_paths.json` | 위기 타임머신(v127) 데이터 — 위기 4구간의 전략/2배보유 계좌가치 경로. `research/build_crisis_paths.py` 산출물, **로컬 수동 실행**(build_stats 와 같은 포지션 — 원자료 갱신 시 재실행) |
 | `data/ops_check.json` | **[v140] 자동 점검 결과** — 전제 감시 Level·느린 변수 4종·4다리 AUM·체결비용 진행률. `deploy/watchdog.py check` 산출물(주 1회), 화면 `drawOpsCheck()` 가 읽는다. **사람이 파이썬을 돌리지 않아도 되는 이유가 이 파일이다** |
+| `data/retired_numbers.json` | **폐기된 공표 수치 대장** — v36 정정 등으로 죽은 값. `verify_all` I9 가 이 목록을 현행 문서에서 찾아 남아 있으면 실패시킨다(버전 문서는 그 시대 기록이라 허용하되 정정 배너를 요구) |
 | `data/qqq.csv` | 라이브 파이프라인용 QQQ 시계열 |
 | `.gitignore` | — |
 
