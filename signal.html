@@ -1350,7 +1350,9 @@ function defHtml(){
 }
 /* [v149] 판정 옆 시세 — 공격 자산(418660) 하나만. 스냅샷이라 언제 잰 값인지 같이 쓴다.
    방어 상태에서는 숨긴다: 3종을 한 숫자로 합치면 어느 앱에서도 대조할 수 없다. */
+let VPX_QLD = false;                     // [v173] 시세 갱신 때 같은 상태로 다시 그리려고
 function paintVpx(isQld){
+  VPX_QLD = isQld;
   const el = document.getElementById('vpx');
   if(!el) return;
   const R = AUTO && AUTO.risk;
@@ -1867,6 +1869,51 @@ function devBadge(code){
        title="NAV ${Math.round(r.nav).toLocaleString('en-US')}원 대비 · 눌러서 쓰는 법 보기">`
        + `괴리 ${d > 0 ? '+' : ''}${d.toFixed(2)}%`
        + (wide && side ? ` · ${side}` : '') + `<span class="q">?</span></a>`;
+}
+
+/* [v173] 화면을 켜 둔 채로도 시세를 다시 읽는다.
+   ★ 문제였던 것: loadPrice() 가 **페이지를 열 때 딱 1회**만 돌았다. 30분마다 새 값이
+     올라와도 새로고침을 안 하면 처음 열었을 때 값을 계속 본다(장중 내내 아침 값).
+   ★ 입력칸은 건드리지 않는다: drawPort() 는 종목이 바뀔 때만 칸을 다시 만드는데
+     (포커스 보존), 여기서는 **배지와 placeholder 만 제자리 교체**한다 — 사용자가
+     타이핑 중이어도 캐럿이 날아가지 않는다. 저장값(PORT)도 안 만진다.
+   ★ 판정에는 여전히 안 쓴다 — 전환은 QQQ 미국 종가만 본다(동결 규칙). */
+const PRICE_TICK_MS = 5 * 60 * 1000;      // 수집이 30분 간격이라 이보다 촘촘할 이유가 없다
+let _priceTimer = null;
+
+async function refreshPrice(){
+  const was = PRICE && PRICE.as_of_iso;
+  await loadPrice();
+  if(!PRICE || PRICE.as_of_iso === was) return false;   // 새 값이 아니면 아무것도 안 한다
+  document.querySelectorAll('#portBody .prow[data-code]').forEach(row => {
+    const code = row.dataset.code;
+    if(!code || code === '_cash') return;
+    const nm = row.querySelector('.pnm');
+    if(nm){
+      nm.querySelectorAll('.pchg, .pdev').forEach(e => e.remove());
+      nm.insertAdjacentHTML('beforeend', chgBadge(code) + devBadge(code));
+    }
+    const inp = row.querySelector('input[data-f="px"]'), live = priceOf(code);
+    if(inp && live) inp.placeholder = Math.round(live.px).toLocaleString('en-US');
+  });
+  paintVpx(VPX_QLD);                       // 신호 카드의 공격 자산 시세
+  try{ portCompute(); }catch(e){}          // 「시세 N분 전」 줄 + 평가액
+  return true;
+}
+
+function startPriceTicker(){
+  if(_priceTimer) return;
+  // 한국장이 열려 있을 때만 주기 조회 — 밤새 켜 둔 탭이 헛돌지 않게.
+  _priceTimer = setInterval(() => {
+    if(document.visibilityState !== 'visible') return;
+    let live = false;
+    try{ const k = krClock(Date.now()); live = !!(k && k.state === 'live'); }catch(e){}
+    if(live) refreshPrice();
+  }, PRICE_TICK_MS);
+  // 탭으로 돌아왔을 때는 장 마감 뒤라도 한 번 읽는다 — 종가 스냅샷을 놓치지 않게.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible') refreshPrice();
+  });
 }
 
 async function loadNav(){
@@ -3170,6 +3217,7 @@ async function boot(){
   loadTrades();                            // [v90] 체결 기록
   await loadNav();                         // [v89] 현재가 기본값 (전일 종가)
   await loadPrice();                       // [v145] 시세 스냅샷 — drawPort 보다 먼저 와야 배지가 붙는다
+  startPriceTicker();                      // [v173] 켜 둔 채로도 다시 읽는다 (장중 5분 · 탭 복귀 시)
   await loadDdPct();                       // [v164] 낙폭 분포 — paintState 보다 먼저
   try{ AUTO = await getJSON('data/signal.json'); }
   catch(e){
