@@ -1714,6 +1714,7 @@ let PORT_TOTAL = 0;                            // [v98] portCompute 총 평가�
 let PORT_ATK = 0;                              // [v158] 공격 다리만의 평가액 — 환율 계산기가 재사용
 let CLOCK_FULL = false;                        // [v107] 전환일·근접이면 시계를 2카드로 — paintState 가 갱신
 let ASOF = null;                               // [v90] 신호일 — 체크리스트 키
+let CHANGED_TODAY = false;                     // [v191] 전환일 여부 — drawPending 이 본다 (전환일엔 기존 체크리스트가 담당)
 
 function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
 function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
@@ -1976,6 +1977,7 @@ function portCompute(){
         : '자동 수집된 <b>전일 종가</b>'}입니다 — 주문 직전 값은 증권사 앱이 정확합니다.
       보유 수량만 넣으면 현재 비중과 필요한 매매가 계산됩니다.
       <b>자동 주문은 없습니다</b> — 체결은 직접, <b>09:05~15:20</b>.`;
+    drawPending();                           // [v191] 보유를 지웠으면 미체결 경고도 내린다
     return;
   }
 
@@ -2049,6 +2051,7 @@ function portCompute(){
         : Math.floor(age / 60) + '시간 전'})` : '';
   note.innerHTML = `주수는 내림(매수)·보유 한도(매도)
     ${PORT.d ? `· 마지막 입력 ${PORT.d}` : ''}${pxNote} · <b>자동 주문 없음</b> — 체결은 직접 <b>09:05~15:20</b>.`;
+  drawPending();                           // [v191] 보유 입력·체결 기록이 바뀔 때마다 재판정
 }
 
 /* [v91] 주문 메모 — MTS 입력·카톡 나에게 보내기용 (제미나이 C1+C3 통합 채택) */
@@ -2141,6 +2144,58 @@ function wireChk(box){
     if(!all && d) d.remove();
   }));
 }
+/* [v191] 전환 미체결 경고 — 전환 **다음 날부터** 상단이 「오늘 할 일 없음」이 되던 구멍.
+   체크리스트는 changed_today 인 하루만 그려지고, 다음 미국 종가가 들어오면 상단은 「할 일 없음」이
+   됐다. 정작 아래 포트폴리오는 「🔴 매도 N주」를 계속 내는데 상단 큰 글씨가 반대말을 했다.
+   04 §5-8 의 최악 −96.5% 는 정확히 「신호가 났는데 안 판 채로 다음 신호까지 간」 값이다.
+   ★ 판정 기준은 날짜가 아니라 **보유가 판정 반대편에 있는가**다 — 공격 판정인데 방어 다리를
+     들고 있거나, 방어 판정인데 공격 자산을 들고 있으면 미체결이다. 날짜 상한을 두지 않는다
+     (40일째 안 팔았어도 경고가 맞다). 월급 현금·방어 3종 사이의 드리프트는 반대편이 아니라
+     걸리지 않는다(그건 「오늘의 행동」·30일 재조정의 일이다). 문턱 2% 는 「오늘의 행동」의
+     오차 표시 기준(2%p)과 같은 값 — 먼지 수량은 무시한다.
+   ★ 보유를 입력하지 않았으면 판정하지 않는다(모르는 것을 지어내지 않는다).
+   ★ 전환일(CHANGED_TODAY)엔 손대지 않는다 — 그날은 기존 체크리스트가 담당. */
+function wrongSideWeight(){
+  const A = portAssets();
+  if(!A) return null;
+  const isAtk = CURSTATE !== 'SCHD';
+  let total = Math.max(0, PORT.cash || 0), wrong = 0, any = false;
+  A.forEach(x => {
+    const p = PORT.a[x.code] || {};
+    const qty = pnum(p.qty);
+    let px = pnum(p.px);
+    if(!(px > 0)){ const a = curPx(x.code); if(a) px = a.px; }   // portCompute 와 같은 진입점 (v179)
+    if(qty > 0) any = true;
+    const val = (qty > 0 && px > 0) ? qty * px : 0;
+    total += val;
+    if((isAtk ? x.atk : x.def) === 0) wrong += val;              // 이 판정에서 비중 0 이어야 할 자산
+  });
+  if(!any || !(total > 0)) return null;
+  return wrong / total * 100;
+}
+function drawPending(){
+  const box = document.getElementById('changeBox');
+  const al = document.getElementById('actLine');
+  if(!box || !al || CHANGED_TODAY) return;          // 전환일엔 기존 체크리스트가 담당
+  const isAtk = CURSTATE !== 'SCHD';
+  const w = wrongSideWeight();
+  if(w != null && w > 2){
+    box.className = 'changed' + (isAtk ? ' toattack' : '');
+    box.innerHTML = `<b>전환 미체결</b> — 판정은 <b>${isAtk ? '공격' : '방어'}</b>인데 보유의
+      <b>${w.toFixed(0)}%</b>가 아직 ${isAtk ? '방어 바스켓' : '공격 자산'}입니다.
+      실행: <b>${krExecLabel()}</b> · 수량은 아래 <a href="#portPanel" style="color:inherit"><b>오늘의 행동</b></a>에.
+      이미 체결하셨다면 <a href="#tlogWrap" style="color:inherit"><b>체결 기록</b></a>을 남기면 이 줄이 사라집니다.`
+      + chkHtml();
+    wireChk(box);
+    al.innerHTML = '';
+    paintFact(false);
+  } else {
+    box.className = ''; box.innerHTML = '';
+    al.innerHTML = `🟢 <b>오늘 할 일 없음</b> — ${isAtk ? '공격 자산' : '방어 바스켓'} 유지 · 다음 확인: 다음 미국장 종가 후`;
+    paintFact(true);
+  }
+}
+
 /* [v90] 실행일 — 시장 시계(krClock, 공휴일 반영)를 재사용해 사람이 날짜 계산 안 하게 */
 function krExecLabel(){
   const k = krClock(Date.now());
@@ -2748,6 +2803,9 @@ function paintState(o){
   paintVpx(isQld);
 
   // [v90] 전환일: 실행일(한국 휴장 반영) + 체크리스트. 평시: 「오늘 할 일 없음」 한 줄.
+  //       [v191] 평시 한 줄은 drawPending() 이 보유를 본 뒤 덮어쓸 수 있다 — 전환 다음 날부터
+  //       보유가 판정 반대편에 남아 있으면 「할 일 없음」이 아니라 「미체결」이 맞다.
+  CHANGED_TODAY = !!o.changed_today;
   const box = document.getElementById('changeBox');
   const al = document.getElementById('actLine');
   if(o.changed_today){
@@ -2794,6 +2852,7 @@ function paintState(o){
   CLOCK_FULL = !!(o.changed_today || (o.gap_pp != null && o.gap_pp < 8));
   CURSTATE = o.state;                      // [v89] 포트폴리오 목표는 판정 상태를 따른다
   drawPort();
+  drawPending();                           // [v191] 전환 다음 날부터의 미체결 경고 (보유가 판정 반대편이면)
   drawDefDays();                           // [v97] 방어 상태에서만 보임
   drawVDday();                             // [v182] 판정 옆 D-day (방어 전용)
   drawDefDur();                            // [v100] 방어 상태에서만 보임 (신호 카드)

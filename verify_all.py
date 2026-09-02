@@ -263,6 +263,17 @@ def i5_decisions(D):
             ok("시세: 화면이 시세를 표시 경로로만 쓴다",
                'loadPrice' in h and 'chgBadge' in h,
                'price.json 은 배지·현재가 기본값에만 (v145)')
+        # [v192] 실행 규율 알림 2종(전환 실행일 재알림·근접 진입)이 파수꾼 모드와 워크플로 스텝
+        #   **양쪽**에 있는가 — 한쪽만 있으면 조용히 안 돈다. 그리고 근접 판정이 B(strategies.B ·
+        #   recent[].B)를 읽는가 — signal.json 최상위 키는 A 미러라(exit −11) 읽으면 복귀선이 틀린다.
+        if os.path.exists('deploy/watchdog.py') and os.path.exists('.github/workflows/watchdog.yml'):
+            wd = io.open('deploy/watchdog.py', encoding='utf-8').read()
+            wy = io.open('.github/workflows/watchdog.yml', encoding='utf-8').read()
+            ok("파수꾼: 전환 실행일 재알림·근접 진입 알림이 모드와 스텝 양쪽에",
+               "'switchday': mode_switchday" in wd and "'near': mode_near" in wd
+               and 'watchdog.py switchday' in wy and 'watchdog.py near' in wy
+               and "row.get('B'" in wd,
+               '모드만 있고 스텝이 없으면 조용히 안 돈다 · 근접 판정은 B 열 (v192)')
         if os.path.exists('notes.html'):
             n = io.open('notes.html', encoding='utf-8').read()
             # [v142] 업데이트 노트의 핵심 메시지는 「규칙은 안 바뀌었다」 — 이게 사라지면
@@ -376,6 +387,13 @@ def i5_decisions(D):
            "function portCompute" in h and 'id="portAction"' in h
            and "오늘의 행동" in h and "주문 메모 복사" in h,
            '보유+현금 → 목표비중 차이 → 매수/매도 주수 (v89·v185)')
+        # [v191] 전환 **다음 날부터** 상단이 「오늘 할 일 없음」이 되던 구멍 — 보유가 판정
+        #   반대편에 남아 있으면 미체결 경고가 상단에 남아야 한다(04 §5-8 의 −96.5% 는
+        #   「안 판 채로 다음 신호까지」다). 평시 한 줄 자체는 그대로 있어야 한다.
+        ok("화면: 전환 미체결 경고(전환 다음 날 이후)",
+           "function drawPending" in h and "function wrongSideWeight" in h
+           and "<b>전환 미체결</b>" in h and "오늘 할 일 없음" in h,
+           '보유가 판정 반대편이면 상단 경고 유지 · 체결 기록으로 해제 (v191)')
         ok("화면: 모바일 고정열(Sticky)",
            "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
         ok("화면: T4 그림자 패널 (평가 전용)",

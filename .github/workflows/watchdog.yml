@@ -6,7 +6,8 @@ name: 자동 파수꾼
 #   ② 카카오 토큰이 죽어 정작 전환일에 알림이 안 감 (경고가 stderr 로만 나갔다)
 #   ③ 분기 점검을 사람이 기억해서 돌려야 했던 것
 #   ④ [v171] 월간 성과 스냅샷이 건너뛰어 성과표가 조용히 낡는 것
-# 이 워크플로가 넷을 대신 본다. 평시에는 아무 말도 하지 않는다.
+#   ⑤ [v192] 실행 규율 — 전환 실행일 아침 재알림 · 근접 진입 알림 (일정이지 이상이 아니다)
+# 이 워크플로가 이것들을 대신 본다. 평시에는 아무 말도 하지 않는다.
 #
 # 전략 무접촉 — 판정·파라미터·장부는 읽기만 한다.
 
@@ -58,6 +59,29 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 deploy/watchdog.py rebalance
+
+      # ①-c [v192] 전환 실행일 재알림 — 새벽(05시) 알림은 자는 동안 온다. 실행일 아침에 한 번 더.
+      #   실행일에만 나가므로 거짓 알림 0 · 연 2~3건. 서버는 체결 여부를 모르므로 「이미 하셨다면 무시」.
+      - name: 전환 실행일 재알림
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py switchday
+
+      # ①-d [v192] 근접 진입 알림 — 게이지가 「근접」(3%p 미만)에 들어선 날 아침 한 번.
+      #   「근접일 때의 전환은 절대 놓치지 마라」(04 §5-8)·「근접이면 떠나기 전 정리」(설명서 ③)가
+      #   화면을 열어야만 작동하던 것을 폰으로 옮긴다. 54년 실측 연 3.5회(research/near_zone.py).
+      - name: 근접 진입 알림
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 deploy/watchdog.py near
 
       # ② 알림 채널이 살아 있나 — 메시지는 보내지 않고 자격증명만 확인(평시 소음 0)
       - name: 알림 채널 생존

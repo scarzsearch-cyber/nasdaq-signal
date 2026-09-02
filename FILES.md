@@ -92,7 +92,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
 | `deploy/kakao_keepalive.py` | [v77] 카카오 refresh 토큰 매일 연명·자동 교체 |
 | `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
-| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · `check`(점검.py 자동 실행 → `data/ops_check.json` · **[v188] B 판정 규약 평가기 `oos_protocol_b.py --oos` 도 같이 돌려 `protocol_b` 키에 요약** — 판정은 평가기가, 파수꾼은 읽기만. 이상이면 todo 한 줄) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
+| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · **`switchday`[v192]**(전환 실행일 아침 재알림 — 장부 `changed=1` 행 + signal.json `changed_today`, 휴장 반영 · 실행일에만) · **`near`[v192]**(게이지 「근접」 진입일 한 번 — ★ `strategies.B`·`recent[].B` 기준. 최상위 state/exit 는 A 미러(exit −11)라 읽지 않는다) · `check`(점검.py 자동 실행 → `data/ops_check.json` · **[v188] B 판정 규약 평가기 `oos_protocol_b.py --oos` 도 같이 돌려 `protocol_b` 키에 요약** — 판정은 평가기가, 파수꾼은 읽기만. 이상이면 todo 한 줄) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
 | `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
@@ -101,7 +101,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 |
-| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176] 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
+| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
@@ -438,6 +438,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/free_design.py` | **[실험] 관문에서 자유로운 설계 3안 + 검증 배터리** (소유자 「이전 룰·관문에서 자유롭게, 검증은 전부」) — X1 장중 재난 스탑(NDX OHLC) · X2 방어 인버스 슬리브 · X3 SOX 2배 엔진. 배터리(10y p05·4블록·홀드아웃·CSCV PBO·집중도)·통과 기준·예측을 **결과 전 등록**. 자료 캐시 `data/hist/yahoo_{NDX,SOX}_ohlc.csv`(Yahoo · 월간 갱신 밖 · 실험 전용) | 04 §5-24 · **3/3 실패** · 선견 한 칸 적발(§5-24 E) |
 | `research/lookback200.py` | **[실험] 룩백 200 검증** (소유자 「어떤 룰보다 최우선 — 왜 200 이어야 하는지 근거까지」, §5-14 D 재탐색 금지를 이 질문에 한해 해제) — §5-14 D 격자 표 **첫 재현(15/15)** · 정면 비교+관문 ①② · 갈린 구간 전수 분해(격차 = 재진입 4건) · 고원 · 전 시작일 · 사건 단위 · WFA 3종 · CSCV · 블록 · 타 시장 4개 · 약세장 군 시간 구조 · 동결 이후 OOS | 04 §5-25 · **유지** — Calmar +5.4% 관문① 미달 · 사전 식별 불가 · 타 시장 0/4 · 「하필 200」은 2023 의 산물 |
 | `research/valuation_regime.py` | **[검증] 고평가·장기 횡보·대형 하락 환경에서 B** (소유자 지시 2026-09-02, ChatGPT 작성 프롬프트 · 전략 무변경) — CAPE 분위→이후 수익(Shiller 1871~) · 횡보 사건 표(하락/회복 분리 · 가격/총수익 · 명목/실질) · 같은 구간 B vs S&P·NDX·2배·방어만 · 고평가 시작월 vs 보통(엔진 표본) + 닷컴 제외 반증 · 시나리오 6종 + 니케이 붕괴형 · 강세장 기회비용 · 편향 점검표 · 사전 등록 판정. 캐시: `data/hist/shiller_sp500_monthly.csv`·`multpl_cape_monthly.csv`·`datahub_cpi_us.csv` | 04 §5-26 · **[강화]**(A · 통계는 C · 1972 이전 E) — 단서: 빠른 급락 4/4 B 가 더 깊음 · 니케이형에서 0.52배 |
+| `research/near_zone.py` | **[운영 측정] 낙폭 게이지 「근접」 구간 빈도** — 근접 알림(v192)의 근거. 엔진 표본(1972~ 54년) + FRED NDX 1986~ 교차, 게이지 정의는 화면 paintProx 와 동일(gap<3%p). 진입 연 3.5회 · 55% 가 20일 안 전환 · 전환의 99% 가 직전 5일 안에 근접 · 「여유」에서 곧바로 전환 0회 | 04 §5-8 보강 · §7 Q5 · watchdog `near` 문구의 출처 |
 
 ### 9-3. 엔진 교체 (성장 엔진을 나스닥 아닌 것으로)
 

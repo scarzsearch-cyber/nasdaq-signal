@@ -38,6 +38,15 @@
      똑같아 보인다. 매매와 무관하지만 「지금 내 전략이 어떤 성적인가」의
      근거가 조용히 낡는다.
 
+  ⑧ [v192] **전환 실행일 아침의 재알림** — 새벽(05시) 알림은 자는 동안 오고 실행은 09:05 부터다.
+     그걸 보고 잠들었다가 09시에 잊는 경로가 비어 있었다. 이 슬롯(평일 08:40)은 이미 있으므로
+     실행일 아침에 한 번 더 말한다. 실행일에만 나가니 거짓 알림 0 · 연 2~3건.
+
+  ⑨ [v192] **근접 진입 알림** — 게이지가 「근접」(전환선까지 3%p 미만)에 들어선 날 아침 한 번.
+     04 §5-8 「근접일 때의 전환은 절대 놓치지 마라」와 설명서 §③ 부재 규칙 「근접이면 떠나기 전
+     정리」는 둘 다 **화면을 열어야** 작동했다. 54년 실측(research/near_zone.py): 진입 연 3.5회 ·
+     55% 가 20일 안 전환 · 전환의 99% 가 직전 5일 안에 근접을 거침 · 헛걸음 연 1.6회.
+
 사용:
     python3 deploy/watchdog.py stale      # 신호가 며칠째 그대로인가
     python3 deploy/watchdog.py rebalance  # 오늘이 방어 재조정일인가 (30일 주기)
@@ -46,6 +55,8 @@
     python3 deploy/watchdog.py price      # 시세 수집이 살아 있는가 (price-data 브랜치)
     python3 deploy/watchdog.py check      # 점검.py 자동 실행 → data/ops_check.json
     python3 deploy/watchdog.py heartbeat  # 월 1회 「살아 있음」 (안 오면 그게 신호)
+    python3 deploy/watchdog.py switchday  # [v192] 오늘이 전환 실행일이면 재알림
+    python3 deploy/watchdog.py near       # [v192] 게이지가 「근접」에 들어선 날 한 번
 
 각 모드는 **항상 0 으로 끝난다**(감시가 파이프라인을 죽이면 안 된다).
 사람이 개입해야 하는 상황이면 GITHUB_OUTPUT 에 `alert=1` 을 남긴다 —
@@ -210,6 +221,167 @@ def mode_rebalance():
     notify('방어 비율 재조정일', 'signal',
            f'방어 전환({e}) 후 {k}일 — 비율 40/40/20 확인일입니다.\n'
            '화면의 「오늘의 행동」이 몇 주를 사고팔지 계산해 줍니다. 휴장이면 다음 개장일에.')
+
+
+# --------------------------------------------------------------------------
+# ①-c [v192] 전환 실행일 재알림 — 05시 알림은 자는 동안 오고, 실행은 09:05 부터다
+# --------------------------------------------------------------------------
+# 새벽 알림(signal_alert.py)은 종가가 굳는 순간 한 번 간다. 그걸 보고 잠들었다가 09시에
+# 잊는 경로가 비어 있었다. 이 슬롯(평일 08:40)은 이미 있으므로 **실행일 아침에 한 번 더**.
+# 실행일 = 종가일 다음 날부터 첫 한국 거래일(주말·휴장 반영 — 화면 krExecLabel 과 같은 규약).
+# 실행일에만 나가므로 거짓 알림이 없다(연 2~3건). 서버는 체결 여부를 알 수 없으므로
+# 문구는 「이미 하셨다면 무시」로 끝난다. 일정이지 이상이 아니다 — alert 를 켜지 않는다.
+KRHOL = os.path.join('data', 'kr_holidays.json')
+OOSLOG = os.path.join('data', 'oos_log.csv')
+
+
+def kr_holidays():
+    """한국 휴장일 집합(ISO). 파일이 없으면 빈 집합 — 주말만 민다(화면과 같은 후퇴)."""
+    try:
+        j = json.load(open(KRHOL, encoding='utf-8'))
+        return set((j.get('holidays') or {}).keys())
+    except Exception:
+        return set()
+
+
+def kr_next_trading_day(d, hol):
+    """d 이후(포함) 첫 한국 거래일."""
+    for _ in range(40):
+        if d.weekday() < 5 and d.isoformat() not in hol:
+            return d
+        d += timedelta(days=1)
+    return d
+
+
+def last_switch():
+    """가장 최근 전환 → (미국 종가일 as_of, 전환 후 상태). 장부(oos_log.csv)의 changed=1 행이
+    1차, signal.json 의 changed_today 가 2차(장부 스텝이 실패한 날의 보험). 둘 중 늦은 날짜."""
+    import csv
+    best = None
+    if os.path.exists(OOSLOG):
+        with open(OOSLOG, encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                if r.get('changed') == '1' and r.get('as_of'):
+                    best = (r['as_of'], r.get('state') or '?')
+    if os.path.exists(SIGNAL):
+        try:
+            j = json.load(open(SIGNAL, encoding='utf-8'))
+            b = (j.get('strategies') or {}).get('B') or {}
+            if b.get('changed_today', j.get('changed_today')):
+                cand = (j['as_of'], b.get('state', j.get('state', '?')))
+                if best is None or cand[0] > best[0]:
+                    best = cand
+        except Exception:
+            pass
+    return best
+
+
+def switch_exec_day(as_of_iso, hol):
+    """미국 종가일 D → 신호는 D+1 KST 새벽에 뜬다 → 그날부터 첫 한국 거래일."""
+    return kr_next_trading_day(date.fromisoformat(as_of_iso) + timedelta(days=1), hol)
+
+
+def switch_action(state):
+    # signal_alert.py 와 같은 문장 — 두 알림이 다른 말을 하면 안 된다
+    if state == 'QLD':
+        return '방어 바스켓 전량 매도 → TIGER 나스닥100레버리지(418660) 매수'
+    return 'QLD 전량 매도 → 방어 바스켓 매수 (배당40 458730 / 국채40 305080 / 금20 411060)'
+
+
+def mode_switchday(today=None):
+    sw = last_switch()
+    if not sw:
+        print('전환 기록 없음 — 할 일 없음')
+        return
+    as_of, st = sw
+    today = today or kst_today()
+    ex = switch_exec_day(as_of, kr_holidays())
+    print(f'마지막 전환 {as_of} → {st} · 실행일 {ex} · 오늘 {today}')
+    if today != ex:
+        print('오늘은 실행일이 아니다 — 알림 없음')
+        return
+    head = f'{as_of} 종가로 전환 신호'
+    try:
+        j = json.load(open(SIGNAL, encoding='utf-8'))
+        if j.get('as_of') == as_of:
+            head = f"낙폭 {j.get('dd')}% (종가 {j.get('close')}, {as_of})"
+    except Exception:
+        pass
+    notify('오늘 전환 실행일 (재알림)', 'signal',
+           f'{head}\n오늘 한국장 09:05~15:20 에: {switch_action(st)}\n'
+           '새벽 알림과 같은 내용입니다 — 이미 체결하셨다면 무시하세요. 체결 뒤 화면에 기록을 남기세요.')
+
+
+# --------------------------------------------------------------------------
+# ①-d [v192] 근접 진입 알림 — 게이지가 「근접」(전환선까지 3%p 미만)에 들어선 날 아침 한 번
+# --------------------------------------------------------------------------
+# 04 §5-8 「근접일 때의 전환은 절대 놓치지 마라」·설명서 §③ 「근접이면 떠나기 전 정리」는 둘 다
+# **화면을 열어야** 작동했다. 들어선 날 한 번 말해 두면 화면을 안 열어도 그 주를 비우지 않는다.
+# 문턱 3%p 는 화면 게이지(paintProx)의 빨강과 같은 값 — 화면과 다른 기준을 만들지 않는다.
+# 빈도(research/near_zone.py, 1972~ 54년): 진입 연 3.5회 · 55% 가 20일 안 전환 · 전환의 99% 가
+# 직전 5일 안에 근접을 거침 · 헛걸음 연 1.6회. 「접근」(8%p)까지 넓히면 연 9회 — 알림 피로.
+# ★ 문구는 「아직 할 일 없음」을 먼저 말한다 — 근접의 45% 는 되돌아가고, 그때 규칙은 아무것도
+#   하지 않는 것이 맞다. 04 「B 가 안 쓰는 숫자는 재량 개입을 유혹한다」의 경계 위에 있는 알림이다.
+# ★ 같은 진입을 두 번 알리지 않는다: 오늘 종가가 최신(1영업일 안)일 때만 · 전환일엔 생략(새벽 알림).
+NEAR_PP = 3.0
+
+
+def near_gaps(j):
+    """(오늘 gap, 전날 gap, B 상태) — recent 는 최신이 [0] (signal.json 실측, v154).
+    gap = |dd − 선| [%p]. 선은 상태별 enter/exit — 동결 규칙은 둘 다 −16 이라 같은 값.
+    ★ signal.json 의 **최상위** state/exit/gap_pp/next_line 과 recent[].s 는 구버전 화면 호환용
+      **A 미러**다(update_signal.py 주석 「구버전 signal.html 호환용 미러 (A 기준)」 — 실측 2026-09-02:
+      최상위 exit = −11). B 는 strategies.B 와 recent[].B 에 있다. 최상위를 읽으면 방어 상태의
+      복귀선이 −11 로 잡혀 근접 판정이 틀린다 — signal_alert.py 도 같은 이유로 strategies.B 를 읽는다."""
+    b = (j.get('strategies') or {}).get('B') or {}
+    rc = j.get('recent') or []
+    if len(rc) < 2:
+        return None
+
+    def bstate(row):
+        return row.get('B', row.get('s'))
+
+    def line(row):
+        v = b.get('exit', j.get('exit')) if bstate(row) == 'SCHD' else b.get('enter', j.get('enter'))
+        v = float(v if v is not None else -16)
+        return v * 100 if abs(v) < 1 else v            # −0.16 이든 −16 이든 %p 로
+
+    def gap(row):
+        return abs(float(row['dd']) - line(row))
+
+    return gap(rc[0]), gap(rc[1]), bstate(rc[0])
+
+
+def mode_near(today=None):
+    if not os.path.exists(SIGNAL):
+        print('signal.json 없음 — 첫 실행이면 정상')
+        return
+    j = json.load(open(SIGNAL, encoding='utf-8'))
+    b = (j.get('strategies') or {}).get('B') or {}
+    if b.get('changed_today', j.get('changed_today')):
+        print('전환일 — 새벽 알림이 이미 갔다(근접 알림 생략)')
+        return
+    today = today or kst_today()
+    n = biz_days_since(j['as_of'], today)
+    g = near_gaps(j)
+    if g is None:
+        print('recent 가 2일 미만 — 판정 불가')
+        return
+    g0, g1, st = g
+    print(f"낙폭 {j.get('dd')}% · 선까지 오늘 {g0:.1f}%p / 전날 {g1:.1f}%p · 종가일 {j['as_of']} ({n}영업일 전)")
+    if n > 1:
+        print('오늘 종가가 아니다 — 같은 진입을 두 번 알리지 않는다')
+        return
+    if not (g0 < NEAR_PP <= g1):
+        print('근접 진입일이 아니다 — 알림 없음')
+        return
+    is_atk = st != 'SCHD'
+    nm = '전환선' if is_atk else '복귀선'
+    notify('낙폭 게이지 「근접」 진입', 'signal',
+           f"낙폭 {j.get('dd')}% — {nm}(−16%)까지 {g0:.1f}%p (종가 {j.get('close')}, {j['as_of']}).\n"
+           '아직 할 일 없음 — 규칙대로 기다립니다. 다만 이번 주는 ① 자리를 비우지 말 것 '
+           '② 대신 팔 사람 확인 ③ 증권 앱 로그인 확인.\n'
+           '과거 54년: 근접의 55%가 20일 안에 전환으로 이어졌고 45%는 되돌아갔습니다(연 3~4회).')
 
 
 # --------------------------------------------------------------------------
@@ -520,14 +692,15 @@ def mode_heartbeat():
 
 MODES = {'stale': mode_stale, 'rebalance': mode_rebalance,
          'channel': mode_channel, 'stats': mode_stats, 'price': mode_price,
-         'check': mode_check, 'heartbeat': mode_heartbeat}
+         'check': mode_check, 'heartbeat': mode_heartbeat,
+         'switchday': mode_switchday, 'near': mode_near}
 
 
 def main():
     m = sys.argv[1] if len(sys.argv) > 1 else ''
     if m not in MODES:
         raise SystemExit('사용: python3 deploy/watchdog.py '
-                 '{stale|rebalance|channel|stats|price|check|heartbeat}')
+                 '{stale|rebalance|switchday|near|channel|stats|price|check|heartbeat}')
     try:
         MODES[m]()
     except Exception as e:                        # 감시가 파이프라인을 죽이지 않는다
