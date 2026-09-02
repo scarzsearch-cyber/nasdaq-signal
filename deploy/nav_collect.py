@@ -60,8 +60,17 @@ COLS = ['as_of', 'code', 'name', 'close', 'nav', 'dev_pct', 'volume', 'mktcap_eo
 
 
 def fetch():
-    raw = urllib.request.urlopen(urllib.request.Request(SRC, headers=UA), timeout=40).read()
-    return json.loads(raw.decode('utf-8', 'replace'))['result']['etfItemList']
+    """네이버 ETF 목록. [2026-09-03 보험] 죽으면 `kr_sources` 예비 체인(네이버 polling → 모바일 → 다음 → 토스 →
+    야후 → 구글)으로 감시 종목만 받는다 — 예비엔 NAV 가 없어 그날 행은 안 쌓이지만(collect 가 nav 없는 종목을
+    건너뛴다) 수집기 자체가 죽어 전체 단계가 실패하는 일은 없어진다. 판정 무접촉."""
+    try:
+        raw = urllib.request.urlopen(urllib.request.Request(SRC, headers=UA), timeout=40).read()
+        return json.loads(raw.decode('utf-8', 'replace'))['result']['etfItemList']
+    except Exception as e:
+        print(f'[nav] 네이버 목록 실패({type(e).__name__}) — 예비 출처로 (NAV 없음 → 오늘 행은 기록 안 됨)',
+              file=sys.stderr)
+        import kr_sources
+        return kr_sources.quotes(list(WATCH))
 
 
 def universe_stats(lst):

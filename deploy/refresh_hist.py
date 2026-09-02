@@ -126,9 +126,18 @@ def splice_kr(path, symbol):
     has_adj = 'AdjClose' in old.columns
     adj_col = 'AdjClose' if has_adj else 'Close'
     last_d, last_a = old['Date'].iloc[-1], float(old[adj_col].iloc[-1])
-    df = chart(symbol)
+    try:
+        df = chart(symbol)
+    except Exception as e:
+        # [2026-09-03 보험] 야후가 죽으면 네이버 일봉 XML 로 잇는다. ⚠ 수정주가가 아니라 배당락이 반영되지 않는다 —
+        #   이음 비율 k 가 수준 차이는 흡수하지만 458730(월배당) 은 배당락일마다 0.3% 안팎이 어긋난다.
+        #   야후가 돌아오면 다음 달 이음은 다시 수정주가 기준이다(이미 붙은 행은 남는다 — 월간 성과표엔 무시할 크기).
+        print(f'  {os.path.basename(path):22s} [경고] 야후 실패({type(e).__name__}) — 네이버 일봉으로 보강(배당락 미반영)',
+              file=sys.stderr)
+        import kr_sources
+        df = kr_sources.history_df(symbol, count=90)
     if last_d not in df.index:
-        print(f'  {os.path.basename(path):22s} [경고] 이음날 {last_d.date()} 이 야후에 없음 — 건너뜀',
+        print(f'  {os.path.basename(path):22s} [경고] 이음날 {last_d.date()} 이 출처에 없음 — 건너뜀',
               file=sys.stderr)
         return 0
     k = last_a / float(df.loc[last_d, 'adj'])

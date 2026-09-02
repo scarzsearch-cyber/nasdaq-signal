@@ -1,0 +1,28 @@
+name: 출처 점검 (예비 시세 출처 생존)
+
+# [2026-09-03] 한국 시세 예비 출처 체인(deploy/kr_sources.py)이 **GitHub 러너의 IP(미국)에서도** 응답하는지
+# 본다 — 로컬(한국 IP)에서 되는 출처가 러너에선 막힐 수 있다(지역 차단·봇 차단). 읽기만 하고 아무것도
+# 쓰지 않는다(커밋 0 · 알림 0). 수동 실행 전용 — 정기 실행은 넣지 않는다(출처에 부담을 줄 이유가 없고,
+# 예비가 죽어 있어도 1차가 살아 있으면 아무 일도 안 일어난다. 1차까지 죽으면 파수꾼 price 모드가 3영업일 뒤 알린다).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: 의존성 설치 (일봉 DataFrame 용)
+        run: pip install pandas
+
+      - name: 예비 출처 생존 표
+        run: python3 deploy/kr_sources.py --probe

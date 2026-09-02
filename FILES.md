@@ -86,7 +86,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 |---|---|
 | `signal.html` | GitHub Pages 로 서비스되는 신호 뷰어. **−16/−16 단일 규칙**(A 선택지는 v61 에서 화면 제거). 내 포트폴리오·체결 기록·계산기·백업(파일/CSV)·다크 모드까지 화면 전부 (v103, 기구현 목록은 CLAUDE.md §4). **한국 공휴일 반영 시계** |
 | `deploy/update_signal.py` | 매일 QQQ 종가 받아 **두 규칙을 모두** 판정 → `data/signal.json` 갱신 |
-| `deploy/refresh_hist.py` | [v72] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드) **[2026-09-03] FRED 실패 시 야후 KRW=X 로 마지막 날짜 이후만 보강** — 「짧아지면 유지」 가드는 마지막 날짜(45일)로 |
+| `deploy/refresh_hist.py` | [v72] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드) **[2026-09-03] FRED 실패 시 야후 KRW=X 로 마지막 날짜 이후만 보강** — 「짧아지면 유지」 가드는 마지막 날짜(45일)로 · **[2026-09-03] 한국 종목은 야후 실패 시 네이버 일봉 XML 로 이음**(배당락 미반영 경고) |
 | `deploy/data_check.py` | [v73] 데이터 검증 게이트 — 이상 데이터가 정상 데이터를 덮어쓰지 못하게 |
 | `deploy/notify.py` | [v73/v77] 실패·전환 알림 (카카오톡/Discord/Telegram, GitHub Secrets) |
 | `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
@@ -94,7 +94,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
 | `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · **`switchday`[v192]**(전환 실행일 아침 재알림 — 장부 `changed=1` 행 + signal.json `changed_today`, 휴장 반영 · 실행일에만) · **`near`[v192]**(게이지 「근접」 진입일 한 번 — ★ `strategies.B`·`recent[].B` 기준. 최상위 state/exit 는 A 미러(exit −11)라 읽지 않는다) · `check`(점검.py 자동 실행 → `data/ops_check.json` · **[v188] B 판정 규약 평가기 `oos_protocol_b.py --oos` 도 같이 돌려 `protocol_b` 키에 요약** — 판정은 평가기가, 파수꾼은 읽기만. 이상이면 todo 한 줄) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 · **`--selftest`[2026-09-03]**(합성 28경우 — switchday·near·heartbeat, 실제 data/ 무접촉. verify_all I14 가 돌린다) |
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
-| `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
+| `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 **[2026-09-03] 1차 실패 시 `kr_sources` 예비**(NAV 없어 그날 행은 안 쌓이나 스텝은 안 죽음) |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
 | `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **[v195] 파수꾼 주간 슬롯이 매주 돌린다** — 내용이 같으면 쓰지 않으므로 해가 바뀔 때만 커밋이 난다. 임시공휴일·선거일은 SPECIAL 에 손으로 |
 | `data/kr_holidays.json` | 휴장일 표(현재 2026~2032 · 116일). `signal.html` 시계 · `price_poll.py` · 파수꾼 `switchday` 가 읽는다(전부 오늘/미래만). **[v195] 매년 자동 연장** |
@@ -102,6 +102,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/README.md` | 배포 구조 설명 |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 |
 | `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검·**휴장일 표 연장**[v195]. 이상이면 카톡 + 이슈(label `watchdog`) |
+| `.github/workflows/source-probe.yml` | **[2026-09-03] 출처 점검(수동)** — `kr_sources.py --probe` 를 GitHub 러너(미국 IP)에서 돌려 예비 출처가 거기서도 응답하는지 본다. 읽기만(커밋 0·알림 0). 정기 실행 없음 | 러너 IP 차단 여부 확인용 |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
@@ -513,7 +514,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 |
 |---|---|
-| `deploy/price_now.py` | **[v145] 4다리 시세 스냅샷** → `data/price.json`. 출처는 `nav_collect.py` 와 **같은 엔드포인트**(네이버 ETF 목록, cp949) — 새 의존성 0. 가격·등락률·NAV·괴리율. **★ 표시 전용 · 판정 무접촉** (실패해도 신호 무영향이라 항상 exit 0, 기존 파일을 덮어쓰지 않는다) |
+| `deploy/price_now.py` | **[v145] 4다리 시세 스냅샷** → `data/price.json`. 출처는 `nav_collect.py` 와 **같은 엔드포인트**(네이버 ETF 목록, cp949) — 새 의존성 0. 가격·등락률·NAV·괴리율. **★ 표시 전용 · 판정 무접촉** (실패해도 신호 무영향이라 항상 exit 0, 기존 파일을 덮어쓰지 않는다) **[2026-09-03] 1차(네이버 목록) 실패·종목 누락 시 `kr_sources` 예비 체인이 그 종목만 채움** — `source` 필드에 출처 표기 |
+| `deploy/kr_sources.py` | **[2026-09-03] 한국 시세 예비 출처 체인** — 네이버 polling → 네이버 모바일 → 다음(카카오) → 토스 → 야후 → 구글(HTML). `quotes(codes)` 는 네이버 목록 모양(NAV 없음)으로 돌려줘 `price_now.build` 가 그대로 먹는다 · `history_df` 는 네이버 일봉 XML(수정주가 아님) · `--probe` 생존 표. **표시·기록·원자료 전용 — 판정 경로엔 없다**(verify_all 관문) | 실측 2026-09-03 KR IP: 6/6 응답 · 값 일치 |
 | `deploy/price_poll.py` | **[v190] 장중 시세 폴러** — 「5분마다」를 예약이 아니라 한 실행 안에서 지킨다(종전 `*/5` 예약은 84슬롯 중 17개만 떴다 — 2026-09-01 실측). 개장까지 대기 → 5분 경계+20초마다 price_now 와 같은 수집 → 값이 바뀌면 price-data 브랜치 덮어쓰기(임시 저장소, 항상 커밋 1개) → `gh workflow run pages.yml` 로 배포 → 12:26 에 오후 실행 인계. 배포 깨우기가 막히면 즉시 종료해 종전 방식으로 물러선다. `--selftest`(구간·정렬·휴장·하루 85스냅샷) · `--dry-run` · `--mode once` |
 | `.github/workflows/price.yml` | **[v145]** 한국장 중 시세 스냅샷. **[v190] 예약이 아니라 폴러** — 개장 전 슬롯(08:30·08:40·08:50 KST)에 뜬 실행이 09:00:20 부터 5분마다 찍고 12:26 에 오후 실행에 넘긴다. 예비 슬롯 매시 :20·:50(폴러가 죽었을 때만 이어받음). `actions: write` 는 배포 깨우기용. 알림 없음 — 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다 |
 | `research/emit_dd_distribution.py` | **[v164] 낙폭 백분위 산출** → `data/dd_percentile.json`. `hist_defensive.build('chain')['ddv']` 를 **읽기 전용**으로 써 1~99 백분위 경계를 뽑는다. **[v197] `monthly-stats.yml` 이 원자료 연장 직후 매월 돌린다**(1초 · 같은 원자료면 산출 동일). v164 의 「연 1회 수동」은 원자료 연장이 자동인데 파생물만 수동이라 조용히 낡는 구조였다 |

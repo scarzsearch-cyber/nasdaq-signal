@@ -46,10 +46,28 @@ CODES = {
 KST = timezone(timedelta(hours=9))
 
 
-def fetch():
+def fetch_naver_list():
     raw = urllib.request.urlopen(
         urllib.request.Request(SRC, headers=UA), timeout=40).read()
     return json.loads(raw.decode('cp949'))['result']['etfItemList']
+
+
+def fetch():
+    """[2026-09-03 보험] 1차 네이버 ETF 목록(NAV 포함) → 못 받거나 4다리 중 빠진 종목이 있으면 그 종목만
+    `kr_sources` 예비 체인(네이버 polling → 네이버 모바일 → 다음(카카오) → 토스 → 야후 → 구글)이 채운다.
+    예비 출처엔 NAV 가 없다 → 화면은 괴리 배지만 숨긴다(devBadge 는 nav 없으면 빈 문자열). 판정 무접촉."""
+    items, have = [], set()
+    try:
+        items = [it for it in fetch_naver_list() if str(it.get('itemcode')) in CODES]
+        have = {str(it.get('itemcode')) for it in items
+                if isinstance(it.get('nowVal'), (int, float)) and it.get('nowVal') > 0}
+    except Exception as e:
+        print('[price] 네이버 목록 실패(%s) — 예비 출처로' % e, file=sys.stderr)
+    missing = [c for c in CODES if c not in have]
+    if missing:
+        import kr_sources
+        items += kr_sources.quotes(missing)
+    return items
 
 
 def build(items):
@@ -76,10 +94,13 @@ def build(items):
             row['nav'] = round(float(nav), 1)
             row['dev_pct'] = round((px / float(nav) - 1) * 100, 3)
         out[c] = row
+    # [2026-09-03] 어느 출처가 채웠는지 남긴다 — 예비가 끼면 「naver etfItemList + daum(kakao)」처럼.
+    srcs = sorted({str(it.get('_source') or 'naver etfItemList') for it in items
+                   if str(it.get('itemcode', '')) in out})
     return {
         'as_of_kst': now.strftime('%Y-%m-%d %H:%M'),
         'as_of_iso': now.isoformat(timespec='seconds'),
-        'source': 'naver etfItemList',
+        'source': ' + '.join(srcs) if srcs else 'naver etfItemList',
         'note': '표시 전용 — 신호 판정에 쓰지 않는다',
         'items': out,
     }

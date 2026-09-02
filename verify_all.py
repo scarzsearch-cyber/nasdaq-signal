@@ -270,6 +270,16 @@ def i5_decisions(D):
             ok("시세: 화면이 시세를 표시 경로로만 쓴다",
                'loadPrice' in h and 'chgBadge' in h,
                'price.json 은 배지·현재가 기본값에만 (v145)')
+            # [2026-09-03] 예비 출처 체인(kr_sources)은 표시·기록·원자료 경로 **셋에만** 붙고,
+            #   판정 경로(update_signal · wait_close)엔 **없어야** 한다 — 판정은 QQQ 종가 3중 체인+캐시 그대로.
+            def _rd(p):
+                return io.open(p, encoding='utf-8').read() if os.path.exists(p) else ''
+            pn, nc, rh, wc = (_rd('deploy/price_now.py'), _rd('deploy/nav_collect.py'),
+                              _rd('deploy/refresh_hist.py'), _rd('deploy/wait_close.py'))
+            ok("시세: 예비 출처 체인이 표시·기록·원자료 경로에 붙고 판정 경로엔 없다",
+               os.path.exists('deploy/kr_sources.py') and 'kr_sources' in pn and 'kr_sources' in nc
+               and 'kr_sources' in rh and 'kr_sources' not in up and 'kr_sources' not in wc,
+               '네이버 목록 → polling → 모바일 → 다음 → 토스 → 야후 → 구글 (2026-09-03) · 판정은 QQQ 종가 3중 체인')
         # [v192] 실행 규율 알림 2종(전환 실행일 재알림·근접 진입)이 파수꾼 모드와 워크플로 스텝
         #   **양쪽**에 있는가 — 한쪽만 있으면 조용히 안 돈다. 그리고 근접 판정이 B(strategies.B ·
         #   recent[].B)를 읽는가 — signal.json 최상위 키는 A 미러라(exit −11) 읽으면 복귀선이 틀린다.
