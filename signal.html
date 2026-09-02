@@ -1124,7 +1124,7 @@ function paintFact(show){
 }
 
 /* [v164] 낙폭 백분위 — 오늘의 낙폭이 54년 분포에서 어느 깊이인가.
-   research/emit_dd_distribution.py 산출물(연 1회 수동 갱신)을 읽기만 한다.
+   research/emit_dd_distribution.py 산출물(v197 부터 매월 자동 갱신)을 읽기만 한다.
    ★ 순수 위치 정보다 — 「위험하다/사라」 같은 판단어를 쓰지 않는다.
      전환은 −16% 게이트만 정하며 이 숫자는 판정에 전혀 쓰이지 않는다. */
 let DDPCT = null;
@@ -1758,7 +1758,7 @@ function freshDot(iso){
 }
 function pnum(v){ return parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')) || 0; }
 
-/* [v145] 4다리 시세 스냅샷 — deploy/price_now.py 산출물. 장중 30분 간격이라
+/* [v145] 4다리 시세 스냅샷 — deploy/price_now.py 산출물. 장중 5분 간격(v190)이라
    실시간이 아니다. **판정에 쓰지 않는다** — 화면 표시 전용이고, 파일이 없거나
    낡았으면 조용히 숨긴다(신선도 원칙: 옛 값을 새 값인 척 보여주지 않는다). */
 let PRICE = null;
@@ -1768,7 +1768,7 @@ async function loadPrice(){
     if(j && j.items && Object.keys(j.items).length) PRICE = j;
   }catch(e){ PRICE = null; }
 }
-/* 스냅샷이 몇 분 전 것인지 — 30분 간격이므로 그 이상 벌어지면 사용자가 알아야 한다. */
+/* 스냅샷이 몇 분 전 것인지 — 5분 간격(v190)이므로 그 이상 벌어지면 사용자가 알아야 한다. */
 function priceAgeMin(){
   if(!PRICE || !PRICE.as_of_iso) return null;
   const t = Date.parse(PRICE.as_of_iso);
@@ -1809,13 +1809,13 @@ function devBadge(code){
 }
 
 /* [v173] 화면을 켜 둔 채로도 시세를 다시 읽는다.
-   ★ 문제였던 것: loadPrice() 가 **페이지를 열 때 딱 1회**만 돌았다. 30분마다 새 값이
+   ★ 문제였던 것: loadPrice() 가 **페이지를 열 때 딱 1회**만 돌았다. 5분마다(v190) 새 값이
      올라와도 새로고침을 안 하면 처음 열었을 때 값을 계속 본다(장중 내내 아침 값).
    ★ 입력칸은 건드리지 않는다: drawPort() 는 종목이 바뀔 때만 칸을 다시 만드는데
      (포커스 보존), 여기서는 **배지와 placeholder 만 제자리 교체**한다 — 사용자가
      타이핑 중이어도 캐럿이 날아가지 않는다. 저장값(PORT)도 안 만진다.
    ★ 판정에는 여전히 안 쓴다 — 전환은 QQQ 미국 종가만 본다(동결 규칙). */
-const PRICE_TICK_MS = 5 * 60 * 1000;      // 수집이 30분 간격이라 이보다 촘촘할 이유가 없다
+const PRICE_TICK_MS = 5 * 60 * 1000;      // 수집이 5분 간격(v190)이라 같은 주기로 본다
 let _priceTimer = null;
 
 async function refreshPrice(){
@@ -1996,7 +1996,7 @@ function portCompute(){
     // [v174] v145 이후 기본값은 **오늘 장중 스냅샷**이다(있을 때). 「전일 종가」는
     //        그 전 사양이라 틀린 문장이 돼 있었다 — 보유 입력 전에만 보이는 줄이라
     //        v145~v173 내내 아무도 못 봤다. 실제 동작을 그대로 말한다.
-    note.innerHTML = `현재가 기본값은 ${PRICE ? '자동 수집된 <b>장중 시세</b>(30분 간격 스냅샷)'
+    note.innerHTML = `현재가 기본값은 ${PRICE ? '자동 수집된 <b>장중 시세</b>(5분 간격 스냅샷)'
         : '자동 수집된 <b>전일 종가</b>'}입니다 — 주문 직전 값은 증권사 앱이 정확합니다.
       보유 수량만 넣으면 현재 비중과 필요한 매매가 계산됩니다.
       <b>자동 주문은 없습니다</b> — 체결은 직접, <b>09:05~15:20</b>.`;
