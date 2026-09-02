@@ -66,8 +66,40 @@ def fetch():
     missing = [c for c in CODES if c not in have]
     if missing:
         import kr_sources
-        items += kr_sources.quotes(missing)
+        items += [it for it in kr_sources.quotes(missing) if _plausible(it)]
     return items
+
+
+def _last_known(code):
+    """nav_history.csv 의 그 종목 마지막 종가 — 예비 출처 가격의 대조 기준(저장소에 있어 러너에서도 읽힌다)."""
+    p = os.path.join(ROOT, 'data', 'nav_history.csv')
+    if not os.path.exists(p):
+        return None
+    import csv
+    last = None
+    with io.open(p, encoding='utf-8') as f:
+        for r in csv.DictReader(f):
+            if r.get('code') == code:
+                last = r.get('close')
+    try:
+        return float(last) if last else None
+    except ValueError:
+        return None
+
+
+def _plausible(it, tol=0.25):
+    """[2026-09-03] 예비 출처 가격 가드 — 잘못 파싱한 값(다른 종목의 금액 등)이 「오늘의 행동」 주수 계산에
+    들어가지 않게, 마지막 알려진 종가와 25% 넘게 어긋나면 그 종목은 싣지 않는다(화면은 없으면 숨긴다).
+    2배 ETF 의 하루 최대 움직임(±20%대)보다 넓게 잡았다 — v122 체결가 오타 가드(±20%)와 같은 발상."""
+    ref = _last_known(str(it.get('itemcode', '')))
+    px = it.get('nowVal')
+    if ref is None or not isinstance(px, (int, float)) or px <= 0:
+        return bool(px and px > 0)
+    if abs(px / ref - 1) > tol:
+        print('[price] 예비 출처 %s 값 %s 이 마지막 종가 %s 와 %.0f%% 어긋남 — 싣지 않음 (%s)'
+              % (it.get('itemcode'), px, ref, abs(px / ref - 1) * 100, it.get('_source')), file=sys.stderr)
+        return False
+    return True
 
 
 def build(items):

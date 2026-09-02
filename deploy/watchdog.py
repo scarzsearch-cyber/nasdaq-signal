@@ -420,7 +420,12 @@ def mode_channel():
 
     print('살아 있음: ' + (', '.join(alive) if alive else '없음'))
     if not alive and not dead:
-        print('알림 채널 secret 미설정 — 확인할 것 없음')
+        # [2026-09-03] 채널이 **하나도 등록돼 있지 않은** 상태는 「확인할 것 없음」이 아니라 「전환일에 아무 알림도
+        #   안 오는 상태」다 — 카톡으로는 말할 수 없으니 이슈(메일)로 한다. 주간 슬롯에서만 켜 댓글이 매일 붙지 않게.
+        #   (v177 생존 알림이 「안 오는 것」으로 알려 주긴 하지만 한 달 걸린다.)
+        print('알림 채널 secret 미설정 — 전환일에 알림이 안 온다')
+        if os.environ.get('WEEKLY', '').lower() == 'true':
+            out('alert', 1)
         return
     if not dead:
         return

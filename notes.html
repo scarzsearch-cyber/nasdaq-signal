@@ -122,8 +122,22 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v199</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v200</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v200</span><span class="tag fix">수정</span>
+        <span class="ttl">마지막 점검 셋 — 예비 시세 가격 가드 · 알림 채널 없음 경고 · 방어 중 분배금 현금</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>① 어제 붙인 예비 시세 출처가 엉뚱한 값을 주면 그 종목을 화면에 싣지 않습니다(마지막 종가와 25% 넘게 어긋나면).
+          ② 알림 채널이 하나도 등록돼 있지 않으면 파수꾼이 주 1회 이슈(메일)로 알립니다 — 지금은 카톡이 등록돼 있어 해당 없음.
+          ③ 설명서 ③에 한 문장 — 방어 중 배당·국채 ETF의 <b>분배금 현금은 「현금」 칸에 직접 넣어야</b> 30일 재조정이 맞습니다.</dd>
+        <dt>왜</dt><dd>①은 예비 출처의 부작용입니다. 잘못 파싱한 가격이 「오늘의 행동」 주수 계산에 들어갈 수 있었습니다.
+          ②는 종전 파수꾼이 「채널 없음」을 「확인할 것 없음」으로 넘기던 것입니다. ③은 화면이 계좌를 못 보기 때문에 사람이 적어야 하는데
+          어디에도 안내가 없었습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>규칙은 그대로.</b> 이 셋 뒤로는 더 찾지 못했습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix">
       <div class="head"><span class="v">v199</span><span class="tag fix">수정</span>
