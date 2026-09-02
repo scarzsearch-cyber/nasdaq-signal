@@ -89,7 +89,11 @@ jobs:
             # "8/28 종가"라고 찍혔지만 실제로는 8/27 종가였던 혼동을 막는다.
             ASOF=$(python3 -c "import json; print(json.load(open('data/signal.json'))['as_of'])")
             git commit -m "signal: ${ASOF} 미국 종가 반영 · NAV 적립"
-            git push
+            # [2026-09-03] v190 부터 이 작업은 체크아웃 뒤 마감까지 최대 25분을 기다린다 — 그 사이 사람이 main 에
+            #   push 하면 여기 push 가 non-fast-forward 로 거부된다(실측 09-03 04:37·04:48 슬롯 둘 다 실패 → 예비
+            #   05:27 슬롯이 살림 = 「5분 안」 약속이 그날 깨짐 + 새벽 실패 카톡 2통). 파수꾼 커밋 스텝과 같은
+            #   재시도: 사람 커밋은 문서·연구, 여기는 data/ 라 충돌은 없다.
+            git push || { git pull --rebase --autostash origin main && git push; }
           fi
 
       # [v73] 실패 알림 — Telegram/Discord (GitHub Secrets, 미설정이면 조용히 생략)

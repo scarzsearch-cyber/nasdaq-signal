@@ -100,7 +100,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `data/kr_holidays.json` | 휴장일 표(현재 2026~2032 · 116일). `signal.html` 시계 · `price_poll.py` · 파수꾼 `switchday` 가 읽는다(전부 오늘/미래만). **[v195] 매년 자동 연장** |
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
-| `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 |
+| `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 · **[2026-09-03] 커밋 push 는 rebase 재시도**(마감 전 대기 25분 동안 사람 push 와 경쟁 — 실사고) |
 | `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검·**휴장일 표 연장**[v195]. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/source-probe.yml` | **[2026-09-03] 출처 점검(수동)** — `kr_sources.py --probe` 를 GitHub 러너(미국 IP)에서 돌려 예비 출처가 거기서도 응답하는지 본다. 읽기만(커밋 0·알림 0). 정기 실행 없음 | 러너 IP 차단 여부 확인용 |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
@@ -514,7 +514,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|
 | `deploy/stamp_rev.py` | 배포본에 **화면 개정 시점**을 박는다 — signal.html 커밋 제목의 vNN 을 추출(그래서 커밋 제목에 vNN 필수) |
 | `deploy/wait_close.py` | **[v75]** 종가 확정 대기 루프 — GitHub 예약 실행이 슬롯을 통째로 건너뛰는 실측 사례에 대응. **[v190] 마감 전에 뜨면 마감까지 자고 20초 간격으로 종가가 굳는 순간을 잡는다**(쓰기 전 30초 안정 확인 · 큰 움직임이면 대조 소스 CLOSE 까지 최대 15분 대기 · 마감 뒤 8분 안 굳으면 조용히 종료해 다음 슬롯에 맡김). `--selftest` 가짜 시계 9경로 |
-| `.github/workflows/monthly-stats.yml` | 매월 1일 성과표·지평표 데이터 최신화 (검증 통과 시에만) |
+| `.github/workflows/monthly-stats.yml` | 매월 1일 성과표·지평표 데이터 최신화 (검증 통과 시에만) · **[2026-09-03] push rebase 재시도** |
 | `.github/workflows/notify-test.yml` | **[v76]** secret 등록 후 알림 채널 수동 연결 확인. 예약 실행 없음 |
 
 ### 9-9. 화면·시세 (v142~v147)
