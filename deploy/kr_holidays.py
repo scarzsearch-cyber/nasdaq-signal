@@ -370,6 +370,15 @@ def emit(y0=None, y1=None, path='data/kr_holidays.json'):
     for y in range(y0, y1 + 1):
         for d, why in holidays(y).items():
             out[d.isoformat()] = why
+    # [v195] 파수꾼이 매주 부르므로 **내용이 같으면 쓰지 않는다** — generated_at 만 바뀐 파일을
+    #   매주 커밋하면 v176 이 없앤 이력 소음이 되살아난다. 해가 바뀌어 범위가 밀릴 때만 바뀐다.
+    try:
+        old = json.load(open(path, encoding='utf-8'))
+        if old.get('holidays') == out and old.get('range') == [y0, y1]:
+            print(f'변경 없음 — {path} ({len(out)}일, {y0}~{y1})')
+            return
+    except Exception:
+        pass
     payload = dict(
         generated_at=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
         range=[y0, y1],

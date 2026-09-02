@@ -274,6 +274,13 @@ def i5_decisions(D):
                and 'watchdog.py switchday' in wy and 'watchdog.py near' in wy
                and "row.get('B'" in wd,
                '모드만 있고 스텝이 없으면 조용히 안 돈다 · 근접 판정은 B 열 (v192)')
+            # [v195] 휴장일 표는 2032 에 조용히 끝난다 — 주간 슬롯이 재생성하고, 같으면 안 써서 커밋 소음이 없다.
+            kh = (io.open('deploy/kr_holidays.py', encoding='utf-8').read()
+                  if os.path.exists('deploy/kr_holidays.py') else '')
+            ok("파수꾼: 휴장일 표가 매주 자동 연장된다 (같으면 안 씀)",
+               'kr_holidays.py --emit' in wy and 'git add data/ops_check.json data/kr_holidays.json' in wy
+               and "old.get('holidays') == out" in kh,
+               '2032 에 조용히 끝나는 파일 — 재생성은 주간, 커밋은 해가 바뀔 때만 (v195)')
         if os.path.exists('notes.html'):
             n = io.open('notes.html', encoding='utf-8').read()
             # [v142] 업데이트 노트의 핵심 메시지는 「규칙은 안 바뀌었다」 — 이게 사라지면

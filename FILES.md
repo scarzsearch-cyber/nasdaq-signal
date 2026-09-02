@@ -96,12 +96,12 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
 | `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
-| `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **매일 돌지 않음**(로컬 수동) |
-| `data/kr_holidays.json` | 2026~2032 휴장일 110일. `signal.html` 시계가 읽는다 |
+| `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **[v195] 파수꾼 주간 슬롯이 매주 돌린다** — 내용이 같으면 쓰지 않으므로 해가 바뀔 때만 커밋이 난다. 임시공휴일·선거일은 SPECIAL 에 손으로 |
+| `data/kr_holidays.json` | 휴장일 표(현재 2026~2032 · 116일). `signal.html` 시계 · `price_poll.py` · 파수꾼 `switchday` 가 읽는다(전부 오늘/미래만). **[v195] 매년 자동 연장** |
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 |
-| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
+| `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검·**휴장일 표 연장**[v195]. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
