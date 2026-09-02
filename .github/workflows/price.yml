@@ -4,33 +4,46 @@
 #   이 워크플로는 **화면 표시용 숫자**만 만들며, 실패해도 신호에 영향이 없다.
 #   그래서 알림도 걸지 않는다 — 시세가 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다.
 #
-# 주기: 한국장 중 **5분마다** (00:00~06:55 UTC = 09:00~15:55 KST).
-#   [v176] 종전 30분 -> 5분. GitHub 예약 실행의 최소 간격이 5분이라 이보다 촘촘히는
-#   불가능하다(공식 문서). 예약은 부하가 높으면 지연·드롭되므로 「정확히 5분마다」를
-#   보장하지 않으며, 화면이 스냅샷 시각을 항상 표시한다.
+# [v190] 「5분마다」를 예약이 아니라 **폴러 한 실행**이 지킨다 (deploy/price_poll.py).
+#   실측(2026-09-01, gh run list): 종전 `*/5` 예약은 하루 84슬롯 중 **17개만** 떴다 —
+#   간격 중앙 31.6분·최장 108분, 첫 스냅샷 09:06(09-01)·09:22(09-02).
+#   GitHub 예약 실행은 부하가 높으면 지연·드롭되고 정시(00:00 UTC = 09:00 KST)가 가장
+#   심하다(공식 문서). v176 의 「5분마다」는 실현된 적이 없다.
+#   이제 개장 전 슬롯(08:30·08:40·08:50 KST)에 뜬 실행이 09:00:20 부터 12:25 까지
+#   5분마다 찍고 오후 실행에 넘긴다(12:30~15:55 — 한 실행은 6시간 상한).
+#   스냅샷마다 pages.yml 을 workflow_dispatch 로 깨운다 — 그래서 actions: write.
+#   (GITHUB_TOKEN 이 만드는 이벤트 중 workflow_dispatch 는 예외적으로 새 실행을 만든다.)
+#   예비 슬롯(매시 :20·:50)은 동시성 그룹에서 대기하다 폴러가 죽었을 때만 이어받는다.
 #
-# ★ [v176] 결과물을 main 이 아니라 **price-data 브랜치**에 **항상 커밋 1개**로
-#   force-push 한다. 30분일 때도 최근 20건 중 14건이 시세 커밋이라 `git log` 가
-#   덮이고 있었다 — 5분이면 그 4배다. 이력을 나중에 지우는 것은 금지다
-#   (CLAUDE.md §0: 이 커밋 이력이 「규칙 무변경」의 증거라 다시 쓰면 증거가 죽는다).
-#   그래서 **애초에 안 쌓는 쪽**으로 간다. main 의 시세 커밋은 이제 0건이다.
+# ★ [v176] 결과물은 main 이 아니라 **price-data 브랜치**에 **항상 커밋 1개**로 force-push.
+#   이력을 나중에 지우는 것은 금지다(CLAUDE.md §0: 이 커밋 이력이 「규칙 무변경」의
+#   증거라 다시 쓰면 증거가 죽는다). 그래서 **애초에 안 쌓는 쪽**으로 간다.
 name: price
 
 on:
   schedule:
-    - cron: '*/5 0-6 * * 1-5'       # 09:00~15:55 KST 5분 간격 (월~금) [v176]
+    - cron: '30,40,50 23 * * 1-5'   # 08:30·08:40·08:50 KST — 개장 전 대기 시작 (하나만 떠도 된다)
+    - cron: '20,50 0-6 * * 1-5'     # 매시 :20·:50 KST — 폴러가 죽었을 때 이어받는 예비
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'once = 지금 한 번 · poll = 이 구간 끝까지 5분마다'
+        type: choice
+        options: [once, poll]
+        default: once
 
 permissions:
   contents: write
+  actions: write      # [v190] 스냅샷마다 pages.yml 을 깨우고, 12:26 에 오후 실행을 부른다
 
 concurrency:
   group: price
-  cancel-in-progress: false
+  cancel-in-progress: false   # 폴러가 도는 동안 새 실행은 대기 — 끝나면 이어받는다
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
+    timeout-minutes: 300      # 구간 최장 3시간 56분 (08:30 → 12:26)
     steps:
       - uses: actions/checkout@v4
 
@@ -38,31 +51,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 시세 수집
-        run: python deploy/price_now.py
-
-      # [v176] main 이 아니라 price-data 브랜치에 **항상 커밋 1개**로 덮어쓴다.
-      #   orphan 브랜치를 매번 새로 만들어 force-push 하므로 이력이 안 쌓인다.
-      #   ★ 수집 실패 시 price_now.py 는 파일을 쓰지 않는다(기존 값을 지어내지 않는 규약) —
-      #     그 경우 브랜치를 그대로 두어 **마지막 정상 스냅샷이 살아 있게** 한다.
-      - name: 시세 브랜치에 덮어쓰기
-        run: |
-          if [ ! -f data/price.json ]; then
-            echo "수집 실패 — 브랜치를 그대로 둔다(마지막 정상 스냅샷 유지)"; exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 값이 그대로면 배포까지 헛돌 이유가 없다 — 시각(as_of)은 빼고 items 만 비교한다.
-          if git fetch -q --depth=1 origin price-data 2>/dev/null \
-             && git show FETCH_HEAD:data/price.json > /tmp/prev.json 2>/dev/null \
-             && python3 -c "import json,sys; sys.exit(0 if json.load(open('/tmp/prev.json')).get('items')==json.load(open('data/price.json')).get('items') else 1)"; then
-            echo "시세 변화 없음 — 브랜치 갱신 생략"; exit 0
-          fi
-          git checkout -q --orphan price-tmp
-          # -f 필수: 방금 수집이 data/price.json 을 고쳐 놔서 인덱스와 어긋난다.
-          #   --cached 라 작업트리 파일은 그대로 남는다(다음 줄에서 다시 add 한다).
-          git rm -rqf --cached . > /dev/null
-          git add -f data/price.json
-          git commit -q -m "price: $(date -u +%Y-%m-%dT%H:%MZ) 스냅샷 (항상 커밋 1개)"
-          git push -qf origin price-tmp:price-data
-          echo "price-data 브랜치 갱신 완료"
+      # 예약 = 폴링, 수동 = 입력값(기본 once). 폴러 자신이 오후 인계 때 mode=poll 로 부른다.
+      - name: 시세 폴링 (개장까지 대기 → 5분마다 스냅샷 → price-data → 배포)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MODE: ${{ github.event_name == 'schedule' && 'poll' || (github.event.inputs.mode || 'once') }}
+        run: python deploy/price_poll.py --mode "$MODE"

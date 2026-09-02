@@ -100,7 +100,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `data/kr_holidays.json` | 2026~2032 휴장일 110일. `signal.html` 시계가 읽는다 |
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
-| `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행 |
+| `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 |
 | `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176] 감시 + 월요일 09:10 KST 자동 점검. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
 | `data/signal.json` | 뷰어가 읽는 현재 상태 (두 전략 + 성과지표 + 위기 궤적) |
@@ -500,7 +500,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | 파일 | 역할 |
 |---|---|
 | `deploy/stamp_rev.py` | 배포본에 **화면 개정 시점**을 박는다 — signal.html 커밋 제목의 vNN 을 추출(그래서 커밋 제목에 vNN 필수) |
-| `deploy/wait_close.py` | **[v75]** 종가 확정 대기 루프 — GitHub 예약 실행이 슬롯을 통째로 건너뛰는 실측 사례에 대응 |
+| `deploy/wait_close.py` | **[v75]** 종가 확정 대기 루프 — GitHub 예약 실행이 슬롯을 통째로 건너뛰는 실측 사례에 대응. **[v190] 마감 전에 뜨면 마감까지 자고 20초 간격으로 종가가 굳는 순간을 잡는다**(쓰기 전 30초 안정 확인 · 큰 움직임이면 대조 소스 CLOSE 까지 최대 15분 대기 · 마감 뒤 8분 안 굳으면 조용히 종료해 다음 슬롯에 맡김). `--selftest` 가짜 시계 9경로 |
 | `.github/workflows/monthly-stats.yml` | 매월 1일 성과표·지평표 데이터 최신화 (검증 통과 시에만) |
 | `.github/workflows/notify-test.yml` | **[v76]** secret 등록 후 알림 채널 수동 연결 확인. 예약 실행 없음 |
 
@@ -509,7 +509,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | 파일 | 역할 |
 |---|---|
 | `deploy/price_now.py` | **[v145] 4다리 시세 스냅샷** → `data/price.json`. 출처는 `nav_collect.py` 와 **같은 엔드포인트**(네이버 ETF 목록, cp949) — 새 의존성 0. 가격·등락률·NAV·괴리율. **★ 표시 전용 · 판정 무접촉** (실패해도 신호 무영향이라 항상 exit 0, 기존 파일을 덮어쓰지 않는다) |
-| `.github/workflows/price.yml` | **[v145]** 한국장 중 30분마다 위를 돌려 커밋. 알림 없음 — 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다 |
+| `deploy/price_poll.py` | **[v190] 장중 시세 폴러** — 「5분마다」를 예약이 아니라 한 실행 안에서 지킨다(종전 `*/5` 예약은 84슬롯 중 17개만 떴다 — 2026-09-01 실측). 개장까지 대기 → 5분 경계+20초마다 price_now 와 같은 수집 → 값이 바뀌면 price-data 브랜치 덮어쓰기(임시 저장소, 항상 커밋 1개) → `gh workflow run pages.yml` 로 배포 → 12:26 에 오후 실행 인계. 배포 깨우기가 막히면 즉시 종료해 종전 방식으로 물러선다. `--selftest`(구간·정렬·휴장·하루 85스냅샷) · `--dry-run` · `--mode once` |
+| `.github/workflows/price.yml` | **[v145]** 한국장 중 시세 스냅샷. **[v190] 예약이 아니라 폴러** — 개장 전 슬롯(08:30·08:40·08:50 KST)에 뜬 실행이 09:00:20 부터 5분마다 찍고 12:26 에 오후 실행에 넘긴다. 예비 슬롯 매시 :20·:50(폴러가 죽었을 때만 이어받음). `actions: write` 는 배포 깨우기용. 알림 없음 — 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다 |
 | `research/emit_dd_distribution.py` | **[v164] 낙폭 백분위 산출** → `data/dd_percentile.json`. `hist_defensive.build('chain')['ddv']` 를 **읽기 전용**으로 써 1~99 백분위 경계를 뽑는다. **로컬 수동 실행 · 연 1회 정도**(분포는 하루이틀로 안 변한다) — `build_stats.py`·`build_crisis_paths.py` 와 같은 성격이며 **자동 워크플로에 넣지 않는다**. 원자료를 연장했을 때 다시 돌린다 |
 | `data/dd_percentile.json` | **[v164]** 위 산출물. 화면이 「오늘 낙폭이 54년 중 어느 깊이인가」를 말할 때 읽는 자. **판정에 쓰지 않는다** |
 | `data/price.json` | **[v145·v176]** 위 산출물. 화면 `loadPrice()` 가 읽어 배지·현재가 기본값에만 쓴다. **`update_signal.py` 가 이 파일을 읽으면 verify_all 이 실패한다**(동결 규칙 보호). ★ **v176 부터 main 에 없다** — `price-data` 브랜치(항상 커밋 1개)가 원본이고 `.gitignore` 에 있다. 배포가 그 브랜치에서 가져오며, **못 가져오면 싣지 않는다** (옛 값을 새 값인 척 보여주지 않는다) |
