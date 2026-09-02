@@ -764,7 +764,12 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <span style="margin-left:auto;display:flex;gap:6px"><button id="perfCols" class="chipbtn"
         type="button">전체 지표 +</button><button id="perfCsv" class="chipbtn" type="button">CSV 내보내기</button></span></h2>
     <div class="perf" id="perfBody"></div>
-    <div class="hint" id="perfNote"></div>
+    <!-- [v196] 각주(주의·전제·심사 3문단, 716자)가 표만큼 컸다(412px 542px vs 표 511px).
+         내용은 한 글자도 안 지우고 접는다 — v180 기준(상태는 밖, 설명은 안). -->
+    <details class="foldbox" id="perfNoteFold" style="margin-top:8px">
+      <summary>각주 — 주의 · 전제 · 심사</summary>
+      <div class="hint" id="perfNote"></div>
+    </details>
     <h3 class="sub">같은 기간으로 맞추면</h3>
     <div class="perf" id="horizBody"></div>
     <div class="hint" id="horizNote"></div>
@@ -783,8 +788,10 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     </div>
     <!-- [v127 항목20] 위기 타임머신 — 검증 엔진이 만든 과거 계좌가치 경로를 스크럽.
          데이터 없으면(구배포·로컬) 조용히 숨김. -->
-    <div id="tmWrap" hidden style="margin-top:14px;padding:12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface2)">
-      <div style="font-weight:800;font-size:16px;margin-bottom:2px">🕰️ 위기 타임머신</div>
+    <!-- [v196] 타임머신(342px)은 기본 접힘 — 위기 궤적 그래프는 그대로 펼쳐 둔다. -->
+    <details class="foldbox" id="tmFold" hidden style="margin-top:14px">
+      <summary>🕰️ 위기 타임머신 — 1,000만원으로 재생</summary>
+    <div id="tmWrap" hidden style="padding:12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface2)">
       <div class="hint" style="margin-top:0;font-size:12.5px"><b>과거의 실제 재현</b>(예측 아님) ·
         달러 기준 · 세전 · 고점 후 400거래일</div>
       <div id="tmTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
@@ -796,6 +803,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       </div>
       <div id="tmDay" class="hint" style="font-size:12px;margin-top:4px"></div>
     </div>
+    </details>
   </div>
 
   <!-- 수치 출처: axis_isa.py [v33 정정 반영] (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
@@ -2127,6 +2135,10 @@ function chkHtml(){
       `<label><input type="checkbox" data-i="${i}" ${st[i] ? 'checked' : ''}> ${t}</label>`).join('')
     /* [v136] 주문 방법 링크 — 전환은 연 2~3회뿐이라 그때마다 호가창을 다시 배운다.
        label 밖에 둔다 (label 안이면 링크를 눌러도 체크박스가 토글된다). */
+    /* [v196] 망설이는 순간의 한 줄 — 새 문장 창작 0: 04 §5-8·설명서 §③ 에 이미 발행된 수치.
+       v129 가 지운 「상기성 문구」와 다르다 — 그건 평시 면책이고 이건 결정 순간의 근거다. */
+    + `<div class="chkmiss">망설여진다면 — 과거 139번의 전환 중 <b>75번(54%)</b>은 손해로 끝났고 그게 정상입니다.
+       놓친 전환의 최악은 <b>−96.5%</b>(2000-09-06)였습니다.</div>`
     + `<div class="chklink"><a href="guide.html#order">주문 방법 — 괴리율 확인 · 지정가 넣는 법 →</a></div>`
     /* [v160] 못 한 날의 안내 — 전환일에만 뜨므로 평소엔 보이지 않는다.
        수치는 01_Strategy_Logic.md §3 의 기존 문장(v21 §4.3)을 그대로 인용한다. */
@@ -3215,6 +3227,8 @@ async function initTimeMachine(){
   const keys = Object.keys(TM).filter(k => k !== '_meta');
   if(!keys.length) return;
   wrap.hidden = false;
+  const fold = document.getElementById('tmFold');   // [v196] 감싼 details 도 같이 보인다
+  if(fold) fold.hidden = false;
   document.getElementById('tmTabs').innerHTML = keys.map(k =>
     `<button class="chip" type="button" data-k="${k}" aria-pressed="false">${k}</button>`).join('');
   document.querySelectorAll('#tmTabs .chip').forEach(b =>

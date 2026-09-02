@@ -660,10 +660,21 @@ def mode_heartbeat():
     # 알림에 실을 사실들 (하나라도 못 읽으면 그 줄만 빠진다 — 심장박동을 막지 않는다)
     lines = []
     try:
-        as_of = json.load(open(SIGNAL, encoding='utf-8'))['as_of']
+        sj = json.load(open(SIGNAL, encoding='utf-8'))
+        as_of = sj['as_of']
         lines.append(f'· 신호 {as_of} ({biz_days_since(as_of)}영업일 전)')
+        # [v196] 상태 한 줄 — B 는 strategies.B (최상위 state 는 A 미러, v192 적발). 메시지 수는 안 는다.
+        b = (sj.get('strategies') or {}).get('B') or {}
+        st = '방어' if b.get('state') == 'SCHD' else '공격'
+        lines.append(f"· 판정 {st} · 낙폭 {sj.get('dd')}% · {'복귀선' if st == '방어' else '전환선'}까지 {b.get('gap_pp')}%p")
     except Exception:
         lines.append('· 신호 — 읽지 못했습니다')
+    try:
+        import csv
+        rows = [r for r in csv.DictReader(open(OOSLOG, encoding='utf-8')) if r.get('as_of')]
+        lines.append(f"· 동결 후 장부 {len(rows)}일 · 전환 {sum(1 for r in rows if r.get('changed') == '1')}회")
+    except Exception:
+        pass                                  # 장부는 부가 정보 — 없으면 그냥 뺀다
     try:
         subprocess.run(['git', 'fetch', '-q', '--depth=1', 'origin', 'price-data'],
                        check=True, timeout=120)

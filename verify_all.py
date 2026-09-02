@@ -401,6 +401,11 @@ def i5_decisions(D):
            "function drawPending" in h and "function wrongSideWeight" in h
            and "<b>전환 미체결</b>" in h and "오늘 할 일 없음" in h,
            '보유가 판정 반대편이면 상단 경고 유지 · 체결 기록으로 해제 (v191)')
+        # [v196] 접은 것은 접혔을 뿐 내용은 남아야 한다 — 각주 3문단·타임머신·체크리스트 한 줄.
+        ok("화면: 성과표 각주·타임머신은 접힘(details) + 전환일 한 줄",
+           'id="perfNoteFold"' in h and 'id="tmFold"' in h and "fold.hidden = false" in h
+           and '75번(54%)' in h and '−96.5%' in h,
+           '내용 무삭제 접기 (v196) — 각주 3문단 검사는 아래 별도')
         ok("화면: 모바일 고정열(Sticky)",
            "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
         ok("화면: T4 그림자 패널 (평가 전용)",
