@@ -516,6 +516,12 @@ td.s-schd{color:var(--defend);font-weight:600;}
 .standby .basket .code{font-size:11.5px}
 /* [v78] 상단 탭 — 오늘의 신호 / 설명서 (별도 화면) */
 .tabs{display:flex;gap:6px;margin:0 0 10px}
+/* [v198] 바깥 링크 스트립 — 최상단. 색은 규약(공격 파랑 = 행동 링크, v128 .chipbtn 과 같은 계열) */
+.extbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.extbar .lbl{font-size:12.5px;color:var(--muted);margin-right:2px}
+.extbar a{padding:5px 11px;border-radius:999px;border:1px solid var(--attack);color:var(--attack);
+  font-size:13.5px;font-weight:700;text-decoration:none;background:transparent}
+.extbar a.more{padding:5px 9px;border-color:var(--rule);color:var(--muted);font-weight:800}
 .tabs a{padding:6px 14px;border-radius:8px;border:1px solid var(--rule);font-size:14px;
   font-weight:700;text-decoration:none;color:var(--muted);background:var(--panel)}
 .tabs a.on{color:#fff;background:var(--attack);border-color:var(--attack)}
@@ -639,6 +645,15 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
        전제·상품·비용 이상이 여기로 온다 (자동 파수꾼이 주 1회 채운다). -->
   <div class="stale warn" id="opsWarn" hidden></div>
 
+
+  <!-- [v198] 바깥 링크 — 소유자: 「너무 중요한 거라 최상단에」. 상세 표는 설명서 맨 위(#links). -->
+  <div class="extbar" id="extbar" aria-label="바깥에서 보기">
+    <span class="lbl">바깥에서 보기</span>
+    <a href="https://www.google.com/finance/beta?hl=ko" target="_blank" rel="noopener noreferrer">구글 파이낸스 ↗</a>
+    <a href="https://m.stock.naver.com/" target="_blank" rel="noopener noreferrer">네이버 증권 ↗</a>
+    <a href="https://m.stock.naver.com/domestic/stock/418660/total" target="_blank" rel="noopener noreferrer">418660 호가·NAV ↗</a>
+    <a href="guide.html#links" class="more">?</a>
+  </div>
 
   <div class="minibar" id="minibar">
     <span class="st" id="mbState">—</span>

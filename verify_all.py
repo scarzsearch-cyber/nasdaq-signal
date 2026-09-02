@@ -413,6 +413,14 @@ def i5_decisions(D):
            'id="perfNoteFold"' in h and 'id="tmFold"' in h and "fold.hidden = false" in h
            and '75번(54%)' in h and '−96.5%' in h,
            '내용 무삭제 접기 (v196) — 각주 3문단 검사는 아래 별도')
+        # [v198] 바깥 링크 스트립 — 소유자 「너무 중요한 거라 최상단에」. 세 링크가 신호 화면에, 표는 설명서 맨 위(#links).
+        if os.path.exists('guide.html'):
+            gd = io.open('guide.html', encoding='utf-8').read()
+            ok("화면: 바깥 링크 스트립(구글 파이낸스·네이버 증권·418660) + 설명서 #links",
+               'id="extbar"' in h and 'google.com/finance' in h and 'm.stock.naver.com/' in h
+               and 'stock/418660/total' in h and 'id="links"' in gd
+               and gd.index('id="links"') < gd.index('<section id="what"'),
+               '표는 설명서 최상단(§① 앞), 스트립은 신호 화면 (v198)')
         ok("화면: 모바일 고정열(Sticky)",
            "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
         ok("화면: T4 그림자 패널 (평가 전용)",

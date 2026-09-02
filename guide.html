@@ -21,6 +21,14 @@ body{background:var(--paper);color:var(--ink);font-family:'Pretendard',-apple-sy
   font-size:15.5px;line-height:1.72;-webkit-text-size-adjust:100%}
 .wrap{max-width:860px;margin:0 auto;padding:18px 16px 60px}
 .tabs{display:flex;gap:6px;margin:0 0 10px}
+/* [v198] 바깥 링크 스트립 — 최상단. 색은 규약(공격 파랑 = 행동 링크, v128 .chipbtn 과 같은 계열) */
+.extbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.extbar .lbl{font-size:12.5px;color:var(--muted);margin-right:2px}
+.extbar a{padding:5px 11px;border-radius:999px;border:1px solid var(--attack);color:var(--attack);
+  font-size:13.5px;font-weight:700;text-decoration:none;background:transparent}
+.extbar a.more{padding:5px 9px;border-color:var(--rule);color:var(--muted);font-weight:800}
+.topbox{margin:0 0 14px;padding:10px 12px;border:1px solid var(--rule);border-radius:10px}
+.topbox h3{margin:0 0 8px}
 .tabs a{padding:6px 14px;border-radius:8px;border:1px solid var(--rule);font-size:14px;
   font-weight:700;text-decoration:none;color:var(--muted);background:var(--panel)}
 .tabs a.on{color:#fff;background:var(--attack);border-color:var(--attack)}
@@ -128,6 +136,26 @@ details.foldsec>.foldbody{padding:18px 20px}
   <nav class="tabs"><a href="./">오늘의 신호</a><a class="on" href="guide.html">설명서</a><a href="notes.html">업데이트</a></nav>
   <h1>설명서</h1>
   <div class="lede">쓰는 사람이 반드시 이해해야 할 것들 — 수학·금융 지식 없이 읽히게 썼습니다.</div>
+
+  <!-- [v198] 소유자: 「너무 중요한 거라 최상단에」 — §③ 에 있던 블록을 그대로 옮겼다(내용 무변경). -->
+  <div class="topbox" id="links" style="scroll-margin-top:12px">
+    <h3>시장이 궁금할 때 — 바깥에서 보기</h3>
+    <div class="tblwrap"><table>
+      <tr><th>어디</th><th>무엇이 좋은가</th></tr>
+      <tr><td><a href="https://www.google.com/finance/beta?hl=ko" target="_blank" rel="noopener noreferrer">구글 파이낸스 ↗</a></td>
+          <td>시장 요약, 지수·환율 한눈에. 금융 질문도 됩니다</td></tr>
+      <tr><td><a href="https://m.stock.naver.com/" target="_blank" rel="noopener noreferrer">네이버 증권(모바일) ↗</a></td>
+          <td>「오늘 왜 이렇게 움직였나」 <b>AI 브리핑</b>이 여기서 열립니다.
+              브리핑 글 주소는 매일 번호가 바뀌어(…/posts/4423 → 4424) 고정 링크를 걸 수 없습니다</td></tr>
+      <tr><td><a href="https://m.stock.naver.com/domestic/stock/418660/total" target="_blank" rel="noopener noreferrer">418660 종목 ↗</a></td>
+          <td><b>호가창·NAV·괴리율</b> — 주문 직전에 보는 곳</td></tr>
+    </table></div>
+    <p class="dim">신호 화면의 <b>종목코드(418660 ↗ 등)를 누르면</b> 그 종목의 네이버 금융
+      페이지로 바로 갑니다 — 위 표를 외울 필요 없습니다.</p>
+    <div class="tip"><b>보는 것은 자유, 규칙은 그대로.</b> 저기서 무슨 말을 하든
+      전환 여부는 <b>QQQ 종가가 −16%를 넘었는지</b>만으로 정해집니다 —
+      시황을 보고 전환을 앞당기거나 미루지 않습니다(<a href="#freeze">⑦</a>).</div>
+  </div>
 
   <!-- [v156] 검색 — 절이 11개라 「어디 있더라」가 실제 비용이다. 접힌 절·FAQ 안까지 찾는다. -->
   <input type="search" id="gsearch" placeholder="검색 (예: 재조정, 괴리율, T4)"
@@ -290,23 +318,6 @@ details.foldsec>.foldbody{padding:18px 20px}
       <li><b>호가창</b> — 위쪽 매도호가(내가 살 때 체결), 아래쪽 매수호가(내가 팔 때 체결).</li>
       <li>바로 체결하려면 살 땐 매도호가 첫 줄, 팔 땐 매수호가 첫 줄을 그대로. 수량 넣고 주문.</li>
     </ol>
-
-    <h3 id="links" style="scroll-margin-top:12px">시장이 궁금할 때 — 바깥에서 보기</h3>
-    <div class="tblwrap"><table>
-      <tr><th>어디</th><th>무엇이 좋은가</th></tr>
-      <tr><td><a href="https://www.google.com/finance/beta?hl=ko" target="_blank" rel="noopener noreferrer">구글 파이낸스 ↗</a></td>
-          <td>시장 요약, 지수·환율 한눈에. 금융 질문도 됩니다</td></tr>
-      <tr><td><a href="https://m.stock.naver.com/" target="_blank" rel="noopener noreferrer">네이버 증권(모바일) ↗</a></td>
-          <td>「오늘 왜 이렇게 움직였나」 <b>AI 브리핑</b>이 여기서 열립니다.
-              브리핑 글 주소는 매일 번호가 바뀌어(…/posts/4423 → 4424) 고정 링크를 걸 수 없습니다</td></tr>
-      <tr><td><a href="https://m.stock.naver.com/domestic/stock/418660/total" target="_blank" rel="noopener noreferrer">418660 종목 ↗</a></td>
-          <td><b>호가창·NAV·괴리율</b> — 주문 직전에 보는 곳</td></tr>
-    </table></div>
-    <p class="dim">신호 화면의 <b>종목코드(418660 ↗ 등)를 누르면</b> 그 종목의 네이버 금융
-      페이지로 바로 갑니다 — 위 표를 외울 필요 없습니다.</p>
-    <div class="tip"><b>보는 것은 자유, 규칙은 그대로.</b> 저기서 무슨 말을 하든
-      전환 여부는 <b>QQQ 종가가 −16%를 넘었는지</b>만으로 정해집니다 —
-      시황을 보고 전환을 앞당기거나 미루지 않습니다(<a href="#freeze">⑦</a>).</div>
 
     <h3>방어 바스켓은 셋 다 — 골라 타지 않습니다</h3>
     <p><b class="key">배당40 · 국채40 · 금20 고정</b>이며, 방어 진입일부터 30일마다 비율만
