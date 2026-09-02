@@ -214,7 +214,29 @@ def probe(codes=LEGS):
         hist_ok = False
     full = sum(1 for v in alive.values() if v == len(codes))
     print(f'→ 1차 {"살아있음" if primary_ok else "죽음"} · 예비 {full}/{len(CHAIN)} 출처가 4다리 전부 응답 · 원자료 예비 {"OK" if hist_ok else "FAIL"}')
+    probe_us()
     return primary_ok or full >= 1
+
+
+def probe_us():
+    """판정 경로(QQQ 종가)의 출처 3개 생존 — update_signal 의 함수를 **읽기만** 호출한다(파일 쓰기 0 · 판정 0).
+    fetch_naver 는 미국장이 열려 있으면 「확정 종가 아님」으로 스스로 거부한다 — 그건 정상(가드 작동)이다."""
+    print('판정 경로(QQQ 종가) 출처 생존 — 읽기만, 판정·파일 무접촉')
+    try:
+        import update_signal as U
+    except Exception as e:
+        print(f'  update_signal 임포트 실패 {type(e).__name__} — 건너뜀')
+        return
+    for nm, fn in (('야후 query1', lambda: U.fetch('query1')), ('야후 query2', lambda: U.fetch('query2')),
+                   ('네이버 해외종목', U.fetch_naver)):
+        t = time.time()
+        try:
+            s = fn()
+            print(f'  {nm:<18} OK  마지막 {s.index[-1].date()} 종가 {float(s.iloc[-1]):.2f} {time.time()-t:4.1f}s')
+        except Exception as e:
+            msg = str(e)
+            tag = '장중(정상 거부)' if 'marketStatus' in msg or '새롭지 않음' in msg else 'FAIL'
+            print(f'  {nm:<18} {tag} {type(e).__name__}: {msg[:70]}')
 
 
 if __name__ == '__main__':
