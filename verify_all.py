@@ -816,6 +816,27 @@ def i10_premise(D):
        f'{st:,.0f} vs {bh[-1]:,.0f} ({st/bh[-1]:.1f}배)')
 
 
+def i14_selftests():
+    """[2026-09-03] 파수꾼·종가 대기 루프의 합성 셀프테스트 — 코드를 고치면 여기서 잡는다 (전체 모드만).
+
+    v192 때 파수꾼 24경우가 스크래치에만 있었다 — 「검사를 추가했다」와 「검사가 돈다」는 다르다(v148)."""
+    head("I14 셀프테스트 (파수꾼 · 종가 대기 루프)")
+    import subprocess
+    for label, args in (("파수꾼 모드 셀프테스트 (switchday·near·heartbeat 합성 30여 경우)",
+                         ['deploy/watchdog.py', '--selftest']),
+                        ("종가 대기 루프 셀프테스트 (v190 9경로)", ['deploy/wait_close.py', '--selftest'])):
+        if not os.path.exists(args[0]):
+            continue
+        try:
+            r = subprocess.run([sys.executable] + args, capture_output=True, text=True,
+                               encoding='utf-8', timeout=240)
+            last = (r.stdout.strip().splitlines() or ['(출력 없음)'])[-1]
+            ok(label, r.returncode == 0, last[:140] if r.returncode == 0
+               else (r.stderr.strip().splitlines() or [last])[-1][:140])
+        except Exception as e:
+            ok(label, False, f'{type(e).__name__}: {e}')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--fast', action='store_true', help='빠른 검사만 (CI 기본)')
@@ -835,6 +856,7 @@ def main():
         i5_decisions(D)
         i7_stats(D)
         i10_premise(D)
+        i14_selftests()
     i9_retired()
     i8_deps()
     head(f"결과  ({time.time()-T0:.0f}초)")

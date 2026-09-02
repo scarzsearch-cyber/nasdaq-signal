@@ -175,20 +175,49 @@ def splice_gold(path):
 
 
 def refresh_fx(path):
-    """FRED 공식 CSV 전체 교체. 실패해도 치명적이지 않다(ffill 로 며칠 버팀)."""
-    url = 'https://fred.stlouisfed.org/graphs/fredgraph.csv?id=DEXKOUS'
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        txt = r.read().decode('utf-8', 'replace')
-    n_old = sum(1 for _ in io.open(path, encoding='utf-8')) - 1
-    n_new = txt.count('\n') - 1
-    if n_new < n_old:                      # 원천이 갑자기 짧아지면 뭔가 잘못된 것
-        print(f'  fred_DEXKOUS.csv       [경고] 새 파일({n_new}행)이 기존({n_old}행)보다 짧음 — 유지',
+    """FRED 공식 CSV 전체 교체. FRED 가 죽어 있으면 **야후 KRW=X 로 최근 구간만 이어 붙인다** (보험, 2026-09-03).
+
+    [보험을 든 이유] 2026-09-02~03 FRED 가 이틀째 타임아웃이었다(urllib·curl 모두). 종전엔 예외 → main 의
+    「기존 유지」로만 물러섰는데, 달을 넘겨 계속 죽어 있으면 원화 시나리오의 환율이 조용히 낡는다.
+    야후 KRW=X 종가는 DEXKOUS(뉴욕 정오 매입환율)와 고시 시점이 달라 0.1~0.3% 차이가 있으나 ffill 로
+    버티는 것보다 낫고, FRED 가 돌아오면 전체 교체가 야후 행을 덮어쓴다.
+    ★ 그래서 「짧아지면 유지」 가드를 행 수가 아니라 **마지막 날짜**로 판정한다 — 야후 행이 몇 개 붙은 뒤엔
+      FRED 파일이 행 수로는 잠깐 짧을 수 있다(FRED 는 1주쯤 늦게 고시한다). 행 수 가드는 손상 탐지용으로
+      10% 여유를 두고 남긴다."""
+    old = pd.read_csv(path)
+    n_old = len(old)
+    old_last = pd.to_datetime(old.iloc[:, 0], errors='coerce').max()
+    try:
+        url = 'https://fred.stlouisfed.org/graphs/fredgraph.csv?id=DEXKOUS'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            txt = r.read().decode('utf-8', 'replace')
+        if not txt.startswith('observation_date'):
+            raise RuntimeError('FRED 응답 형식 아님')
+        new = pd.read_csv(io.StringIO(txt))
+        n_new = len(new)
+        new_last = pd.to_datetime(new.iloc[:, 0], errors='coerce').max()
+        if n_new < n_old * 0.9 or new_last < old_last - pd.Timedelta(days=45):
+            print(f'  fred_DEXKOUS.csv       [경고] 새 파일({n_new}행, ~{new_last.date()})이 기존({n_old}행, '
+                  f'~{old_last.date()})보다 뒤처짐 — 유지', file=sys.stderr)
+            return 0
+        io.open(path, 'w', encoding='utf-8', newline='').write(txt)
+        print(f'  fred_DEXKOUS.csv       {n_old} → {n_new}행 (FRED 전체 교체, ~{new_last.date()})')
+        return n_new - n_old
+    except Exception as e:
+        print(f'  fred_DEXKOUS.csv       [경고] FRED 실패({type(e).__name__}: {e}) — 야후 KRW=X 로 최근 구간 보강',
               file=sys.stderr)
+    # ── 보험: 야후 KRW=X (chart() 는 장중 봉을 이미 잘라 준다) ──
+    df = chart('KRW=X', years=1)
+    add = df.loc[df.index > old_last, 'close'].dropna()
+    if add.empty:
+        print(f'  fred_DEXKOUS.csv       보강할 행 없음 (~{old_last.date()} 이후 야후 종가 없음)')
         return 0
-    io.open(path, 'w', encoding='utf-8', newline='').write(txt)
-    print(f'  fred_DEXKOUS.csv       {n_old} → {n_new}행 (전체 교체, ~{txt.strip().rsplit(chr(10),1)[-1].split(",")[0]})')
-    return n_new - n_old
+    with io.open(path, 'a', encoding='utf-8', newline='') as f:
+        for d, v in add.items():
+            f.write(f'{d.date().isoformat()},{v:.4f}\n')
+    print(f'  fred_DEXKOUS.csv       야후 KRW=X 로 {len(add)}행 보강 (~{add.index[-1].date()}) — FRED 복구 시 전체 교체됨')
+    return len(add)
 
 
 def main():

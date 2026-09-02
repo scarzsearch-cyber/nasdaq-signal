@@ -707,11 +707,132 @@ MODES = {'stale': mode_stale, 'rebalance': mode_rebalance,
          'switchday': mode_switchday, 'near': mode_near}
 
 
+def selftest():
+    """[2026-09-03] 합성 데이터 셀프테스트 — 실제 data/ 무접촉(임시 디렉터리 · notify 는 기록만).
+
+    v192 때 스크래치에서만 돌린 24경우 + heartbeat 상태 줄을 저장소 안으로 옮겼다 — 모드를 고치면
+    verify_all 전체 모드가 이걸 돌려 잡는다(「구현했다」와 「검사가 돈다」는 다르다 — v148).
+    실행: python3 deploy/watchdog.py --selftest  (종료코드 0 = 전부 통과)"""
+    import csv
+    import io as _io
+    import shutil
+    import tempfile
+    import contextlib
+    sent = []
+    real_notify = globals()['notify']
+    globals()['notify'] = lambda t, s, d: sent.append((t, s, d))
+    root = os.getcwd()
+    T = tempfile.mkdtemp(prefix='wd_selftest_')
+    os.makedirs(os.path.join(T, 'data'))
+    if os.path.exists(KRHOL):
+        shutil.copy(KRHOL, os.path.join(T, KRHOL))
+    os.chdir(T)
+    fails, n = [], 0
+
+    def run(fn, **kw):
+        n0 = len(sent)
+        with contextlib.redirect_stdout(_io.StringIO()):
+            fn(**kw)
+        return len(sent) > n0
+
+    def expect(name, got, want):
+        nonlocal n
+        n += 1
+        if got != want:
+            fails.append(name)
+
+    def oos(rows):
+        with open(OOSLOG, 'w', encoding='utf-8', newline='') as f:
+            w = csv.writer(f); w.writerow(['as_of', 'close', 'high_252', 'dd', 'state', 'changed'])
+            for r in rows:
+                w.writerow(r)
+
+    def sig(**kw):
+        j = dict(as_of='2026-09-01', close=700.0, dd=-5.0, state='QLD', changed_today=False,
+                 enter=-16.0, exit=-11.0,                          # 최상위 = A 미러 (실측)
+                 strategies={'B': {'state': 'QLD', 'changed_today': False, 'enter': -16.0, 'exit': -16.0}},
+                 recent=[])
+        j.update(kw)
+        json.dump(j, open(SIGNAL, 'w', encoding='utf-8'))
+
+    def rc(d0, dd0, d1, dd1, s='QLD'):
+        a = 'QLD' if s == 'SCHD' else 'SCHD'                     # s 열(A 미러)은 일부러 반대로
+        return [{'d': d0, 'dd': dd0, 'B': s, 'A': a, 's': a}, {'d': d1, 'dd': dd1, 'B': s, 'A': a, 's': a}]
+
+    B = lambda st, ch=False: {'B': {'state': st, 'changed_today': ch, 'enter': -16.0, 'exit': -16.0}}
+    try:
+        # ── switchday ──
+        expect('sw 파일 없음', run(mode_switchday, today=date(2026, 9, 7)), False)
+        oos([['2026-09-03', 700, 745, -16.5, 'SCHD', 1], ['2026-09-04', 690, 745, -17, 'SCHD', 0]])
+        expect('sw 목→금 발송', run(mode_switchday, today=date(2026, 9, 4)), True)
+        expect('sw 종가일 당일 무발송', run(mode_switchday, today=date(2026, 9, 3)), False)
+        expect('sw 월 무발송', run(mode_switchday, today=date(2026, 9, 7)), False)
+        oos([['2026-09-04', 700, 745, -16.5, 'SCHD', 1]])
+        expect('sw 금→월 발송', run(mode_switchday, today=date(2026, 9, 7)), True)
+        expect('sw 토 무발송', run(mode_switchday, today=date(2026, 9, 5)), False)
+        oos([['2026-09-23', 700, 745, -16.5, 'SCHD', 1]])
+        expect('sw 추석 연휴→09-28', run(mode_switchday, today=date(2026, 9, 28)), True)
+        expect('sw 휴장일 무발송', run(mode_switchday, today=date(2026, 9, 24)), False)
+        oos([['2026-08-28', 716, 745, -3.9, 'QLD', 0]])
+        sig(as_of='2026-09-10', changed_today=True, state='SCHD', strategies=B('SCHD', True), dd=-16.4, close=623.0)
+        expect('sw 장부 실패 보험(signal)', run(mode_switchday, today=date(2026, 9, 11)), True)
+        oos([['2026-09-04', 700, 745, -16.5, 'SCHD', 1]])
+        expect('sw 늦은 쪽 기준', run(mode_switchday, today=date(2026, 9, 7)), False)
+        expect('sw 09-11 발송', run(mode_switchday, today=date(2026, 9, 11)), True)
+        expect('sw 낙폭 문구', '낙폭 -16.4%' in sent[-1][2], True)
+        sig(as_of='2026-09-10', changed_today=True, state='QLD', strategies=B('QLD', True))
+        expect('sw 공격 복귀 문구', run(mode_switchday, today=date(2026, 9, 11)) and '418660) 매수' in sent[-1][2], True)
+        # ── near ──
+        sig(as_of='2026-09-01', dd=-13.5, recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0))
+        expect('near 진입 발송', run(mode_near, today=date(2026, 9, 2)), True)
+        expect('near 이틀째 무발송', run(mode_near, today=date(2026, 9, 3)), False)
+        sig(as_of='2026-09-01', dd=-13.5, recent=rc('2026-09-01', -13.5, '2026-08-31', -14.0))
+        expect('near 이미 안', run(mode_near, today=date(2026, 9, 2)), False)
+        sig(as_of='2026-09-01', dd=-12.0, recent=rc('2026-09-01', -12.0, '2026-08-31', -13.5))
+        expect('near 이탈', run(mode_near, today=date(2026, 9, 2)), False)
+        sig(as_of='2026-09-01', dd=-13.5, recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0),
+            changed_today=True, strategies=B('SCHD', True))
+        expect('near 전환일 생략', run(mode_near, today=date(2026, 9, 2)), False)
+        sig(as_of='2026-09-04', dd=-13.5, recent=rc('2026-09-04', -13.5, '2026-09-03', -12.0))
+        expect('near 금→월 발송', run(mode_near, today=date(2026, 9, 7)), True)
+        sig(as_of='2026-09-01', dd=-17.5, state='SCHD', strategies=B('SCHD'),
+            recent=rc('2026-09-01', -17.5, '2026-08-31', -19.5, s='SCHD'))
+        expect('near 방어 복귀선', run(mode_near, today=date(2026, 9, 2)) and '복귀선' in sent[-1][2], True)
+        sig(as_of='2026-09-01', dd=-13.5, strategies={'B': {'state': 'QLD', 'changed_today': False, 'enter': -0.16, 'exit': -0.16}},
+            recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0))
+        expect('near −0.16 표기', run(mode_near, today=date(2026, 9, 2)), True)
+        sig(as_of='2026-09-01', dd=-17.5, state='QLD', exit=-11.0, strategies=B('SCHD'),
+            recent=rc('2026-09-01', -17.5, '2026-08-31', -19.5, s='SCHD'))
+        expect('near A 미러 무시(B 기준)', run(mode_near, today=date(2026, 9, 2)) and '1.5%p' in sent[-1][2], True)
+        sig(as_of='2026-09-01', dd=-13.0, recent=rc('2026-09-01', -13.0, '2026-08-31', -12.0))
+        expect('near 경계 3.0 제외', run(mode_near, today=date(2026, 9, 2)), False)
+        sig(as_of='2026-09-01', dd=-13.01, recent=rc('2026-09-01', -13.01, '2026-08-31', -13.0))
+        expect('near 경계 2.99 포함', run(mode_near, today=date(2026, 9, 2)), True)
+        sig(as_of='2026-09-01', dd=-13.5, recent=[{'d': '2026-09-01', 'dd': -13.5, 'B': 'QLD'}])
+        expect('near recent 1행', run(mode_near, today=date(2026, 9, 2)), False)
+        # ── heartbeat 상태 줄 (B 기준) ──
+        json.dump({'level': 0, 'level_msg': '이상 없음'}, open(OPSCHK, 'w', encoding='utf-8'))
+        sig(as_of='2026-09-01', dd=-5.06, state='QLD', strategies={'B': {'state': 'SCHD', 'gap_pp': 1.5, 'changed_today': False}})
+        oos([['2026-08-28', 716, 745, -3.9, 'QLD', 0], ['2026-09-01', 623, 745, -16.4, 'SCHD', 1], ['2026-09-02', 620, 745, -16.8, 'SCHD', 0]])
+        expect('hb 발송', run(mode_heartbeat), True)
+        m = sent[-1][2]
+        expect('hb 상태 줄(B 기준·장부)', ('판정 방어' in m) and ('복귀선까지 1.5%p' in m) and ('장부 3일' in m) and ('전환 1회' in m), True)
+        expect('hb 같은 달 재발송 없음', run(mode_heartbeat), False)
+    finally:
+        os.chdir(root)
+        shutil.rmtree(T, ignore_errors=True)
+        globals()['notify'] = real_notify
+    print(f'파수꾼 셀프테스트 {n}경우 · 실패 {len(fails)}건' + (' — ' + ', '.join(fails) if fails else ''))
+    return not fails
+
+
 def main():
     m = sys.argv[1] if len(sys.argv) > 1 else ''
+    if m == '--selftest':
+        sys.exit(0 if selftest() else 1)
     if m not in MODES:
         raise SystemExit('사용: python3 deploy/watchdog.py '
-                 '{stale|rebalance|switchday|near|channel|stats|price|check|heartbeat}')
+                 '{stale|rebalance|switchday|near|channel|stats|price|check|heartbeat|--selftest}')
     try:
         MODES[m]()
     except Exception as e:                        # 감시가 파이프라인을 죽이지 않는다

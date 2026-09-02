@@ -86,13 +86,13 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 |---|---|
 | `signal.html` | GitHub Pages 로 서비스되는 신호 뷰어. **−16/−16 단일 규칙**(A 선택지는 v61 에서 화면 제거). 내 포트폴리오·체결 기록·계산기·백업(파일/CSV)·다크 모드까지 화면 전부 (v103, 기구현 목록은 CLAUDE.md §4). **한국 공휴일 반영 시계** |
 | `deploy/update_signal.py` | 매일 QQQ 종가 받아 **두 규칙을 모두** 판정 → `data/signal.json` 갱신 |
-| `deploy/refresh_hist.py` | [v72] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드) |
+| `deploy/refresh_hist.py` | [v72] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드) **[2026-09-03] FRED 실패 시 야후 KRW=X 로 마지막 날짜 이후만 보강** — 「짧아지면 유지」 가드는 마지막 날짜(45일)로 |
 | `deploy/data_check.py` | [v73] 데이터 검증 게이트 — 이상 데이터가 정상 데이터를 덮어쓰지 못하게 |
 | `deploy/notify.py` | [v73/v77] 실패·전환 알림 (카카오톡/Discord/Telegram, GitHub Secrets) |
 | `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
 | `deploy/kakao_keepalive.py` | [v77] 카카오 refresh 토큰 매일 연명·자동 교체 |
 | `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
-| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · **`switchday`[v192]**(전환 실행일 아침 재알림 — 장부 `changed=1` 행 + signal.json `changed_today`, 휴장 반영 · 실행일에만) · **`near`[v192]**(게이지 「근접」 진입일 한 번 — ★ `strategies.B`·`recent[].B` 기준. 최상위 state/exit 는 A 미러(exit −11)라 읽지 않는다) · `check`(점검.py 자동 실행 → `data/ops_check.json` · **[v188] B 판정 규약 평가기 `oos_protocol_b.py --oos` 도 같이 돌려 `protocol_b` 키에 요약** — 판정은 평가기가, 파수꾼은 읽기만. 이상이면 todo 한 줄) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 |
+| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · **`switchday`[v192]**(전환 실행일 아침 재알림 — 장부 `changed=1` 행 + signal.json `changed_today`, 휴장 반영 · 실행일에만) · **`near`[v192]**(게이지 「근접」 진입일 한 번 — ★ `strategies.B`·`recent[].B` 기준. 최상위 state/exit 는 A 미러(exit −11)라 읽지 않는다) · `check`(점검.py 자동 실행 → `data/ops_check.json` · **[v188] B 판정 규약 평가기 `oos_protocol_b.py --oos` 도 같이 돌려 `protocol_b` 키에 요약** — 판정은 평가기가, 파수꾼은 읽기만. 이상이면 todo 한 줄) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 · **`--selftest`[2026-09-03]**(합성 28경우 — switchday·near·heartbeat, 실제 data/ 무접촉. verify_all I14 가 돌린다) |
 | `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
 | `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
@@ -322,7 +322,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 | 언제 |
 |---|---|---|
-| `verify_all.py` | **단일 진입점.** 불변식 12종(I1~I12). 4초 | 뭔가 고쳤으면 항상 |
+| `verify_all.py` | **단일 진입점.** 불변식 12종(I1~I12). 4초 | 뭔가 고쳤으면 항상 · **I14**[2026-09-03] 셀프테스트(파수꾼 `--selftest` · wait_close `--selftest`, 전체 모드) |
 | `audit_full.py` | 59파일 AST 전수조사 + **시점별 재계산** | 정기 / CI |
 | `audit_all.py` | 채택 결정 재검증 (달러·원화) | 모형을 바꿨을 때 |
 | `verify.py` | 채택안 단독 검산 (140.0배) | 참조 구현 |
@@ -364,7 +364,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `reentry_lib.ulcer_uw()` | **신규.** 최장 회복기간 + Ulcer Index. MDD 가 못 재는 낙폭의 '넓이' |
 | `deploy/build_stats.py` | 위 두 지표를 `strategy_stats.json` 에 넣는다. **사본 갱신을 요약 출력 앞으로** (출력이 죽어도 사본이 옛 판으로 안 남게) |
 | `signal.html` | 카드 지표 4→6개, 기준 설명줄에 CAGR, 비교표 2열 추가 |
-| `verify_all.py` | I5 +3(화면 대조) · I6 +16(내장 사본 대조) |
+| `verify_all.py` | I5 +3(화면 대조) · I6 +16(내장 사본 대조) · **I14**[2026-09-03] 셀프테스트(파수꾼 `--selftest` · wait_close `--selftest`, 전체 모드) |
 | `hist_krreal.legs_real()` | **신규(v61).** 실물 TIGER 공격·방어 일간수익 분리 — 벤치마크가 전략과 **같은 달력**을 쓰게 |
 | `deploy/build_stats.py` | **(v61)** 기준마다 벤치마크 2종(2배 보유·방어 단독)을 같이 굳힌다 |
 | `signal.html` | **(v61)** A 제거 · 카드 전체 폭 · 값 아래 눈금 · 비교표 벤치 2줄 |
@@ -440,7 +440,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/valuation_regime.py` | **[검증] 고평가·장기 횡보·대형 하락 환경에서 B** (소유자 지시 2026-09-02, ChatGPT 작성 프롬프트 · 전략 무변경) — CAPE 분위→이후 수익(Shiller 1871~) · 횡보 사건 표(하락/회복 분리 · 가격/총수익 · 명목/실질) · 같은 구간 B vs S&P·NDX·2배·방어만 · 고평가 시작월 vs 보통(엔진 표본) + 닷컴 제외 반증 · 시나리오 6종 + 니케이 붕괴형 · 강세장 기회비용 · 편향 점검표 · 사전 등록 판정. 캐시: `data/hist/shiller_sp500_monthly.csv`·`multpl_cape_monthly.csv`·`datahub_cpi_us.csv` | 04 §5-26 · **[강화]**(A · 통계는 C · 1972 이전 E) — 단서: 빠른 급락 4/4 B 가 더 깊음 · 니케이형에서 0.52배 |
 | `research/near_zone.py` | **[운영 측정] 낙폭 게이지 「근접」 구간 빈도** — 근접 알림(v192)의 근거. 엔진 표본(1972~ 54년) + FRED NDX 1986~ 교차, 게이지 정의는 화면 paintProx 와 동일(gap<3%p). 진입 연 3.5회 · 55% 가 20일 안 전환 · 전환의 99% 가 직전 5일 안에 근접 · 「여유」에서 곧바로 전환 0회 | 04 §5-8 보강 · §7 Q5 · watchdog `near` 문구의 출처 |
 | `research/q1_physical_bond.py` | **[연구 Q1] 현물형 미국채 ETF 상장 — 국채 다리 교체의 값** (2026-09-02, 반영 금지). 네이버 목록 실측 4종 · 현물 5/7/10/20/30년 vs 현행 선물 ust5 · 관문①②③④ 사전 등록 · 보수 감도 | 04 §7-3 · **305080 유지 · Q1 닫힘**(현물 10년 Calmar +4.4% 미달) |
-| `research/q2_hedged_attack.py` | **[연구 Q2] 공격 다리 환헤지(409820형) vs 환노출** (2026-09-02, 반영 금지). 원화 1997~ · carry = 한−미 3개월 금리차(FRED, 미확보 시 ±1.5%p 감도) · 위기 5창 | 04 §7-4 · 갈아타면 0.53배 · 2008형 −11.3%p · 전체 MDD 는 +1.4%p 얕음 |
+| `research/q2_hedged_attack.py` | **[연구 Q2] 공격 다리 환헤지(409820형) vs 환노출** (2026-09-02, 반영 금지). 원화 1997~ · carry = 한−미 3개월 금리차 **실측**(FRED → OECD SDMX → 캐시 `data/hist/kr_3m_rate.csv` → ±1.5%p 감도, 09-03 보험) · 위기 5창 | 04 §7-4 · 갈아타면 **0.82배**(범위 0.4~0.8) · 2008형 −10.4%p · 전체 MDD 는 +2.0%p 얕음 |
 | `research/q5_near_presell.py` | **[연구 Q5] 근접 알림을 보고 먼저 팔면 — 가격표** (2026-09-02, 반영 금지). −13/−14/−15 대칭 · 근접 절반 트랜치 · 에피소드 기대값 · 행동 측정 규약 | 04 §7-5 · 근접 매도 0.33배 · 행동은 미측정(사건 0) |
 
 ### 9-3. 엔진 교체 (성장 엔진을 나스닥 아닌 것으로)

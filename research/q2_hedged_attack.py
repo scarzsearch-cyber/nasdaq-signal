@@ -31,6 +31,7 @@ _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 _sys.path.insert(0, _os.path.join(_ROOT, 'research'))
 
+import csv
 import io
 import sys
 import urllib.request
@@ -48,36 +49,57 @@ import hist_defasset as DA                               # noqa: E402
 import eng_common as EC                                  # noqa: E402
 
 STRAT_B = dict(enter=-0.16, exit=-0.16, name='−16 / −16', ladder=[(('dd', -0.16), 1.0, 0)])
-KR3M = _os.path.join('data', 'hist', 'fred_IR3TIB01KRM156N.csv')
+KR3M = _os.path.join('data', 'hist', 'kr_3m_rate.csv')      # 정규화 캐시: date,rate,source (출처 무관)
+SRC_FRED = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01KRM156N'
+SRC_OECD = ('https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,4.0/'
+            'KOR.M.IR3TIB.PA.....?format=csvfilewithlabels&startPeriod=1991-01')
 WINDOWS = [('닷컴 2000', '2000-03-01', '2002-12-31'), ('금융위기 2008', '2007-10-01', '2009-06-30'),
            ('코로나 2020', '2020-02-01', '2020-06-30'), ('금리 2022', '2021-11-01', '2022-12-31'),
            ('IMF 1997', '1997-06-01', '1998-12-31')]
 
 
+def _fetch(url, timeout):
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    return urllib.request.urlopen(req, timeout=timeout).read().decode('utf-8', 'replace')
+
+
 def kr_3m(idx):
-    """한국 3개월 금리(연, 소수) — FRED 월간을 일별 ffill. 파일이 없으면 받아서 캐시.
-    ★ FRED 가 안 잡히면(2026-09-02 실측: urllib·curl 모두 60초 타임아웃) None 을 돌려주고, 호출부가
-      carry 를 상수 감도(0 · +1.5 · −1.5%p/년)로 대신한다 — 숫자를 지어내지 않고 범위로 답한다."""
+    """한국 3개월 금리(연, 소수), 월간 → 일별 ffill.
+    ★ 출처 보험 (2026-09-03 소유자 지시 — FRED 가 이틀째 타임아웃):
+       ① FRED IR3TIB01KRM156N (30초) → ② OECD SDMX DSD_STES@DF_FINMARK KOR·IR3TIB (같은 원천 OECD, 2026-08 까지
+       실측 · 2026-06 = 2.91 로 FRED 와 일치) → ③ 지난 실행이 남긴 캐시 data/hist/kr_3m_rate.csv (낡아도 씀)
+       → ④ None (호출부가 ±1.5%p 감도로 범위를 낸다 — 숫자를 지어내지 않는다).
+       ①②가 성공하면 캐시를 갱신한다 — 다음엔 네트워크 없이도 돈다(저장소에 커밋)."""
+    s, src = None, None
     try:
-        if not _os.path.exists(KR3M) or _os.path.getsize(KR3M) < 100:
-            req = urllib.request.Request('https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01KRM156N',
-                                         headers={'User-Agent': 'Mozilla/5.0'})
-            txt = urllib.request.urlopen(req, timeout=45).read().decode('utf-8', 'replace')
-            if not txt.startswith('observation_date'):
-                raise RuntimeError('FRED 응답 형식 아님')
-            io.open(KR3M, 'w', encoding='utf-8', newline='').write(txt)
-        d = pd.read_csv(KR3M)
-        s = pd.to_numeric(d.set_index(pd.to_datetime(d['observation_date']))['IR3TIB01KRM156N'], errors='coerce').dropna()
-        s = s.reindex(idx.union(s.index)).ffill().reindex(idx)
-        return s.values / 100.0
+        txt = _fetch(SRC_FRED, 30)
+        if not txt.startswith('observation_date'):
+            raise RuntimeError('응답 형식 아님')
+        d = pd.read_csv(io.StringIO(txt)); d.columns = ['date', 'v']
+        s = pd.to_numeric(d.set_index(pd.to_datetime(d['date']))['v'], errors='coerce').dropna(); src = 'FRED'
     except Exception as e:
-        print(f'[경고] 한국 3개월 금리 계열 미확보({type(e).__name__}) — carry 는 상수 감도로 대신한다')
+        print(f'[출처] FRED 실패({type(e).__name__}) → OECD SDMX 시도')
+    if s is None:
         try:
-            if _os.path.exists(KR3M) and _os.path.getsize(KR3M) < 100:
-                _os.remove(KR3M)
+            rows = [r for r in csv.DictReader(io.StringIO(_fetch(SRC_OECD, 45))) if r.get('OBS_VALUE')]
+            s = pd.Series({pd.Timestamp(r['TIME_PERIOD'] + '-01'): float(r['OBS_VALUE']) for r in rows}).sort_index()
+            src = 'OECD SDMX'
+        except Exception as e:
+            print(f'[출처] OECD SDMX 실패({type(e).__name__}) → 캐시 시도')
+    if s is not None and len(s) > 100:
+        pd.DataFrame({'date': s.index.strftime('%Y-%m-%d'), 'rate': s.values, 'source': src}).to_csv(KR3M, index=False)
+        print(f'[출처] {src} · {s.index[0].date()} ~ {s.index[-1].date()} ({len(s)}개월) · 캐시 저장 {KR3M}')
+    else:
+        try:
+            d = pd.read_csv(KR3M)
+            s = pd.Series(d['rate'].values, index=pd.to_datetime(d['date'])).sort_index()
+            src = f"캐시({d['source'].iloc[-1]} · ~{s.index[-1].date()})"
+            print(f'[출처] {src}')
         except Exception:
-            pass
-        return None
+            print('[경고] 한국 3개월 금리 — 출처 셋 모두 실패 · carry 는 상수 감도로 대신한다')
+            return None
+    s = s.reindex(idx.union(s.index)).ffill().reindex(idx)
+    return s.values / 100.0
 
 
 def mdd(a):
