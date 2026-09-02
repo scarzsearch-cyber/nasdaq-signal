@@ -239,6 +239,13 @@ def i5_decisions(D):
                'guide.html 과 같은 404 유형 (v142)')
             ok("배포: price.json 이 Pages 복사 목록에 있다", 'price.json' in pg,
                '빠지면 시세 배지가 라이브에서만 안 뜬다 (v145)')
+            # [v197] 낙폭 백분위는 원자료 연장(월간)과 같은 워크플로에서 다시 만든다 — 사람이 기억하는 연 1회 작업 0.
+            if os.path.exists('.github/workflows/monthly-stats.yml'):
+                ms = io.open('.github/workflows/monthly-stats.yml', encoding='utf-8').read()
+                ok("배포: 낙폭 백분위가 월간 워크플로에서 갱신된다",
+                   'emit_dd_distribution.py' in ms and 'refresh_hist.py' in ms
+                   and ms.index('refresh_hist.py') < ms.index('emit_dd_distribution.py'),
+                   '원자료 연장 뒤에 돌아야 한다 (v197)')
             ok("배포: dd_percentile.json 이 Pages 복사 목록에 있다",
                'dd_percentile.json' in pg or not os.path.exists('data/dd_percentile.json'),
                '같은 404 유형 — 로컬에선 보이고 라이브에서만 안 뜬다 (v164)')
