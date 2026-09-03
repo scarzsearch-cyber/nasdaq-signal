@@ -33,7 +33,16 @@ START_EXT = '1972-02-07'          # 1971-02-05 + 252거래일 (완전한 룩백 
 
 
 def _fred(path, col):
+    """FRED CSV 한 계열. col 은 실제로 그 컬럼을 고른다.
+
+    [코드리뷰 2026-09-04] 종전에는 col 을 받아 놓고 바로 d.columns 를 덮어써
+    **한 번도 쓰지 않았다** — 어떤 이름을 넘겨도 결과가 같았다. 다중 컬럼 파일을
+    넘기면 두 번째 컬럼이 조용히 선택됐다. 이제 이름이 있으면 그것으로 고르고,
+    없으면 종전대로 두 번째 컬럼으로 물러선다(기존 호출부 7곳 전부 동작 동일).
+    """
     d = pd.read_csv(path)
+    name = col if col in d.columns else d.columns[1]
+    d = d[[d.columns[0], name]]
     d.columns = ['Date', 'v']
     d = d[d['v'] != '.']
     d['Date'] = pd.to_datetime(d['Date'])
@@ -123,10 +132,15 @@ def build_ext(cash='fixed2', start=START_EXT):
     full = full[~full.index.duplicated()].sort_index()
     qld_ext = (1 + full).cumprod()
 
-    idx = px.index.intersection(qld_ext.index).sort_values()
-    idx = idx[idx >= start]
-    px = px.reindex(idx)
-    dd = (px / px.rolling(LOOKBACK, min_periods=LOOKBACK).max() - 1).fillna(0)
+    idx_all = px.index.intersection(qld_ext.index).sort_values()
+    idx = idx_all[idx_all >= start]
+    # [코드리뷰 2026-09-04] 룩백 최대값은 **절단 전** 격자에서 구한다. 종전에는 px 를
+    # start 로 자른 뒤 rolling 을 걸어 START_EXT 주석이 약속한 '완전한 룩백 확보'가
+    # 무효였다 — 1972-02-07~1973-01-22 의 220일이 dd=0 으로 눌려 그 1년간 어떤
+    # 낙폭도 신호를 못 냈다. −16/−11 문턱에서는 갈리는 날이 0 이라 공표 수치는 그대로.
+    px_all = px.reindex(idx_all)
+    dd = (px_all / px_all.rolling(LOOKBACK, min_periods=LOOKBACK).max() - 1).reindex(idx).fillna(0)
+    px = px_all.reindex(idx)
     qldr = qld_ext.reindex(idx).pct_change().fillna(0)
 
     schd = _stooq('schd_us_d.csv')

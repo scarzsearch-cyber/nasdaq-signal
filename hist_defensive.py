@@ -40,27 +40,44 @@ def _ensure_ff():
     os.makedirs(FF_DIR, exist_ok=True)
     zips = sorted(glob.glob('data/hist/ff_*.zip'))
     if not zips:
-        raise FileNotFoundError('data/hist/ff_*.zip 이 없다 — French 원자료를 다시 받아야 한다')
+        raise FileNotFoundError('data/hist/ff_*.zip 이 없다 - French 원자료를 다시 받아야 한다')
     for z in zips:
         with zipfile.ZipFile(z) as f:
             f.extractall(FF_DIR)
     print('[hist_defensive] %s 에 French 원자료 %d개 zip 을 풀었다' % (FF_DIR, len(zips)))
 
 
-def _ff_block(path, header_line, n_rows=None):
+def _ff_block(path, header_line, n_rows=None, col=None, min_rows=500):
+    """French CSV 의 한 블록을 읽는다. header_line 은 1-based 컬럼헤더 줄번호.
+
+    [코드리뷰 2026-09-04] header_line·n_rows 는 특정 판본의 줄번호에 묶인 값이다.
+    원자료가 재발행돼 헤더가 밀리면 skiprows 가 어긋나 **다른 블록**(동일가중·연간
+    등)을 읽는데, dt 정규식은 그런 블록도 통과시키므로 예외 없이 엉뚱한 수익률이
+    방어자산으로 들어간다. 그래서 읽은 뒤 판본을 검증한다 — 조용히 틀리느니 죽는다.
+    """
     _ensure_ff()
-    """French CSV 의 한 블록을 읽는다. header_line 은 1-based 컬럼헤더 줄번호."""
     d = pd.read_csv(path, skiprows=header_line - 1, nrows=n_rows)
     d.columns = ['dt'] + [c.strip() for c in d.columns[1:]]
     d['dt'] = d['dt'].astype(str).str.strip()
     d = d[d['dt'].str.fullmatch(r'\d{6,8}')]
+    if len(d) < min_rows:
+        raise ValueError('%s: header_line=%s 로 읽은 블록이 %d행뿐이다(기대 >=%d) - '
+                         '원자료 판본이 바뀌었는지 확인하라' % (path, header_line, len(d), min_rows))
+    if col is not None and col not in d.columns:
+        raise ValueError('%s: header_line=%s 블록에 %r 컬럼이 없다(있는 것: %s) - '
+                         '원자료 판본이 바뀌었는지 확인하라'
+                         % (path, header_line, col, list(d.columns[1:6])))
+    w = d['dt'].str.len().unique()
+    if len(w) != 1:
+        raise ValueError('%s: 날짜 자릿수가 섞여 있다(%s) - 블록 경계가 어긋났다'
+                         % (path, sorted(w)))
     return d
 
 
 def ff_beme_daily(col='Hi 30'):
     """BE/ME 분위 포트폴리오 일간 가치가중 수익률 (총수익, %)."""
     p = f'{FF_DIR}/Portfolios_Formed_on_BE-ME_Daily.csv'
-    d = _ff_block(p, 24, n_rows=26299 - 25)
+    d = _ff_block(p, 24, n_rows=26299 - 25, col=col, min_rows=20000)
     r = pd.Series(d[col].astype(float).values / 100.0,
                   index=pd.to_datetime(d['dt'], format='%Y%m%d'))
     return r[r > -0.9].sort_index()        # -99.99 결측 제거
@@ -69,7 +86,7 @@ def ff_beme_daily(col='Hi 30'):
 def ff_dp_monthly(col='Hi 30'):
     """D/P 분위 포트폴리오 월간 가치가중 수익률 (총수익, %)."""
     p = f'{FF_DIR}/Portfolios_Formed_on_D-P.csv'
-    d = _ff_block(p, 20, n_rows=1211 - 21)
+    d = _ff_block(p, 20, n_rows=1211 - 21, col=col, min_rows=900)
     r = pd.Series(d[col].astype(float).values / 100.0,
                   index=pd.to_datetime(d['dt'], format='%Y%m'))
     return r[r > -0.9].sort_index()

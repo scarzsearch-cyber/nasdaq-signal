@@ -31,8 +31,14 @@ def summarize(D, cost=0.001, start=None, end=None, label=''):
     lo = 0 if start is None else idx.searchsorted(pd.Timestamp(start))
     hi = len(idx) if end is None else idx.searchsorted(pd.Timestamp(end), side='right')
     sl = slice(lo, hi)
-    qld = pd.Series(np.cumprod(1 + D['qldr'][sl]), index=idx[sl])
-    qqq = pd.Series(np.cumprod(1 + np.nan_to_num(D['px'].pct_change().values)[sl]), index=idx[sl])
+    # [코드리뷰 2026-09-04] 전략 곡선은 run() 이 r[0]=0.0 으로 눌러 정확히 1.0 에서
+    # 시작한다. 벤치마크도 같은 규약을 써야 한 표에서 비교가 성립한다 — 종전에는
+    # 구간 첫날 수익이 그대로 곱해져 start= 를 준 표에서 벤치마크만 부풀었다
+    # (2000-01-03 기준 최종배수 +7.4% · CAGR +0.285%p).
+    qr = np.array(D['qldr'][sl], dtype=float); qr[0] = 0.0
+    pr = np.nan_to_num(D['px'].pct_change().values)[sl].astype(float).copy(); pr[0] = 0.0
+    qld = pd.Series(np.cumprod(1 + qr), index=idx[sl])
+    qqq = pd.Series(np.cumprod(1 + pr), index=idx[sl])
     rows = []
     for nm, (c, w, t) in cs.items():
         m = met(c); sw = len(switches(w))

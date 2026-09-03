@@ -38,10 +38,15 @@ def build(cash_rate=CASH_RATE):
     full = pd.concat([synth, y]); full = full[~full.index.duplicated()].sort_index()
     qld_ext = (1 + full).cumprod()
 
-    idx = qqq.index.intersection(qld_ext.index).sort_values()
-    idx = idx[idx >= START]
-    px = qqq.reindex(idx)
-    dd = (px / px.rolling(LOOKBACK, min_periods=60).max() - 1).fillna(0)
+    idx_all = qqq.index.intersection(qld_ext.index).sort_values()
+    idx = idx_all[idx_all >= START]
+    # [코드리뷰 2026-09-04] 룩백 최대값은 **절단 전** 격자에서 구한다. 종전에는 px 를
+    # START 로 자른 뒤 rolling 을 걸어 시작일 이전 가격이 창에 안 들어갔고, 그래서
+    # 앞부분 낙폭이 실제보다 얕게 잡혔다(실측 42일 · 최대 15.47%p). −16 문턱에서는
+    # 갈리는 날이 0 이라 공표 B 수치는 그대로지만 −0.11/−0.12/−0.14 는 하루씩 갈렸다.
+    px_all = qqq.reindex(idx_all)
+    dd = (px_all / px_all.rolling(LOOKBACK, min_periods=60).max() - 1).reindex(idx).fillna(0)
+    px = px_all.reindex(idx)
     qldr = qld_ext.reindex(idx).pct_change().fillna(0)
     schdr = schd.reindex(idx).pct_change().fillna(cash_rate / 252)
     return dict(idx=idx, px=px, dd=dd,
@@ -73,7 +78,7 @@ def run(D, ladder, enter=ENTER, cost=COST, lag=1, start=None, end=None, w0=1.0):
       cond   : bool ndarray (길이 = 전체 인덱스) 또는 ('dd', x) 형태의 낙폭 조건
       weight : 그 조건이 켜지면 회복할 QLD 목표비중
       min_days : SCHD 진입 후 최소 경과 거래일
-    반환: (곡선 pd.Series, 비중 pd.Series, 전환일 리스트)
+    반환: (곡선 pd.Series, 비중 pd.Series, 일별 회전율 ndarray |diff(pos)|)
     """
     ddv, qldr, schdr, idx = D['ddv'], D['qldr'], D['schdr'], D['idx']
     n = len(idx)
@@ -97,7 +102,7 @@ def run(D, ladder, enter=ENTER, cost=COST, lag=1, start=None, end=None, w0=1.0):
         else:
             days += 1
             if d <= enter:
-                cur = 0.0
+                cur, days = 0.0, 0      # 재진입도 '진입' — min_days 시계를 다시 센다
             else:
                 tgt = cur
                 for c, wt, mind in conds:
@@ -108,7 +113,12 @@ def run(D, ladder, enter=ENTER, cost=COST, lag=1, start=None, end=None, w0=1.0):
 
     seg = slice(lo, hi)
     wv = w[seg]
-    pos = np.empty_like(wv); pos[:lag] = w0; pos[lag:] = wv[:-lag]      # 신호 다음날 체결
+    pos = np.empty_like(wv)
+    if lag:
+        pos[:lag] = w0
+        pos[lag:] = wv[:-lag]                          # 신호 다음날 체결
+    else:
+        pos[:] = wv                                    # 당일 신호 = 당일 체결
     r = pos * qldr[seg] + (1 - pos) * schdr[seg]
     r = np.nan_to_num(r); r[0] = 0.0
     turn = np.abs(np.diff(pos, prepend=pos[0]))
@@ -126,7 +136,8 @@ def met(c):
     vol = ret.std() * np.sqrt(252)
     dn = ret[ret < 0].std() * np.sqrt(252)
     return dict(final=float(c.iloc[-1]), cagr=float(cagr), mdd=float(mdd),
-                calmar=float(cagr / abs(mdd)), sharpe=float(ret.mean() * 252 / vol),
+                calmar=float(cagr / abs(mdd)) if mdd < 0 else np.nan,
+                sharpe=float(ret.mean() * 252 / vol) if vol > 0 else np.nan,
                 sortino=float(ret.mean() * 252 / dn) if dn > 0 else np.nan, years=float(yrs))
 
 

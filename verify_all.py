@@ -1150,7 +1150,15 @@ SHARED_SEAL = {
     'mix_monthly_from': ('axis_defmix.py', 'adb498b68308'),
     'mix_monthly_parts': ('hist_defasset.py', '28e5cb665804'),
     'rule_w': ('axis_lib.py', 'dc1de1e02376'),
-    'ust_tr': ('hist_defasset.py', '75d7bf8f7dd0'),
+    # [2026-09-04 코드리뷰 2차] ust_tr 갱신 — ① y.bfill() 제거(원자료 시작 이전을
+    # 첫 관측 금리로 소급해 채우던 미래 당겨쓰기: ^TYX 1972~77 의 1,311행 9.5%가
+    # 연 7.70% 고정 · 일간 σ 8.4e-06 = 실제의 1/1000 이었다) · ② fee 를 futures
+    # 블록 밖으로(현물형에서 조용히 무시되던 것).
+    # ★ 사용처 재실행 결과: ust5/ust10(TNX 1962~)은 지문 불변 → MIX_V23·mix_monthly·
+    #   공표 방어 바스켓 전부 그대로. 바뀐 것은 TYX 기반 ust20/ust30 뿐이고,
+    #   공표 strategy_stats.json 의 전략 수치(B 217110.075 / A 128074.913 / us_2000
+    #   B 167.315)는 재계산 결과 소수점까지 동일함을 확인했다.
+    'ust_tr': ('hist_defasset.py', '2627b81cc9a8'),
 }
 
 

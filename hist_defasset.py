@@ -30,6 +30,7 @@ v21 §2.3 은 "방어자산의 유효성은 위기의 성격에 달려 있다 �
 실행:  python hist_defasset.py     # 교차검증 리포트
 """
 import os
+import warnings
 import numpy as np
 import pandas as pd
 
@@ -113,12 +114,25 @@ def ust_tr(idx, maturity=10, source='TNX', futures=False, fee=0.0):
     y = _csv('yahoo_%s' % source) / 100.0
     y = y[y > 0]
     y = y.reindex(idx.union(y.index)).ffill().reindex(idx)
-    y = y.bfill()
+    # [코드리뷰 2026-09-04] 종전에는 여기서 y.bfill() 로 원자료 **시작 이전** 구간을
+    # 첫 관측 금리로 소급해 채웠다. 그 구간은 y 가 상수라 par_price(y, y0=y)=1.0 이
+    # 되어 자본손익이 0 이고 쿠폰만 남는다 — ^TYX(1977-02-15~)를 1972 부터의 idx 로
+    # 부르면 1,311행(9.5%)이 연 7.70% 고정 · 일간 표준편차 8.4e-06(실제의 1/1000)인
+    # 무위험 상수가 됐다. 하필 1972~77 은 장기채가 가장 위험했던 구간이다.
+    # 미래를 당겨쓰지 않는다: 원자료 이전은 값이 없고, 아래 nan_to_num 이 0 으로 둔다.
+    miss = int(y.isna().sum())
+    if miss:
+        warnings.warn('ust_tr: %s 원자료가 %s 부터라 그 이전 %d행(%.1f%%)은 값이 없다 '
+                      '- 0 으로 두고 계산한다. 그 구간을 포함한 수치는 인용하지 마라.'
+                      % (source, str(y.dropna().index[0].date()) if y.notna().any() else '?',
+                         miss, 100.0 * miss / len(y)), RuntimeWarning, stacklevel=2)
     y0 = y.shift(1)
-    px = par_price(y.values, y0.values, maturity)
-    r = y0.values / 252.0 + (px - 1.0)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        px = par_price(y.values, y0.values, maturity)
+        r = y0.values / 252.0 + (px - 1.0)
     if futures:
-        r = r - _short_rate(idx) / 252.0 - fee / 252.0
+        r = r - _short_rate(idx) / 252.0
+    r = r - fee / 252.0          # [코드리뷰] 종전엔 futures=True 에서만 빠져 조용히 무시됐다
     r[0] = 0.0
     return np.nan_to_num(r)
 
@@ -167,6 +181,11 @@ def basket(idx, weights, fee=0.0, base=None):
         if base is None:
             raise ValueError('div 비중이 있으면 base(배당체인 수익률)를 줘야 한다')
         comp['div'] = np.asarray(base, dtype=float)
+    if weights.get('ust5', 0) > 0:
+        # [코드리뷰 2026-09-04] 채택안 MIX_V23 이 'ust5' 를 쓰는데 basket() 이 그 키를
+        # 안 만들어 자기 모듈의 채택안을 자기 함수에 넣으면 KeyError 로 죽었다.
+        # ust5 의 뜻은 v36 이 정한 대로 국내 미국채10년선물 ETF(305080) = 선물형이다.
+        comp['ust5'] = ust_tr(idx, 5, 'TNX', futures=True, fee=UST_FEE)
     if weights.get('ust10', 0) > 0:
         comp['ust10'] = ust_tr(idx, 10, 'TNX')
     if weights.get('ust30', 0) > 0:
@@ -176,6 +195,8 @@ def basket(idx, weights, fee=0.0, base=None):
     r = np.zeros(len(idx))
     for k, w in weights.items():
         if w > 0:
+            if k not in comp:
+                raise ValueError('basket: 모르는 성분 %r - 지원: div/ust5/ust10/ust30/gold' % k)
             r = r + (w / tot) * comp[k]
     return r - fee / 252.0
 
