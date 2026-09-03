@@ -165,10 +165,22 @@ def i4_real(D):
         kr = DA.kr(code)
         # pct_change 는 반드시 교집합 **후에** (v34 교훈)
         a = kr.reindex(kr.index.intersection(ki)).pct_change().dropna()
-        s = syn[k].reindex(a.index).fillna(0)
-        y = len(a) / 252.0
-        d = ((1 + s).prod() / (1 + a).prod()) ** (1 / y) - 1
-        ok(f'{nm} {code} 드리프트 ±1.5%p', abs(d) < 0.015, f'{d:+.2%}/년 ({y:.1f}년)')
+        # [2026-09-04 코드리뷰] ★ 종전엔 분자와 분모가 **서로 다른 날짜 집합**을 복리했다.
+        #   실물 a 는 교집합의 연속 관측 사이 수익이라 공백을 통째로 먹는데(실측 다일 수익
+        #   98/1868건, 최장 6일), 합성은 `reindex(a.index)` 라 그 사이 날을 그냥 버렸다.
+        #   실측 오차 — 국채 −0.032%/년 → **−0.928%**(문턱 ±1.5%p 의 62%) · 금은 **부호가
+        #   뒤집힌다**(−0.243% → +0.385%). 진짜 모형-실물 괴리 1%p 가 정렬 아티팩트로 상쇄된다.
+        #   게다가 fillna(0) 이라 원자료가 몇 주 뒤지면 결측이 0% 날로 변해 그대로 통과했다.
+        #   → 같은 구간의 합성 **전체**와 비교하고, 연수도 그 구간 길이로 잰다.
+        full = syn[k].loc[a.index[0]:a.index[-1]]
+        if full.isna().any():
+            ok(f'{nm} {code} 합성 계열에 결측 없음', False,
+               '%d일 결측 — 0%%로 메우면 드리프트가 가짜로 좋아진다' % int(full.isna().sum()))
+            full = full.dropna()
+        y = len(full) / 252.0
+        d = ((1 + full).prod() / (1 + a).prod()) ** (1 / y) - 1
+        ok(f'{nm} {code} 드리프트 ±1.5%p', abs(d) < 0.015,
+           f'{d:+.2%}/년 ({y:.1f}년 · 실물 관측 {len(a)}일 / 구간 {len(full)}일)')
 
 
 # ==================================================================== 저장소 위생 관문
@@ -975,17 +987,54 @@ def i6_live():
                 ok(f"내장 {sc['key']} 벤치 {bk} 있음",
                    a is not None and b is not None and abs(b - a) < 1e-9,
                    f'{b} vs {a}')
+    # [2026-09-04 코드리뷰] ★ 종전 I6 는 as_of·dd·state **셋만** 재계산했다. 변조 시험에서
+    #   close 709.24→1.0 · high_252 745.34→999 · gap_pp 11.2→0.1 · next_line −16→−11 ·
+    #   changed_today False→True · enter −16→−30 이 **여섯 개 전부 FAIL 0건**이었다
+    #   (대조군으로 dd·state 는 정상 FAIL — 하네스는 유효했다).
+    #   그런데 changed_today 는 화면의 전환일 체크리스트·signal_alert 카톡·watchdog switchday
+    #   **셋을 동시에** 구동하고, high_252 는 전환 기준가(×0.84), gap_pp 는 근접 카톡을 구동한다.
+    #   update_signal 의 prev 계산이 깨져 진짜 전환일에 changed_today=false 를 내면
+    #   알림도 체크리스트도 안 뜨는데(04 §5-8 의 −96.5% 경로) I6 는 PASS 를 찍었다.
+    #   → 화면·알림이 읽는 필드를 전부 재계산으로 대조한다.
+    ok('close 재계산 일치', abs(float(j['close']) - float(s.iloc[-1])) < 0.005,
+       "json %s vs csv %.2f" % (j['close'], s.iloc[-1]))
+    rm = s.rolling(252, min_periods=60).max().iloc[-1]
+    ok('high_252 재계산 일치 (전환 기준가의 재료)',
+       abs(float(j['high_252']) - float(rm)) < 0.005, "json %s vs 재계산 %.2f" % (j['high_252'], rm))
     for k, en, ex in (('B', -0.16, -0.16), ('A', -0.16, -0.11)):
+        st = []
         cur = 'QLD'
         for v in dd.values:
             if pd.isna(v):
+                st.append(cur)
                 continue
             if cur == 'QLD' and v <= en:
                 cur = 'SCHD'
             elif cur == 'SCHD' and v > ex:
                 cur = 'QLD'
-        ok(f'상태 재계산 일치 ({k})', j['strategies'][k]['state'] == cur,
-           f"json {j['strategies'][k]['state']} vs 재계산 {cur}")
+            st.append(cur)
+        e = j['strategies'][k]
+        ok(f'상태 재계산 일치 ({k})', e['state'] == cur, f"json {e['state']} vs 재계산 {cur}")
+        # 전환 여부 — 마지막 이틀의 상태가 다른가
+        chg = len(st) >= 2 and st[-1] != st[-2]
+        ok(f'changed_today 재계산 일치 ({k})', bool(e.get('changed_today')) == chg,
+           "json %s vs 재계산 %s — 화면 체크리스트·카톡·파수꾼이 이 값을 쓴다"
+           % (e.get('changed_today'), chg))
+        ok(f'prev_state 재계산 일치 ({k})',
+           'prev_state' not in e or e['prev_state'] == (st[-2] if len(st) >= 2 else cur),
+           "json %s vs 재계산 %s" % (e.get('prev_state'), st[-2] if len(st) >= 2 else cur))
+        # 다음 선과 거리 — 방어면 복귀선(exit), 공격이면 진입선(enter)
+        line = ex if cur == 'SCHD' else en
+        ok(f'next_line 재계산 일치 ({k})',
+           'next_line' not in e or abs(float(e['next_line']) - line * 100) < 0.01,
+           "json %s vs 재계산 %.1f" % (e.get('next_line'), line * 100))
+        gap = abs(float(dd.iloc[-1]) * 100 - line * 100)
+        ok(f'gap_pp 재계산 일치 ({k})',
+           'gap_pp' not in e or abs(float(e['gap_pp']) - gap) < 0.06,
+           "json %s vs 재계산 %.2f — 근접 알림이 이 값을 쓴다" % (e.get('gap_pp'), gap))
+        ok(f'진입·복귀선이 동결값 그대로 ({k})',
+           abs(float(e['enter']) - en * 100) < 1e-9 and abs(float(e['exit']) - ex * 100) < 1e-9,
+           "enter %s exit %s" % (e.get('enter'), e.get('exit')))
     age = (pd.Timestamp.now(tz='UTC').normalize().tz_localize(None) - s.index[-1]).days
     ok('신호 신선도 (5일 이내)', age <= 5, f'{age}일 전', warn=True)
 
