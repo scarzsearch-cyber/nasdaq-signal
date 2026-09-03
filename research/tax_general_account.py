@@ -124,6 +124,24 @@ def main():
 
     H_after, H_tax, H_sell = hedge(True)
     H2_after, H2_tax, H2_sell = hedge(False)
+    # ★ ③ 의 세전도 실제로 계산한다 — 표의 숫자 칸에 「—」를 넣지 않는다(소유자 지시 2026-09-03)
+    def hedge_pretax(rebal_monthly):
+        vL, vD, vF = 0.6, 0.4, 0.0
+        ust_ = np.nan_to_num(np.asarray(DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE), float))
+        gold_ = np.nan_to_num(np.asarray(DA.gold_r(idx), float))
+        rF_ = (0.40 * ust_ + 0.20 * gold_) / 0.60
+        for i in range(1, len(idx)):
+            vL *= (1 + qldr[i]); vD *= (1 + divr[i]); vF *= (1 + rF_[i])
+            if pos[i] != pos[i - 1]:
+                if pos[i] > 0.5:
+                    vL += vF; vF = 0.0
+                else:
+                    vF += vL; vL = 0.0
+            elif rebal_monthly and pos[i] > 0.5:
+                if idx[i] == 月末[i]:
+                    tot = vL + vD; vL, vD = 0.6 * tot, 0.4 * tot
+        return vL + vD + vF
+    preH2 = hedge_pretax(False)
 
     # ── 세전 기준 ───────────────────────────────────────────────────────────
     def pre(att):
@@ -143,9 +161,8 @@ def main():
     print(f"\n  {'':<26}{'세전 최종':>13}{'세후 최종':>13}{'낸 세금':>11}{'과세 매도':>10}{'세후/세전':>10}")
     for nm, pr, af, tx, ns in (('① 현행 B', preB, B_after, B_tax, B_sell),
                                ('② 헤지6/4 (월 재조정)', preH, H_after, H_tax, H_sell),
-                               ('③ 헤지6/4 (재조정 없음)', None, H2_after, H2_tax, H2_sell)):
-        p = f'{pr:>12,.0f}배' if pr else f"{'—':>13}"
-        print(f'  {nm:<26}{p}{af:>12,.0f}배{tx:>10,.0f}{ns:>10}{(af/pr if pr else float("nan")):>10.3f}')
+                               ('③ 헤지6/4 (재조정 없음)', preH2, H2_after, H2_tax, H2_sell)):
+        print(f'  {nm:<26}{pr:>12,.0f}배{af:>12,.0f}배{tx:>10,.0f}{ns:>10}{af/pr:>10.3f}')
     print(f'\n  세전 격차 B ÷ 헤지6/4 = {preB/preH:>6.2f}배')
     print(f'  세후 격차 B ÷ 헤지6/4 = {B_after/H_after:>6.2f}배  (재조정 없는 변형 대비 {B_after/H2_after:.2f}배)')
     print(f'\n  ★ 「배당을 안 판다」의 이점: 헤지6/4 의 과세 매도가 전환 {B_sell}회 → {H_sell}건으로 바뀐다.')

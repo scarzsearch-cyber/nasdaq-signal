@@ -149,8 +149,9 @@ def main():
     print('\n' + L); print(f'제약(MDD ≥ {TARGET:.0f}%)을 **간신히** 만족하는 지점 — 같은 낙폭을 가장 싸게 사는 경로는?'); print(L)
     print(f"  {'경로':<28}{'MDD':>8}{'CAGR':>8}{'최종배수':>13}{'vs현행':>8}{'20년 p05':>10}{'vs현행':>9}"
           f"{'10년중앙':>10}{'10년최악5%':>11}{'변동성':>8}{'전환':>6}")
-    print(f"  {'현행 B (제약 위반)':<28}{base['mdd']:>7.1f}%{base['cagr']:>7.2f}%{base['final']:>13,.0f}{'기준':>8}"
-          f"{base['p05_20']:>9.1f}배{'기준':>9}{base['med10']:>9.1f}배{base['p05_10']:>10.1f}배{base['vol']:>7.1f}%{base['sw']:>6}")
+    # ★ 기준 행에도 실제 숫자를 넣는다 — 「기준」·「—」 같은 단어를 숫자 칸에 넣지 않는다(소유자 지시 2026-09-03)
+    print(f"  {'현행 B (제약 위반)':<28}{base['mdd']:>7.1f}%{base['cagr']:>7.2f}%{base['final']:>13,.0f}{1.00:>7.2f}배"
+          f"{base['p05_20']:>9.1f}배{1.00:>7.2f}배{base['med10']:>9.1f}배{base['p05_10']:>10.1f}배{base['vol']:>7.1f}%{base['sw']:>6}")
     ok = [(nm, e) for nm, e in rows if e]
     for nm, e in sorted(ok, key=lambda t: -t[1]['p05_20']):
         print(f"  {nm:<28}{e['mdd']:>7.1f}%{e['cagr']:>7.2f}%{e['final']:>13,.0f}{e['final']/base['final']:>7.2f}배"

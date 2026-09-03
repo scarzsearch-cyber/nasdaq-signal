@@ -141,7 +141,7 @@ def zoom(DS):
             w1 = float((s / s.shift(252) - 1).min() * 100)
             big = float((r <= -0.03).sum() / ((idx[-1] - idx[0]).days / 365.25))
             row = f'  {w*100:>4.0f}%{vol:>9.1f}%'
-            row += f'{(vol/base-1)*100:>+7.1f}%' if base else f"{'기준':>8}"
+            row += f'{(vol/base-1)*100:>+7.1f}%' if base else f'{0.0:>+7.1f}%'
             if base is None:
                 base = vol
             out = [row, f"{m['mdd']:>7.1f}%", f'{w1:>8.1f}%', f'{big:>9.1f}회']
