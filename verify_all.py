@@ -35,6 +35,7 @@
   I10 전제 감시      나스닥 고유 성질(극단 MDD·장기 상승)이 유지되는가
 """
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -68,6 +69,20 @@ def ok(name, cond, detail='', warn=False):
         (WARN if warn else FAIL).append(name)
     return cond
 
+
+def _differs(a, b, tol=1e-12):
+    """두 값이 다른가 — **NaN 은 「다름」으로 센다.**
+
+    [2026-09-04 코드리뷰] 종전 I2 는 `abs(a - b) > tol` 로 비교했는데 한쪽이 NaN 이면
+    그 식이 **항상 False** 라 NaN 이 「일치」로 집계됐다. zc·exp_q 가 통째로 NaN 이 돼도
+    「불일치 0/25 · PASS」가 뜨고 정상 런과 문구까지 같았다 — 미래 미참조 불변식이다.
+    """
+    import math
+    na, nb = (a is None or (isinstance(a, float) and math.isnan(a))), \
+             (b is None or (isinstance(b, float) and math.isnan(b)))
+    if na or nb:
+        return not (na and nb)          # 둘 다 NaN 이면 같은 것으로 본다(워밍업 구간)
+    return abs(float(a) - float(b)) > tol
 
 def head(t):
     print("\n" + "=" * 78)
@@ -104,15 +119,18 @@ def i2_pit(D):
     for t in pts:
         c = px.iloc[:t + 1]
         dv = (c / c.rolling(252, min_periods=252).max() - 1).fillna(0).values
-        if abs(dv[-1] - full[t]) > 1e-12:
+        # [2026-09-04 코드리뷰] ★ 종전 첫 검사는 full 을 여기서 다시 만들어 **자기 표현식을
+        #   자기 자신과 비교**했다(적대적 2,000점에서 편차 0.00e+00 — 실패할 수 없었다).
+        #   판정이 실제로 쓰는 것은 엔진이 만든 D['ddv'] 다 → 그쪽과 대조한다.
+        if _differs(dv[-1], D['ddv'][t]):
             b[0] += 1
         if rule_w(dv, -0.16, -0.16)[-1] != wf[t]:
             b[1] += 1
         z = V.zc(c.pct_change().rolling(10, min_periods=10).std().values)
-        if abs(z[-1] - rvf[t]) > 1e-10:
+        if _differs(z[-1], rvf[t], 1e-10):
             b[2] += 1
         q = V.exp_q(z, 0.925)
-        if abs(np.nan_to_num(q[-1]) - np.nan_to_num(qf[t])) > 1e-10:
+        if _differs(q[-1], qf[t], 1e-10):
             b[3] += 1
     for nm, v in zip(('QQQ 낙폭', '비중경로', '변동성 z', '확장창 분위'), b):
         ok(f'{nm} 시점별 일치', v == 0, f'불일치 {v}/{len(pts)}')
@@ -801,8 +819,20 @@ def i11_freeze():
     n = 0
     if os.path.exists('data/oos_log.csv'):
         n = sum(1 for _ in io.open('data/oos_log.csv', encoding='utf-8')) - 1
+    # [2026-09-04 코드리뷰] 종전 `ok(..., n >= 1, ..., warn=(n < 1))` 은 조건이 거짓인
+    #   경우가 전부 warn 이라 **FAIL 경로가 구조적으로 도달 불가**였다. 장부가 통째로
+    #   비워져도 WARN 한 줄이 전부였다(§2 절대 수정 금지 실측 장부다).
+    #   → 「아직 안 쌓임」은 그대로 WARN, **「있던 것이 줄었다」는 FAIL** 로 가른다.
     ok('OOS 장부가 쌓이고 있다', n >= 1,
        '%d영업일 (동결 %s 이후)' % (n, fz['frozen_at']), warn=(n < 1))
+    try:
+        prev = subprocess.run(['git', 'show', 'HEAD:data/oos_log.csv'], capture_output=True,
+                              text=True, encoding='utf-8', check=True, timeout=20).stdout
+        pn = max(0, len([l for l in prev.splitlines() if l.strip()]) - 1)
+        ok('OOS 장부가 줄지 않았다', n >= pn,
+           '작업본 %d행 vs HEAD %d행 — 줄었다면 장부가 잘린 것이다' % (n, pn))
+    except Exception:
+        pass                                  # 첫 커밋·git 부재는 이 검사의 대상이 아니다
 
 
 # ------------------------------------------------------------------ I12
@@ -831,10 +861,17 @@ def i12_shadow():
                 if not (0 <= v <= 4 and rv > 0 and 0 <= w <= 1
                         and ((v < 2) == (w == 0))):
                     bad.append(r['as_of'])
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, TypeError):
                 bad.append(r.get('as_of', '?'))
     ok('그림자 기록이 정의와 모순 없음', not bad,
        '%d행 검사%s' % (n, ' · 위반: ' + ','.join(bad[:3]) if bad else ''))
+    # [2026-09-04 코드리뷰] 종전엔 t4_votes 가 **전부 비어도** continue 로 다 건너뛰어
+    #   n=0 · bad=[] → 「0행 검사 PASS」가 떴다. 열 삭제·열명 변경·전체 공백 세 경우가
+    #   전부 같은 초록불이었다 — 파이프라인 사망과 정상을 구별하지 못한다.
+    tot = max(0, sum(1 for _ in io.open(p, encoding='utf-8')) - 1)
+    ok('그림자 기록이 실제로 쌓여 있다', n > 0 or tot == 0,
+       '장부 %d행 중 그림자 %d행 — 0 이면 T4 파이프라인이 죽은 것이다' % (tot, n),
+       warn=(tot <= 3))
 
     # [v73] 01 문서 AUTO-STATS 블록이 최신 스냅샷과 같은 끝 날짜인가
     if os.path.exists('01_Strategy_Logic.md') and os.path.exists('data/strategy_stats.json'):
@@ -921,9 +958,16 @@ def i6_live():
             for k in ('B',):
                 a = (sc['strategies'][k].get('horizons') or {}).get('20')
                 b = (e[0]['strategies'][k].get('horizons') or {}).get('20')
+                # [2026-09-04 코드리뷰] 종전 `(a is None and b is None)` 탈출구 때문에
+                #   build_stats 가 horizons 를 안 내면 네 시나리오 전부 PASS 였다
+                #   (kr_real 은 지금도 None vs None 으로 통과 중이다 — 아래 예외로 명시).
+                #   바로 위 ulcer/uw_months/dd_mean 루프는 이미 둘 다 있어야 통과한다.
+                need = sc['strategies'][k].get('years', 0) >= 20   # 20년 창을 낼 수 있는 표본만
                 ok(f"내장 {sc['key']} {k} horizons 일치",
-                   (a is None and b is None) or
-                   (a is not None and b is not None and abs(b - a) < 1e-9), f'{b} vs {a}')
+                   (a is not None and b is not None and abs(b - a) < 1e-9)
+                   if need else (a is None and b is None) or
+                   (a is not None and b is not None and abs(b - a) < 1e-9),
+                   f'{b} vs {a}' + ('' if need else ' (표본 20년 미만 — 없을 수 있다)'))
             # [v61] 화면 눈금이 되는 벤치마크도 사본에 있어야 한다
             for bk in ('lev', 'def'):
                 a = (sc.get('benchmarks') or {}).get(bk, {}).get('ulcer')
@@ -984,25 +1028,70 @@ def i7_stats(D):
 
 
 # ------------------------------------------------------------------ I8
+SHARED_SEAL = {
+    'accumulate': ('axis_lib.py', '4b3349a8802c'),
+    'lev_r': ('axis_lib.py', '2580ab36b893'),
+    'mix_monthly': ('hist_defasset.py', 'da5c3ec9a7b3'),
+    'mix_monthly_from': ('axis_defmix.py', 'adb498b68308'),
+    'mix_monthly_parts': ('hist_defasset.py', '28e5cb665804'),
+    'rule_w': ('axis_lib.py', '747bbbdf9c54'),
+    'ust_tr': ('hist_defasset.py', '75d7bf8f7dd0'),
+}
+
+
 def i8_deps():
-    head("I8. 의존성 — 공용 모형 사용처가 전부 최신인가")
-    print("  공용 모형을 바꾸면 사용처를 전부 재실행해야 한다 (v36 교훈).")
-    SHARED = {'ust_tr': '국채 모형', 'mix_monthly': '바스켓', 'accumulate': '적립',
-              'rule_w': '비중경로', 'lev_r': '레버리지'}
+    """공용 모형이 바뀌었는데 사용처를 안 돌린 것을 잡는다 (docstring ⑤ 유형).
+
+    [2026-09-04 코드리뷰] ★ 종전 이 함수에는 **ok() 호출이 하나도 없었다** — 사용처 수를
+      print 하고 「확인하라」는 사람용 문장으로 끝났다. 그런데 모듈 docstring 은 이것을
+      「불변식 — 하나라도 깨지면 실패」 목록에 올려놓고 「⑤ 는 이 파일이 막는다」고 약속한다.
+      막지 않았다. 실패할 수 없는 것은 관문이 아니다(§-1 ⑤).
+    ★ 게다가 조사 범위가 glob('*.py')+glob('deploy/*.py') 라 **research/ 를 통째로 뺐다**.
+      실측 오차: lev_r 「1개」로 찍혔지만 실제 34개 · accumulate 4 vs 55 · rule_w 3 vs 43.
+      탐색어 'mix_monthly(' 는 mix_monthly_from( 을 부분일치 못 해 28개가 안 보였고,
+      정의 파일 자신을 「사용처」로 셌다.
+
+    → **봉인으로 바꿨다**: 공용 모형 7종의 함수 소스를 해시해 아래 상수와 대조한다.
+      모형을 고치면 여기서 실패하고, 사용처를 다시 돌린 뒤 **의도적으로** 이 상수를
+      갱신해야 통과한다. 공표 수치 쪽은 I7 이 us_1972 B 를 라이브 엔진으로 재계산해 지킨다.
+    """
+    head("I8. 의존성 — 공용 모형이 바뀌면 사용처를 다시 돌렸는가")
+    import ast
     import glob
-    for fn, nm in SHARED.items():
-        users = []
-        for f in sorted(glob.glob('*.py') + glob.glob('deploy/*.py')):
-            if f in ('verify_all.py',):
-                continue
+    files = sorted(set(glob.glob('*.py') + glob.glob('deploy/*.py')
+                       + glob.glob('research/*.py') + glob.glob('audit/*.py')
+                       + glob.glob('내가_보는_것/*.py')))
+    srcs = {}
+    for f in files:
+        try:
+            srcs[f] = io.open(f, encoding='utf-8').read()
+        except Exception:
+            pass
+    drift = []
+    for fn, (deffile, want) in sorted(SHARED_SEAL.items()):
+        src = srcs.get(deffile)
+        seg = None
+        if src is not None:
             try:
-                if fn + '(' in io.open(f, encoding='utf-8').read():
-                    users.append(f)
+                for node in ast.parse(src).body:
+                    if isinstance(node, ast.FunctionDef) and node.name == fn:
+                        seg = ast.get_source_segment(src, node)
             except Exception:
-                pass
-        print(f"    {nm:<10} {fn+'()':<14} 사용처 {len(users)}개: {', '.join(users[:6])}"
-              + (' ...' if len(users) > 6 else ''))
-    print("  ※ 이 목록의 파일을 고쳤으면 관련 raw 출력을 재생성했는지 확인하라.")
+                seg = None
+        got = hashlib.sha256((seg or '').encode('utf-8')).hexdigest()[:12] if seg else '(못찾음)'
+        # 사용처는 **모듈 한정 호출까지** 세고 정의 파일은 뺀다 (DA.ust_tr(...) 형태)
+        pat = re.compile(r'(?<!\w)' + re.escape(fn) + r'\s*\(')
+        users = [f for f, t in srcs.items()
+                 if f != 'verify_all.py'
+                 and not re.search(r'^\s*def\s+' + re.escape(fn) + r'', t, re.M)
+                 and pat.search(t)]
+        if got != want:
+            drift.append('%s (%s: %s → %s · 사용처 %d개)' % (fn, deffile, want, got, len(users)))
+        print('    %-18s %-16s 사용처 %3d개' % (fn, deffile, len(users)))
+    ok('공용 모형 7종이 봉인과 같다', not drift,
+       ('바뀐 모형 %d개: %s — 사용처를 재실행하고 SHARED_SEAL 을 갱신하라'
+        % (len(drift), '; '.join(drift[:3]))) if drift
+       else '%d개 파일에서 사용처를 셌다 (research/·audit/ 포함)' % len(srcs))
 
 
 # ------------------------------------------------------------------ I9
@@ -1029,14 +1118,25 @@ def i9_retired():
     hits, missing = [], []
 
     # (a) '현행 상태' 문서는 폐기 수치가 있으면 안 된다 — 엄격
-    for item in cfg['retired']:
-        v = item['value']
-        for f in CURRENT:
-            if not os.path.exists(f):
+    # [2026-09-04 코드리뷰] ★ 두 가지를 고쳤다.
+    #   ⓐ 종전엔 파일마다 13개 폐기값을 각각 훑느라 **같은 문서를 13번 다시 읽었다**
+    #     (9문서 × 13값 = 117회 · 8.06MB). 한 번 읽고 줄을 한 번만 돈다.
+    #   ⓑ 목록의 파일이 사라지면 조용히 continue 하고도 「9개 파일 검사」로 보고했다 —
+    #     **실제로 검사한 수**를 찍고, 없는 파일은 WARN 으로 드러낸다.
+    gone = [f for f in CURRENT if not os.path.exists(f)]
+    if gone:
+        ok('폐기 수치 검사 대상이 전부 있다', False,
+           '%d개 없음: %s — 이름이 바뀌었다면 retired_numbers.json 을 고쳐야 한다'
+           % (len(gone), ', '.join(gone)), warn=True)
+    seen = [f for f in CURRENT if os.path.exists(f)]
+    vals = [(it['value'], it['now']) for it in cfg['retired']]
+    for f in seen:
+        for i, line in enumerate(io.open(f, encoding='utf-8').read().splitlines(), 1):
+            if any(a in line for a in allow_c):
                 continue
-            for i, line in enumerate(io.open(f, encoding='utf-8').read().splitlines(), 1):
-                if v in line and not any(a in line for a in allow_c):
-                    hits.append((f, i, v, item['now']))
+            for v, now in vals:
+                if v in line:
+                    hits.append((f, i, v, now))
 
     # (b) 버전 문서는 그 시대의 기록이라 수치가 있는 게 맞다.
     #     대신 **정정 배너**가 있어야 한다 (읽는 사람이 현행으로 오인하지 않게).
@@ -1059,9 +1159,32 @@ def i9_retired():
     for f, v, tag in missing[:10]:
         print(f"    [배너없음] {f}  '{v}' 가 있는데 {tag} 정정 배너가 없다")
     ok('현행 문서에 폐기 수치 없음', not hits,
-       f'{len(hits)}건' if hits else f'{len(CURRENT)}개 파일 검사')
+       f'{len(hits)}건' if hits else '%d개 파일 × %d개 수치 검사' % (len(seen), len(vals)))
     ok('버전 문서에 정정 배너 있음', not missing,
        f'{len(missing)}건 누락' if missing else f'{len(cfg["retired"])}종 확인', warn=True)
+
+    # (c) [2026-09-04 코드리뷰] **정정 대장류** — CLAUDE.md 와 research/*.md 는 폐기된 주장을
+    #     「이건 틀렸다」고 기록하려고 인용한다. 그래서 (a) 처럼 금지하면 오탐이 난다
+    #     (실측: CLAUDE.md 의 「인용 오류 적발」 제목 줄이 걸렸다). 그러나 v186 의
+    #     「자기 표본 3위」 오류는 실제로 research/ 로 번졌고 CLAUDE.md 는 그 재발 방지를
+    #     「I9 관문이 막는다」고 적어 뒀는데 **I9 는 research/ 를 읽은 적이 없다.**
+    #     → 값 자체는 허용하되 **가까이(±3줄) 정정 표시가 없으면** 실패시킨다.
+    LEDGERS = ['CLAUDE.md'] + sorted(glob.glob('research/*.md'))
+    loose = []
+    for f in LEDGERS:
+        if not os.path.exists(f):
+            continue
+        lines = io.open(f, encoding='utf-8').read().splitlines()
+        for i, line in enumerate(lines):
+            for it in cfg['retired']:
+                if it['value'] not in line:
+                    continue
+                ctx = chr(10).join(lines[max(0, i - 3): i + 4])
+                if not any(a in ctx for a in allow_c):
+                    loose.append('%s:%d 「%s」' % (f, i + 1, it['value']))
+    ok('정정 대장에 맨몸으로 남은 폐기 수치 없음', not loose,
+       ('%d건: %s — 인용하려면 근처에 정정 표시를 달아라' % (len(loose), '; '.join(loose[:3])))
+       if loose else '%d개 문서 확인 (CLAUDE.md · research/*.md)' % len(LEDGERS))
 
 
 # ------------------------------------------------------------------ I10
