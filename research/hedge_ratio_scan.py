@@ -113,6 +113,47 @@ def table(title, rows, base_key, note):
         prev, prev_w = m, w
 
 
+def zoom(DS):
+    """[소유자 질문 2026-09-03] 「QLD 80/SCHD 20 이나 90/10 정도만 해도 변동성이 유의미하게 달라지나?」
+    54년 터미널 배수는 0.94%p 의 CAGR 차이를 54제곱으로 부풀린다 — 소유자 지평은 3~20년이다(memory: horizon-3-20y-frame).
+    그래서 **지평 창 분포**(10년·20년 중앙/최악5%)와 **체감 지표**(큰 하락일 수·최악 1년)로 다시 낸다."""
+    print('\n' + L)
+    print('D. 소유자 질문 — 「10% · 20% 만 섞어도 유의미한가」 (지평 3~20년 기준으로 다시 봄)')
+    print(L)
+    for dkey, wname in (('ext', '54년 1972~'), ('us2000', '21세기 2000~')):
+        D = DS[dkey]; idx = pd.DatetimeIndex(D['idx'])
+        qldr = np.asarray(D['qldr'], float); divr = np.asarray(D['schdr'], float)
+        defr = np.asarray(defensive_r(idx, divr, 'mix'), float)
+        print(f'\n  ── {wname} · B(−16/−16 · 방어 40/40/20)의 공격 다리만 섞음 ──')
+        print(f"  {'QLD':>5}{'연변동성':>10}{'vs100':>8}{'MDD':>8}{'최악1년':>9}{'−3%일/년':>10}"
+              f"{'10년 중앙':>10}{'10년 최악5%':>12}{'20년 중앙':>10}{'20년 최악5%':>12}")
+        base = None
+        for w in (1.0, 0.9, 0.8, 0.7):
+            att = np.asarray(DA.mix_monthly_parts(idx, {'lev': w, 'div': 1 - w},
+                                                  {'lev': qldr, 'div': divr}), float)
+            Dx = dict(D); Dx['qldr'] = att; Dx['schdr'] = defr
+            with contextlib.redirect_stdout(io.StringIO()):
+                c, _, _ = RL.run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
+            c = np.asarray(c, float); s = pd.Series(c, index=idx)
+            r = pd.Series(c, index=idx).pct_change()
+            vol = float(r.std(ddof=1) * np.sqrt(252) * 100)
+            m = EC.fullmet(c, idx=idx)
+            w1 = float((s / s.shift(252) - 1).min() * 100)
+            big = float((r <= -0.03).sum() / ((idx[-1] - idx[0]).days / 365.25))
+            row = f'  {w*100:>4.0f}%{vol:>9.1f}%'
+            row += f'{(vol/base-1)*100:>+7.1f}%' if base else f"{'기준':>8}"
+            if base is None:
+                base = vol
+            out = [row, f"{m['mdd']:>7.1f}%", f'{w1:>8.1f}%', f'{big:>9.1f}회']
+            for win in (2520, 5040):
+                q = (s / s.shift(win)).dropna()
+                out.append(f'{q.median():>9.1f}배' if len(q) else f"{'—':>10}")
+                out.append(f'{q.quantile(0.05):>11.1f}배' if len(q) else f"{'—':>12}")
+            print(''.join(out))
+    print('\n  ※ 「−3%일/년」은 하루 −3% 넘게 빠진 날이 1년에 몇 번인가 — 변동성 숫자보다 체감에 가깝다.')
+    print('  ※ 10년·20년 열은 **모든 시작일**의 창 분포다(중첩). 비중첩 창 수는 54년에 각각 5.4개·2.7개뿐 — 최악5% 는 참고치다.')
+
+
 def main():
     print(L); print('QLD ↔ SCHD 배합 스캔 — 소유자 요청 (전략 B 무변경 · 측정만)'); print(L)
     with contextlib.redirect_stdout(io.StringIO()):
@@ -185,6 +226,8 @@ def main():
         sa = px1[(px1.index >= a) & (px1.index <= b)]; da = dchain[(dchain.index >= a) & (dchain.index <= b)]
         print(f'    {nm:<34} 나스닥1배 {(sa.iloc[-1]/sa.iloc[0]-1)*100:>+7.1f}%   배당(대리) {(da.iloc[-1]/da.iloc[0]-1)*100:>+7.1f}%   '
               f'→ {"배당 승" if da.iloc[-1]/da.iloc[0] > sa.iloc[-1]/sa.iloc[0] else "나스닥 승"}')
+
+    zoom(DS)
 
     print('\n이 측정이 낳은 다음 질문 (§-1 ⑥):')
     print('  Q-a [A] 와 [B] 의 최적 비율이 다르면, 그것은 「전환이 이미 하는 일을 배합이 또 하는가」의 답이다 — 표에서 직접 읽는다.')
