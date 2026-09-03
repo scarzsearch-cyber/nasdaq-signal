@@ -91,10 +91,23 @@ def _plausible(it, tol=0.25):
     """[2026-09-03] 예비 출처 가격 가드 — 잘못 파싱한 값(다른 종목의 금액 등)이 「오늘의 행동」 주수 계산에
     들어가지 않게, 마지막 알려진 종가와 25% 넘게 어긋나면 그 종목은 싣지 않는다(화면은 없으면 숨긴다).
     2배 ETF 의 하루 최대 움직임(±20%대)보다 넓게 잡았다 — v122 체결가 오타 가드(±20%)와 같은 발상."""
-    ref = _last_known(str(it.get('itemcode', '')))
+    code = str(it.get('itemcode', ''))
+    ref = _last_known(code)
     px = it.get('nowVal')
-    if ref is None or not isinstance(px, (int, float)) or px <= 0:
-        return bool(px and px > 0)
+    if not isinstance(px, (int, float)) or px <= 0:
+        return False
+    # [2026-09-04 코드리뷰] ★ 종전엔 대조 기준이 없으면 `return bool(px>0)` 로 **아무 양수나
+    #   통과**시켰다 — 이 가드가 막으려던 바로 그 상황(구글 HTML 에서 다른 종목 금액을 긁어온
+    #   경우 등)에서 기준이 없으면 그대로 실렸다는 뜻이다. 검증할 수 없으면 검증된 것이 아니다.
+    #   → **fail closed**: 대조할 종가가 없으면 싣지 않는다. 화면은 없으면 배지를 숨기고
+    #   소유자는 MTS 를 보므로 실패가 눈에 보인다(v176 이 정한 신선도 원칙과 같은 방향).
+    #   ⚠ 판정과 무관하다 — 전환은 QQQ 미국 종가만 본다. 잃는 것은 표시용 배지뿐이고,
+    #   틀린 가격은 「오늘의 행동」의 주수·금액을 직접 틀리게 만든다. 비대칭이 명백하다.
+    #   실측: 현재 CODES 5종 전부 nav_history 에 기준이 있어 이 갈래는 평시엔 안 탄다.
+    if ref is None:
+        print('[price] 예비 출처 %s — nav_history 에 대조할 종가가 없어 싣지 않음 (%s)'
+              % (code, it.get('_source')), file=sys.stderr)
+        return False
     if abs(px / ref - 1) > tol:
         print('[price] 예비 출처 %s 값 %s 이 마지막 종가 %s 와 %.0f%% 어긋남 — 싣지 않음 (%s)'
               % (it.get('itemcode'), px, ref, abs(px / ref - 1) * 100, it.get('_source')), file=sys.stderr)

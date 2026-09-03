@@ -252,8 +252,24 @@ def main():
                  ('data/hist/kr_411060_KS.csv', '411060.KS')]:
         total += splice_kr(p, s)
     print(f'\n총 추가 {total}행')
-    return total
+    # [2026-09-04 코드리뷰] ★ append_rows 의 docstring 이 「main 이 종료코드 1 로 끝나
+    #   workflow 가 build_stats 를 돌리지 않는다(downstream 보호)」고 **약속하는데 그 코드가
+    #   없었다.** FAILURES 에 쌓기만 하고 아무도 읽지 않았고, main 은 행 수를 돌려주며
+    #   __main__ 은 그 값을 버려 언제나 0 으로 끝났다.
+    #   결과: 원자료가 검증에 막혀 옛날 그대로인데 monthly-stats 는 다음 스텝으로 넘어가
+    #   build_stats 가 **낡은 입력으로 계산해 새 generated_at 을 찍고 커밋한다.**
+    #   그러면 파수꾼 stats 모드(45일 문턱)도 「방금 갱신됨」으로 보므로 **낡음이 보이지
+    #   않게 된다** — 조용히 틀린 값을 오래 믿게 되는, 이 저장소가 가장 싫어하는 실패다.
+    if FAILURES:
+        for ln in ['', f'[실패] 검증에 막혀 갱신하지 못한 파일 {len(FAILURES)}개:',
+                   *[f'  · {f}' for f in FAILURES],
+                   '기존 데이터는 그대로 있다. 위 [검증실패] 줄을 보고 손으로 확인할 것.',
+                   '(이 스텝이 실패하므로 build_stats 는 돌지 않는다 — 낡은 입력으로',
+                   ' 새 성과표를 찍어 낡음을 감추는 것을 막는다.)']:
+            print(ln, file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

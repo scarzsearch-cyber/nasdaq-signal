@@ -110,9 +110,19 @@ def toss(code):
 
 
 def yahoo(code):
-    m = json.loads(_get(f'https://query1.finance.yahoo.com/v8/finance/chart/{code}.KS?range=2d&interval=1d'))
-    m = m['chart']['result'][0]['meta']
-    px, prev = _num(m.get('regularMarketPrice')), _num(m.get('chartPreviousClose'))
+    # [2026-09-04 코드리뷰] ★ 종전엔 전일 종가로 meta.chartPreviousClose 를 썼다. 그 값은
+    #   「요청한 range 가 시작되기 **전날**의 종가」라 range=2d 에서는 **이틀 전** 종가다.
+    #   실측 2026-09-04 418660.KS — regularMarketPrice 37,830 · closes [37,935, 37,830] 인데
+    #   chartPreviousClose 는 39,390 이었다. 등락률이 **−3.96% 로 표시되지만 실제는 −0.28%**
+    #   (14배). 가격은 맞고 등락만 틀리는 조용한 오류라 눈치채기 어렵다.
+    #   → 종가 배열에서 **오늘 봉 바로 앞**의 값을 쓴다. 봉이 하나뿐이면 그때만 meta 로 물러선다.
+    #   (previousClose·regularMarketPreviousClose 는 이 응답에 없다 — 실측 확인.)
+    r = json.loads(_get(f'https://query1.finance.yahoo.com/v8/finance/chart/{code}.KS?range=5d&interval=1d'))['chart']['result'][0]
+    m = r['meta']
+    px = _num(m.get('regularMarketPrice'))
+    closes = [c for c in (r.get('indicators', {}).get('quote') or [{}])[0].get('close') or []
+              if isinstance(c, (int, float))]
+    prev = _num(closes[-2]) if len(closes) >= 2 else _num(m.get('chartPreviousClose'))
     chg_pct = (px / prev - 1) * 100 if (px and prev) else None
     return _item(code, px, chg_pct, (px - prev) if (px and prev) else None, _num(m.get('regularMarketVolume')), '', 'yahoo')
 

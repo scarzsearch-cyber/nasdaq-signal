@@ -19,8 +19,10 @@ v21 부터 미결이던 과제다. v24 는 iNAV 를 못 구해 **상한**(이론
   nowVal(현재가) 과 nav(순자산가치) 를 함께 준다. 괴리율 = nowVal/nav − 1.
 
 [실행 시각 주의]
-  daily-signal.yml 은 07:30 KST 에 돈다. 그때 한국장은 아직 안 열렸으므로
-  받는 값은 **직전 거래일 종가 기준 NAV** 다. as_of 컬럼에 그대로 기록한다.
+  daily-signal.yml 슬롯은 04:35~09:17 KST 다(v190 이후). 09:00 전 슬롯에서는 한국장이
+  아직 안 열렸으므로 받는 값이 **직전 거래일 종가 기준 NAV** 이고, 09:17 슬롯에서는
+  **당일 개장 직후 값**이다(그래서 close 열은 당일분에 한해 종가가 아니다 — CLAUDE v179).
+  as_of 는 그 값이 속한 거래일을 trading_as_of() 가 계산한다.
 
 실행:
     python deploy/nav_collect.py            # 1회 수집 -> data/nav_history.csv 에 append
@@ -86,11 +88,48 @@ def universe_stats(lst):
     return n, med, sd
 
 
+KST = dt.timezone(dt.timedelta(hours=9))
+KR_OPEN = dt.time(9, 0)
+
+
+def trading_as_of(now=None):
+    """[2026-09-04 코드리뷰] 이 스냅샷의 값이 **속한 거래일**.
+
+    종전에는 `dt.date.today()` 였다 — 러너의 **UTC 날짜**다. KST 새벽 슬롯에서는 UTC 가
+    전날이라 우연히 「직전 거래일」과 맞아떨어졌지만, 그건 규약이 아니라 시차의 우연이다.
+    실제로 어긋난 자리가 장부에 남아 있다: cron 이 UTC 1-5 라 **KST 로는 화~토**에 도는데,
+    토요일 09:17 슬롯은 금요일 종가를 받아 놓고 **as_of=토요일**로 적었다
+    (data/nav_history.csv 의 2026-08-29 행이 그것이다 — 장부는 §2 라 그대로 둔다).
+    한국 임시공휴일에도 같은 일이 난다.
+
+    규약: 한국장이 **오늘 열렸고 09:00 을 지났으면** 오늘, 아니면 **직전 거래일**.
+    (네이버가 주는 nowVal 이 정확히 그 값이다 — 장중이면 오늘 값, 장 밖이면 마지막 종가.)
+    """
+    now = now or dt.datetime.now(KST)
+    hol = _kr_holidays()
+    d = now.date()
+    if d.weekday() < 5 and d.isoformat() not in hol and now.time() >= KR_OPEN:
+        return d.isoformat()
+    d -= dt.timedelta(days=1)
+    while d.weekday() >= 5 or d.isoformat() in hol:
+        d -= dt.timedelta(days=1)
+    return d.isoformat()
+
+
+def _kr_holidays():
+    """data/kr_holidays.json 의 휴장일 집합(날짜 → 이름 사전). price_poll 과 같은 읽기 방식.
+    없거나 못 읽으면 빈 집합 — 주말만 걸러도 종전(UTC 날짜)보다 낫다(fail open)."""
+    try:
+        with open(os.path.join("data", "kr_holidays.json"), encoding="utf-8") as f:
+            return set(json.load(f).get("holidays") or {})
+    except Exception:
+        return set()
+
 def collect(as_of=None):
     lst = fetch()
     by = {i['itemcode']: i for i in lst}
     n, med, sd = universe_stats(lst)
-    as_of = as_of or dt.date.today().isoformat()
+    as_of = as_of or trading_as_of()      # ★ UTC 날짜가 아니라 「값이 속한 거래일」
 
     os.makedirs('data', exist_ok=True)
     have = set()
