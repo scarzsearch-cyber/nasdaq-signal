@@ -358,3 +358,107 @@ def c21():
 
 if __name__ == '__main__':
     main()
+
+
+# =============================================================================
+# [보강 2026-09-03, 소유자 지적] 적립식 + ISA 한도 — 「어느 순간 거치식이 된다」
+# =============================================================================
+# 소유자: 「2배는 ISA 1억까지밖에 추가납입이 안 돼서 어느 순간 거치식이 되고,
+#          3배는 적립식으로 계속 납입도 가능한데 이런 차이도 계산되니?」
+# → **안 됐다.** 위 표는 전부 「1원이 얼마가 되나」(거치식 배수)다.
+#   ISA 한도(연 2,000만·총 1억)를 넣으면 월 100만 기준 **8.3년에 한도가 차고**
+#   그 뒤 납입은 **일반계좌 15.4%** 몫이 된다. 직투는 한도가 없다.
+#
+# 모형: 월 PM 만원 납입 · 이벤트 구동(적립일·전환일만 계산)
+#   전략 B  = ISA 버킷(계좌 안 무과세 · 만기 9.9% · 서민형 비과세 400만) +
+#             한도 초과분이 가는 일반 버킷(전환마다 15.4% · 손실 상계 불가)
+#   TQQQ B 직투 = 단일 버킷 · 전환마다 실현 · **연내 손익통산** · **연 250만 공제** ·
+#             이월 불가 · 22%. (실제 납부는 다음해 5월이나 여기서는 연말에 뗀다 = 보수적)
+# 축퇴 검산: 모든 세율 0 + ISA 한도 무한 → 두 경로가 **순수 적립 곡선과 일치**해야 한다.
+
+ISA_YEAR_CAP = 2000.0        # 만원 · 연간
+ISA_TOTAL_CAP = 10000.0      # 만원 · 총 1억
+ISA_FREE = 400.0             # 만원 · 서민형 비과세(소유자 해당)
+US_DEDUCT = 250.0            # 만원 · 해외 양도소득 기본공제(연간)
+
+
+def _events(s, e, sw, step=21):
+    """적립일(step 거래일마다) + 전환일 을 시간순으로."""
+    con = [(t, 'c') for t in range(s + step, e + 1, step)]
+    swi = [(int(t), 's') for t in sw if s < t <= e]
+    return sorted(con + swi, key=lambda x: (x[0], x[1] == 'c'))
+
+
+def accum_B(a, sw, yr, s, e, pm, isa_free=ISA_FREE, r_isa=ISA_RATE, r_gen=GEN_RATE,
+            year_cap=ISA_YEAR_CAP, total_cap=ISA_TOTAL_CAP):
+    """전략 B — ISA 버킷 + 한도 초과분 일반 버킷. 반환 (세후 평가액, 총 납입, ISA 소진 시점 년)"""
+    iv = ib = gv = gb = 0.0
+    isa_paid = 0.0
+    ypaid, cy = 0.0, yr[s]
+    paid = 0.0
+    last = s
+    full_at = None
+    for t, kind in _events(s, e, sw):
+        g = a[t] / a[last]
+        iv *= g
+        gv *= g
+        last = t
+        if kind == 'c':
+            if yr[t] != cy:
+                ypaid, cy = 0.0, yr[t]
+            room = min(year_cap - ypaid, total_cap - isa_paid)
+            to_isa = max(0.0, min(pm, room))
+            iv += to_isa
+            ib += to_isa
+            isa_paid += to_isa
+            ypaid += to_isa
+            rest = pm - to_isa
+            gv += rest
+            gb += rest
+            paid += pm
+            if full_at is None and isa_paid >= total_cap - 1e-9:
+                full_at = (t - s) / 252.0
+        else:                                        # 전환 — ISA 는 무과세, 일반만 과세
+            gain = gv - gb
+            if gain > 0:
+                gv -= gain * r_gen
+            gb = gv
+    g = a[e] / a[last]
+    iv *= g
+    gv *= g
+    iv -= max(iv - ib - isa_free, 0.0) * r_isa        # ISA 만기 1회 정산(서민형 비과세 차감)
+    gv -= max(gv - gb, 0.0) * r_gen                   # 일반 만기 청산
+    return iv + gv, paid, full_at
+
+
+def accum_US(a, sw, yr, s, e, pm, rate=US_RATE, deduct=US_DEDUCT):
+    """TQQQ B 직투 — 한도 없음 · 전환마다 실현 · 연내 통산 · 연 250만 공제 · 이월 불가."""
+    v = b = 0.0
+    ybal, cy = 0.0, yr[s]
+    paid = 0.0
+    last = s
+
+    def settle(vv, bal):
+        return vv - max(bal - deduct, 0.0) * rate if bal > 0 else vv
+
+    for t, kind in _events(s, e, sw):
+        v *= a[t] / a[last]
+        last = t
+        if yr[t] != cy:
+            v = settle(v, ybal)                       # 세금은 평가액에서만 빠진다(원가 불변)
+            ybal, cy = 0.0, yr[t]
+        if kind == 'c':
+            v += pm
+            b += pm
+            paid += pm
+        else:
+            gain = v - b
+            ybal += gain
+            b = v
+    v *= a[e] / a[last]
+    if yr[e] != cy:
+        v = settle(v, ybal)
+        ybal = 0.0
+    ybal += v - b
+    v = settle(v, ybal)
+    return v, paid
