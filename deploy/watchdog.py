@@ -573,6 +573,29 @@ def protocol_status(env):
     return {'verdict': v, 'events': events, 'line': line, 'drift': drift, 'todo': todo, 'exit': rc}
 
 
+# [2026-09-04 코드리뷰] ops_check.json 은 **주인이 둘**이다 — 대부분의 키는 점검.py 가
+# 내지만 `heartbeat` 는 mode_heartbeat 가 얹는다. mode_check 는 점검.py 출력으로 파일을
+# 통째로 덮어써서 그 키를 지웠고, watchdog.yml 에서 check 스텝이 heartbeat 스텝보다
+# **먼저** 돌기 때문에 매주 월요일 「이번 달에 보냈다」 표시가 사라진다.
+# → v177 이 「월 1회」로 설계한 생존 알림이 **주 1회**가 된다. 그러면 그 알림의 존재
+#   이유가 무너진다: 매주 오는 알림은 읽히지 않게 되고, 읽히지 않으면 **안 오는 것도
+#   눈치채지 못한다**(v177 은 침묵이 곧 고장 신호라서 만든 유일한 예외 알림이다).
+#   v177 이 09-01 에 들어갔고 다음 주간 슬롯이 첫 발현이라 아직 안 났다 — 잠복 결함.
+# ★ prev 를 통째로 밑에 깔지 않는다 — 점검.py 가 이번 주에 비운 todo·aum 이 되살아난다.
+#   **다른 모드가 소유한 키만** 이름으로 이월한다. 새 모드가 이 파일에 키를 얹으면
+#   여기 등록해야 하고, 등록을 잊으면 selftest 의 merge 검사가 잡는다.
+CARRY_KEYS = ('heartbeat',)      # mode_heartbeat 소유 — 점검.py 는 이 키를 모른다
+
+
+def merge_ops(prev, cur):
+    """점검.py 가 낸 새 결과(cur)에 **다른 모드가 소유한 키**만 이월한다."""
+    out_ = dict(cur)
+    for k in CARRY_KEYS:
+        if k not in out_ and k in (prev or {}):
+            out_[k] = prev[k]
+    return out_
+
+
 def mode_check():
     prev = {}
     if os.path.exists(OPSCHK):
@@ -609,6 +632,7 @@ def mode_check():
         if pb.get('todo'):
             cur['todo'] = list(cur.get('todo') or []) + [pb['todo']]
 
+    cur = merge_ops(prev, cur)            # ★ heartbeat 등 다른 모드의 키를 지우지 않는다
     with open(OPSCHK, 'w', encoding='utf-8') as f:
         json.dump(cur, f, ensure_ascii=False, indent=1)
         f.write('\n')
@@ -823,6 +847,17 @@ def selftest():
         m = sent[-1][2]
         expect('hb 상태 줄(B 기준·장부)', ('판정 방어' in m) and ('복귀선까지 1.5%p' in m) and ('장부 3일' in m) and ('전환 1회' in m), True)
         expect('hb 같은 달 재발송 없음', run(mode_heartbeat), False)
+        # ── [2026-09-04 코드리뷰] merge_ops — 주간 점검이 heartbeat 표시를 지우면
+        #    v177 생존 알림이 월 1회 → 주 1회가 된다(그러면 침묵이 정보가 아니게 된다).
+        #    실제 파일 왕복으로 잰다 — 헬퍼만 재면 mode_check 가 안 부를 때 못 잡는다.
+        j0 = json.load(open(OPSCHK, encoding='utf-8'))
+        expect('hb 표시가 파일에 남았다', j0.get('heartbeat'), kst_today().strftime('%Y-%m'))
+        fresh = {'as_of': '2026-09-07', 'level': 0, 'level_msg': '이상 없음', 'todo': []}
+        merged = merge_ops(j0, fresh)          # 점검.py 는 heartbeat 를 모른다
+        json.dump(merged, open(OPSCHK, 'w', encoding='utf-8'), ensure_ascii=False)
+        expect('점검이 hb 표시를 안 지운다', run(mode_heartbeat), False)
+        expect('점검이 비운 todo 는 안 되살린다', merge_ops({'todo': ['옛 항목']}, fresh)['todo'], [])
+        expect('CARRY_KEYS 에 heartbeat 등재', 'heartbeat' in CARRY_KEYS, True)
     finally:
         os.chdir(root)
         shutil.rmtree(T, ignore_errors=True)
