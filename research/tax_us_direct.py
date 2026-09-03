@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-[사실 확인] QLD@ISA(국내) vs TQQQ@해외직투 — **세후로 비교하면 순위가 바뀌나** (2026-09-03, 소유자 질문)
+[사실 확인] 전략 B ISA(국내) vs 3배 B 직투 — **세후로 비교하면 순위가 바뀌나** (2026-09-03, 소유자 질문)
 
 소유자: 「미국직투계좌의 세금도 계산해야 해. 세전으로 하면 QLD ISA 가 너무 불리하니.」
 → 정확한 지적이다. §5-35·LEVERAGE_US.md 의 k 격자는 **전부 세전**이고, 그 표에서 3배가 2배를
@@ -118,14 +118,14 @@ def after_us(a, sw, yr, s, e, rate=US_RATE):
 
 
 ROWS = [
-    ('QLD 2배 @ ISA 9.9%',      2.0, 'isa'),
-    ('QLD 2배 @ 일반 15.4%',     2.0, 'gen'),
-    ('QLD 2배 @ 해외직투 22%',    2.0, 'us'),
-    ('2.5배 @ 해외직투 22%',      2.5, 'us'),
-    ('TQQQ 3배 @ 해외직투 22%',  3.0, 'us'),
-    ('TQQQ 3배 @ 세전(참고)',     3.0, 'pre'),
+    ('전략 B ISA 9.9%',        2.0, 'isa'),
+    ('전략 B 일반 15.4%',       2.0, 'gen'),
+    ('전략 B 직투 22%',         2.0, 'us'),
+    ('2.5배 B 직투 22%',        2.5, 'us'),
+    ('3배 B 직투 22%',          3.0, 'us'),
+    ('3배 B 세전(참고)',         3.0, 'pre'),
 ]
-BASE = 'QLD 2배 @ ISA 9.9%'
+BASE = '전략 B ISA 9.9%'
 
 
 def main():
@@ -149,7 +149,7 @@ def main():
         return after_us(a, sw, yr, s, e)
 
     print(L)
-    print('QLD@ISA vs TQQQ@해외직투 — 세후 비교 (전략 무접촉 · 채택 아님)')
+    print('전략 B ISA vs 3배 B 직투 — 세후 비교 (전략 무접촉 · 채택 아님)')
     print(L)
     print('  창 {} ~ {} · 전환 {}회 · ISA {:.1f}%(만기1회) · 일반 {:.1f}%(매도마다) · 해외 {:.0f}%(연간정산)'
           .format(idx[0].date(), idx[-1].date(), len(sw),
@@ -169,8 +169,8 @@ def main():
     assert abs(zg / cur[2.0][-1] - 1) < 1e-9, '일반 축퇴 검산 실패'
     print()
 
-    print('[54년 통짜 · 1 → 얼마]')
-    print('  {:<26}{:>16}{:>13}'.format('', '세후 최종배수', 'vs QLD@ISA'))
+    print('[54년 통짜 · 1 → 얼마]  ※ 이름 규약: 전략 B 규칙을 쓰면 이름 뒤에 B (CLAUDE §3)')
+    print('  {:<26}{:>16}{:>13}'.format('', '세후 최종배수', 'vs 전략 B ISA'))
     base = val(2.0, 'isa', 0, n - 1)
     out54 = {}
     for nm, k, mode in ROWS:
@@ -196,7 +196,7 @@ def main():
         print(line)
     print()
 
-    print('[같은 창에서 QLD@ISA 대비 — 1.00 미만이면 ISA 쪽이 이긴다]')
+    print('[같은 창에서 전략 B ISA 대비 — 1.00 미만이면 전략 B ISA 가 이긴다]')
     print(hdr)
     for nm, k, mode in ROWS:
         if nm == BASE:
@@ -222,7 +222,7 @@ def main():
                   r[BASE], r['QLD 2배 @ 해외직투 22%']))
     print()
     # ── 세후 손익분기 배율 — 해외직투 k 가 몇이면 ISA 2배와 같아지나 ──────────
-    print('[세후 손익분기 배율 — 해외직투 k 가 몇이어야 ISA 2배와 같아지나]')
+    print('[세후 손익분기 배율 — 직투 배율이 몇이어야 전략 B ISA 와 같아지나]')
     print('  {:<8}'.format('k') + ''.join('{:>12}'.format('%d년' % h) for h in HS)
           + '{:>12}'.format('54년'))
     grid = {}
