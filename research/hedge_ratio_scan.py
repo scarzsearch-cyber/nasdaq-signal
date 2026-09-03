@@ -154,6 +154,80 @@ def zoom(DS):
     print('  ※ 10년·20년 열은 **모든 시작일**의 창 분포다(중첩). 비중첩 창 수는 54년에 각각 5.4개·2.7개뿐 — 최악5% 는 참고치다.')
 
 
+def by_start(DS):
+    """[소유자 질문 2026-09-03] 「54년이 아니라 최근 30년으로 본다면?」
+    ⚠ 「30년」은 **손으로 고른 둥근 시작점**이다 — 04 §5-11 이 그 함정으로 T4 를 잘못 기각했다.
+    그래서 30년만 내지 않고 **시작 연도를 1972~2006 전부** 훑어 결론이 창에 따라 뒤집히는지 본다."""
+    print('\n' + L)
+    print('E. 「최근 30년으로 보면?」 — 30년을 포함해 시작 연도 전수 (§-1 ⓑ 둥근 시작일 하나로 판정 금지)')
+    print(L)
+    D = DS['ext']; idx = pd.DatetimeIndex(D['idx'])
+    qldr = np.asarray(D['qldr'], float); divr = np.asarray(D['schdr'], float)
+    defr = np.asarray(defensive_r(idx, divr, 'mix'), float)
+    curves = {}
+    for w in (1.0, 0.9, 0.8, 0.7, 0.6):
+        att = np.asarray(DA.mix_monthly_parts(idx, {'lev': w, 'div': 1 - w}, {'lev': qldr, 'div': divr}), float)
+        Dx = dict(D); Dx['qldr'] = att; Dx['schdr'] = defr
+        with contextlib.redirect_stdout(io.StringIO()):
+            c, _, _ = RL.run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
+        curves[w] = pd.Series(np.asarray(c, float), index=idx)
+
+    def slab(start):
+        out = {}
+        for w, s in curves.items():
+            s2 = s[s.index >= pd.Timestamp(start)]
+            if len(s2) < 800:
+                return None
+            s2 = s2 / s2.iloc[0]
+            r = s2.pct_change()
+            m = EC.fullmet(s2.values, idx=s2.index)
+            q10 = (s2 / s2.shift(2520)).dropna()
+            out[w] = dict(vol=float(r.std(ddof=1) * np.sqrt(252) * 100), mdd=m['mdd'], cal=m['calmar'],
+                          fin=float(s2.iloc[-1]), med10=float(q10.median()) if len(q10) else np.nan,
+                          p05_10=float(q10.quantile(0.05)) if len(q10) else np.nan,
+                          p05_20=EC.p05_20y(s2.values))
+        return out
+
+    print(f"\n  ── 창별 요약: QLD 100% → 90% → 80% ({'변동성 / MDD / 10년 중앙 / 10년 최악5%':s}) ──")
+    for nm, st in (('54년 1972~', '1972-01-01'), ('40년 1986~', '1986-01-01'), ('**30년 1996~**', '1996-01-01'),
+                   ('26년 2000~', '2000-01-01'), ('20년 2006~', '2006-01-01'), ('15년 2011~', '2011-01-01')):
+        o = slab(st)
+        if not o:
+            continue
+        b = o[1.0]
+        line = f'  {nm:<14}'
+        for w in (1.0, 0.9, 0.8):
+            x = o[w]
+            line += (f"{x['vol']:>6.1f}%/{x['mdd']:>6.1f}%/{x['med10']:>5.1f}배/{x['p05_10']:>4.1f}배"
+                     if not np.isnan(x['med10']) else f"{x['vol']:>6.1f}%/{x['mdd']:>6.1f}%/{'—':>6}/{'—':>5}")
+            line += '  |  '
+        print(line)
+        print(f"      → 90%: 변동성 {o[0.9]['vol']/b['vol']-1:+.1%} · MDD {o[0.9]['mdd']-b['mdd']:+.1f}%p · "
+              f"10년 중앙 {(o[0.9]['med10']/b['med10']-1) if not np.isnan(b['med10']) else float('nan'):+.1%} · "
+              f"10년 최악5% {(o[0.9]['p05_10']/b['p05_10']-1) if not np.isnan(b['p05_10']) else float('nan'):+.1%}"
+              f"   |  80%: 변동성 {o[0.8]['vol']/b['vol']-1:+.1%} · MDD {o[0.8]['mdd']-b['mdd']:+.1f}%p · "
+              f"10년 중앙 {(o[0.8]['med10']/b['med10']-1) if not np.isnan(b['med10']) else float('nan'):+.1%} · "
+              f"10년 최악5% {(o[0.8]['p05_10']/b['p05_10']-1) if not np.isnan(b['p05_10']) else float('nan'):+.1%}")
+
+    print('\n  ── 시작 연도 전수 (1972~2006 · 매년 1월) — 결론이 창에 따라 뒤집히나 ──')
+    rows = []
+    for y in range(1972, 2007):
+        o = slab(f'{y}-01-01')
+        if o:
+            rows.append((y, o))
+    for w in (0.9, 0.8, 0.7, 0.6):
+        dv = [o[w]['vol'] / o[1.0]['vol'] - 1 for _, o in rows]
+        dm = [o[w]['mdd'] - o[1.0]['mdd'] for _, o in rows]
+        dc = [o[w]['cal'] / o[1.0]['cal'] - 1 for _, o in rows]
+        dmed = [o[w]['med10'] / o[1.0]['med10'] - 1 for _, o in rows if not np.isnan(o[1.0]['med10'])]
+        dp05 = [o[w]['p05_10'] / o[1.0]['p05_10'] - 1 for _, o in rows if not np.isnan(o[1.0]['p05_10'])]
+        print(f'  QLD {w*100:.0f}%: 변동성 {np.median(dv):+.1%} (범위 {min(dv):+.1%}~{max(dv):+.1%}) · '
+              f'MDD {np.median(dm):+.1f}%p ({min(dm):+.1f}~{max(dm):+.1f}) · '
+              f'Calmar {np.median(dc):+.1%} · 10년 중앙 {np.median(dmed):+.1%} · 10년 최악5% {np.median(dp05):+.1%} · '
+              f'Calmar 개선 창 {sum(1 for x in dc if x > 0)}/{len(dc)}')
+    print('  → 시작 연도를 바꿔도 부호가 뒤집히지 않으면 그 결론은 창의 산물이 아니다(§-1 ⓑ).')
+
+
 def main():
     print(L); print('QLD ↔ SCHD 배합 스캔 — 소유자 요청 (전략 B 무변경 · 측정만)'); print(L)
     with contextlib.redirect_stdout(io.StringIO()):
@@ -228,6 +302,7 @@ def main():
               f'→ {"배당 승" if da.iloc[-1]/da.iloc[0] > sa.iloc[-1]/sa.iloc[0] else "나스닥 승"}')
 
     zoom(DS)
+    by_start(DS)
 
     print('\n이 측정이 낳은 다음 질문 (§-1 ⑥):')
     print('  Q-a [A] 와 [B] 의 최적 비율이 다르면, 그것은 「전환이 이미 하는 일을 배합이 또 하는가」의 답이다 — 표에서 직접 읽는다.')
