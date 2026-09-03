@@ -153,8 +153,13 @@ def publish(dry=False):
         os.makedirs(os.path.join(d, 'data'))
         shutil.copy(PRICE, os.path.join(d, 'data', 'price.json'))
 
+        # [2026-09-04 코드리뷰] GIT_TERMINAL_PROMPT=0 — 자격증명이 거부되면 git 이
+        # 프롬프트를 띄우고 timeout 까지 매달린다. 러너엔 터미널이 없으니 즉시 실패가 옳다.
+        genv = dict(os.environ, GIT_TERMINAL_PROMPT='0')
+
         def g(*a):
-            return subprocess.run(['git', *a], cwd=d, check=True, capture_output=True, timeout=120)
+            return subprocess.run(['git', *a], cwd=d, check=True, capture_output=True,
+                                  timeout=120, env=genv)
         g('init', '-q')
         g('config', 'user.name', 'github-actions[bot]')
         g('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
@@ -162,8 +167,18 @@ def publish(dry=False):
         g('commit', '-q', '-m', f'price: {datetime.now(timezone.utc):%Y-%m-%dT%H:%MZ} 스냅샷 (항상 커밋 1개)')
         g('push', '-qf', f'https://x-access-token:{token}@github.com/{repo}.git', f'HEAD:refs/heads/{BRANCH}')
         return True
-    except subprocess.CalledProcessError as e:
-        err = (e.stderr or b'').decode('utf-8', 'replace').replace(token, '***')
+    # [2026-09-04 코드리뷰] ★ 종전엔 CalledProcessError 만 잡았다. push 가 120초를 넘기면
+    #   subprocess.TimeoutExpired 가 나는데 그 예외의 문자열에는 **실행한 명령줄 전체**가
+    #   들어간다 — 즉 push URL 의 `x-access-token:<토큰>` 이 그대로 Actions 로그에 찍힌다.
+    #   (GitHub 의 secret 마스킹은 이 토큰을 모른다: GITHUB_TOKEN 은 러너가 주입한 값이라
+    #   ***로 가려지지만 GH_TOKEN 으로 넣은 PAT 는 등록 secret 이름과 값이 다를 수 있고,
+    #   무엇보다 마스킹에 기대는 것이 방어가 아니다.) 5분마다 도는 경로라 노출 기회도 많다.
+    #   → 예외 종류를 가리지 않고 잡고, 토큰 문자열을 지운 뒤에만 찍는다.
+    except Exception as e:
+        raw = (getattr(e, 'stderr', None) or b'')
+        if isinstance(raw, bytes):
+            raw = raw.decode('utf-8', 'replace')
+        err = (raw or f'{type(e).__name__}: {e}').replace(token, '***')
         log(f'브랜치 갱신 실패: {err.strip()[:300]}')
         return False
     finally:
@@ -289,8 +304,23 @@ def main(argv=None):
     log(f'폴링 시작 — {end:%H:%M} 까지 5분마다')
     last = branch_items()
     n = 0
+    # [2026-09-04 코드리뷰] cycle() 안에서 예외가 하나만 나도 6시간짜리 폴러가 통째로
+    # 죽었다(수집 HTTP 오류·git 타임아웃 등). 예비 슬롯(매시 :20·:50)이 이어받으므로
+    # 사고까지는 아니지만 **일시적 오류 하나에 최대 30분치 시세가 빈다.**
+    # → 한 번의 실패로는 안 죽고 다음 슬롯에서 다시 해 본다. 연속 3회면 그때 종료해
+    #   예비 슬롯에 넘긴다(계속 붙들고 헛돌면 예비가 못 들어온다 — 동시성 그룹이 하나다).
+    consec = 0
     while True:
-        last, ok = cycle(last, a.dry_run)
+        try:
+            last, ok = cycle(last, a.dry_run)
+            consec = 0
+        except Exception as e:
+            consec += 1
+            log(f'스냅샷 실패({consec}/3): {type(e).__name__}: {str(e)[:200]}')
+            if consec >= 3:
+                log('연속 3회 실패 — 종료하고 예비 슬롯에 넘긴다')
+                return 0
+            ok = True                      # 배포 경로가 막힌 것은 아니다 — 다음 슬롯에서 재시도
         n += 1
         if not ok:
             log('배포 경로가 막혀 종료 — 실행이 끝나면 workflow_run 배포가 대신 뜨고, 다음 슬롯이 다시 시작한다')
