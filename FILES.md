@@ -479,7 +479,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/lev_5y.py` | 「5년 투자자에게 합리적인 배율」 — CE(γ) 한계 분석 | γ→k\* 지도 |
 | `research/lev_th.py` | 배율이 오르면 문턱도 바뀌어야 하나 · T4 를 고배율에 얹으면? | **−16 이 모든 k 에서 봉우리** |
 | `research/lev_signal_source.py` | 신호를 기초지수 vs 레버리지 상품 자체 낙폭으로 (2026-09-03) | **단위 변환일 뿐 · 경로 의존 유입** |
-| `research/tax_us_direct.py` | QLD@ISA vs TQQQ@해외직투 **세후** (2026-09-03) | **세전 15.5배 → 세후 1.91배 · 손익분기 k 2.5~2.7** |
+| `research/tax_us_direct.py` | 전략 B ISA vs TQQQ B 직투 **세후**(원화·실물 3배 보정 · 2026-09-03) | **21세기 1.39배 · 45년 비중첩 창은 3배가 더 자주 짐** |
 | `research/t4_lev_post.py` | T4 배율 2.0~3.0 × 닷컴 이후 | 후반엔 B@2 에 패배 |
 | `research/horizon_study.py` | 지평 3~20년 전수 — 「내 수명은 유한하다」 | **손실 0 문턱 7년** |
 | `research/post_dotcom.py` | 「닷컴 뒤로 T4·라오어와 비교하면?」 | — |

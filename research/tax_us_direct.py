@@ -462,3 +462,85 @@ def accum_US(a, sw, yr, s, e, pm, rate=US_RATE, deduct=US_DEDUCT):
     ybal += v - b
     v = settle(v, ybal)
     return v, paid
+
+
+# =============================================================================
+# [결함 개선 2026-09-03, 소유자 「방법론적 결함등은 다 개선할순없어?」]
+# =============================================================================
+# 고칠 수 있어서 고친 것 둘 — **결론이 바뀐다**.
+#
+# ① **합성 3배가 실물 TQQQ 보다 연 1.26%p 낮게 잡혀 있었다.**
+#    현행 `lev_r(D,k) = k*r - (k-1)*c_daily` 는 2배 실물에서 역산한 c_daily 를
+#    **(k-1) 에 비례**시킨다. 차입분은 그게 맞지만 **운용보수는 k 에 비례하지 않는다**
+#    (lev_r 의 docstring 이 이미 그렇게 적어 놓고 크기를 안 쟀다).
+#    실물 TQQQ(2010-02~, `data/hist/yahoo_TQQQ.csv`)로 **build_ext 와 같은 방법**
+#    (c_k = mean(k*r_idx − r_real))으로 역산:
+#        현행 가정 c(3) = 2*c_daily = 연 6.59%p
+#        실물 역산 c(3)            = 연 **5.33%p**   ← C3_REAL
+#    검증: 같은 방법으로 k=2 를 역산하면 0.012774%/일 로 규약 c_daily 0.013076% 와
+#    3.0e-06 차 — **방법 재현 확인**. 크기의 정체도 맞는다(QLD 보수 0.95%×2 − TQQQ 0.84% ≈ 1.06%p).
+#    ⚠ 한계: 실물 TQQQ 는 **2010-02 이후뿐**이고 그 구간은 저금리기다. 차입비용은 단기금리를
+#      따라가므로 고금리 시대(1970~80년대)에는 **양쪽 다** 과소평가된다. 다만 **상대 편향**
+#      (3배 vs 2배)은 대부분 보수 항목이라 금리와 무관 — 그래서 이 보정은 수준보다 견고하다.
+#
+# ② **환 효과가 빠져 있었다.** 418660 은 **원화환산 지수의 2배**라 환노출 ×2 이고
+#    TQQQ 직투는 ×1 이다. 방어 3다리도 전부 환노출이다.
+#        전략 B(원화)   = 2*[(1+r)(1+rfx)−1] − c2
+#        TQQQ B(원화)   = (1 + 3r − c3)(1+rfx) − 1
+#    ⚠ 환율(FRED DEXKOUS)은 **1981-04 부터** — 원화 기준 창은 45.5년으로 짧아진다.
+#    ⚠ **방향이 창에 따라 다르다**(§-1 ⑧): 1981~ 에서는 3배에 불리(2.46→1.22),
+#      21세기에서는 3배에 유리(1.27→1.39). 1981~2000 의 급격한 원화 약세를 ×2 로 먹은 탓.
+#      **환 주장에는 반드시 창을 붙여라.**
+#    ⚠ 원화 배수는 **원화 가치 하락을 포함**한다(1981 680원 → 2026 1,385원).
+#      달러 기준과 **수준**을 비교하지 마라 — 의미 있는 것은 **같은 통화 안의 비(比)**다.
+#
+# 순효과 (21세기 26.6년 · TQQQ B 직투 ÷ 전략 B ISA):
+#   ① 현행 1.00배 → ② 실물보정 1.27 → ③ 환만 1.10 → **④ 둘 다 1.39배**
+#   (전략 B MDD −49.6% → −53.2% · TQQQ B −62.5% → −61.3%)
+#
+# ⛔ **못 고치는 것** — 방법이 아니라 자료·미래의 한계다:
+#   · 30년 창이 1.8개 — 표본이 55년뿐이다. 더 긴 나스닥 데이터가 없다.
+#   · ISA 제도가 30년 유지될지 — 미래의 정책이다.
+#   · 블록 부트스트랩이 다년 약세장을 자르는 편향 — 완화만 되고 제거는 안 된다.
+#   · 금소세·건보료 이점 — 소유자 소득 구조에 달렸다(가정 없이는 못 잰다).
+
+C3_REAL = 0.00021170          # 실물 TQQQ 역산 (연 5.33%p) — 위 ① 참조
+FX_CSV = 'data/hist/fred_DEXKOUS.csv'
+
+
+def cost_k(k, c2):
+    """배율별 합성비용. 차입분은 (k-1) 비례, 보수는 비비례 — 2배·3배 실측 두 점을 선형 보간."""
+    return c2 + (k - 2.0) * (C3_REAL - c2)
+
+
+def build2(krw=False, real3x=True):
+    """보정 곡선 두 벌을 만든다.
+       dom = 국내(418660 계열) — 원화 기준이면 **환노출 x2**(원화환산 지수의 2배)
+       us  = 미국 직투        — 원화 기준이면 **환노출 x1**(달러 자산 x 환율)
+    반환 (idx, wB, dom, us, s0). 달러 기준(krw=False)이면 dom == us 이고 s0=0."""
+    import pandas as pd
+    import hist_data as H
+    G, X = EC.selfcheck()
+    idx = G.idx
+    D = G.D
+    px = pd.Series(D['px'], index=idx)
+    r = np.nan_to_num(px.pct_change().values)
+    wB = np.asarray(G.wB, float)
+    MIX = np.nan_to_num(np.asarray(G.Dm['schdr'], float))
+    c2 = D['c_daily']
+    ck = (lambda k: cost_k(k, c2)) if real3x else (lambda k: (k - 1) * c2)
+
+    if not krw:
+        cur = {k: np.asarray(EC.sim2(wB, k * r - ck(k), MIX), float) for k in KS}
+        return idx, wB, cur, cur, 0
+
+    f = H._fred(FX_CSV, 'DEXKOUS')
+    fxs = f.reindex(idx.union(f.index)).ffill().reindex(idx)
+    rfx = np.nan_to_num(fxs.pct_change().values)
+    s0 = int(np.searchsorted(idx, fxs.first_valid_index())) + 1
+    dfs = (1 + MIX) * (1 + rfx) - 1                 # 방어 3다리 전부 환노출 x1
+    rk = (1 + r) * (1 + rfx) - 1                    # 원화환산 지수
+    dom = {k: np.asarray(EC.sim2(wB, k * rk - ck(k), dfs), float) for k in KS}
+    us = {k: np.asarray(EC.sim2(wB, (1 + (k * r - ck(k))) * (1 + rfx) - 1, dfs), float)
+          for k in KS}
+    return idx, wB, dom, us, s0
