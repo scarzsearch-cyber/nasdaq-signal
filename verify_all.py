@@ -1140,12 +1140,16 @@ def i7_stats(D):
 
 # ------------------------------------------------------------------ I8
 SHARED_SEAL = {
-    'accumulate': ('axis_lib.py', '4b3349a8802c'),
-    'lev_r': ('axis_lib.py', '2580ab36b893'),
+    # [2026-09-04 코드리뷰] axis_lib 3종 갱신 — rule_w(중복 갈래 제거) ·
+    # lev_r(c_k 인자 추가) · accumulate(0/1 가드 + rk/buy_cost 인자).
+    # ★ 출력은 안 바뀐다: 문턱 격자 681조합 · dip/park 전 조합 · 세율 격자
+    #   전수를 수정 전후로 재서 지문 15/15 동일함을 확인하고 갱신했다.
+    'accumulate': ('axis_lib.py', 'e4c0d328080d'),
+    'lev_r': ('axis_lib.py', '8d551b166196'),
     'mix_monthly': ('hist_defasset.py', 'da5c3ec9a7b3'),
     'mix_monthly_from': ('axis_defmix.py', 'adb498b68308'),
     'mix_monthly_parts': ('hist_defasset.py', '28e5cb665804'),
-    'rule_w': ('axis_lib.py', '747bbbdf9c54'),
+    'rule_w': ('axis_lib.py', 'dc1de1e02376'),
     'ust_tr': ('hist_defasset.py', '75d7bf8f7dd0'),
 }
 

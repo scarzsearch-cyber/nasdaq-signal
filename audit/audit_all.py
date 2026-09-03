@@ -84,14 +84,12 @@ print("  정상이면: 당기면(-1, 미래훔쳐보기) 크게 좋아지고, �
 print("  당겨도 안 좋아지면 이미 미래를 보고 있다는 뜻이다.")
 base = None
 for lag in (0, 1, 2, 3):
-    c, _ = sim(D, WB, lag=lag) if lag > 0 else (None, None)
-    if lag == 0:
-        # lag=0 은 당일 신호로 당일 체결 = 미래훔쳐보기
-        pos = WB.copy()
-        r = np.nan_to_num(pos * D['qldr'] + (1 - pos) * D['schdr'])
-        r[0] = 0.0
-        t = np.abs(np.diff(pos, prepend=pos[0]))
-        c = pd.Series(np.cumprod((1 + r) * (1 - COST * t)), index=idx)
+    # lag=0 은 당일 신호로 당일 체결 = 미래훔쳐보기 대조군.
+    # [2026-09-04 코드리뷰] 종전엔 sim(lag=0) 이 ValueError 로 죽어서 여기서
+    # 곡선을 손으로 다시 짰다 — 엔진을 안 지나는 사본이라 엔진과 갈려도
+    # 이 감사는 통과했다. axis_lib.sim 이 lag=0 을 직접 처리하도록 고쳤다
+    # (손수 곡선과 최종배수 오차 0 확인).
+    c, _ = sim(D, WB, lag=lag)
     v, g, m, k = met(c)
     tag = ' <- 미래훔쳐보기(대조군)' if lag == 0 else (' <- 채택 규약' if lag == 1 else '')
     print(f"    lag={lag}일  {v:>12,.1f}배  CAGR {g*100:6.2f}%  MDD {m*100:7.2f}%{tag}")
