@@ -41,6 +41,11 @@ jobs:
       # ① 신호가 며칠째 그대로인가 — 3영업일마다 한 번만 알린다(알림 피로 방지)
       - name: 신호 신선도
         id: stale
+        # [2026-09-04 코드리뷰] 월요일은 08:40·09:10 두 슬롯이 뜨는데 일간 스텝이
+        # 양쪽에서 다 돌아 **같은 알림이 30분 간격으로 두 번** 갔다(2026 전수 시뮬레이션에서
+        # 확인 — 문턱을 넘는 날이 월요일이면 항상). 09:10 슬롯의 몫은 주간 점검이다.
+        # 수동 실행(workflow_dispatch)은 schedule 이 비어 있으므로 그대로 전부 돈다.
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -53,6 +58,7 @@ jobs:
       # 둘 다 실제 매매인데 한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
       - name: 방어 재조정일
         id: reb
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -65,6 +71,7 @@ jobs:
       #   실행일에만 나가므로 거짓 알림 0 · 연 2~3건. 서버는 체결 여부를 모르므로 「이미 하셨다면 무시」.
       - name: 전환 실행일 재알림
         id: sw
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -78,6 +85,7 @@ jobs:
       #   화면을 열어야만 작동하던 것을 폰으로 옮긴다. 54년 실측 연 3.5회(research/near_zone.py).
       - name: 근접 진입 알림
         id: near
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -89,6 +97,7 @@ jobs:
       # ② 알림 채널이 살아 있나 — 메시지는 보내지 않고 자격증명만 확인(평시 소음 0)
       - name: 알림 채널 생존
         id: chan
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -101,6 +110,7 @@ jobs:
       # 파일 한 개를 읽을 뿐이라 매일 돌려도 비용이 없다(45일 넘어야 말한다).
       - name: 성과 스냅샷 신선도
         id: stats
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -112,6 +122,7 @@ jobs:
       # ②-c [v176] 시세 수집이 살아 있나 — 죽으면 화면에서 배지가 조용히 사라진다.
       - name: 시세 수집 생존
         id: price
+        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}

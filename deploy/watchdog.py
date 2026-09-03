@@ -130,6 +130,26 @@ def biz_days_since(iso, today=None):
     return n
 
 
+def repeat_gate(n, threshold, period):
+    """[2026-09-04 코드리뷰] 「이미 알렸으니 이번엔 생략」 규칙 — 종전에는 stale·stats·price
+    **세 곳에 따로** 있었고 형태도 달랐다(n % K · (n-T) % K). 규칙을 한 번만 적는다.
+
+    True = 이번에 보낸다.  경과 n 이 문턱을 넘은 뒤 period 마다 한 번.
+
+    ⚠ 알려진 한계 — **슬롯이 통째로 스킵되면 그 주기를 통째로 건너뛴다.** 실측(2026 전수
+      시뮬레이션): 문턱 3영업일 알림에서 세 번째 슬롯이 스킵되면 첫 발송이 03-11 → 03-16 로
+      **5일 밀린다.** 무상태로는 못 고친다 — 「지난번에 보냈나」를 기억할 곳이 이 잡에는 없다
+      (일간 스텝은 커밋을 안 하고, 커밋을 넣으면 v176 이 없앤 이력 소음이 되살아난다).
+      실측 근거로 지금은 감수한다: watchdog.yml 의 일간 cron 은 관측 3/3 이 정확히 24.0h 간격
+      (지연 5~6분)이었다. 스킵이 실제로 관측되면 그때 상태 저장을 넣는다(04 §7 후보).
+      ※ 놓쳐도 **조건은 지속되므로 다음 주기에 반드시 알린다** — 잃는 것은 시점이지 알림이 아니다.
+    ※ 같은 날 두 번 보내던 문제(월요일은 08:40·09:10 두 슬롯이 돌았다)는 여기가 아니라
+      watchdog.yml 에서 막는다 — 일간 스텝을 월요일 09:10 슬롯에서 빼는 쪽이 옳다.
+    """
+    if n < threshold:
+        return False
+    return (n - threshold) % period == 0
+
 def notify(title, status, detail):
     """폰 알림. secret 이 없으면 notify.py 가 조용히 넘어간다."""
     subprocess.call([sys.executable, os.path.join('deploy', 'notify.py'),
@@ -158,8 +178,8 @@ def mode_stale():
         return
     # 매일 같은 알림을 보내면 정작 전환일 알림을 무시하게 된다 — 3영업일마다만.
     # 이슈 댓글도 같은 주기를 따른다(alert 를 여기서 켠다 — 매일 댓글이 붙지 않게).
-    if n % STALE_N:
-        print(f'{n}영업일째 — 이미 알렸으므로 이번엔 발송 생략(3영업일 간격)')
+    if not repeat_gate(n, STALE_N, STALE_N):        # 규칙은 repeat_gate 한 곳에만 있다
+        print(f'{n}영업일째 — 이미 알렸으므로 이번엔 발송 생략({STALE_N}영업일 간격)')
         return
     out('alert', 1)
     notify('신호가 갱신되지 않고 있습니다', 'failure',
@@ -479,7 +499,7 @@ def mode_stats():
         print('정상 — 알림 없음')
         return
     # 매일 같은 말을 반복하면 정작 전환일 알림을 무시하게 된다 — 7일마다 한 번만.
-    if (n - STATS_STALE) % 7:
+    if not repeat_gate(n, STATS_STALE, 7):
         print(f'{n}일째 — 이미 알렸으므로 이번엔 발송 생략(7일 간격)')
         return
     out('alert', 1)
@@ -514,8 +534,8 @@ def mode_price():
     if n < PRICE_STALE:
         print('정상 — 알림 없음')
         return
-    if n % PRICE_STALE:
-        print(f'{n}영업일째 — 이미 알렸으므로 이번엔 발송 생략')
+    if not repeat_gate(n, PRICE_STALE, PRICE_STALE):
+        print(f'{n}영업일째 — 이미 알렸으므로 이번엔 발송 생략({PRICE_STALE}영업일 간격)')
         return
     out('alert', 1)
     notify('시세가 수집되지 않고 있습니다', 'failure',
