@@ -61,7 +61,9 @@ def build():
     G, X = EC.selfcheck()
     idx = G.idx
     MIXR = np.nan_to_num(np.asarray(G.Dm['schdr'], float))
-    wB = np.asarray(G.wB, float)                           # 이미 lag=1 집행값
+    wB = np.asarray(G.wB, float)                           # ⚠ **신호**다(집행값 아님) —
+    # rule_dd 는 당일 마감 판정값을 돌려주고 lag=1 집행은 sim2 가 내부에서 건다(2026-09-03 정정).
+    # 그래서 switches(wB) 는 신호일이고 세금 실현이 하루 이르다 — 영향 −1.0%, 결론 무관.
     cur = {k: np.asarray(EC.sim2(wB, np.asarray(lev_r(G.D, k), float), MIXR), float)
            for k in KS}
     return idx, wB, cur
