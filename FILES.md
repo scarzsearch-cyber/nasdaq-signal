@@ -42,7 +42,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/  (126.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+research/  (127.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
@@ -482,6 +482,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/horizon_study.py` | 지평 3~20년 전수 — 「내 수명은 유한하다」 | **손실 0 문턱 7년** |
 | `research/post_dotcom.py` | 「닷컴 뒤로 T4·라오어와 비교하면?」 | — |
 | `research/slice_scan.py` | 다지평 슬라이스 스캔 — 「CT 찍듯 여러 두께로」 | 시작일 분포 판정 도구 |
+| `research/goal_feasibility.py` | 「초기금+적립으로 N년 안에 목표액이 되나」 전수 창 (2026-09-03) | **5년 10억 도달 국면 1개** |
 
 ### 9-5. 측정 감사 (2026-08-31 — 자기 대표 숫자에 같은 잣대)
 
