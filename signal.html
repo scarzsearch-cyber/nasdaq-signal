@@ -1147,7 +1147,10 @@ function paintDdPct(dd){
   const p = ddDeeperPct(dd);
   if(p == null){ el.hidden = true; el.textContent = ''; return; }
   el.hidden = false;
-  el.textContent = p <= 0 ? '54년 중 가장 얕은 축'
+  /* [v202] p 는 「더 깊었던 날의 %」다 — 0 이면 이보다 깊었던 날이 없다는 뜻이고,
+     edges[98]=0 이라 얕은 쪽에서는 0 에 닿지 않는다. 종전 문구는 정확히 뒤집혀 있어
+     사상 최악의 낙폭일에 「가장 얕은 축」이 떴다. */
+  el.textContent = p <= 0 ? '54년 중 가장 깊은 축'
     : '54년 중 더 깊었던 날 ' + p + '%';
 }
 
@@ -1558,8 +1561,12 @@ function drawHoriz(){
 // 미국장 기준 경과 '거래일'로 센다(주말에 잘못 경고하지 않도록).
 function bizDaysSince(iso){
   const d0 = new Date(iso + 'T00:00:00Z');
-  const now = new Date();
-  const d1 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // [v202] 오늘은 **한국 날짜**로 잡는다. UTC 게터를 쓰면 날짜가 09:00 KST 에 넘어가
+  //   deploy/watchdog.py(kst_today, 「signal.html 과 같은 정의」라고 적힌 함수)와 어긋났다 —
+  //   08:40 슬롯에서 파수꾼은 3거래일로 카톡을 보내는데 화면은 2로 세어 배너를 숨겼다.
+  //   어긋나던 창이 하필 신호 도착(05:17)부터 주문 창(09:05)까지의 확인 시간대였다.
+  const tp = tzParts(new Date(), SEOUL);
+  const d1 = new Date(Date.UTC(tp.y, tp.m - 1, tp.d));
   let n = 0;
   for(let t = new Date(d0); t < d1; t.setUTCDate(t.getUTCDate() + 1)){
     const w = t.getUTCDay();
@@ -1643,6 +1650,11 @@ function checkSeenBadge(){
 
 /* ---------------- 메인 렌더 ---------------- */
 function redraw(){
+  // [v202] 버전 도장·동결 배지는 카드/궤적과 무관한 **페이지 상태**다. 종전에는
+  //   drawTrajectory() 의 두 early-return 뒤에 유일한 호출부가 있어서, 수동 모드
+  //   (= file:// 로 연 로컬 사본)에서는 아예 그려지지 않았다 — 「로컬 사본 —
+  //   배포본이 아닙니다」 경고가 정확히 그 경고가 존재하는 상황에서 죽어 있었다.
+  paintRev(); paintFreeze();
   drawPerf();
   if(AUTO) renderAuto(AUTO); else render();
 }
@@ -1663,7 +1675,13 @@ function loadOosLog(){
       const cols = {}; lines[0].split(',').forEach((c,i)=>cols[c]=i);
       return {cols, rows: lines.slice(1).map(l => l.split(','))};
     }catch(e){ return null; }
-  })();
+  })().then(v => {
+    // [v202] **실패는 기억하지 않는다.** 종전에는 null 로 resolve 한 프라미스가 영구히
+    //   캐시돼, 부팅 때의 연결 불안 한 번으로 페이지 수명 내내 방어 진입일·T4·OOS 이력·
+    //   놓친 전환·D+n 배지가 조용한 공백이 됐다(오류 배너도 안 뜬다).
+    if(v == null) OOSLOG_P = null;
+    return v;
+  });
   return OOSLOG_P;
 }
 
@@ -1779,12 +1797,17 @@ function priceOf(code){ return (PRICE && PRICE.items && PRICE.items[code]) || nu
 /* 등락률 배지 — MTS 관행(상승 빨강·하락 파랑, v92 배지와 같은 방향). */
 function chgBadge(code){
   const r = priceOf(code);
-  if(!r || r.chg_pct == null) return '';
-  const v = Number(r.chg_pct);
-  if(!isFinite(v)) return '';
-  const c = v > 0 ? 'up' : v < 0 ? 'dn' : 'fl';
+  // [v202] 가격만 있으면 가격은 보여준다. 종전엔 등락률이 없으면 '' 를 반환해
+  //   **가격까지 함께** 사라졌다 — 예비 출처(kr_sources 의 google·toss·yahoo)는
+  //   전일 종가를 못 구하면 chg_pct=null 을 정상적으로 낸다. 그런데 curPx 는 바로
+  //   그 px 로 총 평가·주수를 계산하므로, 매매 지시를 만든 숫자가 화면에만 없었다.
+  //   형제 소비자 paintVpx 는 원래 px 로만 게이트한다 — 같은 필드, 같은 정책으로.
+  if(!r || r.px == null) return '';
+  const v = (r.chg_pct == null) ? null : Number(r.chg_pct);
+  const has = (v != null && isFinite(v));
+  const c = !has ? 'fl' : v > 0 ? 'up' : v < 0 ? 'dn' : 'fl';
   return `<span class="pchg ${c}">${Math.round(r.px).toLocaleString('en-US')}`
-       + `<i>${v > 0 ? '+' : ''}${v.toFixed(2)}%</i></span>`;
+       + (has ? `<i>${v > 0 ? '+' : ''}${v.toFixed(2)}%</i>` : '') + `</span>`;
 }
 /* [v146] 괴리율 — 설명서 §③ 「주문 전에」와 **같은 규약**으로만 말한다.
      + 프리미엄 = 값어치보다 비싸다 → 살 때 불리
@@ -1821,7 +1844,12 @@ let _priceTimer = null;
 async function refreshPrice(){
   const was = PRICE && PRICE.as_of_iso;
   await loadPrice();
-  if(!PRICE || PRICE.as_of_iso === was) return false;   // 새 값이 아니면 아무것도 안 한다
+  // [v202] PRICE 가 null 이 됐으면 **반드시 다시 그린다.** 종전엔 여기서 빠져나가
+  //   화면에는 옛 시세·괴리 배지가 그대로 남는데 curPx 는 nav_history 로 내려가,
+  //   사용자가 수량을 한 글자만 고쳐도 총 평가·주수가 다른 가격으로 계산됐다 —
+  //   v179 가 없앤 「한 화면에 현재가가 둘」이 네트워크 blip 하나로 되살아난다.
+  //   (pages.yml 은 price-data 브랜치를 못 가져오면 실제로 파일을 지운다.)
+  if(PRICE && PRICE.as_of_iso === was) return false;   // 값이 그대로면 아무것도 안 한다
   document.querySelectorAll('#portBody .prow[data-code]').forEach(row => {
     const code = row.dataset.code;
     if(!code || code === '_cash') return;
@@ -1831,7 +1859,9 @@ async function refreshPrice(){
       nm.insertAdjacentHTML('beforeend', chgBadge(code) + devBadge(code));
     }
     const inp = row.querySelector('input[data-f="px"]'), auto = curPx(code);   // [v179]
-    if(inp && auto) inp.placeholder = Math.round(auto.px).toLocaleString('en-US');
+    // [v202] 자동값이 사라졌으면 placeholder 도 같이 내린다 — 옛 값을 남기면
+    //   계산이 쓰는 가격과 화면이 또 갈린다.
+    if(inp) inp.placeholder = auto ? Math.round(auto.px).toLocaleString('en-US') : '0';
   });
   paintVpx(VPX_QLD);                       // 신호 카드의 공격 자산 시세
   try{ portCompute(); }catch(e){}          // 「시세 N분 전」 줄 + 평가액
@@ -2038,6 +2068,16 @@ function portCompute(){
     act.className = 'ok';
     act.innerHTML = `🟢 <b>오늘의 행동 — 없음.</b> ${stLab} 목표와 일치합니다 (오차 ≤2%p 표시 기준).`
       + (isAtk ? '' : ' 방어 비율 재조정은 <b>진입일부터 30일마다</b> 확인합니다 (아래 카운터).');
+  } else if(!sells.length && !buys.length){
+    // [v202] 이탈은 2%p 를 넘지만 **한 주 값어치에 못 미친다.** need 는 내림한 주수에
+    //   걸리고 이 분기는 maxdev(%p)에 걸려 있어, 종전에는 지시가 하나도 없는 빨간 경고가
+    //   떴다 — 막대는 전부 흐려지고, 주문 메모는 주문 0건이고, 상단은 「오늘 할 일 없음」
+    //   이라 v191 이 없애려던 상하 모순이 그대로 재현됐다. 총액 < 50 × 그 다리 가격이면
+    //   언제든 걸린다(418660 기준 195만원 미만).
+    act.className = 'ok';
+    act.innerHTML = `🟢 <b>오늘의 행동 — 없음.</b> ${stLab} 목표와 ${maxdev.toFixed(1)}%p 차이지만
+      한 주 값어치에 못 미쳐 지금 낼 주문이 없습니다.`
+      + (isAtk ? '' : ' 방어 비율 재조정은 <b>진입일부터 30일마다</b> 확인합니다 (아래 카운터).');
   } else {
     const L = [];
     sells.forEach(s => L.push(`<span class="bdg sell">매도 ${s.sh}주</span> ${shortName(s.r.x.code)} · 약 <b>${fmtA(s.sh * s.r.px)}</b>`));
@@ -2063,7 +2103,8 @@ function portCompute(){
   if(PORT.cash > 0) sum += ` (현금 ${(Math.max(0, PORT.cash) / total * 100).toFixed(1)}% 포함)`;
   if(invest > 0) sum += ` · 평단 기준 손익 <b>${(investVal - invest >= 0 ? '+' : '−') + fmtWon(Math.abs(investVal - invest))}</b>
     (${((investVal / invest - 1) * 100).toFixed(1)}%)`;
-  if(maxdev > 2) sum += ` · 위 조정 후 예상 현금 <b>${fmtA((PORT.cash || 0) + sellCash - buyCash)}</b>`;
+  // [v202] 실제로 낼 주문이 있을 때만 — 주문이 0건이면 「조정 후」가 현재와 같아 무의미하다.
+  if(sells.length || buys.length) sum += ` · 위 조정 후 예상 현금 <b>${fmtA((PORT.cash || 0) + sellCash - buyCash)}</b>`;
   comp.innerHTML = bars + `<div class="psum">${sum}</div>`
     + (warns.length ? `<div class="pwarn">⚠ ${warns.join(' · ')}</div>` : '');
   /* [v134] 「이 기기 브라우저에만 저장」은 패널 제목의 「저장은 이 기기」와 중복 — 삭제 */
@@ -2335,8 +2376,14 @@ function sanitizeBackup(j){
                                    && OK_CODE.test(String(t.code || ''))
                                    && (t.side === 'buy' || t.side === 'sell'))
     .slice(0, 2000)                              // 터무니없이 긴 장부는 자른다
-    .map(t => ({d: t.d, code: String(t.code), side: t.side,
-                qty: sNum(t.qty), px: sNum(t.px), ref: sNum(t.ref)}));
+    .map(t => {
+      const o = {d: t.d, code: String(t.code), side: t.side,
+                 qty: sNum(t.qty), px: sNum(t.px), ref: sNum(t.ref)};
+      // [v202] 취소가 되돌릴 **실제 반영 증감**. 없는 옛 기록은 없는 채로 둬야 한다 —
+      //   sNum 을 그냥 태우면 0 이 되어 「반영량 0」과 구별할 수 없고 취소가 무효가 된다.
+      if(t.dq != null && isFinite(Number(t.dq))) o.dq = sNum(t.dq);
+      return o;
+    });
   const out = {v: 1, port, trades};
   const g = sNum(j.goal && j.goal.target);
   if(g > 0) out.goal = {target: g};
@@ -2503,10 +2550,16 @@ function backupHint(){
     + (d ? `마지막 백업이 <b>${days}일</b> 지났습니다` : '아직 백업한 적이 없습니다')
     + ` — 체결 기록이 쌓이고 있으니 「파일로 저장」 백업을 권장합니다.</div>`;
 }
+/* 체결 기록의 기준가 — 사용자 입력이 있으면 그것, 없으면 자동 현재가.
+   [v202] 자동값은 반드시 curPx() 를 거친다. 종전엔 NAVPX 를 직접 읽어 v179 의 단일
+   진입점을 우회했다: 화면은 price.json 스냅샷(39,390)을 보여주는데 기준가는
+   nav_history(39,200)로 기록돼 있지도 않은 괴리가 행·괴리 통계·CSV 로 번졌고,
+   nav_history 에 그 종목 행이 없으면 0 을 반환해 ±20% 오타 가드까지 조용히 꺼졌다. */
 function effPx(code){
   const p = PORT.a[code] || {};
   if(pnum(p.px) > 0) return pnum(p.px);
-  return NAVPX[code] ? NAVPX[code].px : 0;
+  const a = curPx(code);
+  return a ? a.px : 0;
 }
 function shortName(code){
   const A = portAssets() || [];
@@ -2518,6 +2571,10 @@ function syncPortInputs(code){
   if(!row) return;
   const p = PORT.a[code] || {};
   const q = row.querySelector("input[data-f='qty']"); if(q) q.value = p.qty || '';
+  // [v202] avg(평단가)도 되쓴다. 빠져 있어서 백업 복원·되돌리기·링크 복원 뒤에
+  //   화면의 평단가와 손익 계산에 쓰인 평단가가 갈렸다(같은 행에 모순되는 두 숫자).
+  //   그 상태로 다른 칸을 건드리면 낡은 표시값이 저장소에 다시 커밋돼 복원값이 사라졌다.
+  const a = row.querySelector("input[data-f='avg']"); if(a) a.value = p.avg || '';
   const x = row.querySelector("input[data-f='px']"); if(x) x.value = p.px || '';
 }
 function drawTlog(){
@@ -2558,12 +2615,20 @@ function drawTlog(){
            + Math.round(refPx).toLocaleString('en-US') + '원과 '
            + Math.round(Math.abs(px / refPx - 1) * 100) + '% 차이 납니다.\n오타가 아닌지 확인해 주세요 — 이대로 기록할까요?')) return;
       const tp = tzParts(new Date(), SEOUL);   // 체결은 한국장 — 날짜도 KST
-      TRADES.push({d: tp.y + '-' + String(tp.m).padStart(2, '0') + '-' + String(tp.d).padStart(2, '0'),
-                   code, side, qty, px, ref: refPx});
-      saveTrades();
       const p = PORT.a[code] = PORT.a[code] || {};
-      p.qty = String(Math.max(0, pnum(p.qty) + (side === 'buy' ? qty : -qty)));
-      p.px = String(px);
+      // [v202] 보유에 **실제로 반영된 증감(dq)** 을 같이 기록한다. 종전에는 취소가
+      //   Math.max(0,…) 클램프를 그대로 역산해, 보유 0 에서 매도 10주를 기록했다가
+      //   취소하면 보유한 적 없는 10주가 생겼다(총 평가 부풀림 + 유령 매도 지시).
+      const before = pnum(p.qty);
+      const after = Math.max(0, before + (side === 'buy' ? qty : -qty));
+      TRADES.push({d: tp.y + '-' + String(tp.m).padStart(2, '0') + '-' + String(tp.d).padStart(2, '0'),
+                   code, side, qty, px, ref: refPx, dq: after - before});
+      saveTrades();
+      p.qty = String(after);
+      // [v202] 체결가를 현재가 칸에 쓰지 않는다. 쓰면 그 종목은 이후 curPx() 자동 시세를
+      //   영원히 안 쓰고(portCompute 의 `if(!(px>0))` 가 항상 단락) 총 평가·손익·주수가
+      //   몇 주 묵은 체결가로 계산되는데, 출처 라벨과 「N일 전 값」 경고가 둘 다 그
+      //   건너뛴 분기 안에 있어 화면 어디에도 얼어붙었다는 표시가 없었다.
       savePort(); syncPortInputs(code);
       document.getElementById('tlQty').value = ''; document.getElementById('tlPx').value = '';
       portCompute(); drawTlogList();
@@ -2718,7 +2783,11 @@ async function drawTlogList(){
     const t = TRADES[+x.dataset.i];
     if(!t) return;
     const p = PORT.a[t.code] = PORT.a[t.code] || {};
-    p.qty = String(Math.max(0, pnum(p.qty) + (t.side === 'buy' ? -t.qty : t.qty)));
+    // [v202] 기록할 때 실제로 반영된 증감만 되돌린다 — 클램프를 역산하면 없던 주식이 생긴다.
+    //   dq 가 없는 옛 기록은 종전 방식으로 처리한다(호환).
+    const dq = (typeof t.dq === 'number' && isFinite(t.dq))
+      ? t.dq : (t.side === 'buy' ? t.qty : -t.qty);
+    p.qty = String(Math.max(0, pnum(p.qty) - dq));
     savePort(); syncPortInputs(t.code);
     TRADES.splice(+x.dataset.i, 1); saveTrades();
     portCompute(); drawTlogList();
@@ -2731,21 +2800,33 @@ async function drawTlogList(){
    달력 월 기준은 월말 진입 시 며칠 만에 재조정하는 엣지가 있어 기각 — 진입일 순환은
    장부에 있는 날짜만으로 계산되고 예외 규칙이 없다. 일정 알림일 뿐 매매 지시가 아니며,
    실제 차이·수량은 기존 오늘의 행동 표시가 담당한다. */
-let DEF_ENTRY;                                  // undefined=미조회 · null=미확정 · {d}=확정
-async function getDefenseEntryDate(){
-  if(DEF_ENTRY !== undefined) return DEF_ENTRY;
-  DEF_ENTRY = null;
-  const log = await loadOosLog();                         // [v106] 공용 캐시
-  if(!log) return DEF_ENTRY;
-  const iA = log.cols['as_of'], iS = log.cols['state'], iC = log.cols['changed'];
-  if(iA == null || iS == null) return DEF_ENTRY;
-  const rows = log.rows;
-  if(rows[rows.length - 1][iS] !== 'SCHD') return DEF_ENTRY;   // 방어 상태가 아님
-  let k = rows.length - 1;
-  while(k > 0 && rows[k - 1][iS] === 'SCHD') k--;
-  if(k === 0 && !(iC != null && rows[0][iC] === '1')) return DEF_ENTRY;
-  DEF_ENTRY = {d: rows[k][iA]};
-  return DEF_ENTRY;
+/* [v202 정정] 값이 아니라 **프라미스**를 캐시한다 — v111 이 loadOosLog 에서 배운 것과
+   같은 교훈이 한 단계 위에서 재발했다. 종전에는 첫 await 앞에서 `DEF_ENTRY = null`
+   센티널을 동기적으로 써 놓아, paintState 가 await 없이 연속 호출하는 세 소비자
+   (drawDefDays·drawVDday·drawDefDur) 중 2·3번째가 「미확정」과 구별되지 않는 null 을
+   즉시 받고 스스로를 숨겼다. 결과가 결정론적이었다 — 방어 상태에서 판정 옆 재조정
+   D-day(v182)와 「방어 전환 후 N일째」는 안 뜨는데 아래 카운터만 정상으로 떠서,
+   한 화면이 진입일을 안다고도 모른다고도 말했다(2765행 주석이 금지한 바로 그 상태).
+   실패(null)는 기억하지 않는다 — 장부를 못 읽은 것과 진입일이 없는 것은 다르다. */
+let DEF_ENTRY_P = null;                         // null=미조회 · Promise<{d}|null>
+function getDefenseEntryDate(){
+  if(DEF_ENTRY_P) return DEF_ENTRY_P;
+  DEF_ENTRY_P = (async () => {
+    const log = await loadOosLog();                       // [v106] 공용 캐시
+    if(!log) return null;
+    const iA = log.cols['as_of'], iS = log.cols['state'], iC = log.cols['changed'];
+    if(iA == null || iS == null) return null;
+    const rows = log.rows;
+    if(rows[rows.length - 1][iS] !== 'SCHD') return null;  // 방어 상태가 아님
+    let k = rows.length - 1;
+    while(k > 0 && rows[k - 1][iS] === 'SCHD') k--;
+    if(k === 0 && !(iC != null && rows[0][iC] === '1')) return null;
+    return {d: rows[k][iA]};
+  })().then(v => {
+    if(v == null) DEF_ENTRY_P = null;           // 장부를 못 읽었으면 다음에 다시 본다
+    return v;
+  });
+  return DEF_ENTRY_P;
 }
 function daysSince(d){ return Math.max(0, Math.floor((Date.now() - Date.parse(d)) / 864e5)); }
 
@@ -2916,6 +2997,43 @@ function paintProx(o, isQld){
   }
 }
 
+/* [v202] 판정 카드 비우기 — 「전체 삭제」와 「판정 근거 부족」이 함께 쓴다.
+   ★ 한 곳에서만 지운다: 종전 btnClear 는 다섯 칸만 '—' 로 되돌려 전환 기준가·낙폭
+     게이지·재조정 D-day·행동 줄·미니바가 살아남았다. 판정은 '—' 인데 옆에는 실제
+     가격처럼 보이는 전환 기준가와 채워진 게이지가 남아, 방금 지운 데이터로 만든
+     판단을 계속 주장했다(render 는 빈 행에서 early-return 하므로 아무것도 덮어쓰지 않는다).
+   ※ className 을 지우는 것은 마크업에 기본 클래스가 없는 changeBox/disagreeBox 뿐이다 —
+     종전엔 innerHTML 만 지워 빈 색 띠가 남았다. 나머지는 기본 클래스를 지키고 hidden 으로 내린다. */
+function clearCard(){
+  const v = document.getElementById('verdict');
+  if(v){ v.textContent = '—'; v.style.color = 'var(--ink)'; }
+  paintVpx(false);                                   // [v149] 판정이 없으면 시세도 숨긴다
+  ['fDd','fClose','fMax','fNext','fGap','fTrig'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.textContent = '—';
+  });
+  paintDdChg(null);                                  // [v154] 전일 대비
+  paintDdPct(null);                                  // [v164] 백분위
+  ['changeBox','disagreeBox'].forEach(id => {
+    const el = document.getElementById(id); if(el){ el.innerHTML = ''; el.className = ''; }
+  });
+  ['proxBox','actLine'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.innerHTML = '';
+  });
+  ['factLine','defDur','defDays'].forEach(id => {    // 마크업 기본이 hidden 인 줄들
+    const el = document.getElementById(id); if(el){ el.innerHTML = ''; el.hidden = true; }
+  });
+  const vd = document.getElementById('vdday');       // [v182] 판정 옆 D-day
+  if(vd){ vd.innerHTML = ''; vd.hidden = true; vd.classList.remove('due'); }
+  const mb = document.getElementById('mbState'); if(mb) mb.textContent = '—';
+  ['mbRule','mbDd','ebRule'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.textContent = '';
+  });
+  const eb = document.getElementById('eyebrow'); if(eb) eb.textContent = '보유할 자산';
+  const pr = document.getElementById('product');
+  if(pr) pr.textContent = 'QQQ 종가를 넣으면 오늘 보유할 자산을 판정합니다.';
+  CURSTATE = null;
+}
+
 function render(){
   const S = STRAT[sel];
   const res = compute(S.exit);
@@ -2933,24 +3051,39 @@ function render(){
 
   document.getElementById('asof').innerHTML = freshDot(last.d) + last.d + ' 종가 기준';
   ASOF = last.d;
-  paintState({
-    state:last.state, changed_today: !!(prev && prev.state!==last.state),
-    dd:last.dd*100, close:last.c, high:last.mx,
-    next_line: line*100, gap_pp: Math.abs(last.dd-line)*100,
-    // [v154] 수동 rows(res)는 **오름차순** — 마지막이 최신이다. dd 는 소수라 ×100.
-    //        판정 불가(60일 미만) 행의 dd 는 의미가 없으므로 양쪽 enough 일 때만.
-    ddChg: (prev && last.enough && prev.enough) ? (last.dd - prev.dd) * 100 : null,
-  });
+  if(!last.enough){
+    /* [v202] 판정 근거가 모자라면 **판정을 그리지 않는다.** 종전에는 행 수와 무관하게
+       카드를 다 그려서, 20행만 붙여넣어도 「공격」·「252일 고점 600」·「전환 기준가 504」가
+       떴다 — 진짜 252일 고점이 800 이면 이미 전환선을 한참 넘긴 방어 구간인데 카드는
+       트리거 직전이라고 말한다. 「252일 고점」 라벨은 정적 HTML 이라 행 수와 무관하게
+       그대로였고, 경고는 접힌 <details> 안 #msg 로 갔는데 그마저 CSV 를 붙여넣는 순간
+       「N행 불러옴」 성공 메시지가 덮어썼다(details 가 열려 있는 유일한 순간에).
+       ★ 이 경로는 자동 갱신이 죽었을 때 쓰라고 만든 비상 경로다 — 거기서 틀린 판정을
+       자신 있게 띄우는 것이 가장 위험하다. */
+    clearCard();
+    const box = document.getElementById('changeBox');
+    if(box){
+      box.className = 'changed';
+      box.textContent = '데이터가 ' + res.length.toLocaleString() + '행뿐이라 아직 판정하지 '
+        + '않습니다 — 252일 고점과 전환 기준가를 낼 수 없습니다. CSV로 과거 1년치를 채워주세요.';
+    }
+    setMsg('데이터가 60일 미만이라 아직 판정하지 않습니다. CSV로 과거 1년치를 채워주세요.', true);
+  } else {
+    paintState({
+      state:last.state, changed_today: !!(prev && prev.state!==last.state),
+      dd:last.dd*100, close:last.c, high:last.mx,
+      next_line: line*100, gap_pp: Math.abs(last.dd-line)*100,
+      // [v154] 수동 rows(res)는 **오름차순** — 마지막이 최신이다. dd 는 소수라 ×100.
+      //        판정 불가(60일 미만) 행의 dd 는 의미가 없으므로 양쪽 enough 일 때만.
+      ddChg: (prev && prev.enough) ? (last.dd - prev.dd) * 100 : null,
+    });
+  }
 
   tbl.hidden = false;
   tbody.innerHTML = res.slice(-12).reverse().map(r=>
     `<tr><td>${r.d}</td><td>${num(r.c)}</td><td>${r.enough?pct(r.dd):'—'}</td>`+
     `<td class="${r.state==='QLD'?'s-qld':'s-schd'}">${r.enough?stateLabel(r.state):'—'}</td></tr>`
   ).join('');
-
-  if(!last.enough){
-    setMsg('데이터가 60일 미만이라 아직 판정하지 않습니다. CSV로 과거 1년치를 채워주세요.', true);
-  }
 }
 
 function renderAuto(j){
@@ -3016,17 +3149,28 @@ document.getElementById('inFile').addEventListener('change', ev=>{
       const di = head.indexOf('date'), ci = head.indexOf('close');
       if(di<0 || ci<0){ setMsg('CSV에 Date, Close 열이 있어야 합니다.', true); return; }
       const map = new Map(rows.map(r=>[r.d,r]));
-      let n=0;
+      let n=0, skip=0;
       for(let k=1;k<lines.length;k++){
         const p = lines[k].split(',');
         const d = (p[di]||'').trim().slice(0,10);
         const c = parseFloat(p[ci]);
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(d) || !isFinite(c) || c<=0) continue;
+        // [v202] 버린 행을 **센다.** 종전엔 조용히 continue 해서, 결측일이 섞이면
+        //   「246행 불러옴」이 성공 스타일로 뜨고 거래일이 말없이 빠졌다. 룩백이 위치
+        //   기반이라 구멍 난 계열은 252칸이 252거래일보다 긴 기간을 덮어 고점이 올라가고
+        //   낙폭이 과대해져 수동 판정이 뒤집힐 수 있다. MM/DD/YYYY 형식이면 전 행이 걸린다.
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(d) || !isFinite(c) || c<=0){ skip++; continue; }
         map.set(d, {d,c}); n++;
+      }
+      if(!n){
+        setMsg('불러온 행이 없습니다 ('+skip.toLocaleString()+'행 건너뜀) — 날짜는 '
+          + 'YYYY-MM-DD, 종가는 숫자여야 합니다. 날짜 형식을 확인해주세요.', true);
+        return;
       }
       rows = [...map.values()];
       save(); render();
-      setMsg(n.toLocaleString()+'행 불러옴 (총 '+rows.length.toLocaleString()+'행)');
+      setMsg(n.toLocaleString()+'행 불러옴 (총 '+rows.length.toLocaleString()+'행)'
+        + (skip ? ' · '+skip.toLocaleString()+'행 건너뜀 — 날짜·종가 형식을 확인하세요' : ''),
+        skip > 0);
     }catch(err){ setMsg('CSV를 읽지 못했습니다. 형식을 확인해주세요.', true); }
   };
   rd.readAsText(f);
@@ -3036,15 +3180,8 @@ document.getElementById('inFile').addEventListener('change', ev=>{
 document.getElementById('btnClear').addEventListener('click', ()=>{
   rows = []; save();
   document.getElementById('tbl').hidden = true;
-  document.getElementById('verdict').textContent='—';
-  document.getElementById('verdict').style.color='var(--ink)';
-  paintVpx(false);                       // [v149] 판정이 없으면 시세도 숨긴다
   document.getElementById('asof').textContent='데이터 없음';
-  ['fDd','fClose','fMax','fNext','fGap'].forEach(id=>document.getElementById(id).textContent='—');
-  paintDdChg(null);                              // [v154] 전일 대비도 같이 지운다
-  paintDdPct(null);                              // [v164] 백분위도 같이 지운다
-  document.getElementById('changeBox').innerHTML='';
-  document.getElementById('disagreeBox').innerHTML='';
+  clearCard();                           // [v202] 카드 전체를 한 곳에서 — 위 clearCard 주석 참조
   setMsg('전체 삭제됨');
 });
 
@@ -3359,7 +3496,8 @@ function drawTrajectory(tr){
   LAST_TRAJ=tr;                                  // [v95] 테마 전환 시 재도색용
   const names=Object.keys(tr);
   if(!names.length) return;
-  paintRev(); paintFreeze();
+  /* [v202] paintRev()/paintFreeze() 는 redraw() 로 옮겼다 — 여기 있으면 궤적
+     데이터가 없을 때(수동 모드·로컬 사본) 같이 죽는다. */
   // [v95] SVG 는 CSS 변수를 못 쓰므로 렌더 시점의 테마 색을 읽어온다
   const cs = getComputedStyle(document.documentElement);
   const gridColor = cs.getPropertyValue('--hairline').trim() || '#E1E7EB';
