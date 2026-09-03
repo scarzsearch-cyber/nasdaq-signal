@@ -52,6 +52,7 @@ jobs:
       # ①-b 오늘이 방어 재조정일인가 — 전환일엔 알림이 가는데 재조정일엔 안 갔다.
       # 둘 다 실제 매매인데 한쪽만 알림이 있으면 사람이 달력을 신경 써야 한다.
       - name: 방어 재조정일
+        id: reb
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -63,6 +64,7 @@ jobs:
       # ①-c [v192] 전환 실행일 재알림 — 새벽(05시) 알림은 자는 동안 온다. 실행일 아침에 한 번 더.
       #   실행일에만 나가므로 거짓 알림 0 · 연 2~3건. 서버는 체결 여부를 모르므로 「이미 하셨다면 무시」.
       - name: 전환 실행일 재알림
+        id: sw
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -75,6 +77,7 @@ jobs:
       #   「근접일 때의 전환은 절대 놓치지 마라」(04 §5-8)·「근접이면 떠나기 전 정리」(설명서 ③)가
       #   화면을 열어야만 작동하던 것을 폰으로 옮긴다. 54년 실측 연 3.5회(research/near_zone.py).
       - name: 근접 진입 알림
+        id: near
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
@@ -138,6 +141,7 @@ jobs:
       #   통째로 꺼지는데(공식 문서) 그러면 이 파수꾼도 같이 꺼진다.
       #   상태는 ops_check.json 에 얹으므로 새 파일·새 커밋이 안 늘어난다.
       - name: 살아 있음 알림 (월 1회)
+        id: hb
         if: env.WEEKLY == 'true'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
@@ -175,7 +179,15 @@ jobs:
       # 사람이 개입해야 하는 상황이면 이슈로도 남긴다 — 카톡이 죽었을 때의 마지막 통로
       # (GitHub 이 이슈를 메일로 보낸다). 라벨이 같은 열린 이슈가 있으면 댓글로 잇는다.
       - name: 이상이면 이슈 열기
-        if: steps.stale.outputs.alert == '1' || steps.chan.outputs.alert == '1' || steps.stats.outputs.alert == '1' || steps.price.outputs.alert == '1' || steps.chk.outputs.alert == '1'
+        # [2026-09-04 코드리뷰] 9모드 전부 참조 — 종전엔 reb·sw·near·hb 에 id 가 없어
+        # 그 4모드가 크래시할 때 남기는 alert=1 을 아무도 읽을 수 없었다(무음 실패).
+        # watchdog.py 는 어떤 모드도 non-zero 로 끝나지 않으므로 이 조건이 유일한 통로다.
+        if: >-
+          steps.stale.outputs.alert == '1' || steps.chan.outputs.alert == '1' ||
+          steps.stats.outputs.alert == '1' || steps.price.outputs.alert == '1' ||
+          steps.chk.outputs.alert == '1' || steps.reb.outputs.alert == '1' ||
+          steps.sw.outputs.alert == '1' || steps.near.outputs.alert == '1' ||
+          steps.hb.outputs.alert == '1'
         uses: actions/github-script@v7
         with:
           script: |
