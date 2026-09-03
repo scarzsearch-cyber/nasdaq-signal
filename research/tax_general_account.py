@@ -155,6 +155,53 @@ def main():
           f'(세전 {preB/preH:.2f}배 → 세후 {B_after/H_after:.2f}배)')
     print(f'  P2 재조정 없는 ③ 이 ② 보다 낫다 → {"맞음" if H2_after > H_after else "**틀림**"} ({H2_after:,.0f} vs {H_after:,.0f})')
     print(f'  P3 세후에도 B 가 3배 이상 → {"맞음" if B_after/H_after >= 3 else "**틀림**"}')
+    # ── 소유자 질문: ISA vs 일반계좌 두 갈래 · 지평 창으로 ──────────────────
+    print('')
+    print(L); print('[소유자 질문] ISA vs 일반계좌 — 같은 B 를 두 계좌에서 굴리면'); print(L)
+    print('  ISA 중개형 = 계좌 안 매매 무과세 · 만기 손익통산 후 순이익에 9.9% 분리과세')
+    print('  일반계좌   = 국내상장 해외 ETF 매매차익이 배당소득 15.4% · 손실 상계 불가 · 매도마다 과세')
+    print('  ⚠ ISA 의 200만원 비과세는 원금 규모에 따라 달라 넣지 않았다(ISA 에 불리한 쪽 = 보수적).')
+    ISA = 0.099
+    Dx = dict(D); Dx['qldr'] = qldr; Dx['schdr'] = basket
+    with contextlib.redirect_stdout(io.StringIO()):
+        aB2, wv, _ = RL.run(Dx, STRATS['B']['ladder'], enter=STRATS['B']['enter'])
+    aB2 = np.asarray(aB2, float)
+    SWi = np.where(np.abs(np.diff(np.asarray(wv, float))) > 0)[0] + 1
+
+    def after_gen(a, s, e):
+        v, last = 1.0, a[s]
+        for i in SWi:
+            if s < i < e:
+                g = a[i] / last
+                v *= (1 + (g - 1) * (1 - TAX)) if g > 1 else g
+                last = a[i]
+        g = a[e] / last
+        return v * ((1 + (g - 1) * (1 - TAX)) if g > 1 else g)
+
+    def after_isa(a, s, e):
+        g = a[e] / a[s]
+        return 1 + (g - 1) * (1 - ISA) if g > 1 else g
+
+    print('')
+    print(f"  {'지평':<10}{'창 수':>7}{'세전 중앙':>12}{'ISA 세후':>12}{'일반 세후':>12}{'일반의 손실':>12}")
+    for yy, lab in ((10, '10년'), (20, '20년'), (30, '30년'), (None, '54년 전체')):
+        if yy is None:
+            s0, e0 = 0, len(aB2) - 1
+            pm, im, gm = aB2[-1] / aB2[0], after_isa(aB2, s0, e0), after_gen(aB2, s0, e0)
+            print(f'  {lab:<10}{1:>7}{pm:>11,.0f}배{im:>11,.0f}배{gm:>11,.0f}배{(gm/im-1)*100:>11.1f}%')
+            continue
+        W = int(yy * 252)
+        pl, il, gl = [], [], []
+        for s0 in range(0, len(aB2) - W, 63):
+            e0 = s0 + W
+            pl.append(aB2[e0] / aB2[s0]); il.append(after_isa(aB2, s0, e0)); gl.append(after_gen(aB2, s0, e0))
+        pm, im, gm = np.median(pl), np.median(il), np.median(gl)
+        print(f'  {lab:<10}{len(pl):>7}{pm:>11,.1f}배{im:>11,.1f}배{gm:>11,.1f}배{(gm/im-1)*100:>11.1f}%')
+    print('')
+    print('  ※ 「일반의 손실」 = 같은 창에서 일반계좌가 ISA 대비 몇 % 적게 남는가(중앙).')
+    print('  ⚠ ISA 는 연 2,000만원 · 총 1억 납입 한도가 있다 — 그 이상은 일반계좌 몫이다(§5-8 이 그 몫을 잰 이유).')
+    print('')
+
     print('\n이 측정이 낳은 다음 질문 (§-1 ⑥):')
     print('  Q-a 이 표는 15.4% 단일세율이다 — 금융소득종합과세(연 2,000만 초과)에 걸리면 세율이 오르고 고회전 쪽이 더 불리해진다.')
     print('  Q-b 소유자 계좌는 ISA 라 이 표는 「일반계좌 몫이 생겼을 때」에만 쓰인다(설명서 §④).')
