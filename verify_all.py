@@ -54,6 +54,12 @@ except Exception:
 FAIL, WARN = [], []
 T0 = time.time()
 
+# [2026-09-04 코드리뷰] data/freeze.json 의 **내용 봉인**. 그 파일 자체의 fingerprint 필드는
+# 저장소 어디에서도 재계산되지 않아(조리법 480가지 전수 탐색, 일치 0건) 검증 불가능하다.
+# freeze.json 은 §2 라 못 고치므로, 여기에 독립적인 봉인을 걸어 둔다 — g_freeze_seal 참조.
+# 의도적으로 바꿀 때만 이 값을 갱신하고 02 §5-1 에 날짜·이유를 남긴다.
+FREEZE_SEAL = '65df0ed8b72a3632'
+
 
 def ok(name, cond, detail='', warn=False):
     tag = 'PASS' if cond else ('WARN' if warn else 'FAIL')
@@ -147,6 +153,429 @@ def i4_real(D):
         ok(f'{nm} {code} 드리프트 ±1.5%p', abs(d) < 0.015, f'{d:+.2%}/년 ({y:.1f}년)')
 
 
+# ==================================================================== 저장소 위생 관문
+# [2026-09-04 코드리뷰] ★ 아래 관문들은 **전략 불변식이 아니다** — 저장소가 스스로를
+#   기록·격리·배포하는 것을 지킨다. 종전에는 전부 i5_decisions() 안, 그것도
+#   `if os.path.exists('signal.html'):` 블록 **안쪽**에 있었다. 그래서
+#   ⓐ signal.html 이름만 바뀌어도 이 관문들이 통째로 조용히 사라졌고(실측 51개 검사 → 0개),
+#   ⓑ §2 가 「verify_all 의 전략 검사(I1~I12)는 읽기만」이라고 정한 경계 안에 새 관문이
+#     계속 들어가, 최근 비-시세 커밋 13건이 전부 i5_decisions 를 고쳤다(§2 위반 유발).
+#   → 최상위 함수로 꺼냈다. **전략 검사(I1~I14)와 위생 관문은 이제 파일에서 갈린다.**
+
+
+def _read(p):
+    """파일을 통째로 읽는다. 없으면 None (호출부가 warn 을 내게)."""
+    try:
+        return io.open(p, encoding='utf-8').read()
+    except Exception:
+        return None
+
+
+def _need(name, p):
+    """관문의 대상 파일이 있는가. 없으면 WARN 을 내고 False — **조용히 사라지지 않는다.**"""
+    if os.path.exists(p):
+        return True
+    ok(name, False, '%s 없음 — 이 관문이 이번 실행에서 돌지 않았다' % p, warn=True)
+    return False
+
+
+def g_repo_map():
+    """[v172] 파일 지도 관문 — 추적 파일이 FILES.md 에 없으면 실패.
+
+    [2026-09-04 코드리뷰] 구멍 둘을 막았다.
+      ⓐ git 이 실패하면 tk=[] 가 되어 **아무것도 검사하지 않고 통과**했다
+        (실측: 정상 「검사 대상 201개」 vs git 실패 「검사 대상 0개 전부 등재」 — 둘 다 PASS).
+        subprocess.run 에 check=True 가 없어 종료코드 128 은 예외조차 안 났다.
+        → check=True + 실패는 WARN 으로 드러낸다. timeout 도 60 → 20초.
+      ⓑ 등재 검사가 **basename 부분문자열**이라 남의 행에 무임승차했다. 실측: 미등재 새 파일
+        research/hist.py · deploy/protocol_b.py · .github/workflows/stats.yml · deploy/lib.py ·
+        data/log.csv 가 전부 PASS(refresh_hist.py · oos_protocol_b.py · monthly-stats.yml 등의
+        부분문자열). 추적 파일 중에도 3쌍이 이미 서로 가려 준다.
+        → **전체 경로**로 본다. FILES.md 표는 이미 저장소 상대 경로를 적고 있고,
+          디렉터리 없이 basename 만 적힌 옛 행(audit/*.py 등)은 basename 도 허용한다.
+    """
+    if not _need('파일 지도 관문', 'FILES.md'):
+        return
+    fmap = _read('FILES.md') or ''
+    try:
+        tk = subprocess.run(['git', '-c', 'core.quotepath=false', 'ls-files'],
+                            capture_output=True, text=True, encoding='utf-8',
+                            check=True, timeout=20).stdout.splitlines()
+    except Exception as e:
+        ok('파일 지도가 실제 파일을 따라잡았다', False,
+           'git ls-files 실패(%s) — 검사하지 못했다(통과가 아니다)' % type(e).__name__,
+           warn=True)
+        return
+    tk = [t.strip().replace(chr(92), '/') for t in tk if t.strip()]
+
+    def watched(p):
+        if p.startswith('archive/') or p.startswith('docs/'):
+            return False                      # 옛 기록 — 지도의 대상이 아니다
+        if p.startswith(('deploy/', 'research/', 'audit/')) and p.endswith(('.py', '.md')):
+            return True
+        if p.startswith('내가_보는_것/'):
+            return True
+        if p.startswith('.github/workflows/'):
+            return True
+        if '/' not in p and p.endswith(('.py', '.html')):
+            return True
+        return bool(re.match(r'data/[^/]+\.(json|csv)$', p))
+
+    def listed(p):
+        if p in fmap:
+            return True
+        # FILES.md 는 표 칸(`경로`)과 산문 둘 다로 등재한다(예: 49행의 research/*.md 나열).
+        # 전체 경로만 인정하면 오탐 10건이 나고, v172 가 「오탐이 나면 관문이 무시당한다」고
+        # 적어 둔 그대로가 된다. 그래서 basename 을 쓰되 **단어 경계**를 요구한다 —
+        # 이러면 hist.py 가 refresh_hist.py 에, verify.py 가 axis_finalverify.py 에,
+        # withdraw.py 가 plan30_withdraw.py 에 무임승차하던 것이 전부 막힌다.
+        b = os.path.basename(p)
+        return re.search(r'(?<![\w/.-])' + re.escape(b) + r'(?!\w)', fmap) is not None
+
+    watch = [p for p in tk if watched(p)]
+    miss = [p for p in watch if not listed(p)]
+    ok('파일 지도가 실제 파일을 따라잡았다', not miss,
+       ('FILES.md 미등재 %d건: %s (v172)' % (len(miss), ', '.join(miss[:5]))) if miss
+       else '검사 대상 %d개 전부 등재 (전체 경로 기준)' % len(watch))
+
+
+def g_toc():
+    """[2026-09-03] 04 절 목차가 본문을 따라가는가 — 지도가 조용히 틀려지는 것을 막는다.
+
+    [2026-09-04 코드리뷰] 제목에 「목차」가 들어간 절이 검사에서 통째로 빠졌다
+    (`'## ' and '목차' not in l` 이 헤더 판별과 제외를 한 줄에 섞었다). 실측:
+    `## §5-42. 새 후보 — 목차 정리 겸용` 을 넣으면 본문 절로 세지 않아 PASS 였다.
+    → 목차 표 자체는 **줄 번호가 아니라 위치**(첫 절 앞)로 가리고, 절 제목의 「목차」는 안 본다.
+    """
+    if not _need('04 목차 관문', '04_Rejected_Research.md'):
+        return
+    r4 = (_read('04_Rejected_Research.md') or '').split(chr(10))
+    hd = [i for i, l in enumerate(r4) if l.startswith('## ')]
+    if not hd:
+        ok('04 목차가 본문 절을 전부 담고 있다', False, '절을 하나도 못 찾았다')
+        return
+    # ★ 목차 자신이 **첫 번째 '## ' 절**이다(04 9행). 종전처럼 제목에 '목차' 가 들었는지로
+    #   가르면 본문 절 제목에 그 낱말이 들어가는 순간 그 절이 검사에서 빠진다(실측 확인).
+    #   위치로 가른다 — 첫 절은 목차, 그 뒤가 전부 본문이다.
+    body_idx = hd[1:]
+    body = [r4[i][3:].split('.')[0].strip() for i in body_idx]
+    toc_head = chr(10).join(r4[:hd[1]] if len(hd) > 1 else r4)
+    listed = set(x.strip() for x in re.findall(r'^\| \*\*([^*]+)\*\*', toc_head, re.M))
+    gone = [s for s in body if s not in listed]
+    ok('04 목차가 본문 절을 전부 담고 있다', bool(body) and not gone,
+       ('목차 누락 %d개: %s — 절을 추가했으면 04 맨 앞 목차에도 한 줄 (2026-09-03)'
+        % (len(gone), ', '.join(gone[:5]))) if gone else '절 %d개 전부 색인' % len(body))
+
+
+SHARE = '공유용_별도전략'
+# 폴더 밖으로 나가는 쓰기·삭제로 쓰이는 호출들. (모듈, 함수) 또는 (None, 메서드).
+# ★ 이름만으로는 못 가른다 — replace·copy·move 는 str/DataFrame 메서드로도 흔하다
+#   (실측 오탐: a[:7].replace('-','.') 가 「'-' 에 쓰기」로 잡혔다).
+#   그래서 **모듈이 붙은 것**과 **모호하지 않은 메서드**를 갈라 둔다.
+_WRITE_MODULE = {                      # os.remove(...) 처럼 모듈이 앞에 붙어야 인정
+    'os': ('replace', 'rename', 'remove', 'unlink'),
+    'shutil': ('copy', 'copy2', 'copyfile', 'move', 'rmtree'),
+    'np': ('save', 'savez', 'savez_compressed', 'savetxt'),
+    'numpy': ('save', 'savez', 'savez_compressed', 'savetxt'),
+    'plt': ('savefig',), 'pyplot': ('savefig',),
+    'Path': ('write_text', 'write_bytes'),
+}
+_WRITE_METHOD = ('write_text', 'write_bytes', 'to_csv', 'to_json', 'to_pickle',
+                 'to_excel', 'to_parquet', 'to_hdf', 'to_feather', 'savefig',
+                 'savetxt', 'to_stata')
+# json.dump(obj, f) · f.write(text) 는 **경로가 아니라 내용**을 받는다 — 위험은 그 f 를
+# 만든 open() 에 있고 그건 위에서 이미 잡힌다. 여기서 세면 오탐만 는다.
+
+
+def _lit_path(node, consts):
+    """AST 노드에서 **경로 문자열**을 뽑는다. 못 뽑으면 None(→ 경고 대상)."""
+    import ast
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return consts.get(node.id)
+    if isinstance(node, ast.JoinedStr):        # f'data/{x}.json' → 리터럴 조각만 이어 붙인다
+        s = ''.join(v.value for v in node.values
+                    if isinstance(v, ast.Constant) and isinstance(v.value, str))
+        return s or None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        a, b = _lit_path(node.left, consts), _lit_path(node.right, consts)
+        return (a or '') + (b or '') if (a or b) else None
+    if isinstance(node, ast.Call):             # os.path.join('data','x.json')
+        f = node.func
+        if isinstance(f, ast.Attribute) and f.attr == 'join':
+            parts = [_lit_path(a, consts) for a in node.args]
+            if all(p is not None for p in parts):
+                return '/'.join(parts)
+    return None
+
+
+def _scan_share_file(path, rel, bad, unk):
+    """한 파일의 AST 를 훑어 폴더 밖 쓰기·deploy 호출을 찾는다."""
+    import ast
+    try:
+        tree = ast.parse(io.open(path, encoding='utf-8').read(), filename=path)
+    except Exception as e:
+        bad.append('%s -> 파싱 실패(%s)' % (rel, type(e).__name__))
+        return 0
+    consts = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            v = _lit_path(n.value, consts)
+            if v:
+                consts[n.targets[0].id] = v
+    wr = 0
+    for n in ast.walk(tree):
+        # ① deploy 파이프라인 호출 — import / importlib / sys.path / subprocess argv
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name == 'deploy' or a.name.startswith('deploy.'):
+                    bad.append('%s -> deploy 임포트' % rel)
+        if isinstance(n, ast.ImportFrom) and (n.module or '').split('.')[0] == 'deploy':
+            bad.append('%s -> deploy 임포트' % rel)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str):
+            v = n.value.replace(chr(92), '/')
+            if v == 'deploy' or v.startswith('deploy.') or v.startswith('deploy/'):
+                bad.append('%s -> deploy 경로 문자열 %r' % (rel, n.value))
+        if not isinstance(n, ast.Call):
+            continue
+        f = n.func
+        name = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else '')
+        if name != 'open':
+            mod = ''
+            if isinstance(f, ast.Attribute):
+                v = f.value
+                while isinstance(v, ast.Attribute):
+                    v = v.value
+                if isinstance(v, ast.Name):
+                    mod = v.id
+                elif isinstance(v, ast.Call) and isinstance(v.func, ast.Name):
+                    mod = v.func.id            # Path('x').write_text(...)
+            if not (name in _WRITE_METHOD or name in _WRITE_MODULE.get(mod, ())):
+                continue
+        # ② open 은 모드가 읽기면 통과 (기본값 'r')
+        if name == 'open':
+            mode = None
+            if len(n.args) > 1:
+                mode = _lit_path(n.args[1], consts)
+            for kw in n.keywords:
+                if kw.arg == 'mode':
+                    mode = _lit_path(kw.value, consts)
+            if mode is None:
+                mode = 'r'
+            if not any(c in mode for c in 'wax+'):
+                continue
+        # ③ 대상 경로: 첫 인자, 또는 메서드면 수신자(Path('x').write_text())
+        tgt = None
+        if n.args:
+            tgt = _lit_path(n.args[0], consts)
+        for kw in n.keywords:
+            if kw.arg in ('path', 'path_or_buf', 'filename', 'fname', 'file'):
+                tgt = _lit_path(kw.value, consts) or tgt
+        if tgt is None and isinstance(f, ast.Attribute) and isinstance(f.value, ast.Call):
+            if f.value.args:
+                tgt = _lit_path(f.value.args[0], consts)
+        wr += 1
+        if tgt is None:
+            unk.append('%s(%s)' % (rel, name))
+            continue
+        # ④ ★ 정규화해서 본다 — '공유용_별도전략/../data/x' 는 폴더 안이 아니다
+        norm = os.path.normpath(tgt.replace(chr(92), '/')).replace(chr(92), '/')
+        if os.path.isabs(norm) or not (norm == SHARE or norm.startswith(SHARE + '/')):
+            bad.append('%s -> %s' % (rel, tgt))
+    return wr
+
+
+def g_isolation():
+    """[2026-09-02] 공유용_별도전략/ 격리 — 읽기(빌려쓰기)는 자유, **쓰기(오염)는 차단**.
+
+    소유자 규정: 「저 스크립트는 우리 전략을 빌려 써도 된다. 우리 게 이상한 걸 흡수해서
+    손상되지 않기만 하면 된다.」 그 폴더는 FILES.md 관문 밖이라(의도) **이 검사가 유일한 감시**다.
+
+    [2026-09-04 코드리뷰] 종전 구현은 정규식 두 개(`open('lit','w')` · `.to_csv('lit')`)뿐이라
+    실측 **9/9 우회가 전부 통과**했다 — f-문자열 open · Path.write_text · mode='w' 키워드 ·
+    os.path.join · df.to_json · shutil.copy · os.remove · importlib.import_module('deploy…') ·
+    하위 폴더(listdir 비재귀). 그리고 경로 검사가 원문 문자열 startswith 라
+    **'공유용_별도전략/../data/nav_history.csv'** 가 「폴더 안」으로 통과했다(§2 장부다).
+    → **AST 로 다시 짰다**: 쓰기·삭제 호출 20여 종 · 하위 폴더 재귀 · 경로 normpath ·
+      deploy 임포트/동적 임포트/경로 문자열. 경로가 실행 중 정해지면 종전대로 **경고**로 둔다
+      (그 폴더는 다른 세션이 계속 파일을 늘리는 자리라 딱딱하게 실패시키면 관문이 무시당한다).
+    """
+    if not os.path.isdir(SHARE):
+        return                                 # 폴더 자체가 없으면 지킬 것도 없다
+    bad, unk, wr = [], [], 0
+    n_files = 0
+    for root, _dirs, files in os.walk(SHARE):
+        for fn in sorted(files):
+            if not fn.endswith('.py'):
+                continue
+            n_files += 1
+            p = os.path.join(root, fn)
+            wr += _scan_share_file(p, os.path.relpath(p, SHARE).replace(chr(92), '/'), bad, unk)
+    ok('공유용_별도전략 이 본 전략을 오염시키지 않는다', not bad,
+       ('★ 폴더 밖 쓰기/파이프라인 호출 %d건: %s' % (len(bad), '; '.join(bad[:3]))) if bad
+       else '.py %d개 · 쓰기 %d곳 전부 %s/ 안 · deploy 호출 0 (읽기는 자유)' % (n_files, wr, SHARE))
+    if unk:
+        ok('공유용: 경로가 실행 중 정해지는 쓰기', False,
+           '%d건 — 눈으로 확인 필요: %s' % (len(unk), ', '.join(unk[:3])), warn=True)
+
+
+def g_notes_lag():
+    """[v148] 업데이트 노트가 CLAUDE.md §4 최신 vNN 을 따라가는가.
+
+    [2026-09-04 코드리뷰] 종전 정규식 `^- \\*\\*.*$` 은 §4 의 **다수파 형식인 `- v90:` 계열
+    31개를 못 봤고**, 동시에 파일 전체를 훑어 §4 밖의 굵은 글머리까지 읽었다. 실측:
+    저장소 자신의 형식으로 `- v203: …` 을 추가하고 노트를 안 고쳐도 **PASS**,
+    반대로 §0 에 `- **주의**: v210 …` 한 줄만 있어도 거짓 FAIL 이 났다.
+    → **§4 절 안으로 앵커**를 옮기고 두 형식을 모두 읽는다.
+    """
+    if not (_need('노트 지연 관문', 'notes.html') and _need('노트 지연 관문', 'CLAUDE.md')):
+        return
+    n = _read('notes.html') or ''
+    cm = _read('CLAUDE.md') or ''
+    # [v142] 노트의 핵심 메시지는 「규칙은 안 바뀌었다」 — 이게 사라지면 이 화면은 그냥
+    # 변경 목록이 되고 동결의 의미가 화면에서 사라진다.
+    ok('업데이트 노트: 규칙 무변경 선언 + 돌아가기 탭',
+       '매매 규칙은 한 번도 바뀌지 않았습니다' in n and '변경 0회' in n
+       and 'href="./"' in n and 'href="guide.html"' in n,
+       '동결 사실이 화면에 남아 있어야 한다 (v142)')
+    # §4 절만 자른다 (제목이 바뀌면 잘라내기가 실패하므로 그때는 경고)
+    m = re.search(r'^##\s*4\..*$', cm, re.M)
+    if not m:
+        ok('업데이트 노트가 최신 버전까지 담고 있다', False,
+           'CLAUDE.md 에서 §4 절 제목을 못 찾았다 — 앵커를 고쳐야 한다', warn=True)
+        return
+    nxt = re.search(r'^##\s', cm[m.end():], re.M)
+    sec = cm[m.end(): m.end() + (nxt.start() if nxt else len(cm))]
+    # 두 형식 모두: '- **vNN ...' 과 '- vNN: ...' · 범위 표기(v154~v160)도 전부 읽는다
+    cv = [int(x) for ln in re.findall(r'^-\s+.*$', sec, re.M)
+          for x in re.findall(r'v(\d+)', ln)]
+    nvs = [int(x) for x in re.findall(r'class="v">v(\d+)', n)]
+    ok('업데이트 노트가 최신 버전까지 담고 있다',
+       bool(cv) and bool(nvs) and max(nvs) >= max(cv),
+       '노트 최신 v%s vs CLAUDE §4 최신 v%s — 뒤처지면 실패 (v148)'
+       % (max(nvs) if nvs else '?', max(cv) if cv else '?'))
+
+
+def g_deploy():
+    """배포 복사 목록 — 빠지면 로컬에선 보이고 **라이브에서만 404** 가 난다(v78 실사고).
+
+    [2026-09-04 코드리뷰] dd_percentile 검사가 `in pg or not os.path.exists(...)` 라
+    **산출이 멈추는 순간(=라이브 404 가 나는 바로 그 상황) 공허하게 통과**했다.
+    PWA 검사처럼 「목록에 있다 AND 로컬에 있다」를 둘 다 요구하도록 갈았다.
+    """
+    if not _need('배포 복사 목록 관문', '.github/workflows/pages.yml'):
+        return
+    pg = _read('.github/workflows/pages.yml') or ''
+    for f, why in (('guide.html', '설명서 탭 (v78 실사고)'),
+                   ('notes.html', '업데이트 노트 탭 (v142)'),
+                   ('price.json', '시세 배지 (v145)')):
+        # ★ 주석에 이름이 남아 있어도 통과하던 것 — 실제 복사 명령줄에서 찾는다.
+        lines = [l for l in pg.split(chr(10)) if not l.strip().startswith('#')]
+        ok('배포: %s 이 Pages 복사 목록에 있다' % f, any(f in l for l in lines), why)
+    ok('배포: dd_percentile.json 이 만들어지고 복사된다',
+       'dd_percentile.json' in pg and os.path.exists('data/dd_percentile.json'),
+       '산출이 멈춰도 통과하던 것을 막았다 — 목록 AND 로컬 존재 (v164)')
+    ok('배포: PWA 파일이 Pages 복사 목록에 있다',
+       'manifest.json' in pg and 'icon-192.png' in pg and 'icon-512.png' in pg
+       and os.path.exists('manifest.json') and os.path.exists('icon-192.png')
+       and os.path.exists('icon-512.png'),
+       '홈 화면 추가 (v104) — 누락 시 라이브 404')
+    # [v197] 낙폭 백분위는 원자료 연장(월간)과 같은 워크플로에서, 그 **뒤에** 돌아야 한다.
+    if os.path.exists('.github/workflows/monthly-stats.yml'):
+        ms = _read('.github/workflows/monthly-stats.yml') or ''
+        both = 'emit_dd_distribution.py' in ms and 'refresh_hist.py' in ms
+        ok('배포: 낙폭 백분위가 월간 워크플로에서 갱신된다',
+           both and ms.index('refresh_hist.py') < ms.index('emit_dd_distribution.py'),
+           '원자료 연장 뒤에 돌아야 한다 (v197)')
+
+
+def g_signal_coupling():
+    """[v145] **판정 경로가 표시용 자료를 읽지 않는다** — 동결 규칙(QQQ 미국 종가만)의 결합 차단.
+
+    시세 스냅샷은 표시 전용이다. 신호 생성이 price.json 을 읽는 순간 동결이 깨진다.
+    2026-09-03 예비 출처 체인도 같은 규약 — 표시·기록·원자료 셋에만 붙고 판정 경로엔 없다.
+    """
+    if not _need('판정 경로 결합 관문', 'deploy/update_signal.py'):
+        return
+    up = _read('deploy/update_signal.py') or ''
+    ok('시세: 신호 생성이 price.json 을 읽지 않는다',
+       'price.json' not in up and 'price_now' not in up,
+       '판정은 QQQ 종가만 — 시세는 화면 표시 전용 (v145)')
+    if os.path.exists('deploy/kr_sources.py'):
+        pn, nc = _read('deploy/price_now.py') or '', _read('deploy/nav_collect.py') or ''
+        rh, wc = _read('deploy/refresh_hist.py') or '', _read('deploy/wait_close.py') or ''
+        ok('시세: 예비 출처 체인이 표시·기록·원자료 경로에 붙고 판정 경로엔 없다',
+           'kr_sources' in pn and 'kr_sources' in nc and 'kr_sources' in rh
+           and 'kr_sources' not in up and 'kr_sources' not in wc,
+           '네이버 → 다음 → 토스 → 야후 → 구글 (2026-09-03) · 판정은 QQQ 종가 3중 체인')
+
+
+def g_watchdog():
+    """[v192] 실행 규율 알림 2종이 파수꾼 **모드와 워크플로 스텝 양쪽**에 있는가.
+
+    한쪽만 있으면 조용히 안 돈다. 근접 판정이 B(strategies.B · recent[].B)를 읽는지도 본다 —
+    signal.json 최상위 키는 A 미러(exit −11)라 읽으면 복귀선이 틀린다.
+    """
+    if not (_need('파수꾼 관문', 'deploy/watchdog.py')
+            and _need('파수꾼 관문', '.github/workflows/watchdog.yml')):
+        return
+    wd = _read('deploy/watchdog.py') or ''
+    wy = _read('.github/workflows/watchdog.yml') or ''
+    ok('파수꾼: 전환 실행일 재알림·근접 진입 알림이 모드와 스텝 양쪽에',
+       "'switchday': mode_switchday" in wd and "'near': mode_near" in wd
+       and 'watchdog.py switchday' in wy and 'watchdog.py near' in wy
+       and "row.get('B'" in wd,
+       '모드만 있고 스텝이 없으면 조용히 안 돈다 · 근접 판정은 B 열 (v192)')
+    kh = _read('deploy/kr_holidays.py') or ''
+    ok('파수꾼: 휴장일 표가 매주 자동 연장된다 (같으면 안 씀)',
+       'kr_holidays.py --emit' in wy
+       and 'git add data/ops_check.json data/kr_holidays.json' in wy
+       and "old.get('holidays') == out" in kh,
+       '2032 에 조용히 끝나는 파일 — 재생성은 주간, 커밋은 해가 바뀔 때만 (v195)')
+
+
+def g_freeze_seal():
+    """[2026-09-04 코드리뷰] freeze.json 의 **내용 봉인** — 새로 만든 관문.
+
+    ★ 왜 필요한가: I13 은 oos_protocol_b.json 의 지문은 **재계산해서** 대조하는데,
+      freeze.json 은 `j['applies_to']['freeze_fingerprint'] == F['fingerprint']` 로
+      **저장된 문자열 둘을 비교**할 뿐이다. 그리고 F['fingerprint'] 를 만드는 코드가
+      저장소 어디에도 없다 — 조리법 480가지(본문 범위 4 × sort_keys × ensure_ascii ×
+      구분자 × sha256/sha1/md5 × 길이 5)를 전부 돌려도 **일치 0건**이었다.
+      즉 rule 밖 항목(defensive 비중 · cost · execution)을 고쳐도 지문은 그대로고,
+      I11 은 enter/exit/lookback 세 개만 숫자로 보며, oos_log.csv 는 낡은 지문을 계속 찍는다.
+      **OOS 순수성 주장이 기대는 봉인이 검증 불가능한 상태다.**
+
+    ⛔ freeze.json 은 §2 절대 수정 금지라 **건드리지 않는다.** 기존 fingerprint 필드는
+      장부 라벨로 그대로 두고, 여기서는 **독립적인 내용 봉인**을 새로 건다:
+      본문(fingerprint 제외)을 정규화 직렬화해 sha256 하고, 그 값을 아래에 박아 둔다.
+      freeze.json 이 한 글자라도 바뀌면 이 관문이 실패한다. 바꾸려면 의도적으로
+      이 상수를 갱신하고 02 §5-1 에 날짜·이유를 남겨야 한다 — 실수로는 못 바꾼다.
+    """
+    if not _need('동결 내용 봉인', 'data/freeze.json'):
+        return
+    import hashlib
+    F = json.load(io.open('data/freeze.json', encoding='utf-8'))
+    body = {k: v for k, v in F.items() if k != 'fingerprint'}
+    seal = hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False,
+                                     separators=(',', ':')).encode('utf-8')).hexdigest()[:16]
+    ok('동결 파일 내용이 봉인과 같다', seal == FREEZE_SEAL,
+       '재계산 %s vs 등록 %s — 다르면 freeze.json 이 바뀐 것이다' % (seal, FREEZE_SEAL))
+    # 그리고 rule 밖 항목도 숫자로 못 박는다 — 봉인 상수를 누가 갱신해도 이건 남는다.
+    # (I11 은 enter/exit/lookback 셋만 본다. 방어 비중·비용은 아무도 안 보고 있었다.)
+    d = {x['code']: x['weight'] for x in F.get('defensive', [])}
+    ok('방어 비중 40/40/20', d.get('458730') == 0.4 and d.get('305080') == 0.4
+       and d.get('411060') == 0.2 and abs(sum(d.values()) - 1.0) < 1e-9, str(d))
+    ok('공격 자산이 418660 이다', F.get('risk_on', {}).get('code') == '418660',
+       F.get('risk_on', {}).get('name', '?'))
+    c = F.get('cost', {})
+    ok('비용 규약 편도 0.1% · 슬리피지 0.1%',
+       c.get('one_way') == 0.001 and c.get('slippage') == 0.001, str(c))
+    ok('체결 규약이 한 칸 지연이다', 'shift(1)' in str(F.get('execution', '')),
+       F.get('execution', '?'))
+
+
 # ------------------------------------------------------------------ I5
 def i5_decisions(D):
     head("I5. 채택 결정 — 지금 계산해도 같은 답인가")
@@ -206,7 +635,11 @@ def i5_decisions(D):
     # [v45] 화면이 채택 결정을 따르는가.
     # v43 §4 는 'A 는 선택지가 아니라 참조'로 결정했는데 signal.html 은 계속
     # 고를 수 있게 두고 있었다. 문서와 화면이 어긋나는 걸 아무도 안 보고 있었다.
-    if os.path.exists('signal.html'):
+    # [2026-09-04 코드리뷰] 종전엔 else 가 없어, signal.html 이름만 바뀌어도 아래 화면 검사가
+    # 통째로 조용히 사라졌다(무관한 관문 6개는 이 블록 밖으로 꺼냈다 — 위 '저장소 위생 관문').
+    if not _need('화면 검사(i5_decisions)', 'signal.html'):
+        return
+    if True:
         h = io.open('signal.html', encoding='utf-8').read()
         # [v61] A 를 화면에서 완전히 뺐다. 판정 근거는 위 B>A 재계산이 계속 지킨다.
         ok("화면: A(-16/-11) 가 없다",
@@ -231,194 +664,15 @@ def i5_decisions(D):
         ok("화면: 업데이트 노트 탭 연결",
            'href="notes.html"' in h and os.path.exists('notes.html'),
            '세 번째 탭 (v142)')
-        if os.path.exists('.github/workflows/pages.yml'):
-            pg = io.open('.github/workflows/pages.yml', encoding='utf-8').read()
-            ok("배포: guide.html 이 Pages 복사 목록에 있다", 'guide.html' in pg,
-               '빠지면 라이브에서 404 (v78 실사고)')
-            ok("배포: notes.html 이 Pages 복사 목록에 있다", 'notes.html' in pg,
-               'guide.html 과 같은 404 유형 (v142)')
-            ok("배포: price.json 이 Pages 복사 목록에 있다", 'price.json' in pg,
-               '빠지면 시세 배지가 라이브에서만 안 뜬다 (v145)')
-            # [v197] 낙폭 백분위는 원자료 연장(월간)과 같은 워크플로에서 다시 만든다 — 사람이 기억하는 연 1회 작업 0.
-            if os.path.exists('.github/workflows/monthly-stats.yml'):
-                ms = io.open('.github/workflows/monthly-stats.yml', encoding='utf-8').read()
-                ok("배포: 낙폭 백분위가 월간 워크플로에서 갱신된다",
-                   'emit_dd_distribution.py' in ms and 'refresh_hist.py' in ms
-                   and ms.index('refresh_hist.py') < ms.index('emit_dd_distribution.py'),
-                   '원자료 연장 뒤에 돌아야 한다 (v197)')
-            ok("배포: dd_percentile.json 이 Pages 복사 목록에 있다",
-               'dd_percentile.json' in pg or not os.path.exists('data/dd_percentile.json'),
-               '같은 404 유형 — 로컬에선 보이고 라이브에서만 안 뜬다 (v164)')
-            ok("배포: PWA 파일이 Pages 복사 목록에 있다",
-               'manifest.json' in pg and 'icon-192.png' in pg and 'icon-512.png' in pg
-               and os.path.exists('manifest.json') and os.path.exists('icon-192.png')
-               and os.path.exists('icon-512.png') and 'rel="manifest"' in h,
-               '홈 화면 추가 (v104) — 누락 시 라이브 404, guide.html 사고와 동일 유형')
         if os.path.exists('guide.html'):
             g = io.open('guide.html', encoding='utf-8').read()
             ok("설명서: 필수 절 존재",
                'id="t4"' in g and '반드시 이해' in g and '그림자' in g and 'href="./"' in g,
                'T4 상세 + 이해 필수 6가지 + 돌아가기 탭')
-        # [v145] 시세 스냅샷은 **표시 전용**이다. 신호 생성 경로가 이 파일을 읽는
-        # 순간 동결 규칙(QQQ 미국 종가만)이 깨진다 — 그 결합을 기계로 막는다.
-        if os.path.exists('deploy/price_now.py'):
-            up = (io.open('deploy/update_signal.py', encoding='utf-8').read()
-                  if os.path.exists('deploy/update_signal.py') else '')
-            ok("시세: 신호 생성이 price.json 을 읽지 않는다",
-               'price.json' not in up and 'price_now' not in up,
-               '판정은 QQQ 종가만 — 시세는 화면 표시 전용 (v145)')
-            ok("시세: 화면이 시세를 표시 경로로만 쓴다",
-               'loadPrice' in h and 'chgBadge' in h,
-               'price.json 은 배지·현재가 기본값에만 (v145)')
-            # [2026-09-03] 예비 출처 체인(kr_sources)은 표시·기록·원자료 경로 **셋에만** 붙고,
-            #   판정 경로(update_signal · wait_close)엔 **없어야** 한다 — 판정은 QQQ 종가 3중 체인+캐시 그대로.
-            def _rd(p):
-                return io.open(p, encoding='utf-8').read() if os.path.exists(p) else ''
-            pn, nc, rh, wc = (_rd('deploy/price_now.py'), _rd('deploy/nav_collect.py'),
-                              _rd('deploy/refresh_hist.py'), _rd('deploy/wait_close.py'))
-            ok("시세: 예비 출처 체인이 표시·기록·원자료 경로에 붙고 판정 경로엔 없다",
-               os.path.exists('deploy/kr_sources.py') and 'kr_sources' in pn and 'kr_sources' in nc
-               and 'kr_sources' in rh and 'kr_sources' not in up and 'kr_sources' not in wc,
-               '네이버 목록 → polling → 모바일 → 다음 → 토스 → 야후 → 구글 (2026-09-03) · 판정은 QQQ 종가 3중 체인')
-        # [v192] 실행 규율 알림 2종(전환 실행일 재알림·근접 진입)이 파수꾼 모드와 워크플로 스텝
-        #   **양쪽**에 있는가 — 한쪽만 있으면 조용히 안 돈다. 그리고 근접 판정이 B(strategies.B ·
-        #   recent[].B)를 읽는가 — signal.json 최상위 키는 A 미러라(exit −11) 읽으면 복귀선이 틀린다.
-        if os.path.exists('deploy/watchdog.py') and os.path.exists('.github/workflows/watchdog.yml'):
-            wd = io.open('deploy/watchdog.py', encoding='utf-8').read()
-            wy = io.open('.github/workflows/watchdog.yml', encoding='utf-8').read()
-            ok("파수꾼: 전환 실행일 재알림·근접 진입 알림이 모드와 스텝 양쪽에",
-               "'switchday': mode_switchday" in wd and "'near': mode_near" in wd
-               and 'watchdog.py switchday' in wy and 'watchdog.py near' in wy
-               and "row.get('B'" in wd,
-               '모드만 있고 스텝이 없으면 조용히 안 돈다 · 근접 판정은 B 열 (v192)')
-            # [v195] 휴장일 표는 2032 에 조용히 끝난다 — 주간 슬롯이 재생성하고, 같으면 안 써서 커밋 소음이 없다.
-            kh = (io.open('deploy/kr_holidays.py', encoding='utf-8').read()
-                  if os.path.exists('deploy/kr_holidays.py') else '')
-            ok("파수꾼: 휴장일 표가 매주 자동 연장된다 (같으면 안 씀)",
-               'kr_holidays.py --emit' in wy and 'git add data/ops_check.json data/kr_holidays.json' in wy
-               and "old.get('holidays') == out" in kh,
-               '2032 에 조용히 끝나는 파일 — 재생성은 주간, 커밋은 해가 바뀔 때만 (v195)')
-        if os.path.exists('notes.html'):
-            n = io.open('notes.html', encoding='utf-8').read()
-            # [v142] 업데이트 노트의 핵심 메시지는 「규칙은 안 바뀌었다」 — 이게 사라지면
-            # 이 화면은 그냥 변경 목록이 되고, 동결의 의미가 화면에서 사라진다.
-            ok("업데이트 노트: 규칙 무변경 선언 + 돌아가기 탭",
-               '매매 규칙은 한 번도 바뀌지 않았습니다' in n and '변경 0회' in n
-               and 'href="./"' in n and 'href="guide.html"' in n,
-               '동결 사실이 화면에 남아 있어야 한다 (v142)')
-            # [v148] 패치노트가 구현을 못 따라가는 사고가 한 세션에 두 번 났다
-            # (v144~v147 을 만들고 노트를 안 고침). 자각 대신 관문으로 막는다 —
-            # CLAUDE.md §4 의 최신 vNN 보다 노트가 뒤처지면 실패시킨다.
-            # ※ 「배포가 멈춘다」가 아니다 — verify.yml 과 pages.yml 은 둘 다 push 트리거로
-            #   **독립 실행**된다. 검증 실패는 이슈(메일)를 열 뿐 배포를 막지 않으며,
-            #   그게 맞다: 문서 검사가 신호 화면을 얼릴 수 있으면 v137 의 fail-open
-            #   원칙(인프라 문제로 진짜 폭락일 신호를 막지 마라)과 정면으로 어긋난다.
-            if os.path.exists('CLAUDE.md'):
-                cm = io.open('CLAUDE.md', encoding='utf-8').read()
-                # 「v154~v160」 같은 범위 표기도 있으므로 줄 안의 모든 vNN 을 본다
-                # (앞 숫자만 읽으면 최신이 v160 인데 v154 로 비교해 관문이 헐거워진다)
-                cv = [int(x) for ln in re.findall(r'^- \*\*.*$', cm, re.M)
-                      for x in re.findall(r'v(\d+)', ln)]
-                nvs = [int(x) for x in re.findall(r'class="v">v(\d+)', n)]
-                ok("업데이트 노트가 최신 버전까지 담고 있다",
-                   bool(cv) and bool(nvs) and max(nvs) >= max(cv),
-                   '노트 최신 v%s vs CLAUDE §4 최신 v%s — 뒤처지면 실패 (v148)'
-                   % (max(nvs) if nvs else '?', max(cv) if cv else '?'))
-        # [v172] 파일 지도가 실제 파일을 못 따라가는 사고 — v148 에 49건 났다
-        # (research/*.py 를 만들고 FILES.md 에 안 올림). 자각 대신 관문으로 막는다.
-        # ★ 폭을 좁게 잡는다: 사람이 새로 만드는 자리(스크립트·워크플로·화면·산출물)만
-        #   본다. data/hist/** 같은 원자료까지 넣으면 오탐이 나 관문이 무시당한다.
-        # ★ git 은 한글 경로를 \353\263\265 처럼 이스케이프해 뱉는다(실측 131건) —
-        #   core.quotepath=false 가 없으면 「내가_보는_것/」이 통째로 검사에서 빠진다.
-        if os.path.exists('FILES.md'):
-            fmap = io.open('FILES.md', encoding='utf-8').read()
-            try:
-                import subprocess
-                tk = subprocess.run(['git', '-c', 'core.quotepath=false', 'ls-files'],
-                                    capture_output=True, text=True, encoding='utf-8',
-                                    timeout=60).stdout.splitlines()
-            except Exception:
-                tk = []
-            tk = [t.strip().replace('\\', '/') for t in tk if t.strip()]
-
-            def _watched(p):
-                if p.startswith('archive/') or p.startswith('docs/'):
-                    return False                      # 옛 기록 — 지도의 대상이 아니다
-                if p.startswith(('deploy/', 'research/', 'audit/')) and p.endswith(('.py', '.md')):
-                    return True
-                if p.startswith('내가_보는_것/'):
-                    return True
-                if p.startswith('.github/workflows/'):
-                    return True
-                if '/' not in p and p.endswith(('.py', '.html')):
-                    return True
-                return bool(re.match(r'data/[^/]+\.(json|csv)$', p))
-
-            miss = [p for p in tk if _watched(p)
-                    and os.path.basename(p) not in fmap]
-            ok("파일 지도가 실제 파일을 따라잡았다",
-               not miss,
-               ('FILES.md 미등재 %d건: %s (v172)' % (len(miss), ', '.join(miss[:5])))
-               if miss else '검사 대상 %d개 전부 등재' % sum(1 for p in tk if _watched(p)))
-        # [2026-09-03] 04 의 절 목차가 본문을 못 따라가는 사고 방지 — FILES.md 관문과 같은 병.
-        # 04 는 3,200줄·절 46개라 지도 없이는 「새 아이디어가 떠오르면 먼저 여기를 검색하라」를
-        # 따를 수 없어 색인을 달았다. 절을 새로 쓰고 목차에 안 올리면 지도가 **조용히** 틀려지고,
-        # 그때부터 이 문서는 「없다고 나오니 새 아이디어」라는 반대 결론을 부른다.
-        # 자각이 아니라 관문으로 막는다 (v148). 목차는 색인일 뿐이라 내용은 검사하지 않는다.
-        if os.path.exists('04_Rejected_Research.md'):
-            r4 = io.open('04_Rejected_Research.md', encoding='utf-8').read().split('\n')
-            hd = [i for i, l in enumerate(r4)
-                  if l.startswith('## ') and '목차' not in l]
-            body = [r4[i][3:].split('.')[0].strip() for i in hd]
-            toc_head = '\n'.join(r4[:hd[0]]) if hd else ''
-            listed = set(x.strip() for x in re.findall(r'^\| \*\*([^*]+)\*\*', toc_head, re.M))
-            gone = [s for s in body if s not in listed]
-            ok("04 목차가 본문 절을 전부 담고 있다",
-               bool(body) and not gone,
-               ('목차 누락 %d개: %s — 절을 추가했으면 04 맨 앞 목차에도 한 줄 (2026-09-03)'
-                % (len(gone), ', '.join(gone[:5]))) if gone
-               else '절 %d개 전부 색인' % len(body))
-        # [2026-09-02] 공유용_별도전략/ 격리 관문 — 소유자 규정:
-        #   「저 스크립트는 우리 전략을 **빌려 써도 된다**. 우리 게 이상한 걸
-        #    흡수해서 **손상되지 않기만** 하면 된다.」
-        # 즉 방향이 하나다: 읽기(빌려쓰기)는 자유, **쓰기(오염)는 차단**.
-        # 그 폴더는 FILES.md 관문 밖이라(의도) 아무도 안 보므로, 이 검사가 유일한 감시다.
-        # ★ 자각이 아니라 관문으로 (v148) — 그 폴더는 다른 세션이 계속 파일을 늘린다.
-        SHARE = '공유용_별도전략'
-        if os.path.isdir(SHARE):
-            bad, unk, wr = [], [], 0
-            for fn in sorted(os.listdir(SHARE)):
-                if not fn.endswith('.py'):
-                    continue
-                src = io.open(os.path.join(SHARE, fn), encoding='utf-8').read()
-                # 변수에 담아 쓰는 경우까지 훑는다: path = '...' 뒤 open(path,'w')
-                lit = dict(re.findall(r"^\s*(\w+)\s*=\s*['\"]([^'\"]+\.(?:json|csv|md|txt|py|html))['\"]",
-                                      src, re.M))
-                tgt = (re.findall(r"open\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"][wa]", src)
-                       + re.findall(r"\.to_csv\(\s*['\"]([^'\"]+)['\"]", src))
-                for v in re.findall(r"open\(\s*(\w+)\s*,\s*['\"][wa]", src) + \
-                         re.findall(r"\.to_csv\(\s*(\w+)\s*[,)]", src):
-                    t = lit.get(v)
-                    # ★ 실행 중에 정해지는 경로는 **경고**로 둔다(실패 아님).
-                    #   그 폴더는 다른 세션이 계속 파일을 늘리는 자리라, 여기서 딱딱하게
-                    #   실패시키면 빨간불이 상시가 되고 **관문이 무시당한다**(v172 교훈).
-                    #   실제 위험(우리 파일을 이름으로 지목해 덮어쓰기)은 리터럴이 잡는다.
-                    (tgt if t else unk).append(t or '%s(%s)' % (fn, v))
-                for t in tgt:
-                    wr += 1
-                    if not t.replace('\\', '/').startswith(SHARE + '/'):
-                        bad.append('%s -> %s' % (fn, t))
-                # 라이브 파이프라인을 부르면 안 된다 (읽기 엔진과 다르다)
-                if re.search(r"^\s*(from|import)\s+deploy", src, re.M):
-                    bad.append('%s -> deploy 임포트' % fn)
-            ok("공유용_별도전략 이 본 전략을 오염시키지 않는다",
-               not bad,
-               ('★ 폴더 밖 쓰기/파이프라인 호출 %d건: %s' % (len(bad), '; '.join(bad[:3])))
-               if bad else '쓰기 %d곳 전부 %s/ 안 · deploy 임포트 0 (읽기는 자유)' % (wr, SHARE))
-            if unk:
-                ok("공유용: 경로가 실행 중 정해지는 쓰기", False,
-                   '%d건 — 눈으로 확인 필요: %s' % (len(unk), ', '.join(unk[:3])), warn=True)
-
+        # [v145] 화면이 시세를 **표시 경로로만** 쓰는가 (판정 결합 차단은 g_signal_coupling)
+        ok('시세: 화면이 시세를 표시 경로로만 쓴다',
+           'loadPrice' in h and 'chgBadge' in h,
+           'price.json 은 배지·현재가 기본값에만 (v145)')
         ok("화면: 임계점 거리 게이지 + 궤적 경고",
            "function paintProx" in h and 'id="proxBox"' in h and "방어 트리거" in h,
            '여유/접근/근접 + 트리거 발생 (v73)')
@@ -447,6 +701,9 @@ def i5_decisions(D):
             ok("화면: 바깥 링크 스트립(구글 파이낸스·네이버 증권·418660) + 설명서 #links",
                'id="extbar"' in h and 'google.com/finance' in h and 'm.stock.naver.com/' in h
                and 'stock/418660/total' in h and 'id="links"' in gd
+               # ★ .index() 는 없으면 ValueError 로 **게이트를 통째로 죽인다**(ok 가 불리기 전에
+               #   터져 I7·I10·I14·I9·I8 이 안 돈다). 존재 검사를 앞에 둔다.
+               and '<section id="what"' in gd
                and gd.index('id="links"') < gd.index('<section id="what"'),
                '표는 설명서 최상단(§① 앞), 스트립은 신호 화면 (v198)')
         ok("화면: 모바일 고정열(Sticky)",
@@ -872,21 +1129,46 @@ def main():
     print("=" * 78)
     print("전략 검증 — 단일 진입점" + ("  [빠른 모드]" if a.fast else "  [전체]"))
     print("=" * 78)
-    D = i1_engine()
-    i2_pit(D)
-    i3_lag(D)
-    i11_freeze()
-    i12_shadow()
-    i13_protocol()
-    i6_live()
+    # [2026-09-04 코드리뷰] ★ 검사별 크래시 격리 — 종전엔 main() 에 try/except 가 없어
+    #   한 검사가 예외를 던지면 **뒤따르는 불변식이 통째로 안 돌았고**(실측: guide.html 의
+    #   섹션 이름만 바꿔도 I5 가 ValueError 로 죽어 I7·I10·I14·I9·I8 이 사라졌다),
+    #   「실패 N건」 요약조차 안 찍혀 무엇이 빠졌는지 알 수 없었다.
+    #   → 예외는 그 검사의 FAIL 로 바꾸고 나머지는 계속 돈다. 종료코드는 그대로 1 이다.
+    def step(fn, *args):
+        try:
+            return fn(*args)
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc()[-1200:], file=sys.stderr)
+            ok('%s 가 예외로 중단됐다' % fn.__name__, False,
+               '%s: %s — 이 검사만 실패로 처리하고 나머지는 계속한다' % (type(e).__name__, e))
+            return None
+
+    D = step(i1_engine)
+    if D is None:
+        print('  ※ 엔진을 못 세워 D 가 필요한 검사는 건너뛴다', file=sys.stderr)
+    else:
+        step(i2_pit, D)
+        step(i3_lag, D)
+    step(i11_freeze)
+    step(g_freeze_seal)
+    step(i12_shadow)
+    step(i13_protocol)
+    step(i6_live)
     if not a.fast:
-        i4_real(D)
-        i5_decisions(D)
-        i7_stats(D)
-        i10_premise(D)
-        i14_selftests()
-    i9_retired()
-    i8_deps()
+        if D is not None:
+            step(i4_real, D)
+            step(i5_decisions, D)
+            step(i7_stats, D)
+            step(i10_premise, D)
+        step(i14_selftests)
+    step(i9_retired)
+    step(i8_deps)
+    # 저장소 위생 관문 — 전략 불변식과 갈라 둔다(§2 경계). 빠른 모드에서도 전부 돈다:
+    # 실측 전체 5.3초 · fast 1.8초라 비용이 없고, v168 회귀는 fast 만 돌려서 놓쳤다.
+    for g in (g_repo_map, g_toc, g_isolation, g_notes_lag,
+              g_deploy, g_signal_coupling, g_watchdog):
+        step(g)
     head(f"결과  ({time.time()-T0:.0f}초)")
     if FAIL:
         print(f"  실패 {len(FAIL)}건")
