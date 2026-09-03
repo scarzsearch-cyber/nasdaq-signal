@@ -275,6 +275,8 @@ def main():
             m['gen'] = round(val(k, 'gen', 0, n - 1), 0)
             m['hIsa'] = {}
             m['hUs'] = {}
+            m['hGen'] = {}
+            m['hPre'] = {}
             for h in HS:
                 W = int(252 * h)
                 ss = range(0, n - W, 21)
@@ -282,6 +284,10 @@ def main():
                     [val(k, 'isa', s, s + W) for s in ss])), 3)
                 m['hUs'][str(h)] = round(float(np.median(
                     [val(k, 'us', s, s + W) for s in ss])), 3)
+                m['hGen'][str(h)] = round(float(np.median(
+                    [val(k, 'gen', s, s + W) for s in ss])), 3)
+                m['hPre'][str(h)] = round(float(np.median(
+                    [val(k, 'pre', s, s + W) for s in ss])), 3)
             ks.append(m)
         js = {'ks': ks,
               'full54': {k: round(v, 2) for k, v in out54.items()},
