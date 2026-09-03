@@ -91,7 +91,18 @@ def main():
     # 동결 규칙은 signal.json 의 'B' 항목이다. freeze.json 과 문턱이 일치하는지
     # 확인하고 쓴다 — 이름 문자열을 파싱하지 않는다(몇 년을 무인으로 돌 코드다).
     b = (j.get('strategies') or {}).get('B') or {}
-    if b and 'enter' in b and abs(float(b.get('enter', 0)) / 100 - f['rule']['enter']) > 1e-9:
+    # [2026-09-04 코드리뷰] ★ 종전 가드는 `if b and 'enter' in b and ...` 라 **b 가 비면
+    #   통째로 건너뛰었고**, 아래 row 가 최상위 A 미러(−16/−11)로 물러섰다. 즉 B 가 없을 때
+    #   **A 의 판정이 동결 장부에 그대로 기록된다.** data/oos_log.csv 는 §2 절대 수정 금지
+    #   대상이고 B 판정 규약(02 §5-1)의 유일한 근거다 — 다른 전략의 상태가 섞이면 되돌릴
+    #   방법이 없다. 실측: signal.json 31커밋 중 strategies.B 가 없는 것은 **동결(08-27)
+    #   이전 초기 포맷 3건뿐**이고 update_signal 은 항상 B 를 쓴다 — 되살아날 수 없는
+    #   경로이면서 해만 끼친다. 없으면 기록하지 않는 쪽이 옳다(빈 날은 다시 채울 수 있다).
+    if not b or 'enter' not in b or 'state' not in b:
+        print('[경고] signal.json 에 strategies.B 가 없다 — 기록을 멈춘다(A 미러로 대신 쓰지 않는다)',
+              file=sys.stderr)
+        return
+    if abs(float(b['enter']) / 100 - f['rule']['enter']) > 1e-9:
         print('[경고] signal.json 의 B 진입선이 동결값과 다르다 — 기록을 멈춘다',
               file=sys.stderr)
         return
@@ -100,8 +111,8 @@ def main():
         'close': j.get('close'),
         'high_252': j.get('high_252'),
         'dd': j.get('dd'),
-        'state': b.get('state', j.get('state')),
-        'changed': int(bool(b.get('changed_today', j.get('changed_today')))),
+        'state': b['state'],
+        'changed': int(bool(b.get('changed_today'))),
         'rule': f['rule']['name'],
         'fingerprint': f['fingerprint'],
     }

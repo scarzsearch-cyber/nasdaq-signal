@@ -23,10 +23,16 @@ def main():
         return
     j = json.load(open(sig, encoding='utf-8'))
     b = (j.get('strategies') or {}).get('B') or {}
-    if not b.get('changed_today', j.get('changed_today')):
+    # [2026-09-04 코드리뷰] 최상위 changed_today·state 는 **A(−16/−11) 미러**다(v192 적발).
+    # B 가 없을 때 그리로 물러서면 **A 가 전환한 날 카톡이 가고 B 의 전환일엔 안 간다.**
+    # 그건 「알림이 없는 것」보다 나쁘다 — 틀린 날에 팔게 만든다. 없으면 말하고 멈춘다.
+    if not b:
+        print('[경고] signal.json 에 strategies.B 가 없다 — 알림을 보내지 않는다', file=sys.stderr)
+        return
+    if not b.get('changed_today'):
         print('전환 없음 — 알림 생략')
         return
-    st = b.get('state', j.get('state', '?'))
+    st = b.get('state', '?')
     if st == 'QLD':
         act = '방어 바스켓 전량 매도 → TIGER 나스닥100레버리지(418660) 매수'
     else:

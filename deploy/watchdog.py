@@ -286,9 +286,11 @@ def last_switch():
     if os.path.exists(SIGNAL):
         try:
             j = json.load(open(SIGNAL, encoding='utf-8'))
+            # [2026-09-04 코드리뷰] 최상위 키는 A(−16/−11) 미러다 — B 가 없으면 A 의
+            # 전환일을 B 의 전환일로 착각해 **틀린 날 실행 알림**이 간다. 물러서지 않는다.
             b = (j.get('strategies') or {}).get('B') or {}
-            if b.get('changed_today', j.get('changed_today')):
-                cand = (j['as_of'], b.get('state', j.get('state', '?')))
+            if b.get('changed_today'):
+                cand = (j['as_of'], b.get('state', '?'))
                 if best is None or cand[0] > best[0]:
                     best = cand
         except Exception:
@@ -362,7 +364,10 @@ def near_gaps(j):
         return row.get('B', row.get('s'))
 
     def line(row):
-        v = b.get('exit', j.get('exit')) if bstate(row) == 'SCHD' else b.get('enter', j.get('enter'))
+        # [2026-09-04 코드리뷰] 최상위 exit 는 A 의 **−11** 이다(실측). B 가 없을 때 그리로
+        # 물러서면 방어 상태의 복귀선이 −11 로 잡혀 근접 판정이 통째로 틀린다 —
+        # v192 가 「첫 구현이 그럴 뻔했다」고 적어 둔 바로 그 함정이 폴백으로 남아 있었다.
+        v = b.get('exit') if bstate(row) == 'SCHD' else b.get('enter')
         v = float(v if v is not None else -16)
         return v * 100 if abs(v) < 1 else v            # −0.16 이든 −16 이든 %p 로
 
@@ -378,7 +383,10 @@ def mode_near(today=None):
         return
     j = json.load(open(SIGNAL, encoding='utf-8'))
     b = (j.get('strategies') or {}).get('B') or {}
-    if b.get('changed_today', j.get('changed_today')):
+    if not b:
+        print('[경고] signal.json 에 strategies.B 가 없다 — 근접 판정 생략(A 미러를 쓰지 않는다)')
+        return
+    if b.get('changed_today'):
         print('전환일 — 새벽 알림이 이미 갔다(근접 알림 생략)')
         return
     today = today or kst_today()
@@ -853,6 +861,12 @@ def selftest():
         sig(as_of='2026-09-01', dd=-17.5, state='QLD', exit=-11.0, strategies=B('SCHD'),
             recent=rc('2026-09-01', -17.5, '2026-08-31', -19.5, s='SCHD'))
         expect('near A 미러 무시(B 기준)', run(mode_near, today=date(2026, 9, 2)) and '1.5%p' in sent[-1][2], True)
+        # [2026-09-04 코드리뷰] strategies.B 가 아예 없을 때 — 종전엔 A 미러로 물러섰다.
+        #   A 는 −16/−11 이라 근접·전환일 판정이 통째로 달라진다. 이제는 멈춘다.
+        sig(as_of='2026-09-01', dd=-13.5, state='QLD', changed_today=True, exit=-11.0,
+            strategies={}, recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0))
+        expect('near B 없으면 판정 안 함', run(mode_near, today=date(2026, 9, 2)), False)
+        expect('switchday B 없으면 A 로 안 물러섬', run(mode_switchday, today=date(2026, 9, 2)), False)
         sig(as_of='2026-09-01', dd=-13.0, recent=rc('2026-09-01', -13.0, '2026-08-31', -12.0))
         expect('near 경계 3.0 제외', run(mode_near, today=date(2026, 9, 2)), False)
         sig(as_of='2026-09-01', dd=-13.01, recent=rc('2026-09-01', -13.01, '2026-08-31', -13.0))
