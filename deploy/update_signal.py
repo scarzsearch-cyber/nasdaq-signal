@@ -91,19 +91,45 @@ def fetch(host="query1"):
     # [v66] 장중 가드: 미국 정규장 진행 중에 받으면 마지막 봉은 확정 종가가
     # 아니라 실시간 가격이다. 예약 실행이 몇 시간 밀려 개장(13:30 UTC) 뒤에
     # 돌 때 장중가가 종가로 둔갑하는 것을 막는다.
-    # 판별은 서버가 주는 값만 쓴다: 시세 시각(regularMarketTime)이 당일 정규장
-    # 마감(currentTradingPeriod.regular.end)보다 앞이면 장중이다. 마감 후에는
-    # 시세 시각이 마감 시각으로 굳는다. (v8 chart meta 에 marketState 는 없다.)
+    # 판별은 서버가 주는 값만 쓴다 — 규칙은 in_session() 에 한 곳으로 모았다
+    # (wait_close.closed() 도 같은 함수를 쓴다. 두 벌이면 갈린다).
+    # (v8 chart meta 에 marketState 는 없다.)
     meta = result.get("meta", {})
     qt = meta.get("regularMarketTime")
-    end = meta.get("currentTradingPeriod", {}).get("regular", {}).get("end")
-    if qt and end and qt < end and len(s) > 0:
+    if in_session(meta) and len(s) > 0:
         live_day = pd.to_datetime(qt, unit="s", utc=True).tz_convert(None).normalize()
         if s.index[-1] == live_day:
             print(f"장중 실행 감지 — 진행 중인 {live_day.date()} 봉 제외")
             s = s.iloc[:-1]
     return s
 
+
+def in_session(meta):
+    """[2026-09-04 코드리뷰] 이 응답이 **진행 중인 정규장** 안에서 찍힌 것인가.
+
+    종전 판별은 `regularMarketTime < currentTradingPeriod.regular.end` 하나였다. 그 식은
+    **currentTradingPeriod 가 다음 세션으로 넘어간 뒤**에도 참이 된다 — qt 는 오늘 마감에
+    굳어 있는데 end 가 내일 마감이 되기 때문이다. 그러면 이미 확정된 마지막 봉을
+    「진행 중」으로 오인해 **버린다**(= 그날 전환 신호를 통째로 놓친다).
+
+    실측 2026-09-03: 장 마감 뒤의 ^KS11 은 qt=09-03 09:05Z 인데 start=09-04 00:00Z ·
+    end=09-04 06:00Z 였다(418660.KS 도 같다) — 즉 롤오버는 실제로 일어난다.
+    QQQ 에서 이 오판이 난 흔적은 아직 없다(08-29 09:22 KST 슬롯이 정상 as_of 08-28).
+    그래도 고치는 이유는 **한쪽으로만 틀리기 때문**이다: start 를 넣는 것은 엄격한 조임이라
+    「마감」을 「장중」으로 바꾸는 일이 없다(라이브 4종 + 합성 5경우 전수 확인 — 풀림 0건).
+    프리마켓도 같은 모양이라 같이 막힌다(전일 종가를 오늘 장중가로 오인하던 경우).
+
+    start 가 없으면 종전 식으로 물러선다 — 판정을 막는 방향으로는 엄격해지지 않는다
+    (v137 fail open: 인프라가 부실할 때 신호를 멈추는 것이 가장 나쁘다).
+    """
+    qt = meta.get("regularMarketTime")
+    reg = meta.get("currentTradingPeriod", {}).get("regular", {})
+    start, end = reg.get("start"), reg.get("end")
+    if not (qt and end):
+        return False
+    if start is None:
+        return qt < end
+    return start <= qt < end
 
 def fetch_naver():
     """[v66] Yahoo 가 양쪽 다 죽었을 때의 예비 소스 — 네이버 증권 해외종목 API.
@@ -207,6 +233,49 @@ def drawdown(px: pd.Series):
     return (px / roll_max - 1), roll_max
 
 
+HIST_SHIFT_TOL = 0.05          # %p — 아래 실측에서 정상 0.0002 · 방법론 변경 1.06 이라 그 사이
+
+
+def history_shift(old_px, new_px):
+    """[2026-09-04 코드리뷰] **과거 봉이 소리 없이 다시 쓰이는 것**을 감지한다(막지는 않는다).
+
+    캐시 병합은 `keep="last"` 라 새로 받은 값이 **과거 날짜까지 덮어쓴다.** 그런데
+    sanity_check 는 **마지막 봉만** 본다 — 즉 야후가 이력 전체를 이상하게 주면 252일 고점이
+    바뀌고 **낙폭이 바뀌고 판정이 바뀌는데** 아무 검사도 걸리지 않는다.
+
+    「과거 값이 바뀌었나」로 재면 못 쓴다 — 실측(qqq.csv 13판본쌍) 매 실행마다 과거
+    5,600여 행이 배당 재조정 반올림으로 0.0001% 씩 움직인다. 그래서 **판정이 실제로 쓰는
+    낙폭**으로 잰다. 비례 재조정은 종가와 252일 고점을 같은 비율로 밀어 낙폭을 거의 안 바꾼다:
+      · 정상 12판본쌍 — 과거 낙폭 최대 변화 **0.000191%p**
+      · 방법론 변경 1건(89a6cf6, 종가→수정종가) — **1.056%p**
+    5,500배 차이라 문턱 0.05%p 는 평시에 조용하고 의미 있는 변화는 전부 잡는다.
+
+    ★ 막지 않는 이유: v137 fail open. 이력이 이상하다고 신호 갱신을 멈추면 04 §5-8 의
+      최악 −96.5%(전환을 놓친 경우)가 현실이 된다. 여기서는 **로그에 크게 남기는 것**까지 한다.
+    """
+    try:
+        common = old_px.index.intersection(new_px.index)[:-1]      # 마지막 봉 제외 = 과거만
+        if len(common) < 300:
+            return 0.0
+        d0 = drawdown(old_px)[0].reindex(common) * 100
+        d1 = drawdown(new_px)[0].reindex(common) * 100
+        shift = float((d1 - d0).abs().max())
+    except Exception as e:                                          # 감시가 갱신을 막지 않는다
+        print(f"[경고] 이력 변화 점검 실패({e}) — 갱신은 계속한다", file=sys.stderr)
+        return 0.0
+    if shift > HIST_SHIFT_TOL:
+        worst = (drawdown(new_px)[0].reindex(common) - drawdown(old_px)[0].reindex(common)).abs().idxmax()
+        print("=" * 70, file=sys.stderr)
+        print(f"[경고] 과거 낙폭이 다시 쓰였다 — 최대 {shift:.3f}%p (문턱 {HIST_SHIFT_TOL}%p, "
+              f"가장 큰 날 {worst.date()})", file=sys.stderr)
+        print("  평시 값은 0.0002%p 다. 이 크기는 ① 출처의 수정주가 방법론 변경이거나",
+              file=sys.stderr)
+        print("  ② 이력이 손상된 것이다. 신호는 그대로 갱신했다(v137 fail open) —",
+              file=sys.stderr)
+        print("  data/qqq.csv 의 이전 커밋과 비교해 확인할 것.", file=sys.stderr)
+        print("=" * 70, file=sys.stderr)
+    return shift
+
 def states(dd: pd.Series, enter: float, exit_: float):
     """전량 전환 상태기계. 낙폭 <= enter -> SCHD, 낙폭 > exit -> QLD."""
     out, cur = [], "QLD"
@@ -273,6 +342,7 @@ def main():
     if cached is not None:
         px = pd.concat([cached, px])
         px = px[~px.index.duplicated(keep="last")].sort_index()
+        history_shift(cached, px)
 
     # [v137] 이상치 가드 — 반드시 CSV 쓰기 **전**에. 네이버 대조가 옛 캐시를 기준으로
     # 「더 새로운 날인가」를 판정하므로, 캐시를 덮어쓴 뒤엔 대조가 불가능해진다.

@@ -70,21 +70,41 @@ def fetch_meta():
     with urllib.request.urlopen(req, timeout=30) as r:
         meta = json.loads(r.read())['chart']['result'][0]['meta']
     return {'qt': meta.get('regularMarketTime'),
+            # [2026-09-04 코드리뷰] start 도 싣는다 — 마감 판별이 update_signal.in_session 과
+            # 같은 규칙을 쓰려면 필요하다(기간이 다음 세션으로 롤오버한 경우를 가른다).
+            'start': meta.get('currentTradingPeriod', {}).get('regular', {}).get('start'),
             'end': meta.get('currentTradingPeriod', {}).get('regular', {}).get('end'),
             'price': meta.get('regularMarketPrice'),
             'prev': meta.get('chartPreviousClose')}
 
 
 def closed(meta):
-    """마감 후에는 시세 시각(regularMarketTime)이 정규장 마감 시각으로 굳는다 — v66 가드와 같은 판별."""
-    return bool(meta.get('qt')) and bool(meta.get('end')) and meta['qt'] >= meta['end']
+    """마감했는가 — **update_signal.in_session() 과 같은 규칙**을 쓴다(두 벌이면 갈린다).
+
+    [2026-09-04 코드리뷰] 종전엔 `qt >= end` 였다. currentTradingPeriod 가 다음 세션으로
+    넘어가면 qt 는 오늘 마감에 굳어 있는데 end 가 내일 마감이라 **이미 끝난 장을 「아직」으로**
+    본다 — 그러면 이 스크립트는 오지 않을 마감을 기다리다 8분 시한에 걸려 조용히 끝난다.
+    실측 2026-09-03 ^KS11·418660.KS 에서 그 롤오버를 확인했다.
+    """
+    return bool(meta.get('qt')) and bool(meta.get('end')) and not _in_session(meta)
+
+
+def _in_session(meta):
+    """update_signal.in_session() 을 이 파일의 meta 모양으로 부른다 — 규칙은 한 곳에만 둔다."""
+    return _upd().in_session({'regularMarketTime': meta.get('qt'),
+                             'currentTradingPeriod': {'regular': {
+                                 'start': meta.get('start'), 'end': meta.get('end')}}})
 
 
 def expected_close_date(meta):
     """마지막으로 **마감된** 미국 세션의 날짜 (UTC 날짜 = ET 날짜, 마감시각 기준)."""
     if not meta.get('qt'):
         return None
-    if meta.get('end') and meta['qt'] < meta['end']:
+    # [2026-09-04 코드리뷰] 장중 판별을 closed() 와 **같은 규칙**으로 갈았다(종전엔 두 벌).
+    # ★ 단 조건은 `not closed()` 가 아니라 `in_session()` 이다 — meta 가 불완전하면(end 없음)
+    #   「장중」이라 단정하지 않고 날짜를 돌려줘 **갱신을 시도한다.** 그쪽이 v137 fail open:
+    #   인프라가 부실할 때 신호 갱신을 건너뛰는 것이 가장 나쁘다.
+    if _in_session(meta):
         # 장중 — 오늘 종가는 아직 없다. 예상 = 직전 세션 (as_of 가 이미 그 값이면 신선)
         return 'IN_SESSION'
     return datetime.fromtimestamp(meta['qt'], timezone.utc).strftime('%Y-%m-%d')
@@ -245,6 +265,20 @@ def selftest():
 
     assert expected_close_date(live) == 'IN_SESSION'
     assert expected_close_date(shut) == '1970-01-12'
+    # [2026-09-04 코드리뷰] 기간 롤오버·프리마켓 — 종전 `qt < end` 는 둘 다 「장중」으로 오판했다.
+    #   롤오버는 실측(2026-09-03 ^KS11·418660.KS)이고, 오판하면 이 스크립트가 이미 끝난 마감을
+    #   기다리다 시한에 걸려 조용히 끝난다(= 그날 갱신 없음).
+    DAY, SESS = 86400, 23400
+    rolled = {'qt': END, 'start': END + DAY - SESS, 'end': END + DAY, 'price': 100.5, 'prev': 99.0}
+    premkt = {'qt': END - DAY, 'start': END - SESS, 'end': END, 'price': 100.5, 'prev': 99.0}
+    nostart = {'qt': END - 1, 'end': END, 'price': 100.5, 'prev': 99.0}    # 구형 meta
+    assert closed(rolled) and expected_close_date(rolled) == '1970-01-12', '롤오버'
+    assert closed(premkt) and expected_close_date(premkt) == '1970-01-11', '프리마켓'
+    assert not closed(nostart) and expected_close_date(nostart) == 'IN_SESSION', 'start 없으면 종전 규칙'
+    # meta 불완전(end 없음)은 **갱신을 시도해야 한다** — v137 fail open
+    assert expected_close_date({'qt': END}) == '1970-01-12', 'end 없을 때 fail open'
+    m, why = wait_for_close(rolled, now=lambda: END + 3600, sleep=None, refetch=None, xsrc_closed=yes, big_move=.1)
+    assert m is rolled and why == '이미 마감', '롤오버는 즉시 마감 처리'
     # 0. 이미 마감이면 즉시
     m, why = wait_for_close(shut, now=lambda: END + 3600, sleep=None, refetch=None, xsrc_closed=yes, big_move=.1)
     assert m is shut and why == '이미 마감'
