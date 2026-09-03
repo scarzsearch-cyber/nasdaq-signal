@@ -42,7 +42,7 @@ hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (4)  audit_all · audit_full · verify · verify_volguard
-research/  (127.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
+research/  (128.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
             cand_general · NEW_STRATEGY_RESEARCH.md(2026-08-31 통계 감사 — 04 §5-4) +
@@ -478,6 +478,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/lev_opt.py` | QQQ+TQQQ 혼합으로 k 를 연속 조절할 때 최적 배율 | **k=2 권고** |
 | `research/lev_5y.py` | 「5년 투자자에게 합리적인 배율」 — CE(γ) 한계 분석 | γ→k\* 지도 |
 | `research/lev_th.py` | 배율이 오르면 문턱도 바뀌어야 하나 · T4 를 고배율에 얹으면? | **−16 이 모든 k 에서 봉우리** |
+| `research/lev_signal_source.py` | 신호를 기초지수 vs 레버리지 상품 자체 낙폭으로 (2026-09-03) | **단위 변환일 뿐 · 경로 의존 유입** |
 | `research/t4_lev_post.py` | T4 배율 2.0~3.0 × 닷컴 이후 | 후반엔 B@2 에 패배 |
 | `research/horizon_study.py` | 지평 3~20년 전수 — 「내 수명은 유한하다」 | **손실 0 문턱 7년** |
 | `research/post_dotcom.py` | 「닷컴 뒤로 T4·라오어와 비교하면?」 | — |
