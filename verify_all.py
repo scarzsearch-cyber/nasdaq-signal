@@ -360,6 +360,24 @@ def i5_decisions(D):
                not miss,
                ('FILES.md 미등재 %d건: %s (v172)' % (len(miss), ', '.join(miss[:5])))
                if miss else '검사 대상 %d개 전부 등재' % sum(1 for p in tk if _watched(p)))
+        # [2026-09-03] 04 의 절 목차가 본문을 못 따라가는 사고 방지 — FILES.md 관문과 같은 병.
+        # 04 는 3,200줄·절 46개라 지도 없이는 「새 아이디어가 떠오르면 먼저 여기를 검색하라」를
+        # 따를 수 없어 색인을 달았다. 절을 새로 쓰고 목차에 안 올리면 지도가 **조용히** 틀려지고,
+        # 그때부터 이 문서는 「없다고 나오니 새 아이디어」라는 반대 결론을 부른다.
+        # 자각이 아니라 관문으로 막는다 (v148). 목차는 색인일 뿐이라 내용은 검사하지 않는다.
+        if os.path.exists('04_Rejected_Research.md'):
+            r4 = io.open('04_Rejected_Research.md', encoding='utf-8').read().split('\n')
+            hd = [i for i, l in enumerate(r4)
+                  if l.startswith('## ') and '목차' not in l]
+            body = [r4[i][3:].split('.')[0].strip() for i in hd]
+            toc_head = '\n'.join(r4[:hd[0]]) if hd else ''
+            listed = set(x.strip() for x in re.findall(r'^\| \*\*([^*]+)\*\*', toc_head, re.M))
+            gone = [s for s in body if s not in listed]
+            ok("04 목차가 본문 절을 전부 담고 있다",
+               bool(body) and not gone,
+               ('목차 누락 %d개: %s — 절을 추가했으면 04 맨 앞 목차에도 한 줄 (2026-09-03)'
+                % (len(gone), ', '.join(gone[:5]))) if gone
+               else '절 %d개 전부 색인' % len(body))
         # [2026-09-02] 공유용_별도전략/ 격리 관문 — 소유자 규정:
         #   「저 스크립트는 우리 전략을 **빌려 써도 된다**. 우리 게 이상한 걸
         #    흡수해서 **손상되지 않기만** 하면 된다.」
