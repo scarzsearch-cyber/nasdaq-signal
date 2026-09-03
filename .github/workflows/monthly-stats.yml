@@ -50,7 +50,22 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/ qqq_us_d.csv qld_us_d.csv schd_us_d.csv
+          # [2026-09-04] 01_Strategy_Logic.md 를 목록에 넣는다 — build_stats.py 는
+          #   data/ 말고 이 문서도 쓴다(sync_doc, v73 에서 추가). 그런데 git add 에는
+          #   안 들어가 있어서 러너가 정리될 때 문서 수정분이 **조용히 버려졌다.**
+          #   그래서 사상 첫 실행(2026-09-01)부터 문서가 자기 JSON 과 어긋났다 —
+          #   문서 40.12% vs strategy_stats.json 38.91% (원화·실물 TIGER CAGR, 1.21%p).
+          git add data/ qqq_us_d.csv qld_us_d.csv schd_us_d.csv 01_Strategy_Logic.md
+
+          # 같은 유형의 재발 방지 — 자각이 아니라 관문으로(v148).
+          # 스크립트가 앞으로 새 파일을 쓰기 시작하면 조용히 버리지 말고 여기서 멈춘다.
+          LEFT="$(git diff --name-only)"
+          if [ -n "$LEFT" ]; then
+            echo "::error::스테이징에서 빠진 변경이 있다 — 위 git add 목록을 갱신하라"
+            echo "$LEFT"
+            exit 1
+          fi
+
           if git diff --staged --quiet; then
             echo "변경 없음"
           else
