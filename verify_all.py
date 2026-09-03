@@ -2,12 +2,25 @@
 """
 [v37] 단일 검증 진입점 — 이것 하나만 통과하면 된다
 
-사용자는 파이썬을 직접 돌리지 않는다. 그래서 **검증이 자동으로 돌아야** 하고,
-실패하면 **CI 가 막아야** 한다. `.github/workflows/verify.yml` 이 매 push 마다 부른다.
+사용자는 파이썬을 직접 돌리지 않는다. 그래서 **검증이 자동으로 돌아야** 한다.
+`.github/workflows/verify.yml` 이 매 push 마다 `--fast` 와 전체를 **둘 다** 부른다.
 **이 파일은 루트에 있어야 한다** — 사용자와 CI 의 진입점이다.
 
-    python verify_all.py            # 전체 (느림, 5~15분)
-    python verify_all.py --fast     # 빠른 것만 (CI 기본, 1~2분)
+⚠ [2026-09-04 정정] **「배포 게이트」가 아니다.** verify.yml 과 pages.yml 은 둘 다 push
+  트리거로 **독립 실행**된다 — 검증이 실패해도 배포는 나가고, 실패는 **이슈(메일)**로만
+  알린다. 그게 맞다: 문서 검사가 신호 화면을 얼릴 수 있으면 v137 fail-open 원칙
+  (인프라 문제로 진짜 폭락일 신호를 막지 마라)과 정면으로 어긋난다.
+  ※ 이 줄은 종전에 「실패하면 CI 가 막아야 한다」였다. CLAUDE.md §0 이 2026-09-01 에
+    철회한 주장인데, 그 정정 커밋이 **같은 파일의 아래쪽만 고치고 이 머리말은 놓쳤다**
+    (§-1 ③ 「정정한 뒤 같은 파일의 나머지도 다시 읽어라」의 실사례).
+
+    python verify_all.py            # 전체 (실측 5.3초)
+    python verify_all.py --fast     # 전략 불변식 일부만 (실측 1.8초)
+
+⚠ [2026-09-04 정정] 종전 표기는 「전체 5~15분 · fast 1~2분」이었다 — 실측의 **56~167배**다.
+  그 숫자가 「전체는 무거우니 fast 만 돌리자」의 근거가 됐고, v168 이 정확히 그래서
+  화면 검사 7건을 깨뜨린 채 지나갔다(v172 가 기록). 두 모드 차이는 3.5초뿐이다.
+  **화면·문서를 건드렸으면 전체로 돌려라.**
 
 [왜 이게 필요한가 — 2026-08-27 에 12건의 오류를 찾고 나서]
 
@@ -30,9 +43,24 @@
   I5  채택 결정      B>A, 40/40/20 좌측꼬리(원화), 미국종가 신호
   I6  라이브 정합    signal.json 이 update_signal.py 재계산과 일치
   I7  공표 수치      strategy_stats.json 이 현재 코드 출력과 일치
-  I8  의존성         공용 모형 사용처가 전부 최신인가
+  I8  의존성         공용 모형 7종이 봉인과 같은가 (바뀌면 사용처를 다시 돌려야 한다)
   I9  폐기 수치      옛 공표값이 현행 문서·화면에 남아 있지 않은가
   I10 전제 감시      나스닥 고유 성질(극단 MDD·장기 상승)이 유지되는가
+  I11 규칙 동결      코드·화면이 data/freeze.json 과 같은가 (+ 룩백 3곳 대조)
+  I12 T4 그림자      평가 전용 기록의 정의상 불변식 (+ 기록이 실제로 쌓이는가)
+  I13 B 판정 규약    data/oos_protocol_b.json 지문 — 사후 수정 방지 (02 §5-1)
+  I14 셀프테스트     파수꾼 34경우 · 종가 대기 루프 9경로
+
+[저장소 위생 관문 — 전략 불변식이 아니다 · §2 경계 밖]
+  g_repo_map        FILES.md 파일 지도       g_toc          04 절 목차
+  g_isolation       공유용_별도전략 격리(AST) g_notes_lag    업데이트 노트 지연
+  g_deploy          Pages 복사 목록          g_watchdog     파수꾼 모드·스텝
+  g_signal_coupling 판정 경로가 표시 자료를 안 읽는가
+  g_freeze_seal     freeze.json 내용 봉인 (FREEZE_SEAL)
+
+⚠ [2026-09-04] §2 는 「verify_all 의 전략 검사(I1~I12)는 읽기만」이라고 정한다.
+  위생 관문(g_*)은 그 경계 **밖**이다 — 종전에는 전부 i5_decisions 안에 있어서
+  경계가 지켜질 수 없었다(최근 비-시세 커밋 13건이 전부 i5_decisions 를 고쳤다).
 """
 import argparse
 import hashlib
@@ -696,9 +724,11 @@ def i5_decisions(D):
            '세 번째 탭 (v142)')
         if os.path.exists('guide.html'):
             g = io.open('guide.html', encoding='utf-8').read()
+            # [2026-09-04 코드리뷰] 「반드시 이해」는 리드문(138행)·목차 링크(169행)에도 있어
+            #   <section id="must"> 를 통째로 지워도 통과했다(실측). 섹션 id 로 본다.
             ok("설명서: 필수 절 존재",
-               'id="t4"' in g and '반드시 이해' in g and '그림자' in g and 'href="./"' in g,
-               'T4 상세 + 이해 필수 6가지 + 돌아가기 탭')
+               'id="t4"' in g and 'id="must"' in g and 'href="./"' in g,
+               'T4 상세 + 이해 필수 6가지(section id=must) + 돌아가기 탭')
         # [v145] 화면이 시세를 **표시 경로로만** 쓰는가 (판정 결합 차단은 g_signal_coupling)
         ok('시세: 화면이 시세를 표시 경로로만 쓴다',
            'loadPrice' in h and 'chgBadge' in h,
@@ -723,7 +753,11 @@ def i5_decisions(D):
         # [v196] 접은 것은 접혔을 뿐 내용은 남아야 한다 — 각주 3문단·타임머신·체크리스트 한 줄.
         ok("화면: 성과표 각주·타임머신은 접힘(details) + 전환일 한 줄",
            'id="perfNoteFold"' in h and 'id="tmFold"' in h and "fold.hidden = false" in h
-           and '75번(54%)' in h and '−96.5%' in h,
+           # [2026-09-04 코드리뷰] 종전 두 조건('75번(54%)' · '−96.5%')은 v165 FACTS 배열과
+           #   주석이 대신 만족시켜, 체크리스트 한 줄을 지워도 통과했다 — CLAUDE v196 이
+           #   「소유자가 이상하다면 이 한 줄만 되돌린다」고 적은, 가장 지워지기 쉬운 줄이다.
+           #   class="chkmiss" 도 CSS·v160 줄에 있어 무임승차한다 → 그 줄에만 있는 문구로.
+           and '망설여진다면' in h,
            '내용 무삭제 접기 (v196) — 각주 3문단 검사는 아래 별도')
         # [v198] 바깥 링크 스트립 — 소유자 「너무 중요한 거라 최상단에」. 세 링크가 신호 화면에, 표는 설명서 맨 위(#links).
         if os.path.exists('guide.html'):
@@ -736,8 +770,12 @@ def i5_decisions(D):
                and '<section id="what"' in gd
                and gd.index('id="links"') < gd.index('<section id="what"'),
                '표는 설명서 최상단(§① 앞), 스트립은 신호 화면 (v198)')
+        # [2026-09-04 코드리뷰] 종전 두 조건은 .glbl(261행)·.minibar(412행) 같은 **다른
+        #   컴포넌트**가 대신 만족시켜, 성과표 고정열 규칙을 지워도 통과했다(실측).
+        #   412px 가로 스크롤 금지가 걸린 그 규칙 자체를 본다.
         ok("화면: 모바일 고정열(Sticky)",
-           "position:sticky" in h and "td.strat" in h, '기준·전략명 열 고정 (v73)')
+           "td.strat{position:sticky" in h.replace(" ", ""),
+           '성과표 첫 열 고정 (v73) — 412px 가로 스크롤 금지의 근거')
         ok("화면: T4 그림자 패널 (평가 전용)",
            "function drawT4" in h and 'id="t4Panel"' in h and "채택안이 아닙니다" in h,
            'oos_log.csv 요약 표시 (v75)')
@@ -790,8 +828,12 @@ def i5_decisions(D):
         MARK = "const HTML_REV = '__HTML' + '_REV__';"
         ok('화면: 개정 시점 주입 자리가 있다', MARK in h,
            'deploy/stamp_rev.py 가 이 문자열을 찾는다')
+        # [2026-09-04 코드리뷰] 종전엔 604행의 **주석**(「id=htmlRev 는 verify_all 검사
+        #   대상이라 유지」)이 이 검사를 대신 통과시켰다 — div 를 지워도 초록불이었다.
+        #   검사가 있다고 알리려고 쓴 주석이 그 검사를 무력화한 셈이다. 렌더 대상을 본다.
         ok('화면: 개정 표시가 종가일과 분리돼 있다',
-           "id=\"htmlRev\"" in h and "id=\"asof\"" in h, '두 자리 모두 존재')
+           'class="rev" id="htmlRev"' in h and 'id="asof"' in h,
+           '두 자리 모두 존재 — 주석이 아니라 실제 div')
         # 안 쓰는 글꼴을 참조하면 대체글꼴로 떨어진다 (v46 에서 전부 Pretendard 로 바꿨다)
         for f in ('IBM Plex Mono', 'Archivo'):
             ok('화면: %s 참조 없음' % f, f not in h, '전부 Pretendard')
@@ -822,12 +864,32 @@ def i11_freeze():
            'update_signal.py STRATS')
         # [v71] v67 감사 조건 ① — 라이브 신호원 = 수정 종가 (백테스트와 동일 기준).
         # 비수정으로 되돌아가면 27년 중 11일 신호가 백테스트와 갈린다.
-        ok('신호원이 수정 종가(adjclose)다', 'adjclose' in u,
-           'update_signal.py fetch — v67 B-1 해소')
+        # [2026-09-04 코드리뷰] 종전 `'adjclose' in u` 는 **주석과 경고문으로도 통과**했다
+        #   (실측: 코드 줄을 비수정 종가로 되돌려도 81·86행 문구가 남아 PASS).
+        #   실제로 값을 뽑는 줄을 본다.
+        ok('신호원이 수정 종가(adjclose)다',
+           'ind.get("adjclose")' in u,
+           'update_signal.py fetch — v67 B-1 해소 (11일 신호 갈림)')
     if os.path.exists('signal.html'):
         hh = io.open('signal.html', encoding='utf-8').read()
         ok('화면이 동결 규칙과 같다', 'enter:-0.16, exit:-0.16' in hh,
            'signal.html STRAT.B')
+        # [2026-09-04 코드리뷰] ★ 동결 규칙 세 파라미터 중 **화면의 룩백만 아무 관문에도
+        #   안 걸려 있었다**(verify_all 에 LOOKBACK 이 0회 등장). 252 → 200 으로 고쳐도
+        #   freeze.json 은 그대로 252 라 위 검사가 통과하고, 'enter:-0.16, exit:-0.16'
+        #   문자열도 그대로라 통과한다 — 초록불인 채 설명서 §⑩ 비상 수동 판정이 200일
+        #   창으로 돌아간다(04 §5-25 가 한 세션을 다 써서 기각한 바로 그 대안이다).
+        m = re.search(r'const\s+LOOKBACK\s*=\s*(\d+)', hh)
+        ok('화면 룩백이 동결값과 같다', bool(m) and int(m.group(1)) == R['lookback'],
+           'signal.html const LOOKBACK = %s vs freeze %s'
+           % (m.group(1) if m else '(없음)', R['lookback']))
+    if os.path.exists('deploy/update_signal.py'):
+        uu = io.open('deploy/update_signal.py', encoding='utf-8').read()
+        m2 = re.search(r'^LOOKBACK\s*=\s*(\d+)', uu, re.M)
+        ok('신호 생성기 룩백이 동결값과 같다',
+           bool(m2) and int(m2.group(1)) == R['lookback'],
+           'update_signal LOOKBACK = %s vs freeze %s'
+           % (m2.group(1) if m2 else '(없음)', R['lookback']))
     n = 0
     if os.path.exists('data/oos_log.csv'):
         n = sum(1 for _ in io.open('data/oos_log.csv', encoding='utf-8')) - 1
