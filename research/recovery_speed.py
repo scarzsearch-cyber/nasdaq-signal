@@ -142,24 +142,33 @@ def swings(s, T=0.20):
         rb = float(np.min(tail / np.maximum.accumulate(tail) - 1)) if len(tail) > 1 else 0.0
         out.append(dict(peak=ix[pi], trough=ix[ti], end=end, recovered=recovered, depth=depth * 100,
                         fall_d=(ix[ti] - ix[pi]).days, rec_d=(end - ix[ti]).days, rebound_dd=rb * 100,
-                        era=era_of(ix[pi]), era_trough=era_of(ix[ti])))
+                        era=era_of(ix[pi]), era_trough=era_of(ix[ti]), trough_px=float(v[ti])))
     return pd.DataFrame(out)
 
 
 def cluster(df):
     """겹치는 사건을 하나로 — 긴 약세장은 지그재그가 여러 쌍을 만들지만 **독립 사건은 하나**다(2000~02 닷컴 6쌍 = 1건).
-    묶음의 고점 = 첫 고점 · 저점 = 가장 깊은 저점 · 회복 = 그 첫 고점 수준을 되찾은 날."""
+    묶음의 고점 = 첫 고점 · 저점 = 가장 깊은 저점 · 회복 = 그 첫 고점 수준을 되찾은 날.
+
+    ★ [정정 2026-09-03, 소유자 지적 「08년 금융위기도 따로 떼내야 하지 않을까」] 겹침만으로 묶으면 **닷컴의 회복이 2015 라
+    그 안에 2008 이 통째로 들어간다**. 분리 기준을 하나 더 둔다 — **저점이 직전 묶음의 저점보다 높으면 새 사건**이다.
+    같은 약세장 안에서는 저점이 계속 낮아지고(닷컴 3042→2251→1638→1088→866→795), 위기가 갈리면 그렇지 않다
+    (2008 저점 1036 > 2002 저점 795). 시간·상승률 문턱(예: 3년·+50%)은 임의값이라 안 쓴다 — 2001-09→12 의 +59% 반등이
+    그 문턱에 걸려 닷컴이 쪼개진다. **더 낮은 저점 = 같은 하락의 연속**이라는 기준은 임의 상수가 없다."""
     d = df.sort_values('peak').reset_index(drop=True)
     out = []
     cur = None
     for r in d.itertuples():
-        if cur is None or r.peak > cur['end']:
+        if cur is None or r.peak > cur['end'] or r.trough_px > cur['trough_lo']:
             if cur:
                 out.append(cur)
             cur = dict(peak=r.peak, trough=r.trough, end=r.end, recovered=r.recovered, depth=r.depth,
-                       fall_d=r.fall_d, rec_d=r.rec_d, rebound_dd=r.rebound_dd, era=r.era, era_trough=r.era_trough, n=1)
+                       fall_d=r.fall_d, rec_d=r.rec_d, rebound_dd=r.rebound_dd, era=r.era, era_trough=r.era_trough,
+                       trough_lo=r.trough_px, n=1)
         else:
             cur['n'] += 1
+            if r.trough_px < cur['trough_lo']:
+                cur['trough_lo'] = r.trough_px
             if r.depth < cur['depth']:
                 cur['depth'] = r.depth; cur['trough'] = r.trough
             if r.end > cur['end']:
@@ -327,21 +336,27 @@ def main():
     cB = pd.Series(np.asarray(EC.sim2(wB, QLDR, MIX), float), index=IDX)
     c2 = pd.Series(np.cumprod(1 + QLDR), index=IDX)
     print('  (고점→회복 구간의 배수. 컷을 손으로 고르지 않으려고 순위상관도 같이 낸다 §-1 ⓑ)')
-    print(f"  {'고점':<12}{'깊이':>8}{'회복일':>7}{'B':>9}{'2배보유':>9}{'B/2배':>8}")
-    recs, rels = [], []
+    print(f"  {'고점':<12}{'깊이':>8}{'하락일':>7}{'회복일':>7}{'B':>9}{'2배보유':>9}{'B/2배':>8}")
+    recs, rels, falls = [], [], []
     for r in CL.itertuples():
         a, b = r.peak, r.end
         if a not in cB.index or b not in cB.index:
             continue
         rb = cB[b] / cB[a]; r2 = c2[b] / c2[a]; rel = rb / r2
-        recs.append(r.rec_d); rels.append(rel)
-        print(f'  {str(r.peak.date()):<12}{r.depth:>7.1f}%{r.rec_d:>7}{rb:>9.2f}{r2:>9.2f}{rel:>8.2f}')
+        recs.append(r.rec_d); rels.append(rel); falls.append(r.fall_d)
+        print(f'  {str(r.peak.date()):<12}{r.depth:>7.1f}%{r.fall_d:>7}{r.rec_d:>7}{rb:>9.2f}{r2:>9.2f}{rel:>8.2f}')
     if len(recs) > 3:
         rc = spear(np.array(recs, float), np.array(rels, float))
         med = float(np.median(recs))
         f_ = [x for d, x in zip(recs, rels) if d <= med]; s_ = [x for d, x in zip(recs, rels) if d > med]
         print(f'  순위상관(회복일, B/2배) = {rc:+.2f} (양수면 회복이 느릴수록 B 가 유리) · 중앙({med:.0f}일) 아래 {len(f_)}건 중앙 {np.median(f_):.2f} · 위 {len(s_)}건 중앙 {np.median(s_):.2f}')
+        fc = spear(np.array(falls, float), np.array(rels, float))
+        fmed = float(np.median(falls))
+        ff = [x for d, x in zip(falls, rels) if d <= fmed]; fs = [x for d, x in zip(falls, rels) if d > fmed]
+        print(f'  순위상관(**하락일**, B/2배) = {fc:+.2f} — 천천히 무너질수록 B 가 유리 · 급락 절반({fmed:.0f}일 이하) {len(ff)}건 중앙 {np.median(ff):.2f} · 완만 절반 {len(fs)}건 중앙 {np.median(fs):.2f}')
         print('  → 회복이 빠를수록 B 의 전환은 **비용**이고, 느리고 깊을수록 값을 한다. 가설이 참이면 B 에 불리한 정보다.')
+        print('  ★ 다만 갈림의 핵심은 회복 속도보다 **하락 속도**다 — 1987(21일 만에 −39.9%)은 느린 회복인데도 B 가 0.80 으로 졌고,')
+        print('    닷컴(861일에 걸쳐 −50%)은 39.69, 2008(386일 −49.4%)은 1.54 다. 04 §5-26 「빠른 급락 4/4 에서 B 의 MDD 가 더 깊다」와 같은 축.')
 
     # ── 판정 ──────────────────────────────────────────────────────────────────
     print('\n' + L); print('판정 (사전 등록 규칙 적용)'); print(L)
