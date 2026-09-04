@@ -25,7 +25,7 @@ import exec_cost
 class ReviewContext(unittest.TestCase):
     @staticmethod
     def sources():
-        paths = ('AGENTS.md', 'CLAUDE.md', 'guide.html', 'signal.html',
+        paths = ('AGENTS.md', 'CLAUDE.md', 'guide.html', 'signal.html', 'notes.html',
                  'research/tax_us_direct.py')
         return {p: (ROOT / p).read_text(encoding='utf-8') for p in paths}
 
@@ -44,6 +44,7 @@ class ReviewContext(unittest.TestCase):
             ('guide.html', lambda s: s.replace('보장은 없습니다', '항상 유리합니다')),
             ('guide.html', lambda s: s + '<p>54년 성과는 약 15배</p>'),
             ('signal.html', lambda s: s.replace('5년 납입 · 20년 결과', '20년 결과')),
+            ('notes.html', lambda s: s.replace('rel="icon"', 'rel="missing-icon"')),
             ('research/tax_us_direct.py', lambda s: s + '\n# 146.1 대 146.6 동률\n'),
         )
         for path, mutate in mutations:

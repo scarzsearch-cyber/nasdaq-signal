@@ -274,6 +274,10 @@ def _review_context_checks(sources):
             and all(term in comparison for term in ('한 구간', '1.8배', '보장은 없습니다'))),
         '설명서: 54년 약 15배 성과 문구를 다시 올리지 않는다': (
             bool(guide) and not re.search(r'(?<!\d)15배', visible(guide))),
+        '화면: 세 탭이 배포된 아이콘을 명시한다': all(
+            '<link rel="icon" type="image/png" href="icon-192.png">'
+            in re.sub(r'<!--.*?-->', '', sources.get(p, ''), flags=re.S)
+            for p in ('signal.html', 'guide.html', 'notes.html')),
         '화면: ISA 수치가 5년 납입형임을 명시한다': (
             '5년 납입 · 20년 결과' in signal
             and all(term in signal for term in ('납입액 1억 대비 세후 평가액', '거치식 비교와는 다른 계산'))),
@@ -284,7 +288,7 @@ def _review_context_checks(sources):
 
 
 def g_review_context():
-    paths = ('AGENTS.md', 'CLAUDE.md', 'guide.html', 'signal.html', 'research/tax_us_direct.py')
+    paths = ('AGENTS.md', 'CLAUDE.md', 'guide.html', 'signal.html', 'notes.html', 'research/tax_us_direct.py')
     for name, passed in _review_context_checks({p: _read(p) or '' for p in paths}).items():
         ok(name, passed, 'v205 후속 정정 — 수치의 옳고 그름을 대신 판정하는 검사는 아님')
 
