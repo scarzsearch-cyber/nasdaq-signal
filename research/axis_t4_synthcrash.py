@@ -16,7 +16,7 @@
      ② 하락 기간(Tc)↑ 에 단조 감소, ③ 곰랠리 진폭(A)↑ 에 단조 감소할 것.
      세 축 모두 예측 방향이면 "닷컴·2008 B 승 = 우연이 아니라 구조" 판정.
      (닷컴형 = 느림·랠리 큼 / 1987형 = 빠름·선행 큼 — 실측 국면과 대응 확인)
-  S2 시간 추세: 실측 독립 사건 22회를 연대순 전반 11/후반 11 로 나눠
+  S2 시간 추세: 실측 독립 사건을 연대순 전반/후반으로 나눠
      승률 차가 이항 2σ(n=11, p̂=0.77 → ±25%p) 이내면 "강해지는 추세 근거 없음".
   S3 양자화(w 를 0/¼/½/¾/1 로 반올림): 최종 ±5% 이내 AND MDD 악화 ≤1%p 면
      "운용 단순화로 유효" (중간비중 일수·조정 횟수 감소량 병기).
@@ -42,7 +42,8 @@ import pandas as pd
 
 from axis_lib import sim, COST
 from research_kit import dist, fmt_dist, verdict
-from axis_t4_shadow import build, met, LOOKS, TH, VT, WIN
+from axis_t4_shadow import (build, met, LOOKS, TH, VT, WIN,
+                            independent_escapes, event_bounds)
 
 try:
     _sys.stdout.reconfigure(encoding='utf-8')
@@ -204,18 +205,13 @@ def sec_synth_cal(c_daily):
 def sec_trend(D, wT, wB, cT, cB):
     print()
     print('=' * 100)
-    print('S2. 실측 22개 사건 — T4 방어 우위에 시간 추세가 있나')
+    keep = independent_escapes(wB)
+    print('S2. 실측 %d개 사건 — T4 방어 우위에 시간 추세가 있나' % len(keep))
     print('=' * 100)
     idx = D['idx']
-    esc = np.where((wB[1:] == 0) & (wB[:-1] == 1))[0] + 1
-    keep, last = [], None
-    for e in esc:
-        if last is None or (idx[e] - idx[last]).days > 252:
-            keep.append(e)
-        last = e
     wins = []
     for e in keep:
-        a = max(0, e - 63); b = min(len(idx) - 1, e + 252)
+        a, b = event_bounds(len(idx), e)
         sT = cT.iloc[a:b]; sB = cB.iloc[a:b]
         wins.append(float((sT / sT.cummax() - 1).min()) > float((sB / sB.cummax() - 1).min()))
     h = len(keep) // 2

@@ -67,17 +67,21 @@ import os
 import re
 import subprocess
 import sys
-import urllib.parse
+import tempfile
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
+from kakao_keepalive import main as kakao_keepalive_main
+
 try:
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
+
 
 SIGNAL = os.path.join('data', 'signal.json')
 OPSCHK = os.path.join('data', 'ops_check.json')
@@ -113,6 +117,25 @@ def out(key, val):
     print(f'[출력] {key}={val}')
 
 
+def atomic_write_json(path, obj, replace_func=os.replace):
+    """JSON을 같은 디렉터리 임시파일에 완성한 뒤 한 번에 교체한다."""
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(path) + '.',
+                               suffix='.tmp', dir=parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(obj, f, ensure_ascii=False, indent=1)
+            f.write('\n')
+            f.flush()
+            os.fsync(f.fileno())
+        replace_func(tmp, path)
+        tmp = None
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def kst_today():
     return datetime.now(timezone(timedelta(hours=9))).date()
 
@@ -120,7 +143,11 @@ def kst_today():
 def biz_days_since(iso, today=None):
     """signal.html 의 bizDaysSince 와 같은 정의 — [as_of, 오늘) 의 평일 수."""
     d0 = date.fromisoformat(iso)
+    if d0.isoformat() != iso:
+        raise ValueError(f'기준일이 YYYY-MM-DD 정규형이 아님: {iso!r}')
     d1 = today or kst_today()
+    if d0 > d1:
+        raise ValueError(f'기준일 {d0}이 현재일 {d1}보다 미래임')
     n = 0
     t = d0
     while t < d1:
@@ -151,9 +178,14 @@ def repeat_gate(n, threshold, period):
     return (n - threshold) % period == 0
 
 def notify(title, status, detail):
-    """폰 알림. secret 이 없으면 notify.py 가 조용히 넘어간다."""
-    subprocess.call([sys.executable, os.path.join('deploy', 'notify.py'),
-                     title, status, detail])
+    """폰 알림. 실패하면 해당 모드의 이슈(메일) fallback도 함께 켠다."""
+    rc = subprocess.call([sys.executable, os.path.join('deploy', 'notify.py'),
+                          title, status, detail])
+    if rc != 0:
+        print(f'[경고] 폰 알림 실패(returncode={rc}) — 이슈 fallback 사용',
+              file=sys.stderr)
+        out('alert', 1)
+    return rc
 
 
 # --------------------------------------------------------------------------
@@ -171,7 +203,14 @@ def mode_stale():
         notify('신호 파일 손상', 'failure',
                'data/signal.json 을 읽지 못했습니다 — 화면 수치를 믿지 마세요.')
         return
-    n = biz_days_since(as_of)
+    try:
+        n = biz_days_since(as_of)
+    except Exception as e:
+        print(f'[경고] signal as_of가 잘못돼 신선도를 계산하지 않는다: {e}')
+        out('alert', 1)
+        notify('신호 날짜 손상', 'failure',
+               'data/signal.json 의 종가 날짜가 미래이거나 형식이 잘못됐습니다 — 화면 수치를 믿지 마세요.')
+        return
     print(f'마지막 종가 {as_of} · {n}영업일 경과 (문턱 {STALE_N})')
     if n < STALE_N:
         print('정상 — 알림 없음')
@@ -255,13 +294,44 @@ KRHOL = os.path.join('data', 'kr_holidays.json')
 OOSLOG = os.path.join('data', 'oos_log.csv')
 
 
-def kr_holidays():
-    """한국 휴장일 집합(ISO). 파일이 없으면 빈 집합 — 주말만 민다(화면과 같은 후퇴)."""
+def kr_holidays(for_date=None):
+    """검증된 한국 휴장일 집합. 실행일은 달력 없이 추정하지 않는다."""
+    if not os.path.exists(KRHOL):
+        raise RuntimeError('kr_holidays.json 이 없다')
     try:
         j = json.load(open(KRHOL, encoding='utf-8'))
-        return set((j.get('holidays') or {}).keys())
-    except Exception:
-        return set()
+    except Exception as e:
+        raise RuntimeError('kr_holidays.json 파싱 실패') from e
+    holidays, years = j.get('holidays'), j.get('range')
+    if not isinstance(holidays, dict) or not isinstance(years, list) or len(years) != 2:
+        raise RuntimeError('kr_holidays.json 구조가 잘못됐다')
+    try:
+        lo, hi = int(years[0]), int(years[1])
+        parsed = {date.fromisoformat(str(d)) for d in holidays}
+    except (TypeError, ValueError) as e:
+        raise RuntimeError('kr_holidays.json 날짜·범위를 해석할 수 없다') from e
+    if lo > hi or any(not lo <= d.year <= hi for d in parsed):
+        raise RuntimeError('kr_holidays.json 날짜가 선언 범위 밖이다')
+    if for_date is not None and not lo <= for_date.year <= hi:
+        raise RuntimeError(f'{for_date}가 휴장일 표 범위 {lo}~{hi} 밖이다')
+    return {d.isoformat() for d in parsed}
+
+
+def kr_biz_days_since(iso, today=None, hol=None):
+    """한국 시세용 [as_of, 오늘) 거래일 수 — 평일 중 휴장일은 빼고 센다."""
+    d0 = date.fromisoformat(iso)
+    if d0.isoformat() != iso:
+        raise ValueError(f'기준일이 YYYY-MM-DD 정규형이 아님: {iso!r}')
+    d1 = today or kst_today()
+    if d0 > d1:
+        raise ValueError(f'기준일 {d0}이 현재일 {d1}보다 미래임')
+    hol = kr_holidays(d1) if hol is None else hol
+    n, cur = 0, d0
+    while cur < d1:
+        if cur.weekday() < 5 and cur.isoformat() not in hol:
+            n += 1
+        cur += timedelta(days=1)
+    return n
 
 
 def kr_next_trading_day(d, hol):
@@ -281,20 +351,36 @@ def last_switch():
     if os.path.exists(OOSLOG):
         with open(OOSLOG, encoding='utf-8') as f:
             for r in csv.DictReader(f):
-                if r.get('changed') == '1' and r.get('as_of'):
-                    best = (r['as_of'], r.get('state') or '?')
+                changed = r.get('changed')
+                if changed not in ('0', '1'):
+                    raise ValueError(f'OOS changed가 0/1이 아님: {changed!r}')
+                as_of, state = r.get('as_of'), r.get('state')
+                if not as_of or date.fromisoformat(as_of).isoformat() != as_of:
+                    raise ValueError(f'OOS as_of가 YYYY-MM-DD가 아님: {as_of!r}')
+                if state not in ('QLD', 'SCHD'):
+                    raise ValueError(f'OOS state가 허용값이 아님: {state!r}')
+                if changed == '1':
+                    best = (as_of, state)
     if os.path.exists(SIGNAL):
         try:
             j = json.load(open(SIGNAL, encoding='utf-8'))
             # [2026-09-04 코드리뷰] 최상위 키는 A(−16/−11) 미러다 — B 가 없으면 A 의
             # 전환일을 B 의 전환일로 착각해 **틀린 날 실행 알림**이 간다. 물러서지 않는다.
             b = (j.get('strategies') or {}).get('B') or {}
-            if b.get('changed_today'):
-                cand = (j['as_of'], b.get('state', '?'))
+            changed = b.get('changed_today')
+            if b and type(changed) is not bool:
+                raise ValueError('signal B changed_today가 JSON 불리언이 아님')
+            if changed:
+                as_of, state = j.get('as_of'), b.get('state')
+                if not as_of or date.fromisoformat(as_of).isoformat() != as_of:
+                    raise ValueError(f'signal as_of가 YYYY-MM-DD가 아님: {as_of!r}')
+                if state not in ('QLD', 'SCHD'):
+                    raise ValueError(f'signal B state가 허용값이 아님: {state!r}')
+                cand = (as_of, state)
                 if best is None or cand[0] > best[0]:
                     best = cand
         except Exception:
-            pass
+            raise
     return best
 
 
@@ -307,17 +393,30 @@ def switch_action(state):
     # signal_alert.py 와 같은 문장 — 두 알림이 다른 말을 하면 안 된다
     if state == 'QLD':
         return '방어 바스켓 전량 매도 → TIGER 나스닥100레버리지(418660) 매수'
-    return 'QLD 전량 매도 → 방어 바스켓 매수 (배당40 458730 / 국채40 305080 / 금20 411060)'
+    if state == 'SCHD':
+        return 'QLD 전량 매도 → 방어 바스켓 매수 (배당40 458730 / 국채40 305080 / 금20 411060)'
+    raise ValueError(f'알 수 없는 전환 상태로 매매 문구를 만들 수 없음: {state!r}')
 
 
 def mode_switchday(today=None):
-    sw = last_switch()
+    try:
+        sw = last_switch()
+    except Exception as e:
+        print(f'[경고] 전환 기록을 검증하지 못해 실행일을 알리지 않는다: {e}')
+        out('alert', 1)
+        return
     if not sw:
         print('전환 기록 없음 — 할 일 없음')
         return
     as_of, st = sw
     today = today or kst_today()
-    ex = switch_exec_day(as_of, kr_holidays())
+    try:
+        hol = kr_holidays(today)
+    except Exception as e:
+        print(f'[경고] 한국 휴장일 표를 읽지 못해 실행일을 추정하지 않는다: {e}')
+        out('alert', 1)
+        return
+    ex = switch_exec_day(as_of, hol)
     print(f'마지막 전환 {as_of} → {st} · 실행일 {ex} · 오늘 {today}')
     if today != ex:
         print('오늘은 실행일이 아니다 — 알림 없음')
@@ -361,14 +460,17 @@ def near_gaps(j):
         return None
 
     def bstate(row):
-        return row.get('B', row.get('s'))
+        state = row.get('B')
+        if state not in ('QLD', 'SCHD'):
+            raise ValueError(f'recent B state가 허용값이 아님: {state!r}')
+        return state
 
     def line(row):
         # [2026-09-04 코드리뷰] 최상위 exit 는 A 의 **−11** 이다(실측). B 가 없을 때 그리로
         # 물러서면 방어 상태의 복귀선이 −11 로 잡혀 근접 판정이 통째로 틀린다 —
         # v192 가 「첫 구현이 그럴 뻔했다」고 적어 둔 바로 그 함정이 폴백으로 남아 있었다.
         v = b.get('exit') if bstate(row) == 'SCHD' else b.get('enter')
-        v = float(v if v is not None else -16)
+        v = float(v)
         return v * 100 if abs(v) < 1 else v            # −0.16 이든 −16 이든 %p 로
 
     def gap(row):
@@ -386,12 +488,21 @@ def mode_near(today=None):
     if not b:
         print('[경고] signal.json 에 strategies.B 가 없다 — 근접 판정 생략(A 미러를 쓰지 않는다)')
         return
+    if b.get('state') not in ('QLD', 'SCHD') or type(b.get('changed_today')) is not bool:
+        print('[경고] strategies.B 상태/changed_today가 잘못돼 근접 판정을 하지 않는다')
+        out('alert', 1)
+        return
     if b.get('changed_today'):
         print('전환일 — 새벽 알림이 이미 갔다(근접 알림 생략)')
         return
     today = today or kst_today()
-    n = biz_days_since(j['as_of'], today)
-    g = near_gaps(j)
+    try:
+        n = biz_days_since(j['as_of'], today)
+        g = near_gaps(j)
+    except Exception as e:
+        print(f'[경고] 근접 신호 입력을 검증하지 못했다: {e}')
+        out('alert', 1)
+        return
     if g is None:
         print('recent 가 2일 미만 — 판정 불가')
         return
@@ -403,7 +514,7 @@ def mode_near(today=None):
     if not (g0 < NEAR_PP <= g1):
         print('근접 진입일이 아니다 — 알림 없음')
         return
-    is_atk = st != 'SCHD'
+    is_atk = st == 'QLD'
     nm = '전환선' if is_atk else '복귀선'
     notify('낙폭 게이지 「근접」 진입', 'signal',
            f"낙폭 {j.get('dd')}% — {nm}(−16%)까지 {g0:.1f}%p (종가 {j.get('close')}, {j['as_of']}).\n"
@@ -425,23 +536,28 @@ def mode_channel():
     kr = os.environ.get('KAKAO_REFRESH_TOKEN', '').strip()
     if kk and kr:
         try:
-            body = urllib.parse.urlencode({'grant_type': 'refresh_token',
-                                           'client_id': kk, 'refresh_token': kr}).encode()
-            req = urllib.request.Request('https://kauth.kakao.com/oauth/token', data=body)
-            with urllib.request.urlopen(req, timeout=30) as r:
-                json.loads(r.read())
+            rc = kakao_keepalive_main()
+            if rc != 0:
+                raise RuntimeError(f'갱신/회전 처리 returncode={rc}')
             alive.append('카카오톡')
         except Exception as e:
             dead.append(f'카카오톡({type(e).__name__})')
+    elif kk or kr:
+        dead.append('카카오톡(secret 설정 불완전)')
 
     tk = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
-    if tk:
+    ch = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    if tk and ch:
         try:
             with urllib.request.urlopen(f'https://api.telegram.org/bot{tk}/getMe', timeout=30) as r:
-                json.loads(r.read())
+                reply = json.loads(r.read())
+            if not isinstance(reply, dict) or reply.get('ok') is not True:
+                raise RuntimeError('getMe 응답 ok가 true가 아님')
             alive.append('Telegram')
         except Exception as e:
             dead.append(f'Telegram({type(e).__name__})')
+    elif tk or ch:
+        dead.append('Telegram(token/chat ID 설정 불완전)')
 
     if os.environ.get('DISCORD_WEBHOOK_URL', '').strip():
         alive.append('Discord(등록됨 · 무발송 확인 불가)')
@@ -485,8 +601,13 @@ def mode_stats():
         return
     try:
         j = json.load(open(p, encoding='utf-8'))
-        gen = str(j['generated_at'])[:10]
+        raw_gen = str(j['generated_at'])
+        gen = raw_gen[:10]
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', gen):
+            raise ValueError('generated_at 날짜 형식이 YYYY-MM-DD가 아님')
         d = date.fromisoformat(gen)
+        if d.isoformat() != gen or d > kst_today():
+            raise ValueError('generated_at 날짜가 비정상 또는 미래임')
     except Exception as e:
         print(f'[경고] strategy_stats.json 을 읽지 못했다: {e}')
         out('alert', 1)
@@ -521,7 +642,7 @@ def mode_stats():
 # --------------------------------------------------------------------------
 # ②-c [v176] 시세 수집 생존 — price-data 브랜치가 갱신되고 있는가
 # --------------------------------------------------------------------------
-def mode_price():
+def mode_price(today=None):
     """시세는 main 에 없다(v176) — price-data 브랜치에 항상 커밋 1개로 덮인다.
 
     수집이 죽으면 배포가 파일을 못 싣고 화면은 배지를 숨긴다. 그게 옳은 실패지만
@@ -534,10 +655,19 @@ def mode_price():
         as_of = str(json.loads(raw)['as_of_kst'])[:10]
         d = date.fromisoformat(as_of)
     except Exception as e:
-        # 브랜치가 아직 없을 수도 있다(첫 도입 직후) — 그건 사고가 아니다.
-        print(f'[정보] price-data 를 읽지 못했다: {type(e).__name__} — 첫 도입 직후면 정상')
+        print(f'[경고] price-data 를 읽지 못했다: {type(e).__name__}: {e}')
+        out('alert', 1)
+        notify('시세 수집 상태를 확인할 수 없습니다', 'failure',
+               'price-data 브랜치 또는 data/price.json 을 읽지 못했습니다.\n'
+               '★ 매매 신호와는 무관하지만, 화면의 가격 배지가 갱신되지 않을 수 있습니다.')
         return
-    n = biz_days_since(as_of)
+    today = today or kst_today()
+    try:
+        n = kr_biz_days_since(as_of, today=today)
+    except Exception as e:
+        print(f'[경고] 한국 휴장일 표를 읽지 못해 시세 신선도를 추정하지 않는다: {e}')
+        out('alert', 1)
+        return
     print(f'시세 스냅샷 {as_of} · {n}영업일 경과 (문턱 {PRICE_STALE})')
     if n < PRICE_STALE:
         print('정상 — 알림 없음')
@@ -661,23 +791,14 @@ def mode_check():
             cur['todo'] = list(cur.get('todo') or []) + [pb['todo']]
 
     cur = merge_ops(prev, cur)            # ★ heartbeat 등 다른 모드의 키를 지우지 않는다
-    with open(OPSCHK, 'w', encoding='utf-8') as f:
-        json.dump(cur, f, ensure_ascii=False, indent=1)
-        f.write('\n')
+    atomic_write_json(OPSCHK, cur)
     print(f"Level {cur.get('level')} · {cur.get('level_msg')} · 할 일 {len(cur.get('todo') or [])}건"
           + (f" · 판정 규약 {pb['line']}" if pb else ''))
     out('written', 1)
 
     # 알림 규칙: **나빠졌을 때만** 말한다. 같은 상태가 계속되면 조용하다
     # (분기 규약의 대응은 「지켜본다」이므로 매주 같은 말을 반복할 이유가 없다).
-    lv0, lv1 = int(prev.get('level', 0) or 0), int(cur.get('level', 0) or 0)
-    bad0 = {a['code'] for a in (prev.get('aum') or []) if a.get('state') != '정상'}
-    bad1 = {a['code'] for a in (cur.get('aum') or []) if a.get('state') != '정상'}
-    pb0, pb1 = (prev.get('protocol_b') or {}), (cur.get('protocol_b') or {})
-    worse = ((lv1 > lv0) or bool(bad1 - bad0) or (not cur.get('ok', True) and prev.get('ok', True))
-             # [v188] 판정 규약이 나빠진 것(정상→주의→역사 밖)·기저율 표류가 새로 생긴 것도 「악화」다
-             or PB_RANK.get(pb1.get('verdict'), 0) > PB_RANK.get(pb0.get('verdict'), 0)
-             or (bool(pb1.get('drift')) and not pb0.get('drift')))
+    worse = check_worsened(prev, cur)
     if not (cur.get('todo') and worse):
         print('상태 악화 없음 — 알림 생략')
         return
@@ -685,6 +806,25 @@ def mode_check():
     notify('자동 점검에서 확인할 것', 'failure',
            '\n'.join(f'· {t}' for t in cur['todo'])
            + '\n(전략을 바꾸는 일이 아닙니다 — 기본 대응은 「지켜본다」입니다.)')
+
+
+def check_worsened(prev, cur):
+    """주간 상태가 새로 나빠졌는가. 같은 장애의 반복은 조용히 둔다.
+
+    ok 불리언 하나만 비교하면 이미 실패 중일 때 새 감시 공백이 생겨도 false→false라
+    묻힌다. 점검.py가 내는 안정적인 health_errors 코드의 새 원소까지 비교한다.
+    """
+    lv0, lv1 = int(prev.get('level', 0) or 0), int(cur.get('level', 0) or 0)
+    bad0 = {a['code'] for a in (prev.get('aum') or []) if a.get('state') != '정상'}
+    bad1 = {a['code'] for a in (cur.get('aum') or []) if a.get('state') != '정상'}
+    err0 = set(prev.get('health_errors') or [])
+    err1 = set(cur.get('health_errors') or [])
+    pb0, pb1 = (prev.get('protocol_b') or {}), (cur.get('protocol_b') or {})
+    return ((lv1 > lv0) or bool(bad1 - bad0) or bool(err1 - err0)
+            or (not cur.get('ok', True) and prev.get('ok', True))
+            # [v188] 판정 규약이 나빠진 것(정상→주의→역사 밖)·기저율 표류가 새로 생긴 것도 「악화」다
+            or PB_RANK.get(pb1.get('verdict'), 0) > PB_RANK.get(pb0.get('verdict'), 0)
+            or (bool(pb1.get('drift')) and not pb0.get('drift')))
 
 
 # --------------------------------------------------------------------------
@@ -722,6 +862,8 @@ def mode_heartbeat():
         lines.append(f'· 신호 {as_of} ({biz_days_since(as_of)}영업일 전)')
         # [v196] 상태 한 줄 — B 는 strategies.B (최상위 state 는 A 미러, v192 적발). 메시지 수는 안 는다.
         b = (sj.get('strategies') or {}).get('B') or {}
+        if b.get('state') not in ('QLD', 'SCHD'):
+            raise ValueError('B state가 허용값이 아님')
         st = '방어' if b.get('state') == 'SCHD' else '공격'
         lines.append(f"· 판정 {st} · 낙폭 {sj.get('dd')}% · {'복귀선' if st == '방어' else '전환선'}까지 {b.get('gap_pp')}%p")
     except Exception:
@@ -745,15 +887,16 @@ def mode_heartbeat():
     if lv is not None:
         lines.append(f"· 점검 Level {lv} — {j.get('level_msg') or ''}".rstrip(' —'))
 
-    notify('자동화 정상 작동 중', 'signal',
-           '한 달에 한 번 보내는 생존 확인입니다.\n' + '\n'.join(lines) + '\n\n'
-           '★ 이 알림이 **다음 달에 안 오면** 자동화가 멈춘 것입니다 — 그때만 손보시면 됩니다.\n'
-           '(이상이 있으면 이 알림과 별개로 즉시 따로 갑니다.)')
+    rc = notify('자동화 정상 작동 중', 'signal',
+                '한 달에 한 번 보내는 생존 확인입니다.\n' + '\n'.join(lines) + '\n\n'
+                '★ 이 알림이 **다음 달에 안 오면** 자동화가 멈춘 것입니다 — 그때만 손보시면 됩니다.\n'
+                '(이상이 있으면 이 알림과 별개로 즉시 따로 갑니다.)')
+    if rc != 0:
+        print('생존 알림이 도착하지 않아 이번 달 성공 표시를 기록하지 않는다')
+        return
 
     j['heartbeat'] = ym
-    with open(OPSCHK, 'w', encoding='utf-8') as f:
-        json.dump(j, f, ensure_ascii=False, indent=1)
-        f.write('\n')
+    atomic_write_json(OPSCHK, j)
     out('written', 1)
     print(f'{ym} 살아 있음 알림 발송 · ops_check.json 에 기록')
 
@@ -777,7 +920,21 @@ def selftest():
     import contextlib
     sent = []
     real_notify = globals()['notify']
-    globals()['notify'] = lambda t, s, d: sent.append((t, s, d))
+    real_kakao = globals()['kakao_keepalive_main']
+    real_urlopen = urllib.request.urlopen
+    real_subprocess_run = subprocess.run
+    real_check_output = subprocess.check_output
+    channel_names = ('KAKAO_REST_API_KEY', 'KAKAO_REFRESH_TOKEN',
+                     'KAKAO_CLIENT_SECRET', 'GH_PAT', 'GITHUB_REPOSITORY',
+                     'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+                     'DISCORD_WEBHOOK_URL', 'WEEKLY', 'GITHUB_OUTPUT')
+    channel_env = {k: os.environ.get(k) for k in channel_names}
+
+    def fake_notify(t, s, d):
+        sent.append((t, s, d))
+        return 0
+
+    globals()['notify'] = fake_notify
     root = os.getcwd()
     T = tempfile.mkdtemp(prefix='wd_selftest_')
     os.makedirs(os.path.join(T, 'data'))
@@ -818,6 +975,72 @@ def selftest():
 
     B = lambda st, ch=False: {'B': {'state': st, 'changed_today': ch, 'enter': -16.0, 'exit': -16.0}}
     try:
+        # 미래 기준일은 0일 경과가 아니라 손상이다. 침묵하면 영구히 '정상'으로 보인다.
+        try:
+            biz_days_since('2099-01-01', today=date(2026, 9, 4))
+            fails.append('미래 신호 날짜를 0일 경과로 처리')
+        except ValueError:
+            pass
+        try:
+            kr_biz_days_since('2099-01-01', today=date(2026, 9, 4), hol=set())
+            fails.append('미래 시세 날짜를 0일 경과로 처리')
+        except ValueError:
+            pass
+        future_output = os.path.join(T, 'future_output')
+        os.environ['GITHUB_OUTPUT'] = future_output
+        sig(as_of='2099-01-01')
+        expect('stale 미래 날짜는 알림', run(mode_stale), True)
+        expect('stale 미래 날짜는 이슈', 'alert=1' in open(future_output, encoding='utf-8').read(), True)
+
+        # 성과 생성일도 미래면 음수 경과일로 영구 정상 처리하지 않는다.
+        stats_output = os.path.join(T, 'stats_future_output')
+        os.environ['GITHUB_OUTPUT'] = stats_output
+        json.dump({'generated_at': '2099-01-01T00:00:00Z', 'scenarios': []},
+                  open(os.path.join('data', 'strategy_stats.json'), 'w', encoding='utf-8'))
+        expect('stats 미래 생성일은 알림', run(mode_stats), True)
+        expect('stats 미래 생성일은 이슈',
+               'alert=1' in open(stats_output, encoding='utf-8').read(), True)
+
+        # ── channel ──
+        def channel_case(values, kakao_rc=0, telegram_reply=b'{"ok":true}'):
+            for key in channel_names:
+                os.environ.pop(key, None)
+            os.environ.update(values)
+            output = os.path.join(T, 'github_output')
+            if os.path.exists(output):
+                os.unlink(output)
+            os.environ['GITHUB_OUTPUT'] = output
+            globals()['kakao_keepalive_main'] = lambda: kakao_rc
+
+            class Response:
+                def __enter__(self):
+                    return self
+                def __exit__(self, *args):
+                    return False
+                def read(self):
+                    return telegram_reply
+
+            urllib.request.urlopen = lambda *a, **k: Response()
+            with contextlib.redirect_stdout(_io.StringIO()):
+                mode_channel()
+            return open(output, encoding='utf-8').read() if os.path.exists(output) else ''
+
+        expect('channel 무설정 일간은 매일 이슈 안 냄',
+               'alert=1' in channel_case({'WEEKLY': 'false'}), False)
+        expect('channel 무설정 주간은 이슈',
+               'alert=1' in channel_case({'WEEKLY': 'true'}), True)
+        expect('channel Telegram 반쪽 설정은 죽음',
+               'alert=1' in channel_case({'TELEGRAM_BOT_TOKEN': 'token'}), True)
+        expect('channel Telegram 실패 본문은 죽음',
+               'alert=1' in channel_case({'TELEGRAM_BOT_TOKEN': 'token',
+                                          'TELEGRAM_CHAT_ID': 'chat'},
+                                         telegram_reply=b'{"ok":false}'), True)
+        expect('channel Kakao 회전 저장 실패는 죽음',
+               'alert=1' in channel_case({'KAKAO_REST_API_KEY': 'key',
+                                          'KAKAO_REFRESH_TOKEN': 'refresh'}, kakao_rc=2), True)
+        expect('channel Kakao 정상은 이슈 없음',
+               'alert=1' in channel_case({'KAKAO_REST_API_KEY': 'key',
+                                          'KAKAO_REFRESH_TOKEN': 'refresh'}, kakao_rc=0), False)
         # ── switchday ──
         expect('sw 파일 없음', run(mode_switchday, today=date(2026, 9, 7)), False)
         oos([['2026-09-03', 700, 745, -16.5, 'SCHD', 1], ['2026-09-04', 690, 745, -17, 'SCHD', 0]])
@@ -839,6 +1062,44 @@ def selftest():
         expect('sw 낙폭 문구', '낙폭 -16.4%' in sent[-1][2], True)
         sig(as_of='2026-09-10', changed_today=True, state='QLD', strategies=B('QLD', True))
         expect('sw 공격 복귀 문구', run(mode_switchday, today=date(2026, 9, 11)) and '418660) 매수' in sent[-1][2], True)
+        output = os.path.join(T, 'switch_state_output')
+        os.environ['GITHUB_OUTPUT'] = output
+        oos([['2026-09-04', 700, 745, -16.5, '?', 1]])
+        expect('sw 손상 OOS 상태는 매매 알림 없음', run(mode_switchday, today=date(2026, 9, 7)), False)
+        expect('sw 손상 OOS 상태는 이슈', 'alert=1' in open(output, encoding='utf-8').read(), True)
+        os.unlink(output)
+        oos([['2026-08-28', 716, 745, -3.9, 'QLD', 0]])
+        sig(as_of='2026-09-04', changed_today=True, strategies=B('?', True))
+        expect('sw 손상 signal 상태는 매매 알림 없음', run(mode_switchday, today=date(2026, 9, 7)), False)
+        expect('sw 손상 signal 상태는 이슈', 'alert=1' in open(output, encoding='utf-8').read(), True)
+        expect('price 연휴 평일을 경과일에서 제외',
+               kr_biz_days_since('2026-10-02', today=date(2026, 10, 7),
+                                 hol={'2026-10-05', '2026-10-06'}), 1)
+
+        # 휴장일 표가 깨지면 휴일을 실행일로 추정하지 않고 alert 출력만 남긴다.
+        holiday_bytes = open(KRHOL, 'rb').read()
+        open(KRHOL, 'w', encoding='utf-8').write('{broken')
+        output = os.path.join(T, 'calendar_output')
+        if os.path.exists(output):
+            os.unlink(output)
+        os.environ['GITHUB_OUTPUT'] = output
+        expect('sw 달력 손상 시 매매 알림 없음',
+               run(mode_switchday, today=date(2026, 9, 11)), False)
+        expect('sw 달력 손상 시 이슈 출력',
+               'alert=1' in open(output, encoding='utf-8').read(), True)
+        open(KRHOL, 'wb').write(holiday_bytes)
+
+        # 이미 운용 중인 price-data를 읽지 못하는 것은 첫 도입 정상으로 숨기지 않는다.
+        subprocess.run = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('fetch 실패 모의'))
+        expect('price 브랜치 읽기 실패 알림', run(mode_price, today=date(2026, 9, 11)), True)
+        subprocess.run = lambda *a, **k: None
+        subprocess.check_output = lambda *a, **k: json.dumps({'as_of_kst': '2099-01-01 10:00 KST'})
+        price_output = os.path.join(T, 'price_future_output')
+        os.environ['GITHUB_OUTPUT'] = price_output
+        expect('price 미래 날짜는 정상 취급 안 함', run(mode_price, today=date(2026, 9, 11)), False)
+        expect('price 미래 날짜는 이슈', 'alert=1' in open(price_output, encoding='utf-8').read(), True)
+        subprocess.run = real_subprocess_run
+        subprocess.check_output = real_check_output
         # ── near ──
         sig(as_of='2026-09-01', dd=-13.5, recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0))
         expect('near 진입 발송', run(mode_near, today=date(2026, 9, 2)), True)
@@ -867,6 +1128,12 @@ def selftest():
             strategies={}, recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0))
         expect('near B 없으면 판정 안 함', run(mode_near, today=date(2026, 9, 2)), False)
         expect('switchday B 없으면 A 로 안 물러섬', run(mode_switchday, today=date(2026, 9, 2)), False)
+        near_output = os.path.join(T, 'near_state_output')
+        os.environ['GITHUB_OUTPUT'] = near_output
+        sig(as_of='2026-09-01', dd=-13.5, strategies=B('?', False),
+            recent=rc('2026-09-01', -13.5, '2026-08-31', -12.0))
+        expect('near 손상 B 상태는 알림 없음', run(mode_near, today=date(2026, 9, 2)), False)
+        expect('near 손상 B 상태는 이슈', 'alert=1' in open(near_output, encoding='utf-8').read(), True)
         sig(as_of='2026-09-01', dd=-13.0, recent=rc('2026-09-01', -13.0, '2026-08-31', -12.0))
         expect('near 경계 3.0 제외', run(mode_near, today=date(2026, 9, 2)), False)
         sig(as_of='2026-09-01', dd=-13.01, recent=rc('2026-09-01', -13.01, '2026-08-31', -13.0))
@@ -877,6 +1144,8 @@ def selftest():
         json.dump({'level': 0, 'level_msg': '이상 없음'}, open(OPSCHK, 'w', encoding='utf-8'))
         sig(as_of='2026-09-01', dd=-5.06, state='QLD', strategies={'B': {'state': 'SCHD', 'gap_pp': 1.5, 'changed_today': False}})
         oos([['2026-08-28', 716, 745, -3.9, 'QLD', 0], ['2026-09-01', 623, 745, -16.4, 'SCHD', 1], ['2026-09-02', 620, 745, -16.8, 'SCHD', 0]])
+        # 임시 저장소에서 실제 git을 부르지 않는다. 시세 줄은 부가 정보라 실패해도 정상이다.
+        subprocess.run = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('fetch 생략 모의'))
         expect('hb 발송', run(mode_heartbeat), True)
         m = sent[-1][2]
         expect('hb 상태 줄(B 기준·장부)', ('판정 방어' in m) and ('복귀선까지 1.5%p' in m) and ('장부 3일' in m) and ('전환 1회' in m), True)
@@ -892,10 +1161,40 @@ def selftest():
         expect('점검이 hb 표시를 안 지운다', run(mode_heartbeat), False)
         expect('점검이 비운 todo 는 안 되살린다', merge_ops({'todo': ['옛 항목']}, fresh)['todo'], [])
         expect('CARRY_KEYS 에 heartbeat 등재', 'heartbeat' in CARRY_KEYS, True)
+        # check/heartbeat가 함께 쓰는 원자 교체가 실패해도 기존 파일은 그대로다.
+        ops_before = open(OPSCHK, 'rb').read()
+        try:
+            atomic_write_json(OPSCHK, {'corrupt': True},
+                              replace_func=lambda *_: (_ for _ in ()).throw(OSError('교체 실패 모의')))
+            fails.append('ops_check 교체 실패를 성공 처리')
+        except OSError:
+            pass
+        expect('ops_check 원자 교체 실패 시 원본 보존', open(OPSCHK, 'rb').read(), ops_before)
+        expect('check/heartbeat 모두 원자 writer 사용',
+               mode_check.__code__.co_names.count('atomic_write_json') == 1
+               and mode_heartbeat.__code__.co_names.count('atomic_write_json') == 1, True)
+        subprocess.run = real_subprocess_run
+        # ── check 악화 판정: 새 오류만 한 번 알린다 ──
+        healthy = {'ok': True, 'health_errors': []}
+        exec_bad = {'ok': False, 'health_errors': ['exec_parse:nav_days']}
+        exec_plus_aum = {'ok': False, 'health_errors':
+                         ['exec_parse:nav_days', 'aum_missing:411060']}
+        expect('check 정상→체결오류 알림', check_worsened(healthy, exec_bad), True)
+        expect('check 같은 오류 반복 무알림', check_worsened(exec_bad, exec_bad), False)
+        expect('check 실패중 새 AUM 누락 알림', check_worsened(exec_bad, exec_plus_aum), True)
     finally:
         os.chdir(root)
         shutil.rmtree(T, ignore_errors=True)
         globals()['notify'] = real_notify
+        globals()['kakao_keepalive_main'] = real_kakao
+        urllib.request.urlopen = real_urlopen
+        subprocess.run = real_subprocess_run
+        subprocess.check_output = real_check_output
+        for key, value in channel_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
     print(f'파수꾼 셀프테스트 {n}경우 · 실패 {len(fails)}건' + (' — ' + ', '.join(fails) if fails else ''))
     return not fails
 

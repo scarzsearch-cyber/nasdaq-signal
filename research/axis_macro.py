@@ -56,6 +56,44 @@ def exp_q(a, q, minp=252):
     return s.expanding(min_periods=minp).quantile(q).shift(1).values
 
 
+def zscore(a, win=756, minp=252):
+    """가용 전에는 NaN을 유지하는 과거전용 롤링 z점수."""
+    s = pd.Series(np.asarray(a, dtype=float)).reset_index(drop=True)
+    return ((s - s.rolling(win, min_periods=minp).mean())
+            / s.rolling(win, min_periods=minp).std()).values
+
+
+def lagged_positions(w, lag=1):
+    """종가 신호를 정확히 ``lag`` 거래일 뒤 포지션으로 옮긴다."""
+    w = np.asarray(w, dtype=float)
+    if lag < 0:
+        raise ValueError('lag must be non-negative')
+    if len(w) == 0 or lag == 0:
+        return w.copy()
+    pos = np.empty_like(w)
+    k = min(lag, len(w))
+    pos[:k] = w[0]
+    if lag < len(w):
+        pos[lag:] = w[:-lag]
+    return pos
+
+
+def year_block_permutation(mask, years, rng):
+    """연 블록을 겹침 없이 순열해 길이와 발동일 수를 보존한다."""
+    mask = np.asarray(mask, dtype=bool)
+    years = np.asarray(years)
+    if len(mask) != len(years):
+        raise ValueError('mask and years must have the same length')
+    if len(mask) == 0:
+        return mask.copy()
+    uniq = pd.unique(years)
+    chunks = [mask[years == year] for year in uniq]
+    out = np.concatenate([chunks[i] for i in rng.permutation(len(chunks))])
+    if len(out) != len(mask) or int(out.sum()) != int(mask.sum()):
+        raise AssertionError('year-block permutation changed mask size')
+    return out
+
+
 def rule_w(ddv, enter, exit_, w0=1.0):
     n = len(ddv)
     w = np.empty(n)
@@ -73,16 +111,14 @@ def rule_w(ddv, enter, exit_, w0=1.0):
     return w
 
 
-def bt(qqqr, qldr, defr, w, cost=COST):
+def bt(qqqr, qldr, defr, w, cost=COST, lag=1):
     """w=1 -> QLD(2x), w=0 -> 방어자산.
 
     [v30 정정] 체결 규약 pos = w.shift(1) — 전일 종가 신호로 당일 체결.
     이걸 안 지키면 VIX처럼 폭락 당일 튀는 지표에서 미래훔쳐보기가 발생한다.
     """
     n = len(w)
-    pos = np.empty(n)
-    pos[0] = w[0]
-    pos[1:] = w[:-1]                    # shift(1)
+    pos = lagged_positions(w, lag)
     out = np.empty(n)
     for i in range(n):
         r = qldr[i] if pos[i] >= 1.0 else defr[i]
@@ -97,7 +133,29 @@ def mdd(cum):
     return (cum / peak - 1).min()
 
 
+def selfcheck():
+    w = np.array([1.0, 0.0, 1.0, 0.0])
+    assert np.array_equal(lagged_positions(w, 0), w)
+    assert np.array_equal(lagged_positions(w, 1), [1.0, 1.0, 0.0, 1.0])
+    q = np.array([0.10, 0.10, 0.10])
+    d = np.zeros(3)
+    sig = np.array([1.0, 0.0, 0.0])
+    assert np.allclose(bt(q, q, d, sig, cost=0, lag=0), [0.10, 0.0, 0.0])
+    assert np.allclose(bt(q, q, d, sig, cost=0, lag=1), [0.10, 0.10, 0.0])
+    dd = np.array([-0.20, -0.15, -0.12])
+    assert np.array_equal(rule_w(dd, -0.16, -0.11), [0.0, 0.0, 0.0])
+    assert not np.array_equal(rule_w(dd, -0.16, -0.11)[1:],
+                              rule_w(dd[1:], -0.16, -0.11))
+    zz = zscore([1.0, 2.0, 3.0, 4.0], win=3, minp=3)
+    assert np.isnan(zz[:2]).all() and np.isfinite(zz[2:]).all()
+    mask = np.array([1, 0, 1, 1, 0, 0], dtype=bool)
+    years = np.array([2000, 2000, 2001, 2001, 2001, 2002])
+    shuffled = year_block_permutation(mask, years, np.random.default_rng(7))
+    assert len(shuffled) == len(mask) and shuffled.sum() == mask.sum()
+
+
 def main():
+    selfcheck()
     qqq = load('qqq_us_d.csv')
     qld = load('qld_us_d.csv')
     schd = load('schd_us_d.csv')
@@ -118,8 +176,7 @@ def main():
     ddq = dd_from(qqq, 252).values
     spread_proxy = (hyg / ief)
     dds = dd_from(spread_proxy, 63).values          # HY 스프레드 확대 대용
-    ddv_vix_z = (vix - vix.rolling(756, min_periods=252).mean()) / vix.rolling(756, min_periods=252).std()
-    ddv_vix_z = ddv_vix_z.fillna(0).values
+    ddv_vix_z = zscore(vix.values)
 
     # ---------------------------------------------------------- s1. 선행성 점검
     print("\n[1] 3대 위기에서 QQQ 낙폭신호(-16%) 대비 HY스프레드/VIX 신호가 며칠 먼저 왔나")
@@ -191,7 +248,7 @@ def main():
               f"전환={turns:.0f}  Calmar={cagr/abs(m):.2f}")
 
     # ---------------------------------------------------------- s4. 플라시보 검증
-    print("\n[4] 플라시보 — 실제 신호 효과 vs 무작위 신호 (500회 부트스트랩)")
+    print("\n[4] 연 블록 플라시보 — 실제 신호 효과 vs 시점 순열 (500회)")
     rng = np.random.default_rng(42)
 
     # HY스프레드 검증
@@ -203,10 +260,8 @@ def main():
     n_early = int(early_hy.sum())
     better_hy = 0
     for _ in range(500):
-        rand_idx = rng.choice(len(ddq), size=n_early, replace=False)
-        rand_early = np.zeros(len(ddq), dtype=bool)
-        rand_early[rand_idx] = True
-        rd = np.where(rand_early & (ddq <= -0.05), -0.20, ddq)
+        rand_early = year_block_permutation(early_hy, idx.year.values, rng)
+        rd = np.where(rand_early, -0.20, ddq)
         rw = rule_w(rd, -0.16, -0.11)
         rr = bt(qqqr, qldr, defr, rw)
         rc = np.cumprod(1 + rr)[-1] ** (252 / len(rr)) - 1
@@ -222,19 +277,21 @@ def main():
     n_early_vix = int(early_vix.sum())
     better_vix = 0
     for _ in range(500):
-        rand_idx = rng.choice(len(ddq), size=n_early_vix, replace=False)
-        rand_early = np.zeros(len(ddq), dtype=bool)
-        rand_early[rand_idx] = True
-        rd = np.where(rand_early & (ddq <= -0.05), -0.20, ddq)
+        rand_early = year_block_permutation(early_vix, idx.year.values, rng)
+        rd = np.where(rand_early, -0.20, ddq)
         rw = rule_w(rd, -0.16, -0.11)
         rr = bt(qqqr, qldr, defr, rw)
         rc = np.cumprod(1 + rr)[-1] ** (252 / len(rr)) - 1
         if rc >= real_cagr_vix:
             better_vix += 1
 
-    print(f"  HY스프레드: 실제 CAGR={real_cagr_hy*100:.2f}%  무작위 중 같거나 나음={better_hy}/500 ({better_hy/500*100:.1f}%)")
-    print(f"  VIX:       실제 CAGR={real_cagr_vix*100:.2f}%  무작위 중 같거나 나음={better_vix}/500 ({better_vix/500*100:.1f}%)")
-    print(f"  (5% 미만이어야 '우연이 아니다' — 위 둘 다 20% 이상이면 거짓신호)")
+    print(f"  HY스프레드: 발동 {n_early}일(순열마다 동일)  실제 CAGR={real_cagr_hy*100:.2f}%  "
+          f"무작위 중 같거나 나음={better_hy}/500 ({better_hy/500*100:.1f}%)")
+    print(f"  VIX:       발동 {n_early_vix}일(순열마다 동일)  실제 CAGR={real_cagr_vix*100:.2f}%  "
+          f"무작위 중 같거나 나음={better_vix}/500 ({better_vix/500*100:.1f}%)")
+    rates = {'HY스프레드': better_hy / 500, 'VIX': better_vix / 500}
+    failed = ', '.join(name for name, rate in rates.items() if rate >= 0.05)
+    print(f"  (5% 미만이어야 '우연이 아니다' — 미통과: {failed or '없음'})")
 
     # ---------------------------------------------------------- s5. VIX 신호 과최적화 검증
     print("\n[5] VIX 신호 상세 진단 — 정말 좋은 신호인가 vs 과최적화인가")
@@ -255,15 +312,15 @@ def main():
 
     # Walk-forward로 재검증 — 최종 10년 OOS
     oos_start = len(idx) - 252*10
-    train_w = rule_w(np.where(early_vix[:oos_start], -0.20, ddq[:oos_start]), -0.16, -0.11)
-    test_w = rule_w(np.where(early_vix[oos_start:], -0.20, ddq[oos_start:]), -0.16, -0.11)
+    # 규칙 상태는 전구간에서 한 번만 만든다. OOS 시작일에 공격 상태로 리셋하지 않는다.
+    test_pos = lagged_positions(w_vix, 1)[oos_start:]
 
-    test_r = bt(qqqr[oos_start:], qldr[oos_start:], defr[oos_start:], test_w)
+    test_r = bt(qqqr[oos_start:], qldr[oos_start:], defr[oos_start:], test_pos, lag=0)
     test_cum = np.cumprod(1 + test_r)
     test_cagr = test_cum[-1] ** (252 / len(test_cum)) - 1
 
-    base_test_r = bt(qqqr[oos_start:], qldr[oos_start:], defr[oos_start:],
-                     rule_w(ddq[oos_start:], -0.16, -0.11))
+    base_test_pos = lagged_positions(w_base, 1)[oos_start:]
+    base_test_r = bt(qqqr[oos_start:], qldr[oos_start:], defr[oos_start:], base_test_pos, lag=0)
     base_test_cum = np.cumprod(1 + base_test_r)
     base_test_cagr = base_test_cum[-1] ** (252 / len(base_test_cum)) - 1
 
@@ -281,11 +338,11 @@ def main():
 
     # ① 주가 모멘텀 — S&P가 125일 이평 위/아래 (원본과 동일 정의)
     ma125 = spy.rolling(125, min_periods=125).mean()
-    fg_mom = ((spy / ma125 - 1).fillna(0)).values
+    fg_mom = (spy / ma125 - 1).values
 
     # ② 안전자산 선호 — 주식 20일수익 − 국채 20일수익 (원본과 동일 정의)
-    r20_spy = spy.pct_change(20).fillna(0).values
-    r20_ief = ief.pct_change(20).fillna(0).values
+    r20_spy = spy.pct_change(20).values
+    r20_ief = ief.pct_change(20).values
     fg_safe = r20_spy - r20_ief
 
     # ③ 정크본드 수요 = HY스프레드 (위에서 이미 검증, 여기선 z점수로)
@@ -294,20 +351,18 @@ def main():
     # ④ 시장 변동성 = VIX (위에서 이미 검증, 부호 반전 — 높을수록 공포)
     fg_vol = -ddv_vix_z
 
-    def z(a, win=756):
-        s = pd.Series(a)
-        return ((s - s.rolling(win, min_periods=252).mean()) / s.rolling(win, min_periods=252).std()).fillna(0).values
-
     # 0~100 공포탐욕 점수로 합성 (높을수록 탐욕)
-    fg_score = 50 + 12.5 * (z(fg_mom) + z(fg_safe) + z(fg_junk) + z(fg_vol)) / 2
+    fg_score = 50 + 12.5 * (zscore(fg_mom) + zscore(fg_safe)
+                            + zscore(fg_junk) + zscore(fg_vol)) / 2
     fg_score = np.clip(fg_score, 0, 100)
-    print(f"  합성 공포탐욕지수: 평균={fg_score.mean():.1f}  최저={fg_score.min():.1f}  최고={fg_score.max():.1f}")
+    print(f"  합성 공포탐욕지수: 평균={np.nanmean(fg_score):.1f}  "
+          f"최저={np.nanmin(fg_score):.1f}  최고={np.nanmax(fg_score):.1f}")
 
     print("\n  (6-1) 각 구성요소 단독 예측력 — 이후 21일 QQQ 수익률")
     for nm, arr, lo_is_fear in [('① 주가모멘텀', fg_mom, True), ('② 안전자산선호', fg_safe, True),
                                  ('③ 정크본드수요', fg_junk, True), ('④ 변동성(VIX)', fg_vol, True),
                                  ('⑤ 합성 공포탐욕', fg_score, True)]:
-        zz = z(arr) if nm != '⑤ 합성 공포탐욕' else (fg_score - 50) / 12.5
+        zz = zscore(arr) if nm != '⑤ 합성 공포탐욕' else (fg_score - 50) / 12.5
         fear = zz <= -1.5          # 극단적 공포
         greed = zz >= 1.5          # 극단적 탐욕
         af = fwd[fear]; af = af[~np.isnan(af)]
@@ -345,6 +400,7 @@ def main():
     cum = np.cumprod(1 + r)
     cagr = cum[-1] ** (252 / len(cum)) - 1
     m = mdd(cum)
+    contra_mdd = m
     print(f"    실제로 기존신호를 뒤집은 날 = {override}일 ({override/len(idx)*100:.1f}%)")
     print(f"    Calmar: 기존 {base_cagr/abs(base_mdd):.3f} → 역발상 {cagr/abs(m):.3f}  "
           f"({'개선' if cagr/abs(m) > base_cagr/abs(base_mdd) else '악화'})")
@@ -375,7 +431,7 @@ def main():
             better_c += 1
     print(f"    플라시보A(날짜 흩뿌리기): 이보다 좋은 비율={better_c}/500 ({better_c/500*100:.1f}%)  ※편향된 검정")
 
-    # 플라시보 B — 블록 이동. 뭉침을 유지한 채 신호 구간만 통째로 옮긴다. 이게 올바른 검정이다.
+    # 플라시보 B — 연 블록 순열. 겹침 없이 발동일 수와 연중 뭉침을 보존한다.
     seg = []
     i = 0
     while i < len(fear_mask):
@@ -390,22 +446,21 @@ def main():
     print(f"    신호 구간 개수 = {len(seg)}개 (길이: {[l for _, l in seg]})")
     better_b = 0
     for _ in range(500):
-        rm = np.zeros(len(ddq), dtype=bool)
-        for _, ln in seg:
-            st = rng.integers(0, len(ddq) - ln)
-            rm[st:st + ln] = True
+        rm = year_block_permutation(fear_mask, idx.year.values, rng)
         rw = np.where(rm, 1.0, base_w)
         rr = bt(qqqr, qldr, defr, rw)
         rc = np.cumprod(1 + rr)[-1] ** (252 / len(rr)) - 1
         if rc >= cagr:
             better_b += 1
-    print(f"    플라시보B(블록 이동): 이보다 좋은 비율={better_b}/500 ({better_b/500*100:.1f}%)  ← 이쪽이 올바른 검정")
+    print(f"    플라시보B(연 블록 순열·발동 {fear_mask.sum()}일 고정): "
+          f"이보다 좋은 비율={better_b}/500 ({better_b/500*100:.1f}%)")
 
     # 사건 단위 표본수 — 이게 진짜 n
     print(f"    ※ 실질 표본수 = 신호구간 {len(seg)}개 / 위기 3건. 통계적 결론을 내기엔 너무 적다.")
 
     # OOS
-    contra_test_r = bt(qqqr[oos_start:], qldr[oos_start:], defr[oos_start:], contra_w[oos_start:])
+    contra_test_pos = lagged_positions(contra_w, 1)[oos_start:]
+    contra_test_r = bt(qqqr[oos_start:], qldr[oos_start:], defr[oos_start:], contra_test_pos, lag=0)
     contra_test_cum = np.cumprod(1 + contra_test_r)
     contra_test_cagr = contra_test_cum[-1] ** (252 / len(contra_test_cum)) - 1
     print(f"    마지막10년 OOS: 기존 {base_test_cagr*100:.2f}% → 역발상 {contra_test_cagr*100:.2f}%  "
@@ -416,19 +471,30 @@ def main():
     print("  [v31 정정] 수준끼리의 시차상관은 자기상관 탓에 항상 0일에서 최대가 된다.")
     print("  변화량(1차차분)끼리 재야 선행/동행이 갈린다. lag<0 = 지표가 먼저 움직임")
     dq = pd.Series(np.asarray(ddq, dtype=float)).diff()
+    lag_profiles = []
     for nm, arr, flip in [('VIX z점수', ddv_vix_z, -1), ('HY스프레드', dds, 1), ('공포탐욕지수', fg_score, 1)]:
         sv = (pd.Series(np.asarray(arr, dtype=float)) * flip).diff()
         rows = [(lag, sv.shift(-lag).corr(dq)) for lag in (-20, -10, -5, 0, 5, 10)]
         best = max(rows, key=lambda x: abs(x[1]) if pd.notna(x[1]) else -1)
+        lag_profiles.append((nm, rows, best))
         txt = '  '.join(f"{l:+d}일={c:+.3f}" for l, c in rows)
         print(f"  {nm}: {txt}   ← 최대 {best[0]:+d}일")
-    print("  → 동시점 상관만 크고 시차 상관은 전부 0 근처다. 선행도 후행도 아니다.")
-    print("  → 동행지표를 신호로 쓰면 새 정보 없이 전환 횟수만 늘어난다(비용↑, 톱니↑).")
+    best_lags = [best[0] for _, _, best in lag_profiles]
+    off_peak = max(abs(c) for _, rows, _ in lag_profiles for lag, c in rows
+                   if lag != 0 and pd.notna(c))
+    print(f"  → 절대상관 최대 위치: 동시 {best_lags.count(0)}개 / "
+          f"선행 {sum(lag < 0 for lag in best_lags)}개 / 후행 {sum(lag > 0 for lag in best_lags)}개; "
+          f"비동시 최대 |상관|={off_peak:.3f}.")
+    if not any(lag < 0 for lag in best_lags):
+        print("  → 선행 시차에서 최대가 된 지표가 없어 조기경보로 쓸 새 정보 근거가 없다.")
 
     print("\n[8] 최종 결론")
     print("  기존(QQQ 낙폭만): 배수 %.2f배 / CAGR %.2f%% / MDD %.2f%% / 전환 %d회"
           % (base_cum[-1], base_cagr * 100, base_mdd * 100, np.abs(np.diff(base_w)).sum()))
-    print("  매크로 지표를 어떤 방식으로 붙여도 이보다 나아지지 않았고, 플라시보 검증도 통과하지 못했다.")
+    print(f"  연 블록 플라시보 같거나 나음: HY {better_hy/500*100:.1f}% / "
+          f"VIX {better_vix/500*100:.1f}% / 공포역발상 {better_b/500*100:.1f}%.")
+    print(f"  공포역발상은 수익은 늘었지만 MDD가 {base_mdd*100:.2f}%→{contra_mdd*100:.2f}%로 깊어졌고 "
+          f"근거 위기는 3건뿐이다.")
     print("  → 기각. 화면·전략에 반영하지 않는다.")
 
 

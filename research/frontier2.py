@@ -41,6 +41,8 @@ import eng_common as EC                                  # noqa: E402
 
 L = '=' * 100
 STRAT_B = dict(enter=-0.16, exit=-0.16, name='−16 / −16', ladder=[(('dd', -0.16), 1.0, 0)])
+RUN_COST = 0.001
+RUN_SLIP = 0.001
 WIN = [('IMF 1997', '1997-06-01', '1998-12-31'), ('닷컴 2000', '2000-03-01', '2002-12-31'), ('금융위기 2008', '2007-10-01', '2009-06-30'),
        ('코로나 2020', '2020-02-01', '2020-06-30'), ('금리 2022', '2021-11-01', '2022-12-31')]
 
@@ -69,8 +71,61 @@ def header():
     print(f"  {'후보':<40}{'최종':>10}{'vsB':>7}{'CAGR':>8}{'MDD':>8}{'Calmar':>8}{'ΔCal':>8}{'20y p05':>9}{'Δp05':>8}{'블록':>6}  관문")
 
 
+def _mapped_state(raw, exec_map):
+    """종가로 정한 상태를 첫 실제 체결 가능 세션부터 보유 상태로 바꾼다."""
+    raw = np.asarray(raw, bool)
+    exec_map = np.asarray(exec_map, int)
+    assert raw.shape == exec_map.shape
+    held = np.full(len(raw), np.nan)
+    held[0] = 0.0
+    for i, j in enumerate(exec_map):
+        if 0 <= j < len(raw):
+            held[j] = float(raw[i])
+    return pd.Series(held).ffill().fillna(0.0).values.astype(bool)
+
+
+def _attack_position(turn, initial=1.0):
+    """이진 전략의 실제 회전 경로에서 실행 공격비중을 복원한다."""
+    turn = np.asarray(turn, float)
+    assert np.all((np.abs(turn) < 1e-12) | (np.abs(turn - 1.0) < 1e-12))
+    pos = np.empty(len(turn), float); pos[0] = initial
+    for i in range(1, len(turn)):
+        pos[i] = 1.0 - pos[i - 1] if turn[i] > 0.5 else pos[i - 1]
+    return pos
+
+
+def _overlay_extra_turn(attack, hedged):
+    """B 전환비용 밖에 남는 환노출↔환헤지 한쪽 편도 회전율."""
+    attack = np.asarray(attack, float)
+    hedged = np.asarray(hedged, bool)
+    exposed_w = attack * (~hedged)
+    hedged_w = attack * hedged
+    defense_w = 1.0 - attack
+    total = 0.5 * sum(np.abs(np.diff(w, prepend=w[0]))
+                      for w in (exposed_w, hedged_w, defense_w))
+    base = np.abs(np.diff(attack, prepend=attack[0]))
+    extra = np.maximum(total - base, 0.0)
+    assert np.max(np.abs(total - (base + extra))) < 1e-12
+    return extra
+
+
+def _selfcheck_x1_execution():
+    # 같은 날 관측한 상태는 그날 수익에 쓰지 않고, 매핑된 다음 세션부터 쓴다.
+    raw = np.array([False, True, True, False])
+    held = _mapped_state(raw, np.array([1, 2, 3, 4]))
+    assert held.tolist() == [False, False, True, True]
+    # 공격비중이 그대로여도 환노출 전량을 환헤지로 바꾸면 편도 100%다.
+    extra = _overlay_extra_turn(np.ones(4), np.array([False, False, True, True]))
+    assert np.allclose(extra, [0.0, 0.0, 1.0, 0.0])
+    # 공격→방어와 오버레이 상태변경이 겹쳐도 같은 매도를 두 번 과금하지 않는다.
+    extra2 = _overlay_extra_turn(np.array([1.0, 1.0, 0.0]),
+                                 np.array([False, True, True]))
+    assert np.allclose(extra2, [0.0, 1.0, 0.0])
+
+
 # ───────────────────────────── X1 환 오버레이 (원화) ─────────────────────────────
 def x1():
+    _selfcheck_x1_execution()
     D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     krd = K.kr_caldays()
     rq = np.nan_to_num(D['px'].pct_change().values); c_d = D['c_daily']
@@ -86,12 +141,20 @@ def x1():
     sr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
     lo = idx.searchsorted(pd.Timestamp(KF.ST))
 
-    def run(qr):
+    def run(qr, overlay_held=None):
         Dx = dict(D); Dx['qldr'] = qr; Dx['schdr'] = sr
-        c, w, t = K.run_kr(Dx, STRAT_B, cost=0.001, slip=0.001, start=KF.ST, krdays=krd)
-        return pd.Series(np.asarray(c, float), index=(c.index if hasattr(c, 'index') else idx[lo:lo + len(c)]))
+        c, w, turn = K.run_kr(Dx, STRAT_B, cost=RUN_COST, slip=RUN_SLIP,
+                              start=KF.ST, krdays=krd)
+        c = pd.Series(np.asarray(c, float), index=(c.index if hasattr(c, 'index') else idx[lo:lo + len(c)]))
+        if overlay_held is None:
+            return c, 0, 0.0
+        attack = _attack_position(turn)
+        held = np.asarray(overlay_held, bool)[lo:lo + len(c)]
+        extra = _overlay_extra_turn(attack, held)
+        c = c * np.cumprod(1.0 - (RUN_COST + RUN_SLIP) * extra)
+        return c, int(np.sum(extra > 1e-12)), float(np.sum(extra))
 
-    cB = run(lev2); ixB = cB.index; mB = met(cB.values, ixB); bB = blocks(cB.values, ixB)
+    cB, _, _ = run(lev2); ixB = cB.index; mB = met(cB.values, ixB); bB = blocks(cB.values, ixB)
     print('\n' + L); print(f'X1 환 오버레이 — 원화 {ixB[0].date()}~{ixB[-1].date()} · B(환노출 2배) Calmar {mB["calmar"]:.3f} · 20y p05 {mB["p05"]:.2f}배 · MDD {mB["mdd"]:.1f}%'); print(L)
     header()
     res = {}
@@ -102,20 +165,23 @@ def x1():
             if not np.isnan(d):
                 s = True if (not s and d > th) else (False if (s and d < th / 2) else s)
             on[t] = s
-        qr = np.where(on, lev2h, lev2)
-        c = run(qr); m = met(c.values, c.index); bl = blocks(c.values, c.index); g, wins = gate(m, mB, bl, bB)
+        held = _mapped_state(on, K.kr_exec_map(idx, krd))
+        qr = np.where(held, lev2h, lev2)
+        c, n_switch, extra_turn = run(qr, held)
+        m = met(c.values, c.index); bl = blocks(c.values, c.index); g, wins = gate(m, mB, bl, bB)
         # 헤지 상태 일수 비율 · 위기 창
-        share = float(on[lo:].mean()) * 100
-        show(f'X1 θ={th*100:.0f}% (헤지 일수 {share:.0f}%)', m, mB, g, wins)
-        res[th] = (c, on)
+        share = float(held[lo:].mean()) * 100
+        show(f'X1 θ={th*100:.0f}% (헤지 {share:.0f}%·교체 {n_switch}회)', m, mB, g, wins)
+        res[th] = (c, on, held, extra_turn)
     print('\n  위기 창 MDD (원화 전략 곡선)          B(환노출)  ' + '  '.join(f'θ={th*100:.0f}%' for th in res))
     for nm, a, b in WIN:
         segB = cB.loc[a:b]; mdB = float(np.min(segB.values / np.maximum.accumulate(segB.values) - 1)) * 100
         cells = []
-        for th, (c, on) in res.items():
+        for th, (c, on, held, extra_turn) in res.items():
             seg = c.loc[a:b]; cells.append(float(np.min(seg.values / np.maximum.accumulate(seg.values) - 1)) * 100)
         print(f'  {nm:<14} {a}~{b}  {mdB:>7.1f}%  ' + '  '.join(f'{x:>6.1f}%' for x in cells))
-    return {f'X1 θ={th*100:.0f}%': gate(met(c.values, c.index), mB, blocks(c.values, c.index), bB)[0] for th, (c, on) in res.items()}
+    return {f'X1 θ={th*100:.0f}%': gate(met(c.values, c.index), mB, blocks(c.values, c.index), bB)[0]
+            for th, (c, on, held, extra_turn) in res.items()}
 
 
 # ───────────────────────────── X2 · X3 (달러 54년) ─────────────────────────────

@@ -1,7 +1,7 @@
 # 파일 분류
 
 > **먼저 `내가_보는_것/전략_요약.md`(지도) → `01_Strategy_Logic.md` 를 읽으세요.** 그 다음이 `README.md` 입니다.
-> [v65] 버전 문서 43개는 `docs/history/` 로 이동했고, 현행 내용은 루트의 `01~04_*.md` 에 통합됐습니다.
+> [v65] 당시 버전 문서 43개는 `docs/history/` 로 이동했고, 현행 내용은 루트의 `01~04_*.md` 에 통합됐습니다.
 > 이 파일은 스크립트별 상세 목록입니다.
 
 ## 폴더 구조 (2026-08-27 v39 정리)
@@ -18,7 +18,7 @@
                         (다른 세션이 research/ 안의 것을 연구자산으로 오인한 실사고 → 격리)
 README.md               전략·자동화·파일지도·오류원인·체크리스트
 HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
-CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v131)
+CLAUDE.md               AI 세션 자동 로드 규칙 — 수정 금지 목록·작업 규약 (v203)
 FILES.md                이 파일
 
 verify_all.py           ★ 검증 단일 진입점 —  python verify_all.py
@@ -50,7 +50,7 @@ research/  (129.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(
             각 파일 상단에 경로보정 3줄
 deploy/     라이브 파이프라인 — 건드리지 말 것
 data/       화면이 읽는 것 — 워크플로 소유 (freeze.json · oos_log.csv 포함)
-docs/       history/(56 — 전략_v18~v83 보관층) · raw/ · HANDOFF_전체이력
+docs/       history/(59 — 전략_v18~v203 보관층) · raw/ · HANDOFF_전체이력
 archive/    (4)  v19~v20 폐기본
 ```
 
@@ -85,22 +85,22 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | 파일 | 역할 |
 |---|---|
 | `signal.html` | GitHub Pages 로 서비스되는 신호 뷰어. **−16/−16 단일 규칙**(A 선택지는 v61 에서 화면 제거). 내 포트폴리오·체결 기록·계산기·백업(파일/CSV)·다크 모드까지 화면 전부 (v103, 기구현 목록은 CLAUDE.md §4). **한국 공휴일 반영 시계** |
-| `deploy/update_signal.py` | 매일 QQQ 종가 받아 **두 규칙을 모두** 판정 → `data/signal.json` 갱신 |
-| `deploy/refresh_hist.py` | [v72] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드) **[2026-09-03] FRED 실패 시 야후 KRW=X 로 마지막 날짜 이후만 보강** — 「짧아지면 유지」 가드는 마지막 날짜(45일)로 · **[2026-09-03] 한국 종목은 야후 실패 시 네이버 일봉 XML 로 이음**(배당락 미반영 경고) |
-| `deploy/data_check.py` | [v73] 데이터 검증 게이트 — 이상 데이터가 정상 데이터를 덮어쓰지 못하게 |
-| `deploy/notify.py` | [v73/v77] 실패·전환 알림 (카카오톡/Discord/Telegram, GitHub Secrets) |
-| `deploy/kakao_setup.py` | [v77] 카카오 알림 최초 1회 설정 (본인 PC에서 실행) |
-| `deploy/kakao_keepalive.py` | [v77] 카카오 refresh 토큰 매일 연명·자동 교체 |
-| `deploy/signal_alert.py` | [v76] 전환 신호일 폰 알림 |
-| `deploy/watchdog.py` | **[v140] 자동 파수꾼** — 「아무 일도 안 일어난 것」 감시. `stale`(신호가 3영업일 밀림) · `rebalance`(방어 30일 재조정일 — signal.html 과 같은 진입일 규약, 주기당 1회) · `channel`(알림 채널 생존, **메시지 무발송**) · **`price`[v176]**(시세 수집이 3영업일 이상 멈춤 — `price-data` 브랜치를 본다) · **`stats`[v171]**(성과 스냅샷이 45일 넘게 안 갱신 — monthly-stats 예약이 건너뛴 경우. 이후 7일 간격 재알림) · **`switchday`[v192]**(전환 실행일 아침 재알림 — 장부 `changed=1` 행 + signal.json `changed_today`, 휴장 반영 · 실행일에만) · **`near`[v192]**(게이지 「근접」 진입일 한 번 — ★ `strategies.B`·`recent[].B` 기준. 최상위 state/exit 는 A 미러(exit −11)라 읽지 않는다) · `check`(점검.py 자동 실행 → `data/ops_check.json` · **[v188] B 판정 규약 평가기 `oos_protocol_b.py --oos` 도 같이 돌려 `protocol_b` 키에 요약** — 판정은 평가기가, 파수꾼은 읽기만. 이상이면 todo 한 줄) · **`heartbeat`[v177]**(월 1회 「살아 있음」 — **안 오는 것이 곧 신호**. 상태는 ops_check.json 의 `heartbeat` 키에 얹어 새 파일·새 커밋을 안 만든다). 전략 무접촉·항상 exit 0, 이상은 `GITHUB_OUTPUT` 의 `alert=1` 로 알린다 · **`--selftest`[2026-09-03]**(합성 28경우 — switchday·near·heartbeat, 실제 data/ 무접촉. verify_all I14 가 돌린다) · **[v200] 채널 secret 전무 → 주간 이슈** |
-| `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** **매일 돌지 않음**(로컬 수동) |
-| `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). daily-signal.yml 이 매일 한 줄씩 적립. `--report` 로 괴리율 **[2026-09-03] 1차 실패 시 `kr_sources` 예비**(NAV 없어 그날 행은 안 쌓이나 스텝은 안 죽음) |
+| `deploy/update_signal.py` | 매일 QQQ **수정종가**를 받아 두 규칙을 판정 → `data/signal.json`. 원본 날짜 중복·역순·미래, 수정주가 누락, 장중 판정 메타 부재를 실패-폐쇄 |
+| `deploy/refresh_hist.py` | [v72/v203] 월 1회 원자료 11종 연장 (append-only · 비율 이음 · 장중 가드). 빈 응답·기존 끝 날짜 부재·낡은 HTTP 200·미래/중복/역순을 실패-폐쇄한다. FRED DEXKOUS는 공식 `graph/fredgraph.csv`에서 **마지막 물리 행 뒤만** 붙이고, 실패하면 검증된 Yahoo KRW=X 확정봉만 보강한다. 한국 ETF는 수정주가 없는 네이버 값으로 대체하지 않으며 **KOSPI 지수만** 네이버 일봉을 허용한다 |
+| `deploy/data_check.py` | [v73/v203] 데이터 검증 게이트 — 0행·날짜·중복·역순·비유한/0이하·열별 절대범위·OHLC 모순·각 열의 이음새 급변·공백을 막아 기존 정상 데이터를 보존 |
+| `deploy/notify.py` | [v73/v77/v203] 실패·전환 알림 (카카오톡/Discord/Telegram, GitHub Secrets). Kakao Client Secret ON/OFF 지원 · 응답 본문까지 확인 |
+| `deploy/kakao_setup.py` | [v77/v203] 카카오 알림 최초 1회 설정 (본인 PC). Client Secret 선택 입력 · 토큰 비노출 오류 처리 · 실제 시험 발송 확인 |
+| `deploy/kakao_keepalive.py` | [v77/v203] 카카오 refresh 토큰 매일 연명·자동 교체. 새 토큰 저장 실패 시 옛 토큰 즉시 무효 경고 + 실패 상태 |
+| `deploy/signal_alert.py` | [v76/v203] 전환 신호일 폰 알림. 성공한 종가일만 별도 표시해 중복을 막고, 실패하면 OOS 장부와 무관하게 다음 슬롯에서 재시도 + 이슈(메일) |
+| `deploy/watchdog.py` | **[v140/v203] 자동 파수꾼** — 신호·시세·성과·알림 채널·전환 실행일·근접 진입·재조정·주간 점검·월간 생존 알림을 감시한다. B 상태·날짜·휴장일 범위를 엄격히 검증하고 미래 날짜도 손상으로 알린다. `ops_check.json`은 원자 교체하며 전략에는 손대지 않는다. `--selftest`는 **61개** 합성 경로를 검증하고 I14가 실행한다 |
+| `deploy/build_stats.py` | 화면에 띄울 Calmar·MDD·Sortino 를 미리 계산 → `data/strategy_stats.json`. **방어자산 2안(v23 바스켓 / v21 배당100)을 둘 다 계산.** 월간 원자료 연장 뒤 자동 실행하며, 모형 변경 직후에는 수동 재생성 |
+| `deploy/nav_collect.py` | **실측 NAV 수집기** (네이버 전종목 NAV). 핵심 4종이 모두 있고 NAV·가격·괴리율·시장 종목수가 유효할 때만 원자적으로 하루를 적립한다. 가격뿐인 예비 출처로 NAV 성공을 가장하지 않으며 실패는 다음 슬롯 재시도+이슈로 남는다 |
 | `data/nav_history.csv` | 적립되는 실측 NAV·괴리율 시계열 |
-| `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **[v195] 파수꾼 주간 슬롯이 매주 돌린다** — 내용이 같으면 쓰지 않으므로 해가 바뀔 때만 커밋이 난다. 임시공휴일·선거일은 SPECIAL 에 손으로 |
-| `data/kr_holidays.json` | 휴장일 표(현재 2026~2032 · 116일). `signal.html` 시계 · `price_poll.py` · 파수꾼 `switchday` 가 읽는다(전부 오늘/미래만). **[v195] 매년 자동 연장** |
+| `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **[v195] 파수꾼 주간 슬롯이 매주 돌린다** — 내용이 같으면 쓰지 않으므로 해가 바뀔 때만 커밋이 난다. **[v203] 2026-05-01 시행 노동절·제헌절 대체휴일, KST 연경계, 임시공휴일 충돌을 반영**. 임시공휴일·선거일은 SPECIAL 에 손으로 |
+| `data/kr_holidays.json` | 휴장일 표(현재 2025~2032 · 135일). `signal.html` 시계 · `price_poll.py` · 파수꾼 `switchday` 가 읽는다(전부 오늘/미래만). **[v195] 매년 자동 연장** |
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
 | `deploy/README.md` | 배포 구조 설명 |
-| `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **[v190] 마감 전 슬롯 4개**(04:35·04:45·05:35·05:45 KST — 여름·겨울 마감 각각의 25분 전)에 떠서 wait_close.py 가 마감 뒤 5분 안에 반영. v75 슬롯 4개(05:17~09:17)는 예비로 유지 · **[2026-09-03] 커밋 push 는 rebase 재시도**(마감 전 대기 25분 동안 사람 push 와 경쟁 — 실사고) |
+| `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **예약 8슬롯**(마감 전 4+예비 4) 중 하나가 확정 종가를 잡는다. 허용한 5개 장부만 스테이징하고 예상 밖 변경은 멈춘다. non-fast-forward에서는 옛 산출물을 rebase하지 않고 실패-폐쇄해 다음 슬롯이 최신 HEAD에서 재계산한다. 알림/장부 이슈 API 실패는 커밋을 막지 않되 커밋 뒤 빨간 실행으로 드러내고 Pages는 결론과 무관하게 최신 main을 배포한다 |
 | `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검·**휴장일 표 연장**[v195]. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/source-probe.yml` | **[2026-09-03] 출처 점검(수동)** — `kr_sources.py --probe` 를 GitHub 러너(미국 IP)에서 돌려 예비 출처가 거기서도 응답하는지 본다. 읽기만(커밋 0·알림 0). 정기 실행 없음 | 러너 IP 차단 여부 확인용 |
 | `.github/workflows/pages.yml` | 갱신 후 Pages 재배포 |
@@ -108,6 +108,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `data/strategy_stats.json` | 두 전략 × 4개 기준의 성과지표. `build_stats.py` 산출물 |
 | `data/crisis_paths.json` | 위기 타임머신(v127) 데이터 — 위기 4구간의 전략/2배보유 계좌가치 경로. `research/build_crisis_paths.py` 산출물, **로컬 수동 실행**(build_stats 와 같은 포지션 — 원자료 갱신 시 재실행) |
 | `data/ops_check.json` | **[v140] 자동 점검 결과** — 전제 감시 Level·느린 변수 4종·4다리 AUM·체결비용 진행률. `deploy/watchdog.py check` 산출물(주 1회), 화면 `drawOpsCheck()` 가 읽는다. **[v177] `heartbeat` 키**(마지막 생존 알림 「달」)도 여기 얹혀 있다 — 새 파일을 안 만들려고 얹은 것이라 점검 내용과는 무관하다. **사람이 파이썬을 돌리지 않아도 되는 이유가 이 파일이다.** **[v188] `protocol_b` 키** — B 판정 규약(02 §5-1) 평가 요약(verdict·events·line·drift·todo)도 같은 이유로 여기 얹혔다 |
+| `data/signal_alert_state.json` | **[v203] 전환 폰 알림의 마지막 성공 종가일.** 알림이 실제 도착한 뒤에만 원자 기록하며, OOS 장부와 분리해 실패한 발송을 다음 슬롯이 다시 시도하게 한다 |
 | `data/retired_numbers.json` | **폐기된 공표 수치 대장** — v36 정정 등으로 죽은 값. `verify_all` I9 가 이 목록을 현행 문서에서 찾아 남아 있으면 실패시킨다(버전 문서는 그 시대 기록이라 허용하되 정정 배너를 요구) |
 | `data/qqq.csv` | 라이브 파이프라인용 QQQ 시계열 |
 | `.gitignore` | — |
@@ -205,12 +206,12 @@ v22 §5.1 이 최우선 과제로 지목한 것. 방어자산을 배당 100% 에
 | `verify_volguard.py` | **검증 관문 6종** — 엔진 정합·공표치 재현·미래참조·적립규약. v33 의 2일 지연 버그를 잡은 도구 |
 | `docs/raw/전략_v33_raw.txt` | 위 스크립트 원본 출력 |
 | `axis_volguard.py` | **변동성 조기방어 본판정** — 실제 40/40/20 바스켓·원화·A/B 두 규칙, 고정 vs 선택 대조. v31 기각을 취소시킨 근거 |
-| `axis_macro4.py` | **격자 감사** — MDD 표면이 평지인지 확인(42칸), 프론티어 대조, 앙상블 |
+| `axis_macro4.py` | **격자 감사** — 등록된 42칸 모두 MDD 개선(평지). v203에서 역방향 비교·잘못된 80칸 회귀를 교정, WFA는 Calmar로 선택 |
 | `docs/raw/전략_v32_raw.txt` | 위 두 스크립트 원본 출력 |
 | `axis_macro3.py` | **v30 방법론 감사 + 남은 3축 종결** — 시차상관 정정(변화량), 분위누수 제거, 금리차·복귀필터·변동성 조기방어. **권장 진입점** |
 | `docs/raw/전략_v31_raw.txt` | 위 스크립트 원본 출력 |
-| `axis_macro.py` | **매크로·심리 지표 기각(2011-)** — VIX·하이일드·공포탐욕 조기경보 5관문. 체결규약 위반 시 부호가 뒤집히는 사례 |
-| `axis_macro2.py` | **같은 판정을 1972- 로 확장** — 짧은 창에서 통과한 역발상이 닷컴에서 −51%p |
+| `axis_macro.py` | **매크로·심리 지표 기각(2011-)** — VIX·하이일드·공포탐욕 조기경보 5관문. v203에서 인과 지연·워밍업·비중첩 플라시보 교정 |
+| `axis_macro2.py` | **같은 판정을 1972- 로 확장** — 짧은 창에서 통과한 역발상이 닷컴에서 붕괴. v203에서 OOS 상태 연속성 교정 |
 | `docs/raw/전략_v30_raw.txt` | 위 두 스크립트 원본 출력 |
 | `axis_isa.py` | **ISA 세후 판정** — 과세이연/세율/비과세 4단계 분해 + 3년해지 비교. `--emit` 로 `data/isa_stats.json` |
 | `docs/raw/전략_v29_raw.txt` | 위 스크립트 원본 출력 |
@@ -227,7 +228,7 @@ v22 §5.1 이 최우선 과제로 지목한 것. 방어자산을 배당 100% 에
 
 | 파일 | 역할 |
 |---|---|
-| `docs/history/전략_v64.md` | **최신.** 지표 풀이 네 줄 + 값에 강조색 · MDD 방향 표시 정정. **규칙 변경 없음** |
+| `docs/history/전략_v203_통합코드리뷰.md` | **최신.** 연구·배포 코드 통합 리뷰 정정표와 재검증 결과. **전략 B 규칙 변경 없음** |
 | `docs/history/전략_v63.md` | 같은 기간으로 맞춘 표 — 최근 5·10·15년은 2배 보유 승, 20년에서 뒤집힘 |
 | `docs/history/전략_v62.md` | 지표를 「그래서 얼마냐」로 번역 + 체결 시각 모순 정정(v18 잔재) |
 | `docs/history/전략_v61.md` | A(−16/−11) 화면 제거 + 지표에 눈금(2배 보유·방어 단독) |
@@ -236,14 +237,14 @@ v22 §5.1 이 최우선 과제로 지목한 것. 방어자산을 배당 100% 에
 | `docs/history/전략_v36.md` | 국채 다리 선물형 정정 — 드리프트 +2.84%→−0.18%. 채택 결정 유지, 공표수치 −18.6% |
 | `docs/history/전략_v35.md` | 전수조사(59파일, HIGH 0건 · 시점별 재계산 0/40) + 라이브 종가 미갱신 수정 |
 | `docs/history/전략_v34.md` | 전면 감사 — 채택 결정 전부 유지, 실패 0건. 남은 경고는 국채 롤 비용 1건 |
-| `docs/history/전략_v33.md` | 적립 시뮬레이터 2일 지연 버그 정정 — v29 ISA +48.8%→+48.8%. 결론 불변 |
+| `docs/history/전략_v33.md` | 적립 시뮬레이터 2일 지연 버그 정정의 당시 기록. **ISA 현행 수치는 v203 재정정** |
 | `docs/history/전략_v32.md` | 변동성 조기방어 재심 — v31 기각근거 2개는 틀렸지만 **적립식에서 재기각**. 전략 변경 없음 |
 | `docs/history/전략_v31.md` | v30 감사(근거 3개 정정) + 금리차·복귀필터·변동성 조기방어 기각. 전략 변경 없음 |
 | `docs/history/전략_v30.md` | 매크로·심리 지표 전부 기각 — 동행지표라 새 정보가 없다. **v31 로 정정됨** |
-| `docs/history/전략_v29.md` | ISA 서민형 세후 — 일반계좌 대비 +48.8%, 이득의 80%는 과세이연. 화면 반영 |
+| `docs/history/전략_v29.md` | ISA 서민형 세후의 당시 기록. **v203 재정정: 일반계좌 대비 +54.7%, 이득의 83%는 과세이연** |
 | `docs/history/전략_v28.md` | 신호원은 미국 QQQ 종가 — 국내 종가로 재면 1997- −92%, MDD +21%p |
 | `docs/history/전략_v27.md` | 방어 안에서의 선택 기각 + 월간 재조정 비용 버그 정정. 분산 자체가 알파 |
-| `docs/history/전략_v26.md` | 적립식 재검증 — 불규칙 납입도 순위 불변. 실무 최소 월납입 15만원 |
+| `docs/history/전략_v26.md` | 적립식 재검증 — 불규칙 납입도 순위 불변. 실무 최소 월납입은 현재가에서 자동 계산 |
 | `docs/history/전략_v25.md` | 남은 과제 3건 완결 — 실측 괴리율·레버리지 검증·제헌절. **v24 §3.3/§3.4 정정** |
 | `docs/history/전략_v24.md` | 상품 사양 실측·공휴일. §3.3/§3.4 는 v25 에서 정정됨 |
 | `docs/history/전략_v23.md` | **채택안.** 방어자산 = 배당40 / 미국채40 / 금20 (전부 국내 상장·환노출) |
@@ -323,7 +324,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 | 언제 |
 |---|---|---|
-| `verify_all.py` | **단일 진입점.** 불변식 12종(I1~I12). 4초 | 뭔가 고쳤으면 항상 · **I14**[2026-09-03] 셀프테스트(파수꾼 `--selftest` · wait_close `--selftest`, 전체 모드) |
+| `verify_all.py` | **단일 진입점.** 불변식 14종(I1~I14). 약 7초 | 뭔가 고쳤으면 항상 · **I14** 운영·알림·자료 갱신·배포 셀프테스트 16종(전체 모드) |
 | `audit_full.py` | 59파일 AST 전수조사 + **시점별 재계산** | 정기 / CI |
 | `audit_all.py` | 채택 결정 재검증 (달러·원화) | 모형을 바꿨을 때 |
 | `verify.py` | 채택안 단독 검산 (140.0배) | 참조 구현 |
@@ -350,12 +351,12 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/axis_gate11.py` | G11 집중도 + leave-one-crisis-out (v53) | 독립위기 9개 |
 | `research/axis_ext2.py` | 외부정보 2차 — 상태변수·SPY 제외 (v54) | 26전 0승 |
 | `research/axis_ext2_probe.py` | v54 최선후보 G1 정밀검증 | 4블록 2/4 |
-| `research/axis_mech.py` | 운용 메커니즘 29후보 (v55) | 4/6 도달 0 |
+| `research/axis_mech.py` | 운용 메커니즘 29라벨·중복 제거 27경로 (v55·v203) | G1~G6 전부 통과 0/27 |
 | `research/axis_selbias.py` | 선택편향 감사 T1~T4 (v56) | 편향 지문 없음 |
 | `research/axis_minimax.py` | 비중첩 6구간 미니맥스 순위 (v56) | 현행 3위/210 |
 | `research/axis_selbias_disjoint.py` | v56 T3 정정 — 비중첩 창 (v57) | 0/4, −6~37% |
 | `research/axis_meta.py` | Meta-Strategy 7종 + Oracle (v58) | 상한의 0% 이하 |
-| `research/axis_meta_crisis.py` | 메타가 왜 못 고르는가 (v58) | 직전1등 일치 1/4 |
+| `research/axis_meta_crisis.py` | 메타가 왜 못 고르는가 (v58·v203) | 완결된 다음 10년 기준 직전1등 일치 1/3 |
 | `research/axis_forward.py` | 미래위험·CVaR·변화점·episode·반등의질 (v59) | Oracle +1030%, 포착 0 이하 |
 
 **v60 은 연구가 아니라 표시 지표 추가다** — 전략을 바꾸지 않았다.
@@ -391,13 +392,13 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 |
 |---|---|
-| `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). 판정 규약 전력 분석(3년 창 동전던지기) + 기전 직접 측정(M1 73%·M2 77%) + 무거래 밴드 기각 |
+| `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). v203 공통 사건계약 21회: 공식 M1(<0.7) 76% · M2 81% · 동시 67% (민감도 M1<0.5는 67%), 무거래 밴드 기각 |
 | `research/axis_t4_synthcrash.py` | 합성 하락장 해부 — 닷컴형 B 60% 구조·2008 은 소수 추첨(~29%). 시간추세 없음 · ¼ 양자화 유효 · 혼합 프런티어 · 비용 민감도 |
 | `research/axis_t4_krcost.py` | 한국비용(0.2%) 내성 변형 9종 — 관문 K1~K7 사전 고정, **전멸** |
-| `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 무적 · 기전 68%(재난보험형) · 사각지대 최장 112일 |
-| `research/axis_nextgen.py` | [v87] B+T4 구조 결합 23종 — 관문 N1~N8 사전 고정, **전멸**. 괴리 비대칭·T4 분해·최소 후회 |
-| `research/axis_finalverify.py` | [v88] 최종 검증 — B 비용 ×3 생존(J1) · 지연 비선형(1987 lag=2 −72%) · 감속 회피 23%/기회 77% · 그림자 채점 템플릿 · 실측 수집 감사 |
-| `research/axis_horizon.py` | [v88 부록2] 보유기간별 원금손실 — 1년 21.6% / 5년 0.7% / **10년+ 0.0%** (최악 20년 창 15.9배) |
+| `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 내성 · 사건승 15/21=71%(재난보험형) · 사각지대 최장 112일. v203 교정 후 문턱 통과 |
+| `research/axis_nextgen.py` | [v87·v203] 평가행 24개 = 명목 신규 22 + 대조 2. 중복 제거 시 신규 20경로 — 관문 N1~N8 **전멸**. 괴리 비대칭·T4 분해·최소 후회 |
+| `research/axis_finalverify.py` | [v88·v203] 최종 검증 — 현행 40/40/20 방어를 일관 적용, 비용·지연·사건창·실측 장부를 다시 계산. J1 생존 · J2/J3 대기 결론 유지 |
+| `research/axis_horizon.py` | [v88 부록2·v203] 달력 월 시작 보유기간별 원금손실 — 1년 21.3% / 5년 1.0% / **10년+ 0.0%** (최악 20년 창 17.90배) |
 | `docs/history/전략_v80~v83.md` | 기록 4편. **v80 §6·§7 = 판정 부속서 (수정 금지)** · v82 = 룰 감사 |
 
 ---
@@ -528,7 +529,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|
 | `deploy/stamp_rev.py` | 배포본에 **화면 개정 시점**을 박는다 — signal.html 커밋 제목의 vNN 을 추출(그래서 커밋 제목에 vNN 필수) |
 | `deploy/wait_close.py` | **[v75]** 종가 확정 대기 루프 — GitHub 예약 실행이 슬롯을 통째로 건너뛰는 실측 사례에 대응. **[v190] 마감 전에 뜨면 마감까지 자고 20초 간격으로 종가가 굳는 순간을 잡는다**(쓰기 전 30초 안정 확인 · 큰 움직임이면 대조 소스 CLOSE 까지 최대 15분 대기 · 마감 뒤 8분 안 굳으면 조용히 종료해 다음 슬롯에 맡김). `--selftest` 가짜 시계 9경로 |
-| `.github/workflows/monthly-stats.yml` | 매월 1일 성과표·지평표 데이터 최신화 (검증 통과 시에만) · **[2026-09-03] push rebase 재시도** |
+| `.github/workflows/monthly-stats.yml` | 매월 1일 원자료·성과표·지평표 최신화. 정확한 산출물만 스테이징하고 검증 통과 시 커밋하며, push 경합은 rebase하지 않고 실패-폐쇄해 최신 HEAD 수동 재실행에 맡긴다 |
 | `.github/workflows/notify-test.yml` | **[v76]** secret 등록 후 알림 채널 수동 연결 확인. 예약 실행 없음 |
 
 ### 9-9. 화면·시세 (v142~v147)
@@ -537,8 +538,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|
 | `deploy/price_now.py` | **[v145] 4다리 시세 스냅샷** → `data/price.json`. 출처는 `nav_collect.py` 와 **같은 엔드포인트**(네이버 ETF 목록, cp949) — 새 의존성 0. 가격·등락률·NAV·괴리율. **★ 표시 전용 · 판정 무접촉** (실패해도 신호 무영향이라 항상 exit 0, 기존 파일을 덮어쓰지 않는다) **[2026-09-03] 1차(네이버 목록) 실패·종목 누락 시 `kr_sources` 예비 체인이 그 종목만 채움** — `source` 필드에 출처 표기 · **[v200] 예비 가격 가드** — nav_history 마지막 종가와 25% 넘게 어긋나면 싣지 않음 |
 | `deploy/kr_sources.py` | **[2026-09-03] 한국 시세 예비 출처 체인** — 네이버 polling → 네이버 모바일 → 다음(카카오) → 토스 → 야후 → 구글(HTML). `quotes(codes)` 는 네이버 목록 모양(NAV 없음)으로 돌려줘 `price_now.build` 가 그대로 먹는다 · `history_df` 는 네이버 일봉 XML(수정주가 아님) · `--probe` 생존 표. **표시·기록·원자료 전용 — 판정 경로엔 없다**(verify_all 관문) | 실측 2026-09-03 KR IP: 6/6 응답 · 값 일치 |
-| `deploy/price_poll.py` | **[v190] 장중 시세 폴러** — 「5분마다」를 예약이 아니라 한 실행 안에서 지킨다(종전 `*/5` 예약은 84슬롯 중 17개만 떴다 — 2026-09-01 실측). 개장까지 대기 → 5분 경계+20초마다 price_now 와 같은 수집 → 값이 바뀌면 price-data 브랜치 덮어쓰기(임시 저장소, 항상 커밋 1개) → `gh workflow run pages.yml` 로 배포 → 12:26 에 오후 실행 인계. 배포 깨우기가 막히면 즉시 종료해 종전 방식으로 물러선다. `--selftest`(구간·정렬·휴장·하루 85스냅샷) · `--dry-run` · `--mode once` |
-| `.github/workflows/price.yml` | **[v145]** 한국장 중 시세 스냅샷. **[v190] 예약이 아니라 폴러** — 개장 전 슬롯(08:30·08:40·08:50 KST)에 뜬 실행이 09:00:20 부터 5분마다 찍고 12:26 에 오후 실행에 넘긴다. 예비 슬롯 매시 :20·:50(폴러가 죽었을 때만 이어받음). `actions: write` 는 배포 깨우기용. 알림 없음 — 낡으면 화면이 「몇 분 전」으로 스스로 밝힌다 |
+| `deploy/price_poll.py` | **[v190/v203] 장중 시세 폴러** — 한 실행 안에서 5분 경계를 지킨다. 검증된 한국 휴장일 표가 없거나 범위 밖이면 거짓 신선도를 만들지 않고 중단한다. 값이 바뀌면 price-data 브랜치를 커밋 1개로 덮어쓰고 Pages를 깨운다. `--selftest`(요일·구간·정렬·휴장·하루 85스냅샷) |
+| `.github/workflows/price.yml` | **[v145/v203]** 개장 전 08:30·08:40·08:50 KST **월~금** 슬롯(UTC 일~목)과 매시 예비 슬롯. 월요일 누락·토요일 오실행을 정적 관문으로 막는다 |
 | `research/emit_dd_distribution.py` | **[v164] 낙폭 백분위 산출** → `data/dd_percentile.json`. `hist_defensive.build('chain')['ddv']` 를 **읽기 전용**으로 써 1~99 백분위 경계를 뽑는다. **[v197] `monthly-stats.yml` 이 원자료 연장 직후 매월 돌린다**(1초 · 같은 원자료면 산출 동일). v164 의 「연 1회 수동」은 원자료 연장이 자동인데 파생물만 수동이라 조용히 낡는 구조였다 |
 | `data/dd_percentile.json` | **[v164]** 위 산출물. 화면이 「오늘 낙폭이 54년 중 어느 깊이인가」를 말할 때 읽는 자. **판정에 쓰지 않는다** |
 | `data/price.json` | **[v145·v176]** 위 산출물. 화면 `loadPrice()` 가 읽어 배지·현재가 기본값에만 쓴다. **`update_signal.py` 가 이 파일을 읽으면 verify_all 이 실패한다**(동결 규칙 보호). ★ **v176 부터 main 에 없다** — `price-data` 브랜치(항상 커밋 1개)가 원본이고 `.gitignore` 에 있다. 배포가 그 브랜치에서 가져오며, **못 가져오면 싣지 않는다** (옛 값을 새 값인 척 보여주지 않는다) |

@@ -38,6 +38,19 @@ jobs:
         with:
           python-version: '3.12'
 
+      # 한 잡 안에서 refresh 토큰이 회전하면 GITHUB_ENV의 새 값을 후속 모드가 쓴다.
+      # 각 step에서 queued secret을 재선언하면 새 값이 다시 옛 값으로 덮이므로 여기서 한 번만 초기화한다.
+      - name: 카카오 refresh 토큰 초기화
+        env:
+          INITIAL_KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+        run: |
+          if [ -n "$INITIAL_KAKAO_REFRESH_TOKEN" ]; then
+            case "$INITIAL_KAKAO_REFRESH_TOKEN" in
+              *$'\n'*|*$'\r'*) echo "::error::카카오 refresh 토큰에 줄바꿈이 있다"; exit 1 ;;
+            esac
+            printf 'KAKAO_REFRESH_TOKEN=%s\n' "$INITIAL_KAKAO_REFRESH_TOKEN" >> "$GITHUB_ENV"
+          fi
+
       # ① 신호가 며칠째 그대로인가 — 3영업일마다 한 번만 알린다(알림 피로 방지)
       - name: 신호 신선도
         id: stale
@@ -48,7 +61,8 @@ jobs:
         if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -61,7 +75,8 @@ jobs:
         if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -74,7 +89,8 @@ jobs:
         if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -88,7 +104,8 @@ jobs:
         if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -97,10 +114,10 @@ jobs:
       # ② 알림 채널이 살아 있나 — 메시지는 보내지 않고 자격증명만 확인(평시 소음 0)
       - name: 알림 채널 생존
         id: chan
-        if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -113,7 +130,8 @@ jobs:
         if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -125,7 +143,8 @@ jobs:
         if: github.event.schedule != '10 0 * * 1'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -141,7 +160,8 @@ jobs:
         if: env.WEEKLY == 'true'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -156,13 +176,14 @@ jobs:
         if: env.WEEKLY == 'true'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 deploy/watchdog.py heartbeat
 
-      # ⑤ [v195] 휴장일 표 연장 — 표는 2026~2032 로 **조용히 끝나는 파일**이다. 사람이 2032 년에 기억해서
+      # ⑤ [v195] 휴장일 표 연장 — 표는 2025~2032 로 **조용히 끝나는 파일**이다. 사람이 2032 년에 기억해서
       #   다시 만들 리 없으므로 매주 재생성해 해가 바뀌면 한 해씩 민다. 내용이 같으면 emit 이 파일을
       #   쓰지 않는다 → 커밋도 없다. 임시공휴일·선거일은 여전히 deploy/kr_holidays.py 의 SPECIAL 에 손으로.
       - name: 휴장일 표 연장
@@ -182,9 +203,9 @@ jobs:
           else
             LV=$(python3 -c "import json;print(json.load(open('data/ops_check.json'))['level'])")
             git commit -m "ops: 자동 점검 — Level ${LV} (+생존 기록·휴장일 표)"
-            # 「일일 신호 갱신」과 시간대가 겹칠 수 있다(대기 루프가 최대 170분).
-            # 그쪽이 먼저 밀어 넣었으면 rebase 후 재시도한다 — 쓰는 파일이 달라 충돌은 없다.
-            git push || { git pull --rebase --autostash origin main && git push; }
+            # [v203] non-fast-forward면 옛 점검 코드의 산출물을 새 코드 위에 얹지 않는다.
+            # 실패-폐쇄하고 이슈를 남기면 다음 주간 슬롯이 새 HEAD로 다시 계산한다.
+            git push
           fi
 
       # 사람이 개입해야 하는 상황이면 이슈로도 남긴다 — 카톡이 죽었을 때의 마지막 통로
@@ -194,11 +215,12 @@ jobs:
         # 그 4모드가 크래시할 때 남기는 alert=1 을 아무도 읽을 수 없었다(무음 실패).
         # watchdog.py 는 어떤 모드도 non-zero 로 끝나지 않으므로 이 조건이 유일한 통로다.
         if: >-
+          always() && (failure() ||
           steps.stale.outputs.alert == '1' || steps.chan.outputs.alert == '1' ||
           steps.stats.outputs.alert == '1' || steps.price.outputs.alert == '1' ||
           steps.chk.outputs.alert == '1' || steps.reb.outputs.alert == '1' ||
           steps.sw.outputs.alert == '1' || steps.near.outputs.alert == '1' ||
-          steps.hb.outputs.alert == '1'
+          steps.hb.outputs.alert == '1')
         uses: actions/github-script@v7
         with:
           script: |

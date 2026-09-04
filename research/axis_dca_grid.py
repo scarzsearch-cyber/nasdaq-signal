@@ -144,6 +144,7 @@ def blocks(rk, dfr, ddv, cand, mstart, idx, pay):
     cs = {k: curve_of(rk, dfr, rule_w(ddv, *k)) for k in cand}
     base = cs[CUR]
     print("  %-12s" % '규칙' + ''.join('%11s' % s[0] for s in segs) + "%10s" % '최악')
+    out = {}
     for k in cand:
         row, rel = [], []
         for _, a, b_ in segs:
@@ -152,11 +153,22 @@ def blocks(rk, dfr, ddv, cand, mstart, idx, pay):
             v = dca_fast(cs[k], mstart, lo, hi, pay)
             v0 = dca_fast(base, mstart, lo, hi, pay)
             rel.append(v / v0 - 1)
+        out[k] = rel
         mk = '  <- 현행' if k == CUR else ''
         print("  %-12s" % ('%.0f/%.0f' % (k[0] * 100, k[1] * 100))
               + ''.join('%10.0f%%' % (r * 100) for r in rel)
               + '%9.0f%%%s' % (min(rel) * 100, mk))
     print()
+    return out
+
+
+def robust_joint(w1, w2, block_rel):
+    """두 납입규약에서 *같은* 후보가 이기고 네 블록도 모두 비악화해야 한다."""
+    a = {row[0] for row in w1}
+    b = {row[0] for row in w2}
+    common = a & b
+    robust = {k for k in common if k in block_rel and min(block_rel[k]) >= 0}
+    return common, robust
 
 
 def main():
@@ -189,17 +201,24 @@ def main():
                            "2. 영구형 — 20년 내내 매달 납입 (\"매달매달\")")
 
     top2 = sorted(combos, key=lambda k: -np.median(r2[k]))[:4]
+    preliminary_common = {row[0] for row in w1} & {row[0] for row in w2}
     cand = [CUR] + [k for k in top2 if k != CUR]
-    blocks(rk, dfr, ddv, cand, mstart, idx, 10 ** 9)
+    cand += [k for k in sorted(preliminary_common) if k not in cand]
+    block_rel = blocks(rk, dfr, ddv, cand, mstart, idx, 10 ** 9)
+    common, robust = robust_joint(w1, w2, block_rel)
+
+    # 서로 다른 승자 하나씩으로는 통과할 수 없다. 네 블록 중 하나라도 지면 탈락한다.
+    fake1 = [((-.10, -.10), {}, 1.0)]
+    fake2 = [((-.11, -.11), {}, 1.0)]
+    assert robust_joint(fake1, fake2, {}) == (set(), set())
 
     print("=" * 96)
     print(verdict('적립식에서 현행을 바꿔야 하는가', [
-        ('ISA형에서 현행을 모두 이긴 규칙이 있다', len(w1) > 0,
-         '%d개 (현행 중앙 %d위/%d)' % (len(w1), m1, len(combos))),
-        ('영구형에서 현행을 모두 이긴 규칙이 있다', len(w2) > 0,
-         '%d개 (현행 중앙 %d위/%d)' % (len(w2), m2, len(combos))),
-    ], adopt_if=['ISA형에서 현행을 모두 이긴 규칙이 있다',
-                 '영구형에서 현행을 모두 이긴 규칙이 있다'])['text'])
+        ('같은 규칙이 ISA형·영구형을 모두 이긴다', bool(common),
+         '%d개 (ISA %d개 · 영구 %d개)' % (len(common), len(w1), len(w2))),
+        ('그 규칙이 겹치지 않는 네 시대에서도 안 진다', bool(robust),
+         '%d개' % len(robust)),
+    ])['text'])
 
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@
 
   · 물속에 잠겨 있는 기간 (전 고점 회복까지)
   · 원금 밑으로 내려갈 확률
-  · 손실을 이익보다 크게 느끼는 성향 (손실회피)
+  · 위험을 얼마나 싫어하는지(CRRA 효용)
 
 목적함수가 바뀌면 최적 규칙도 바뀔 수 있다. v41 에서 Calmar 로 재니
 -12/-6 이 이겼던 것처럼. 여기서는 5가지 목적함수로 다시 훑는다.
@@ -17,8 +17,8 @@
   O2 좌측꼬리        20년창 5분위 (v41 에서 채택한 관문)
   O3 언더워터 기간    전 고점 아래 머문 기간의 중앙/최악
   O4 원금손실 확률    적립식에서 평가액 < 납입액이 될 확률·기간
-  O5 손실회피 효용    Kahneman-Tversky 형 (손실을 2.25배로 느낀다)
-  O6 CRRA 효용       위험회피계수 gamma=2, 5
+  O5 CRRA 효용       위험회피계수 gamma=2
+  O6 CRRA 효용       위험회피계수 gamma=5
 
 [주의] 목적함수를 늘리면 '어느 하나에서는 이기는' 규칙이 반드시 나온다.
        그게 v41 의 교훈이다(Calmar 만 보면 속는다). 그래서 **여러 목적함수에서
@@ -41,9 +41,6 @@ try:
     _sys.stdout.reconfigure(encoding='utf-8')
 except Exception:
     pass
-
-LAMBDA = 2.25          # 손실회피 계수 (Kahneman-Tversky 추정치)
-
 
 def underwater(c):
     """전 고점 아래 머문 구간들의 길이(거래일). 반환 (중앙, 최악)"""
@@ -71,12 +68,6 @@ def crra(x, g):
         return float(np.exp(np.mean(np.log(x))))
     u = (x ** (1 - g) - 1) / (1 - g)
     return float((np.mean(u) * (1 - g) + 1) ** (1 / (1 - g)))
-
-
-def loss_averse(x, ref):
-    """손실회피 효용 — 기준점(ref) 대비 손실은 LAMBDA 배로 느낀다."""
-    d = np.asarray(x, dtype=float) / ref - 1
-    return float(np.mean(np.where(d >= 0, d, LAMBDA * d)))
 
 
 def main():
@@ -134,16 +125,17 @@ def main():
                       uw_med=uwm / 252, uw_max=uwx / 252,
                       crra2=crra(rr, 2), crra5=crra(rr, 5), rr=rr, w=w)
 
-    # 적립식 원금손실은 비싸므로 상위 후보만
+    # O4도 목적함수다. 종전엔 CRRA5 상위 6개+A/B만 재고 그 안의 1등을
+    # 격자 210개 1등처럼 인쇄했다. 느려도 전 격자를 같은 잣대로 잰다.
     B = res[(-0.16, -0.16)]
-    cand = sorted(combos, key=lambda c: -res[c]['crra5'])[:6]
-    for c in set(cand) | {(-0.16, -0.16), (-0.16, -0.11)}:
+    for c in combos:
         under = []
         for s in st[::3]:
             v, p = accum(res[c]['w'], s, s + L)
             m = p > 0
             under.append(float((v[m] < p[m]).mean()))     # 원금 밑에 있던 시간 비율
         res[c]['under'] = float(np.median(under))
+    assert len([c for c in combos if 'under' in res[c]]) == len(combos)
     Bu = res[(-0.16, -0.16)]['under']
 
     def show(title, key, rev=False, fmt='{:.2f}', unit=''):
@@ -163,7 +155,7 @@ def main():
     show('O2 좌측꼬리 (20년창 5분위)', 'p5')
     show('O3 언더워터 기간 — 중앙 (짧을수록 좋음, 년)', 'uw_med', rev=True)
     show('O3 언더워터 기간 — 최악 (년)', 'uw_max', rev=True)
-    show('O5+O6 CRRA 효용 gamma=2', 'crra2')
+    show('O5 CRRA 효용 gamma=2', 'crra2')
     show('O6 CRRA 효용 gamma=5 (강한 위험회피)', 'crra5')
 
     print("=== O4 원금손실 — 적립식에서 평가액<납입액 인 시간 비율 ===")
@@ -196,6 +188,8 @@ def main():
          f'최고 {top[0]*100:.0f}/{top[1]*100:.0f} 가 {winners[top]}/6'),
         ('그 규칙이 좌측꼬리도 지킨다', res[top]['p5'] >= B['p5'],
          f"{res[top]['p5']:.1f} vs {B['p5']:.1f}"),
+        ('그 규칙이 적립식 원금손실도 늘리지 않는다', res[top]['under'] <= B['under'],
+         f"{res[top]['under']*100:.2f}% vs {B['under']*100:.2f}%"),
     ])
     print()
     print(v['text'])

@@ -16,7 +16,10 @@ import numpy as np, pandas as pd
 import hist_defensive as DF
 from axis_lib import rule_w, lev_r, COST
 from axis_defmix import materials, mix_monthly_from
-sys.stdout.reconfigure(encoding='utf-8')
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 D=DF.build('chain'); idx=D['idx']
 comp=materials(D)
 dfr=mix_monthly_from({k:comp[k] for k in ('div','ust5','gold')},{'div':.4,'ust5':.4,'gold':.2},idx)
@@ -32,7 +35,7 @@ def seg(c,a,b):
     return float(C[c][hi-1]/C[c][lo])
 CUR=(-0.16,-0.16)
 print("  [정정] v56 의 T3 은 평가창이 전부 2026 에서 끝나 **서로 포함관계**였다.")
-print("         '7/7' 은 독립 관측 7개가 아니다. 겹치지 않게 다시 잰다.\n")
+print("         '0/7' 은 독립 관측 7개가 아니다. 겹치지 않게 다시 잰다.\n")
 print("  겹치지 않는 평가창 (선택은 그 시점 이전 자료로만)")
 print("  %-10s%-12s%12s%12s%10s"%('선택시점','뽑힌 규칙','이후 선택','이후 고정','차이'))
 BL=[('1986-01-01','1995-12-31',1985),('1996-01-01','2005-12-31',1995),

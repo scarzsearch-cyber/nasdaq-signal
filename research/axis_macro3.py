@@ -51,7 +51,9 @@ def zc(a, win=756, minp=252, shift=False):
     m = s.rolling(win, min_periods=minp).mean()
     sd = s.rolling(win, min_periods=minp).std()
     out = (s - m) / sd
-    return (out.shift(1) if shift else out).fillna(0).values
+    # NaN은 '중립 z=0'이 아니라 아직 쓸 수 없는 자료다. 그대로 두면 조기방어
+    # 비교는 False가 되고, 복귀 필터에서는 아래 available_or()가 기존 B를 보존한다.
+    return (out.shift(1) if shift else out).values
 
 
 def exp_q(a, q, minp=252):
@@ -60,13 +62,57 @@ def exp_q(a, q, minp=252):
     return s.expanding(min_periods=minp).quantile(q).shift(1).values
 
 
+def lagged_positions(w, lag=1):
+    """종가 신호를 정확히 ``lag`` 거래일 뒤 포지션으로 옮긴다."""
+    w = np.asarray(w, dtype=float)
+    if lag < 0:
+        raise ValueError('lag must be non-negative')
+    if len(w) == 0 or lag == 0:
+        return w.copy()
+    pos = np.empty_like(w)
+    k = min(lag, len(w))
+    pos[:k] = w[0]
+    if lag < len(w):
+        pos[lag:] = w[:-lag]
+    return pos
+
+
+def pair_corr(a, b):
+    """두 배열에서 실제로 함께 존재하는 관측치만 상관에 사용한다."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    ok = np.isfinite(a) & np.isfinite(b)
+    return np.corrcoef(a[ok], b[ok])[0, 1] if ok.sum() >= 2 else np.nan
+
+
+def year_block_permutation(mask, years, rng):
+    """연 블록 순열. 겹침 없이 길이·발동일 수를 정확히 보존한다."""
+    mask = np.asarray(mask, dtype=bool)
+    years = np.asarray(years)
+    if len(mask) != len(years):
+        raise ValueError('mask and years must have the same length')
+    if len(mask) == 0:
+        return mask.copy()
+    uniq = pd.unique(years)
+    chunks = [mask[years == year] for year in uniq]
+    out = np.concatenate([chunks[i] for i in rng.permutation(len(chunks))])
+    if len(out) != len(mask) or int(out.sum()) != int(mask.sum()):
+        raise AssertionError('year-block permutation changed mask size')
+    return out
+
+
+def available_or(a, condition):
+    """자료가 없을 때는 복귀를 막지 않고 기존 B의 판단을 통과시킨다."""
+    a = np.asarray(a, dtype=float)
+    return ~np.isfinite(a) | np.asarray(condition, dtype=bool)
+
+
 def sim(D, w, cost=COST, lag=1, lo=0, hi=None):
     n = len(D['idx']) if hi is None else hi
     sl = slice(lo, n)
-    wv = w[sl]
-    pos = np.empty_like(wv)
-    pos[:lag] = wv[0]
-    pos[lag:] = wv[:-lag]
+    # 먼저 전체 경로를 지연하고 나중에 자른다. OOS/연도 경계에서도 직전
+    # 신호를 잃지 않으며 lag=0은 당일 포지션을 그대로 쓴다.
+    pos = lagged_positions(w, lag)[sl]
     r = np.nan_to_num(pos * D['qldr'][sl] + (1 - pos) * D['schdr'][sl])
     r[0] = 0.0
     turn = np.abs(np.diff(pos, prepend=pos[0]))
@@ -74,9 +120,21 @@ def sim(D, w, cost=COST, lag=1, lo=0, hi=None):
 
 
 def stats(cum, n):
+    """이 보관 연구표는 252거래일 연율을 쓴다.
+
+    [v203 교차검산] 실제 달력연수로 전 WFA 후보를 다시 계산해도 선택은
+    p95/게이트 −3%로 같았다.
+    """
     cagr = cum[-1] ** (252 / n) - 1
     m = (cum / np.maximum.accumulate(cum) - 1).min()
     return cum[-1], cagr, m, cagr / abs(m)
+
+
+def select_by_calmar(curves, n):
+    """워크포워드 후보는 최종금액이 아니라 IS Calmar로 고른다."""
+    scores = {key: stats(curve, n)[3] for key, curve in curves.items()}
+    key = max(scores, key=scores.get)
+    return key, scores[key]
 
 
 def line(label, cum, n, ref=None, w=None):
@@ -107,8 +165,36 @@ def early_w(ddq, trig, gate):
     return rule_w(np.where(trig & (ddq <= gate), -0.20, ddq), -0.16, -0.11)
 
 
+def selfcheck():
+    w = np.array([1.0, 0.0, 1.0, 0.0])
+    assert np.array_equal(lagged_positions(w, 0), w)
+    assert np.array_equal(lagged_positions(w, 1), [1.0, 1.0, 0.0, 1.0])
+    toy = {'idx': np.arange(3), 'qldr': np.array([0.10, 0.10, 0.10]),
+           'schdr': np.zeros(3)}
+    sig = np.array([1.0, 0.0, 0.0])
+    assert np.allclose(sim(toy, sig, cost=0, lag=0), [1.0, 1.0, 1.0])
+    assert np.allclose(sim(toy, sig, cost=0, lag=1), [1.0, 1.1, 1.1])
+    dd = np.array([-0.20, -0.15, -0.12])
+    assert np.array_equal(rule_w(dd, -0.16, -0.11), [0.0, 0.0, 0.0])
+    assert not np.array_equal(rule_w(dd, -0.16, -0.11)[1:],
+                              rule_w(dd[1:], -0.16, -0.11))
+    zz = zc([1.0, 2.0, 3.0, 4.0], win=3, minp=3)
+    assert np.isnan(zz[:2]).all() and np.isfinite(zz[2:]).all()
+    assert np.array_equal(available_or([np.nan, -1.0, 1.0], np.array([False, True, False])),
+                          [True, True, False])
+    mask = np.array([1, 0, 1, 1, 0, 0], dtype=bool)
+    years = np.array([2000, 2000, 2001, 2001, 2001, 2002])
+    shuffled = year_block_permutation(mask, years, np.random.default_rng(7))
+    assert len(shuffled) == len(mask) and shuffled.sum() == mask.sum()
+    curves = {'wealth': np.array([1.0, 4.0, 1.5, 3.0]),
+              'calmar': np.array([1.0, 1.2, 1.1, 2.5])}
+    assert max(curves, key=lambda key: curves[key][-1]) == 'wealth'
+    assert select_by_calmar(curves, 252)[0] == 'calmar'
+
+
 # ================================================================
 def main():
+    selfcheck()
     D = DF.build('chain')
     idx = D['idx']
     ddq = D['ddv']
@@ -154,20 +240,31 @@ def main():
 
     print("\n[A4] 동행성 재측정 — 수준이 아니라 변화량으로")
     dq = pd.Series(ddq).diff()
+    lag_profiles = []
     for nm, arr in [('VIX', pd.Series(vix.values)), ('실현변동성', pd.Series(rv.values)),
                     ('공포탐욕', pd.Series(fg))]:
         a = arr.reset_index(drop=True).diff()
         row = [(l, a.shift(-l).corr(dq)) for l in (-10, -5, -2, 0, 2, 5, 10)]
         best = max(row, key=lambda x: abs(x[1]) if pd.notna(x[1]) else -1)
+        lag_profiles.append((nm, row, best))
         print(f"    {nm:<8}" + " ".join(f"{l:+d}일={c:+.3f}" for l, c in row)
               + f"   <- 최대 {best[0]:+d}일")
-    print("    -> 동시점 |상관| 0.65~0.71, 시차 상관은 전부 |0.03| 미만.")
-    print("       선행도 후행도 아니다. 완전한 동행 = 새 정보가 없다.")
+    best_lags = [best[0] for _, _, best in lag_profiles]
+    nonzero = [abs(c) for _, row, _ in lag_profiles for lag, c in row
+               if lag != 0 and pd.notna(c)]
+    print(f"    -> 절대상관 최대 위치: 동시 {best_lags.count(0)}개 / "
+          f"선행 {sum(lag < 0 for lag in best_lags)}개 / 후행 {sum(lag > 0 for lag in best_lags)}개; "
+          f"비동시 최대 |상관|={max(nonzero):.3f}.")
+    if not any(lag < 0 for lag in best_lags):
+        print("       측정된 세 지표 중 선행 시차에서 최대가 된 것은 없다 — 선행정보 근거가 없다.")
+    else:
+        leaders = ', '.join(nm for nm, _, best in lag_profiles if best[0] < 0)
+        print(f"       선행 시차 최대 지표: {leaders}. 위 행의 크기와 방향을 그대로 판정에 사용한다.")
 
     print("\n[A5] '상관 0.918' 재검증 — 점수 상관이 아니라 신호일 겹침")
     lo90 = int(idx.searchsorted(pd.Timestamp('1990-01-02')))
     a, b = fgV[lo90:] <= 20, fg[lo90:] <= 20
-    print(f"    점수 상관 {np.corrcoef(fgV[lo90:], fg[lo90:])[0,1]:+.3f} / "
+    print(f"    점수 상관 {pair_corr(fgV[lo90:], fg[lo90:]):+.3f} / "
           f"신호일 VIX판 {a.sum()}일, 실현변동성판 {b.sum()}일, 교집합 {(a&b).sum()}일")
     print(f"    자카드 겹침 {(a&b).sum()/(a|b).sum()*100:.1f}%  <- 점수는 닮았지만 꼬리가 다르다")
     ref90 = sim(D, base_w, lo=lo90)[-1]
@@ -180,29 +277,33 @@ def main():
     print("=" * 80)
 
     print("\n[B1] 공포탐욕 대용치는 낙폭의 재탕인가")
-    print(f"    corr(공포탐욕, 낙폭) = {np.corrcoef(fg, ddq)[0,1]:+.3f}   "
+    print(f"    corr(공포탐욕, 낙폭) = {pair_corr(fg, ddq):+.3f}   "
           f"공포신호일 중 이미 낙폭 <=-16% 인 비율 {((fg<=20)&(ddq<=-0.16)).sum()/max((fg<=20).sum(),1)*100:.1f}%")
-    print(f"    성분 상관: 모멘텀 {np.corrcoef(zc(mom), ddq)[0,1]:+.3f} / "
-          f"20일수익 {np.corrcoef(zc(r20), ddq)[0,1]:+.3f} / 변동성 {np.corrcoef(zc(-rv.values), ddq)[0,1]:+.3f}")
+    print(f"    성분 상관: 모멘텀 {pair_corr(zc(mom), ddq):+.3f} / "
+          f"20일수익 {pair_corr(zc(r20), ddq):+.3f} / 변동성 {pair_corr(zc(-rv.values), ddq):+.3f}")
     print("    -> 성분 3개 중 2개가 순수 가격 모멘텀. 낙폭이 이미 말하는 것의 재탕이다.")
 
     print("\n[B2] 증분정보 — 낙폭 5분위 안에서 매크로 상·하위 절반의 이후 21일 수익차")
     fwd = pd.Series(px.pct_change().fillna(0).values).rolling(21).sum().shift(-21).values
     ok = ~np.isnan(fwd)
     qs = pd.qcut(pd.Series(ddq[ok]), 5, labels=False, duplicates='drop').values
+    incremental = {}
     for nm, sg in [('VIX z', vz), ('실현변동성 z', rvz), ('공포탐욕', -fg)]:
         f, s_ = fwd[ok], sg[ok]
         ds = []
         for q_ in range(5):
-            m = qs == q_
+            m = (qs == q_) & np.isfinite(s_)
             if m.sum() < 50:
                 continue
             h = s_[m] >= np.median(s_[m])
             ds.append(f[m][h].mean() - f[m][~h].mean())
+        incremental[nm] = ds
         print(f"    {nm:<12}" + " ".join(f"{d*100:+6.2f}%" for d in ds)
               + f"   평균 {np.mean(ds)*100:+.2f}%p")
-    print("    -> 가장 깊은 분위에서만 VIX 가 +5%p. 나머지 4개 분위는 0 근처.")
-    print("       '깊은 낙폭 + 고변동성' 조합에만 정보가 있다는 뜻 -> C 의 후보와 같은 이야기.")
+    vix_ds = incremental['VIX z']
+    print(f"    -> VIX의 가장 깊은 낙폭 분위 격차 {vix_ds[0]*100:+.2f}%p; "
+          f"나머지 분위 범위 {min(vix_ds[1:])*100:+.2f}~{max(vix_ds[1:])*100:+.2f}%p.")
+    print("       어느 분위에 효과가 몰렸는지는 위 실측값으로 판단하며 C의 결합 후보와 대조한다.")
 
     print("\n[B3] 장단기 금리차(10Y-3M) — 유일한 '진짜 선행' 후보")
     t = pd.read_csv('data/hist/yahoo_TNX.csv')
@@ -235,9 +336,11 @@ def main():
         else:
             print(f"      {idx[s0].date()} 역전 -> 도달 없음 (진행 중)")
     if leads:
-        print(f"      선행 시차: 중앙값 {int(np.median(leads))}일, 범위 {min(leads)}~{max(leads)}일  "
+        lead_med, lead_min, lead_max = int(np.median(leads)), min(leads), max(leads)
+        print(f"      선행 시차: 중앙값 {lead_med}일, 범위 {lead_min}~{lead_max}일  "
               f"n={len(leads)}")
-        print("      -> 확실히 선행한다. 그러나 시차가 7~533일로 흩어져 타이밍에 쓸 수 없다.")
+        print(f"      -> 낙폭 도달보다 먼저 시작했지만 시차가 {lead_min}~{lead_max}일로 흩어져 "
+              "일관된 타이밍 신호가 아니다.")
 
     print("    (b) 규칙화")
     for nm, w_ in [('역전 중 무조건 방어', np.where(inv, 0.0, base_w)),
@@ -257,9 +360,11 @@ def main():
         line(nm, sim(D, w_), N, base_val, w=w_)
 
     print("\n[B4] 복귀(재진입) 필터 — 매크로가 진정됐을 때만 방어에서 나온다")
-    for nm, calm in [('VIX z < 0', vz < 0), ('VIX z < 1', vz < 1),
-                     ('공포탐욕 > 40', fg > 40), ('금리차 > 0', ~inv),
-                     ('실현변동성 z < 0', rvz < 0)]:
+    for nm, calm in [('VIX z < 0', available_or(vz, vz < 0)),
+                     ('VIX z < 1', available_or(vz, vz < 1)),
+                     ('공포탐욕 > 40', available_or(fg, fg > 40)),
+                     ('금리차 > 0', ~inv),
+                     ('실현변동성 z < 0', available_or(rvz, rvz < 0))]:
         cur, out = 1.0, np.empty(N)
         for i in range(N):
             if cur >= 1.0:
@@ -322,30 +427,28 @@ def main():
         pc = cand_cum[i1] / cand_cum[i0] - 1
         print(f"    {nm:<14} 기준 {pb*100:+7.2f}%  후보 {pc*100:+7.2f}%  차이 {(pc-pb)*100:+7.2f}%p")
 
-    print("\n[C4] 블록 플라시보 (500회) — 뭉침 유지하고 신호구간만 옮긴다")
+    print("\n[C4] 연 블록 플라시보 (500회) — 겹침 없이 신호 시점만 뒤섞는다")
     rng = np.random.default_rng(42)
     seg = blocks(trig)
     better = 0
     for _ in range(500):
-        rm = np.zeros(N, dtype=bool)
-        for ln in seg:
-            s0 = rng.integers(0, N - ln)
-            rm[s0:s0 + ln] = True
+        rm = year_block_permutation(trig, idx.year.values, rng)
         if sim(D, early_w(ddq, rm, -0.05))[-1] >= cand_val:
             better += 1
-    print(f"    신호구간 {len(seg)}개  실제 {cand_val:,.1f}배  "
+    print(f"    신호구간 {len(seg)}개 · 발동 {trig.sum()}일(순열마다 동일)  실제 {cand_val:,.1f}배  "
           f"무작위 중 같거나 나음 {better}/500 ({better/500*100:.1f}%)")
 
-    print("\n[C5] 워크포워드 — 1972-1999 에서 고르고 2000- 에 적용")
+    print("\n[C5] 워크포워드 — 1972-1999 Calmar로 고르고 2000- 에 적용")
     sp = int(idx.searchsorted(SPLIT))
-    bестq, bv = None, -1
+    is_curves = {}
     for q_ in (0.90, 0.925, 0.95, 0.975, 0.99):
         for g in (-0.03, -0.05, -0.08, -0.12):
-            vv = sim(D, early_w(ddq, rvz >= exp_q(rvz, q_), g), hi=sp)[-1]
-            if vv > bv:
-                bv, bестq = vv, (q_, g)
-    q_, g = bестq
-    print(f"    IS 최적 = 분위 p{q_*100:.1f} / 게이트 {g*100:.0f}%  (IS {bv:,.1f}배)")
+            is_curves[(q_, g)] = sim(D, early_w(ddq, rvz >= exp_q(rvz, q_), g), hi=sp)
+    best_qg, best_calmar = select_by_calmar(is_curves, sp)
+    q_, g = best_qg
+    bv = is_curves[best_qg][-1]
+    print(f"    IS Calmar 최적 = 분위 p{q_*100:.1f} / 게이트 {g*100:.0f}%  "
+          f"(Calmar {best_calmar:.3f}, {bv:,.1f}배)")
     oos_b = sim(D, base_w, lo=sp)
     oos_c = sim(D, early_w(ddq, rvz >= exp_q(rvz, q_), g), lo=sp)
     n2 = N - sp

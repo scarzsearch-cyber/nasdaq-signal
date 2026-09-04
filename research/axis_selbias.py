@@ -52,6 +52,10 @@ K = 2
 CUR = (-0.16, -0.16)
 V18 = (-0.16, -0.11)          # v18 이 실제로 고른 것
 L = 20 * 252
+DISJOINT = [('1986-01-01', '1995-12-31', 1985),
+            ('1996-01-01', '2005-12-31', 1995),
+            ('2006-01-01', '2015-12-31', 2005),
+            ('2016-01-01', '2026-08-26', 2015)]
 
 
 def main():
@@ -139,10 +143,26 @@ def main():
 
     # ---------------------------------------------------------------- T3
     print("=" * 104)
-    print("T3. 워크포워드 **모델선택** — 그 시점 자료로만 최적을 뽑고 이후에서 평가")
+    print("T3a. 워크포워드 모델선택 — 2026 끝점이 겹친 창(역사 참고, 독립 횟수 아님)")
     print("=" * 104)
     print("  '내 선택 절차'를 그대로 흉내낸다: 과거 전체로 최종배수 1등을 고른다.")
     print()
+
+    # v57 정정: 위 7개는 전부 2026에서 끝나는 포함관계다. 판정에는 아래
+    # 서로 겹치지 않는 네 평가창만 쓴다.
+    print("  T3b. 겹치지 않는 네 평가창 — 선택은 각 창 시작 전 자료만")
+    print("  %-10s%-12s%12s%12s%10s" % ('선택시점', '뽑힌 규칙', '이후 선택', '이후 고정', '차이'))
+    disjoint_rows = []
+    for a3, b3, T in DISJOINT:
+        best = max(combos, key=lambda c: seg(c, '1972-01-01', '%d-12-31' % T)[0])
+        vs, vf = seg(best, a3, b3)[0], seg(CUR, a3, b3)[0]
+        disjoint_rows.append((T, best, vs, vf))
+        print("  %-10d%-12s%12.2f%12.2f%9.0f%%"
+              % (T, '%.0f/%.0f' % (best[0] * 100, best[1] * 100),
+                 vs, vf, (vs / vf - 1) * 100))
+    disjoint_win = sum(vs > vf for _, _, vs, vf in disjoint_rows)
+    print("  선택 절차가 고정을 이긴 겹치지 않는 창: %d/%d\n"
+          % (disjoint_win, len(disjoint_rows)))
     print("  %-8s%-12s%12s%12s%11s%11s"
           % ('결정시점', '그때 뽑힌 규칙', '이후 선택', '이후 고정', '차이', '이후기간'))
     picks = []
@@ -197,16 +217,21 @@ def main():
     print()
 
     print("=" * 104)
-    print(verdict('현행이 선택편향의 산물인가', [
-        ('v18 이 자기 표본에서 1등을 골랐다 (편향의 증거)', i18 == 1,
-         '실제 %d위/%d' % (i18, len(combos))),
-        ('v18 이 못 본 28년에서 상위 25% 안에 든다', pct18 >= 75,
-         '상위 %.0f%%' % pct18),
-        ('워크포워드 선택이 고정 -16/-16 을 이긴다 (선택이 값어치 있다)',
-         win > len(rows) / 2, '%d/%d 시점' % (win, len(rows))),
-        ('뽑히는 규칙이 시점마다 안정적이다', len(uniq) <= 2,
-         '서로 다른 %d개' % len(uniq)),
-    ], adopt_if=['v18 이 자기 표본에서 1등을 골랐다 (편향의 증거)'])['text'])
+    red_flag = icur == 1
+    back_holdout = pctcur >= 75
+    selection_value = disjoint_win > len(disjoint_rows) / 2
+    stable = len(uniq) <= 2
+    print('[현행 B가 선택편향의 산물인가] 판정: **순수 OOS까지 판단 보류**')
+    print('  %s 표본 내 1위 붉은 깃발                 현행 %d위/%d'
+          % ('O' if red_flag else 'X', icur, len(combos)))
+    print('  %s 2000년 이전 역방향 hold-out 생존       상위 %.0f%%'
+          % ('O' if back_holdout else 'X', pctcur))
+    print('  %s 과거만 보고 고른 절차가 고정 B를 이김      %d/%d 겹치지 않는 창'
+          % ('O' if selection_value else 'X', disjoint_win, len(disjoint_rows)))
+    print('  %s 선택 규칙이 시점마다 안정적              서로 다른 %d개'
+          % ('O' if stable else 'X', len(uniq)))
+    print('  -> 내부 자료에는 붉은 깃발이 있지만 다른 시대의 붕괴 증거도 없다. '
+          '같은 자료를 이미 봤으므로 어느 쪽도 확정하지 않고 동결 이후 OOS만 판단한다.')
 
 
 if __name__ == '__main__':

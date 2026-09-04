@@ -14,8 +14,8 @@ B 와 T4 둘 다 검사하고 결론지어라."
 [★ 사전 고정 검사 기준 — 실행 전에 적었다. T-bill 규약 · lag=1 · 54.5년]
   P1 비용 내성   편도 0.1~0.3% 전부에서 B 최종 > 2배 그냥 보유 (0.4% 는 참고)
   P2 규칙 우위   편도 0.1~0.3% 전부에서 B 최종 ≥ A(−16/−11) (v43 재확인)
-  P3 기전 실증   독립 도피 22사건창 MDD 에서 B > 2배 보유 승률 ≥ 70%
-                (T4 의 M2 검사와 같은 잣대 — T4 vs B 는 77%였다)
+  P3 기전 실증   독립 도피 사건창 MDD 에서 B > 2배 보유 승률 ≥ 70%
+                (T4 의 M2 검사와 같은 잣대 — v203 완성 사건 재검산은 17/21=81%)
   P4 사각지대   dd 가 (−16%, −8%) 에 연속 체류한 최장 구간 ≤ 252일
                 (v81 발견 — 완만·얕은 하락은 B 무력. 1년 넘는 배회가 역사에
                  실재했다면 사각지대는 가설이 아니라 실적이다)
@@ -32,7 +32,7 @@ import pandas as pd
 
 from axis_lib import rule_w, sim
 from research_kit import verdict
-from axis_t4_shadow import build, met
+from axis_t4_shadow import build, met, independent_escapes, event_bounds
 
 try:
     _sys.stdout.reconfigure(encoding='utf-8')
@@ -41,20 +41,13 @@ except Exception:
 
 
 def events(D, wB):
-    idx = D['idx']
-    esc = np.where((wB[1:] == 0) & (wB[:-1] == 1))[0] + 1
-    keep, last = [], None
-    for e in esc:
-        if last is None or (idx[e] - idx[last]).days > 252:
-            keep.append(e)
-        last = e
-    return keep
+    return independent_escapes(wB)
 
 
 def ev_mdd_wins(D, ca, cb, keep):
     wins = []
     for e in keep:
-        a = max(0, e - 63); b = min(len(D['idx']) - 1, e + 252)
+        a, b = event_bounds(len(D['idx']), e)
         sA, sB = ca.iloc[a:b], cb.iloc[a:b]
         wins.append(float((sA / sA.cummax() - 1).min()) > float((sB / sB.cummax() - 1).min()))
     return np.mean(wins), len(keep)
@@ -87,7 +80,7 @@ def main():
 
     print()
     print('=' * 100)
-    print('P3. 기전 실증 — 독립 도피 22사건창 MDD 승률 (T4 검사와 같은 잣대)')
+    print('P3. 기전 실증 — 독립 도피 %d사건창 MDD 승률 (T4 검사와 같은 잣대)' % len(keep))
     print('=' * 100)
     cB, _ = sim(D, wB, cost=0.002)
     cH, _ = sim(D, wH, cost=0.002)

@@ -24,8 +24,11 @@ import hist_defensive as DF
 from axis_lib import rule_w, lev_r, COST
 from axis_defmix import materials, mix_monthly_from
 from axis_rvstate import rule
-from research_kit import concentration, leave_one_crisis_out, verdict
-sys.stdout.reconfigure(encoding='utf-8')
+from research_kit import concentration as _concentration, leave_one_crisis_out, verdict
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except (AttributeError, OSError):
+    pass
 
 D=DF.build('chain'); idx=D['idx']; N=len(idx)
 comp=materials(D)
@@ -39,6 +42,41 @@ base=rule_w(ddv,-0.16,-0.16); W=rule(ddv,rvz,0.25)
 months=pd.Series(idx).dt.to_period('M').values
 mstart=np.where(np.r_[False,months[1:]!=months[:-1]])[0]
 L=20*252; st=list(range(0,N-L,63))
+
+
+def independent_rows(rows, gap=252):
+    """직전 모든 사건과 `gap` 거래행을 초과해 떨어진 사건만 독립으로 센다."""
+    out=[]; last=-10**9
+    for row in rows:
+        row=int(row)
+        if row-last > gap:
+            out.append(row)
+        last=row
+    return out
+
+
+def concentration_rows(contrib, rows, refit=None, base=None,
+                       min_episodes=19, top=(1,3,5), gap_rows=252):
+    """공용 집중도 검사의 독립 간격만 달력일이 아닌 거래행으로 공급한다."""
+    rows=list(rows)
+    if len(rows) != len(contrib):
+        raise ValueError('event rows 와 contrib 길이가 다르다')
+    r=_concentration(contrib, refit=refit, base=base, dates=None,
+                     min_episodes=min_episodes, top=top)
+    indep=independent_rows(rows, gap_rows)
+    for k,(label,_,_) in enumerate(r['checks']):
+        if label.startswith('독립 위기가'):
+            r['checks'][k]=(label, len(indep) >= min_episodes,
+                            '%d개 (%d거래행 초과 간격)'%(len(indep),gap_rows))
+            break
+    else:
+        raise AssertionError('독립 위기 관문이 없다')
+    r['n_indep']=len(indep)
+    r['independent_rows']=indep
+    return r
+
+
+assert independent_rows([0,252,253,506]) == [0,506]
 
 def dlog(w):
     pos=np.r_[w[0],w[:-1]]
@@ -73,8 +111,9 @@ def refit(drop):
     return stats(W2)
 B=stats(base)
 print("\n"+"="*92); print("Gate 11 — 성과 집중도 (research_kit.concentration)"); print("="*92)
-r=concentration(contrib, refit=refit, base=B,
-                dates=[idx[i] for i,_ in runs], min_episodes=19, gap_days=252)
+r=concentration_rows(contrib, refit=refit, base=B,
+                     rows=[i for i,_ in runs], min_episodes=19, gap_rows=252)
+assert r['n_indep'] == 9, '현재 독립 사건 수는 9여야 한다: %r' % r['independent_rows']
 print(verdict('v53 RV 상태변수 — 집중도', r['checks'])['text'])
 
 print("\n"+"="*92); print("Gate 11-b — leave-one-crisis-out"); print("="*92)

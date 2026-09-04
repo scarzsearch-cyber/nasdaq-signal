@@ -101,9 +101,11 @@ def run(D, ladder, enter=ENTER, cost=COST, lag=1, start=None, end=None, w0=1.0):
                 cur, days = 0.0, 0
         else:
             days += 1
-            if d <= enter:
-                cur, days = 0.0, 0      # 재진입도 '진입' — min_days 시계를 다시 센다
-            else:
+            if d <= enter and cur > 0.0:
+                # 부분복귀 뒤 다시 방어로 들어온 날만 새 진입이다. 이미 0인 채
+                # 머무는 날은 최초 진입 뒤의 min_days 시계를 되감지 않는다.
+                cur, days = 0.0, 0
+            elif d > enter:
                 tgt = cur
                 for c, wt, mind in conds:
                     if wt > tgt and days >= mind and c[i]:
@@ -229,3 +231,30 @@ def check_baseline(D):
     c, w, t = run(D, BASE_LADDER)
     m = met(c)
     return m, float(m['final'] * (1 - COST) ** 2)
+
+
+def _selfcheck_cooldown_clock():
+    """방어 중 추가 하락이 최초 진입 뒤의 경과일을 되감지 않는지 검산한다."""
+    D = dict(
+        idx=pd.date_range('2020-01-01', periods=5),
+        ddv=np.array([-0.10, -0.17, -0.18, -0.17, -0.15]),
+        qldr=np.zeros(5),
+        schdr=np.zeros(5),
+    )
+    _, w, _ = run(D, [(('dd', -0.16), 1.0, 3)])
+    assert np.array_equal(w.values, [1, 0, 0, 0, 1])
+
+    D2 = dict(
+        idx=pd.date_range('2020-02-01', periods=7),
+        ddv=np.array([-0.10, -0.17, -0.15, -0.17, -0.18, -0.15, -0.14]),
+        qldr=np.zeros(7),
+        schdr=np.zeros(7),
+    )
+    ladder = [(('dd', -0.16), 0.5, 1), (('dd', -0.16), 1.0, 3)]
+    _, w2, _ = run(D2, ladder)
+    assert np.array_equal(w2.values, [1, 0, .5, 0, 0, .5, 1])
+
+
+if __name__ == '__main__':
+    _selfcheck_cooldown_clock()
+    print('reentry_lib cooldown self-check: PASS')

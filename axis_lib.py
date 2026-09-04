@@ -16,9 +16,12 @@ v18~v21 은 전부 **전환 타이밍 축** 하나만 변수로 놓았다(문턱
   check() 가 reentry_lib.run() 대비 오차 0 을 매번 검산한다.
 
 [비중 w 의 규약 — 2026-09-04 코드리뷰]
-  sim()·after_tax()·after_tax_annual() 은 **분수 비중을 선형 혼합**한다
+  sim()과 만기 1회 과세인 after_tax(per_switch=False)는 **분수 비중을 선형 혼합**한다
   (r = w·riskon + (1-w)·defensive · 비용은 |Δw| 비례). 축2 앙상블이 만드는
-  0.33/0.67 같은 값이 그대로 통한다.
+  0.33/0.67 같은 값이 그대로 통한다. 다만 중간 매도에 세금을 매기는
+  after_tax(per_switch=True)·after_tax_annual()은 0/1 전용이다. 분수 정률혼합은
+  자산별 취득원가와 내부 재조정을 따로 추적해야 하는데 이 엔진은 단일 원가만 갖는다.
+  전부 실현한 것처럼 조용히 과세하지 않고 ValueError로 막는다.
   accumulate() 만은 **0/1 전용**이다 — 위험/현금 두 통을 통째로 옮기는 모형이라
   부분 비중이 정의되지 않는다. 분수 w 를 주면 조용히 틀리는 대신 ValueError 를 던진다.
   ⚠ 종전에는 셋 다 `pos >= 1` 로 이진화해 **분수 w 에서 조용히 틀렸다**
@@ -89,7 +92,7 @@ def _need_binary(w, lo, hi, who):
         raise ValueError(
             '%s 는 0/1 비중만 받는다 (위험/현금 두 통을 통째로 옮기는 모형이라 '
             '부분 비중이 정의되지 않는다). w[%d] = %r. '
-            '분수 비중(앙상블)은 sim()·after_tax() 를 써라.'
+            '분수 비중(앙상블)은 sim() 또는 after_tax(per_switch=False) 를 써라.'
             % (who, lo + i, float(seg[i])))
 
 
@@ -198,7 +201,7 @@ def sim(D, w, riskon_r=None, cost=COST, lag=1, start=None, end=None):
 
 # ------------------------------------------------------------------ 적립식
 def accumulate(D, k, w, lo, hi, park=None, dip=None, cost=COST,
-               rk=None, buy_cost=0.0):
+               rk=None, buy_cost=0.0, return_paths=False):
     """월초 1단위 적립. 반환 (총납입, 최종평가액, 경로MDD).
 
     park : 대기자금 수익률. None 이면 방어자산(schdr), 배열이면 그것(예: T-bill)
@@ -220,6 +223,8 @@ def accumulate(D, k, w, lo, hi, park=None, dip=None, cost=COST,
                  ⛔ **기본값 0.0 = 종전 동작** — 공표된 적립 수치(goal_feasibility·
                  axis_dca·def_equity)가 이 식으로 나왔으므로 기본을 옮기지 않는다.
                  비용을 넣고 재려면 buy_cost=COST 로 명시하라.
+      return_paths : True 면 기존 3개 반환값 뒤에 평가액·누적납입 경로를 붙인다.
+                     적립식 원금 대비 최저(mdd_vs_paid)를 계산할 때만 쓴다.
     """
     idx = D['idx']
     lo, hi = _win(idx, lo, hi)
@@ -231,7 +236,7 @@ def accumulate(D, k, w, lo, hi, park=None, dip=None, cost=COST,
 
     R = C = paid = 0.0
     prev = w[lo]
-    vals = []
+    vals, pays = [], []
     for i in range(lo, hi):
         # [v33 정정] 전환을 그날 수익 적용 **전에** 한다.
         # 기존 순서(수익 -> 전환)는 전일 종가 신호가 하루 더 늦게 반영되는
@@ -261,9 +266,13 @@ def accumulate(D, k, w, lo, hi, park=None, dip=None, cost=COST,
             R += C * (1 - cost); C = 0.0                    # dip 일괄 투입
 
         vals.append(R + C)
+        pays.append(paid)
 
     v = pd.Series(vals, index=idx[lo:hi])
-    return paid, float(v.iloc[-1]), float((v / v.cummax() - 1).min())
+    base = (paid, float(v.iloc[-1]), float((v / v.cummax() - 1).min()))
+    if return_paths:
+        return base + (v.values.copy(), np.asarray(pays, dtype=float))
+    return base
 
 
 # ------------------------------------------------------------------ 세금
@@ -276,8 +285,8 @@ def after_tax(D, k, w, rate, per_switch, cost=COST, start=None, end=None,
 
     [2026-09-04 코드리뷰]
       ⓐ 분수 비중을 **혼합**한다. 종전 `rk[i] if pos >= 1 else dfr[i]` 는 0.67 을
-         전량 방어로 읽어 세율 0 에서도 sim 대비 0.462배가 나왔다. 이진 w 에서는
-         `1·rk + 0·dfr = rk` 라 출력이 비트 단위로 같다.
+         전량 방어로 읽어 세율 0 에서도 sim 대비 0.462배가 나왔다. 단, 중간실현
+         과세는 자산별 원가가 필요한 분수 비중을 실패-폐쇄한다.
       ⓑ 비용도 `cost * |pos - prev|` 로 sim 의 회전율 규약과 맞췄다(이진이면 동일).
       ⓒ riskon_r 을 받는다. 종전엔 rk = lev_r(D,k) 를 안에 박아 둬서, 실물 TQQQ
          보정이나 환노출 2배처럼 다른 수익 계열을 쓰려면 **세금 루프 전체를 복제**해야
@@ -286,6 +295,8 @@ def after_tax(D, k, w, rate, per_switch, cost=COST, start=None, end=None,
     """
     idx = D['idx']
     lo, hi = _win(idx, start, end)
+    if per_switch:
+        _need_binary(w, lo, hi, 'after_tax(per_switch=True)')
     rk = lev_r(D, k) if riskon_r is None else riskon_r
     dfr = D['schdr']
     V = B = 1.0
@@ -293,7 +304,6 @@ def after_tax(D, k, w, rate, per_switch, cost=COST, start=None, end=None,
     paid = 0.0
     for i in range(lo + 1, hi):
         pos = w[i - 1]
-        V *= (1 + pos * rk[i] + (1 - pos) * dfr[i])
         if pos != prev:
             V *= (1 - cost * abs(pos - prev))
             if per_switch:
@@ -302,10 +312,30 @@ def after_tax(D, k, w, rate, per_switch, cost=COST, start=None, end=None,
                     t = g * rate; V -= t; paid += t
                 B = V
             prev = pos
+        V *= (1 + pos * rk[i] + (1 - pos) * dfr[i])
     g = V - B
     if g > 0:
         t = g * rate; V -= t; paid += t
     return V, paid
+
+
+def _withdraw_tax(V, B, tax):
+    """보유분 일부를 팔아 세금을 낸다. 반환은 (잔액, 잔여원가, 실현손익).
+
+    세금 ``tax`` 만큼을 계좌에서 꺼내려면 현재 보유분의 ``tax / V`` 를 판다.
+    그 매도에 대응하는 취득원가도 같은 비율로 빠지고, 매도가와 빠진 원가의
+    차이는 **세금을 낸 새 연도의 실현손익**이다. 이 2차 실현손익을 버리면
+    수익 중인 자산에서 세금을 꺼낼 때 다음 연도 세금을 다시 과소 계산한다.
+    """
+    V, B, tax = float(V), float(B), float(tax)
+    if tax <= 0:
+        return V, B, 0.0
+    if V <= 0 or tax > V + 1e-12:
+        raise ValueError('보유자산으로 세금을 낼 수 없다 (V=%r tax=%r)' % (V, tax))
+    tax = min(tax, V)                 # 부동소수점 끝자리만 V를 넘은 경우
+    basis_sold = B * (tax / V)
+    realized = tax - basis_sold
+    return V - tax, B - basis_sold, realized
 
 
 def after_tax_annual(D, k, w, rate=0.22, cost=COST, start=None, end=None,
@@ -315,13 +345,17 @@ def after_tax_annual(D, k, w, rate=0.22, cost=COST, start=None, end=None,
     250만원 기본공제는 넣지 않았다(금액 단위가 없는 배수 모형이라 정의 불가).
     계좌가 커질수록 공제의 상대적 크기가 0 으로 가므로 큰 왜곡은 아니다.
 
-    [2026-09-04 코드리뷰] after_tax 와 같은 세 가지를 함께 고쳤다 —
-      분수 비중 혼합 · 회전율 비례 비용 · riskon_r. check() 가 이제 세율 0 축퇴를
-      검산한다(종전에는 **이 함수만 검산 밖**이었다. 해외 직투 세후 수치를 만드는
-      함수가 바로 이것이다).
+    [2026-09-04 코드리뷰] 회전율 비례 비용 · riskon_r 을 after_tax 와 맞췄고,
+      check() 가 이제 세율 0 축퇴를 검산한다(종전에는 **이 함수만 검산 밖**이었다).
+      연간 중간실현은 자산별 원가가 없는 분수 비중을 실패-폐쇄하며 0/1만 받는다.
+
+    연말 세금을 계좌에서 꺼내면 현재 보유분도 그 비율만큼 매도한 것이다. 따라서
+    평가액과 취득원가 B를 같은 비율로 줄이고, 그 일부 매도의 실현손익은 새 연도
+    손익통산으로 넘긴다. 세금은 새 연도 첫 수익을 적용하기 전에 뗀다.
     """
     idx = D['idx']
     lo, hi = _win(idx, start, end)
+    _need_binary(w, lo, hi, 'after_tax_annual()')
     rk = lev_r(D, k) if riskon_r is None else riskon_r
     dfr = D['schdr']
     V = B = 1.0
@@ -329,18 +363,22 @@ def after_tax_annual(D, k, w, rate=0.22, cost=COST, start=None, end=None,
     yr = idx[lo].year
     net = paid = 0.0
     for i in range(lo + 1, hi):
-        pos = w[i - 1]
-        V *= (1 + pos * rk[i] + (1 - pos) * dfr[i])
-        if idx[i].year != yr:                       # 연말 정산
+        if idx[i].year != yr:                       # 직전 연도 정산
+            carry = 0.0
             if net > 0:
-                t = net * rate; V -= t; paid += t
-            net = 0.0
+                t = net * rate
+                V, B, carry = _withdraw_tax(V, B, t)
+                paid += t
+            # 세금 마련용 일부 매도는 새 연도의 실현손익이다. 이전 연도 손실은 이월하지 않는다.
+            net = carry
             yr = idx[i].year
+        pos = w[i - 1]
         if pos != prev:
             V *= (1 - cost * abs(pos - prev))
             net += V - B
             B = V
             prev = pos
+        V *= (1 + pos * rk[i] + (1 - pos) * dfr[i])
     net += V - B
     if net > 0:
         t = net * rate; V -= t; paid += t
@@ -422,12 +460,58 @@ def check(D):
       ③ after_tax_annual(세율 0) == sim   ← 2026-09-04 추가. 해외 직투 세후 수치의 출처인데
                                           **종전에는 검산 밖**이었다(CLAUDE.md §5-38:
                                           「그 계산을 끄면 원래 값이 나오는가를 먼저 찍어라」)
-      ④ 분수 비중(앙상블)에서도 after_tax(세율 0) == sim   ← 2026-09-04 추가
-      ⑤ 적립(1회납입) == 거치식
+      ④ 분수 비중(앙상블)의 만기 1회 과세도 세율 0에서 sim 과 같은가
+      ⑤ 중간실현 과세가 원가를 정의할 수 없는 분수 비중을 실패-폐쇄하는가
+      ⑥ 매도일 새 자산 수익을 매도차익으로 잘못 과세하지 않는가
+      ⑦ 세금 마련용 일부 매도의 원가·2차 실현손익이 다음 연도로 이어지는가
+      ⑧ 적립(1회납입) == 거치식
     """
     from reentry_lib import run
     from hyst_core import A, B
     ok = True
+    tv, tb, tg = _withdraw_tax(2.0, 1.0, 0.2)
+    tax_err = max(abs(tv - 1.8), abs(tb - 0.9), abs(tg - 0.1))
+    lv, lb, lg = _withdraw_tax(1.0, 2.0, 0.2)
+    tax_err = max(tax_err, abs(lv - 0.8), abs(lb - 1.6), abs(lg + 0.2))
+    print('검산 연간세금 인출 후 잔액/원가/실현  %.6f / %.6f / %.6f  오차=%.1e'
+          % (tv, tb, tg, tax_err))
+    ok = ok and tax_err < 1e-12
+    # 손계산 가능한 2년 반례: 1년차 실현익 1, 연말 보유분의 미실현익 1.
+    # 세율 20%면 첫 세금 0.2를 마련한 일부 매도도 새 연도 실현익 1/15를 만들고,
+    # 남은 보유분 실현익 14/15와 합쳐 새 연도 과표가 다시 정확히 1이 된다.
+    toy = {'idx': pd.DatetimeIndex(['2020-01-02', '2020-03-02', '2020-06-01',
+                                    '2020-12-31', '2021-01-04']),
+           'schdr': np.array([0.0, 0.0, 0.0, 0.5, 0.0])}
+    toy_w = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
+    toy_r = np.array([0.0, 1.0, 0.0, 0.0, 0.0])
+    toy_v, toy_paid = after_tax_annual(toy, 2.0, toy_w, rate=0.20, cost=0.0,
+                                       riskon_r=toy_r)
+    toy_err = max(abs(toy_v - 2.6), abs(toy_paid - 0.4))
+    print('검산 연간세금 2차실현  최종 %.6f / 세금 %.6f  오차=%.1e'
+          % (toy_v, toy_paid, toy_err))
+    ok = ok and toy_err < 1e-12
+    # 전환일에는 기존 자산을 먼저 팔고 새 자산의 그날 수익을 받는다. 순서를 뒤집으면
+    # 새 자산 수익까지 직전 보유분 매도차익으로 과세한다.
+    swtoy = {'idx': pd.DatetimeIndex(['2020-01-02', '2020-06-01', '2020-12-31']),
+             'schdr': np.array([0.0, 0.0, 1.0])}
+    sww = np.array([1.0, 0.0, 0.0])
+    swr = np.array([0.0, 1.0, 0.0])
+    sv, sp = after_tax(swtoy, 2.0, sww, rate=0.20, per_switch=True, cost=0.0,
+                       riskon_r=swr)
+    sw_err = max(abs(sv - 3.24), abs(sp - 0.56))
+    print('검산 전환일 매도→새자산수익  최종 %.6f / 세금 %.6f  오차=%.1e'
+          % (sv, sp, sw_err))
+    ok = ok and sw_err < 1e-12
+    yrtoy = {'idx': pd.DatetimeIndex(['2020-01-02', '2020-06-01', '2020-12-31',
+                                      '2021-01-04', '2021-12-31']),
+             'schdr': np.array([0.0, 0.0, 0.5, 0.0, 1.0])}
+    yv, yp = after_tax_annual(yrtoy, 2.0, np.array([1.0, 0.0, 0.0, 0.0, 0.0]),
+                              rate=0.20, cost=0.0,
+                              riskon_r=np.array([0.0, 1.0, 0.0, 0.0, 0.0]))
+    yr_err = max(abs(yv - 4.84), abs(yp - 0.96))
+    print('검산 연간세금 전환순서    최종 %.6f / 세금 %.6f  오차=%.1e'
+          % (yv, yp, yr_err))
+    ok = ok and yr_err < 1e-12
     for S in (A, B):
         c0, _, _ = run(D, S['ladder'], enter=S['enter'], cost=COST)
         c1, sw = sim(D, rule_w(D['ddv'], S['enter'], S['ladder'][0][0][1]))
@@ -444,15 +528,24 @@ def check(D):
         err = abs(v / c.iloc[-1] - 1)
         ok = ok and err < 1e-6
         print('검산 %-17s(세율0)  %.4f  vs sim %.4f  오차=%.1e' % (nm, v, c.iloc[-1], err))
-    # 분수 비중에서도 같은가 — 축2 앙상블이 세금·구간 함수를 그대로 탈 수 있어야 한다
+    # 분수 비중은 만기 1회 과세만 정의된다. 중간 매도 과세는 자산별 원가가 없어 막는다.
     wf = (rule_w(D['ddv'], -0.14, -0.14) + rule_w(D['ddv'], -0.16, -0.16)
           + rule_w(D['ddv'], -0.18, -0.18)) / 3.0
     cf, _ = sim(D, wf, rk2)
-    vf, _ = after_tax(D, 2.0, wf, 0.0, True)
+    vf, _ = after_tax(D, 2.0, wf, 0.0, False)
     errf = abs(vf / cf.iloc[-1] - 1)
     ok = ok and errf < 1e-6
-    print('검산 분수비중 after_tax(세율0)  %.4f  vs sim %.4f  오차=%.1e'
+    print('검산 분수비중 만기과세(세율0)  %.4f  vs sim %.4f  오차=%.1e'
           % (vf, cf.iloc[-1], errf))
+    blocked = 0
+    for fn in (lambda: after_tax(D, 2.0, wf, 0.0, True),
+               lambda: after_tax_annual(D, 2.0, wf, rate=0.0)):
+        try:
+            fn()
+        except ValueError:
+            blocked += 1
+    print('검산 분수비중 중간실현 실패-폐쇄  %d/2' % blocked)
+    ok = ok and blocked == 2
     ok = ok and check_accum(D)                          # [v33] 적립 규약도 함께 본다
     return ok
 

@@ -67,6 +67,65 @@ CRISES = [
 ]
 
 
+def _parse_yahoo_result(result, now_utc=None):
+    """Yahoo 일봉을 확정 종가로 검증한다. 정렬/중복을 고쳐 숨기지 않는다."""
+    ts = result.get("timestamp")
+    if not isinstance(ts, list) or not ts:
+        raise ValueError("Yahoo timestamp가 비었거나 배열이 아님")
+    try:
+        stamps = [float(v) for v in ts]
+    except (TypeError, ValueError) as e:
+        raise ValueError("Yahoo timestamp가 수치가 아님") from e
+    if any(not np.isfinite(v) for v in stamps):
+        raise ValueError("Yahoo timestamp에 비유한 값이 있음")
+    if any(b <= a for a, b in zip(stamps, stamps[1:])):
+        raise ValueError("Yahoo 원본 timestamp가 중복되거나 역순임")
+
+    ind = result.get("indicators") or {}
+    adj = ind.get("adjclose")
+    closes = adj[0].get("adjclose") if isinstance(adj, list) and adj else None
+    if not isinstance(closes, list) or len(closes) != len(stamps):
+        raise ValueError("Yahoo 수정종가가 없거나 timestamp와 길이가 다름")
+
+    meta = result.get("meta") or {}
+    reg = (meta.get("currentTradingPeriod") or {}).get("regular") or {}
+    qt, start, end = meta.get("regularMarketTime"), reg.get("start"), reg.get("end")
+    try:
+        qt, start, end = float(qt), float(start), float(end)
+    except (TypeError, ValueError) as e:
+        raise ValueError("Yahoo 정규장 meta(qt/start/end)가 불완전함") from e
+    if not all(np.isfinite(v) for v in (qt, start, end)) or start >= end:
+        raise ValueError("Yahoo 정규장 meta 범위가 잘못됨")
+
+    now_utc = pd.Timestamp.now("UTC") if now_utc is None else pd.Timestamp(now_utc)
+    now_utc = now_utc.tz_localize("UTC") if now_utc.tzinfo is None else now_utc.tz_convert("UTC")
+    if qt > now_utc.timestamp() + 300:
+        raise ValueError("Yahoo regularMarketTime이 현재보다 미래임")
+
+    idx = pd.to_datetime(stamps, unit="s", utc=True).tz_convert(None).normalize()
+    if idx.has_duplicates or not idx.is_monotonic_increasing:
+        raise ValueError("Yahoo 일자 정규화 뒤 중복·역순이 생김")
+    values = pd.to_numeric(pd.Series(closes), errors="coerce")
+    if values.isna().any() or (~np.isfinite(values)).any() or (values <= 0).any():
+        raise ValueError("Yahoo 수정종가에 누락·비유한 값·0 이하가 있음")
+    s = pd.Series(values.values, index=idx, name="Close")
+    now_day = now_utc.tz_convert(None).normalize()
+    if s.index[-1] > now_day:
+        raise ValueError(f"Yahoo 마지막 일봉({s.index[-1].date()})이 미래임")
+
+    live_day = pd.to_datetime(qt, unit="s", utc=True).tz_convert(None).normalize()
+    if in_session(meta):
+        if s.index[-1] == live_day:
+            print(f"장중 실행 감지 — 진행 중인 {live_day.date()} 봉 제외")
+            s = s.iloc[:-1]
+        if s.empty or s.index[-1] >= live_day:
+            raise ValueError("장중 봉 제외 뒤 확정된 이전 종가가 없음")
+    elif s.index[-1] != live_day:
+        raise ValueError(
+            f"Yahoo 확정 meta 날짜({live_day.date()})와 마지막 일봉({s.index[-1].date()})이 다름")
+    return s
+
+
 def fetch(host="query1"):
     period1 = int(datetime.datetime(1999, 1, 1, tzinfo=datetime.timezone.utc).timestamp())
     period2 = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
@@ -75,33 +134,11 @@ def fetch(host="query1"):
     with urllib.request.urlopen(req, timeout=60) as r:
         raw = json.loads(r.read().decode("utf-8", "replace"))
     result = raw["chart"]["result"][0]
-    ts = result["timestamp"]
     # [v71/B-1] 수정 종가(배당 조정)를 쓴다 — 백테스트(qqq_us_d.csv)와 같은 기준.
     # 비수정 종가는 배당락만큼 낙폭이 더 깊어 27년 중 11일 신호가 갈렸다(v67 감사).
-    # 수정 종가로는 백테스트와 신호 불일치 0일(6,908일 검증). adjclose 가 없으면
-    # 비수정으로 폴백하되 경고를 남긴다.
-    ind = result["indicators"]
-    closes = (ind.get("adjclose") or [{}])[0].get("adjclose")
-    if not closes:
-        print("[경고] adjclose 없음 — 비수정 종가로 폴백", file=sys.stderr)
-        closes = ind["quote"][0]["close"]
-    idx = pd.to_datetime(ts, unit="s", utc=True).tz_convert(None).normalize()
-    s = pd.Series(closes, index=idx, name="Close").dropna()
-    s = s[~s.index.duplicated(keep="last")].sort_index()
-    # [v66] 장중 가드: 미국 정규장 진행 중에 받으면 마지막 봉은 확정 종가가
-    # 아니라 실시간 가격이다. 예약 실행이 몇 시간 밀려 개장(13:30 UTC) 뒤에
-    # 돌 때 장중가가 종가로 둔갑하는 것을 막는다.
-    # 판별은 서버가 주는 값만 쓴다 — 규칙은 in_session() 에 한 곳으로 모았다
-    # (wait_close.closed() 도 같은 함수를 쓴다. 두 벌이면 갈린다).
-    # (v8 chart meta 에 marketState 는 없다.)
-    meta = result.get("meta", {})
-    qt = meta.get("regularMarketTime")
-    if in_session(meta) and len(s) > 0:
-        live_day = pd.to_datetime(qt, unit="s", utc=True).tz_convert(None).normalize()
-        if s.index[-1] == live_day:
-            print(f"장중 실행 감지 — 진행 중인 {live_day.date()} 봉 제외")
-            s = s.iloc[:-1]
-    return s
+    # 수정종가·원본 날짜 순서·정규장 meta가 하나라도 없으면 raw close로 물러서지 않는다.
+    # query2→네이버→검증된 캐시가 이미 있으므로, 애매한 값을 새 종가로 봉인할 이유가 없다.
+    return _parse_yahoo_result(result)
 
 
 def in_session(meta):
@@ -162,8 +199,19 @@ def fetch_naver():
 def load_cached():
     if not os.path.exists(CSV_PATH):
         return None
-    df = pd.read_csv(CSV_PATH, parse_dates=["Date"]).set_index("Date")["Close"]
-    return df.sort_index()
+    raw = pd.read_csv(CSV_PATH)
+    if list(raw.columns) != ["Date", "Close"] or raw.empty:
+        raise ValueError("qqq.csv 헤더가 다르거나 비었음")
+    idx = pd.to_datetime(raw["Date"], format="%Y-%m-%d", errors="coerce")
+    close = pd.to_numeric(raw["Close"], errors="coerce")
+    if idx.isna().any() or idx.duplicated().any() or not idx.is_monotonic_increasing:
+        raise ValueError("qqq.csv 날짜가 파싱 실패·중복·역순임")
+    if close.isna().any() or (~np.isfinite(close)).any() or (close <= 0).any():
+        raise ValueError("qqq.csv 종가가 비유한 값이거나 0 이하임")
+    today = pd.Timestamp.now("UTC").tz_convert(None).normalize()
+    if idx.iloc[-1] > today:
+        raise ValueError("qqq.csv 마지막 날짜가 미래임")
+    return pd.Series(close.values, index=pd.DatetimeIndex(idx), name="Close")
 
 
 # [v137] 종가 이상치 가드 — 04 §5-8 이 실측한 공백을 메운다.
@@ -344,6 +392,13 @@ def main():
         px = px[~px.index.duplicated(keep="last")].sort_index()
         history_shift(cached, px)
 
+    if px.empty or px.index.has_duplicates or not px.index.is_monotonic_increasing:
+        raise RuntimeError("최종 QQQ 시계열이 비었거나 중복·역순임")
+    if (~np.isfinite(px.values)).any() or (px <= 0).any():
+        raise RuntimeError("최종 QQQ 시계열에 비유한 값·0 이하가 있음")
+    if px.index[-1] > pd.Timestamp.now("UTC").tz_convert(None).normalize():
+        raise RuntimeError("최종 QQQ 시계열의 마지막 날짜가 미래임")
+
     # [v137] 이상치 가드 — 반드시 CSV 쓰기 **전**에. 네이버 대조가 옛 캐시를 기준으로
     # 「더 새로운 날인가」를 판정하므로, 캐시를 덮어쓴 뒤엔 대조가 불가능해진다.
     sanity_check(px, source)
@@ -424,5 +479,55 @@ def main():
     print(line)
 
 
+def selftest():
+    """Yahoo 원본 계약: 중복/역순·수정주가·meta·미래·장중 경계를 합성 검증."""
+    day1 = pd.Timestamp("2026-09-01T20:00:00Z")
+    day2 = pd.Timestamp("2026-09-02T20:00:00Z")
+    now = pd.Timestamp("2026-09-03T10:00:00Z")
+
+    def result(stamps=None, closes=None, meta=None):
+        stamps = stamps or [day1.timestamp(), day2.timestamp()]
+        closes = closes if closes is not None else [100.0, 101.0]
+        meta = meta or {"regularMarketTime": day2.timestamp(),
+                        "currentTradingPeriod": {"regular": {
+                            "start": day2.timestamp() + 86400,
+                            "end": day2.timestamp() + 86400 + 23400}}}
+        return {"timestamp": stamps, "indicators": {"adjclose": [{"adjclose": closes}]},
+                "meta": meta}
+
+    assert list(_parse_yahoo_result(result(), now).values) == [100.0, 101.0]
+
+    def rejected(payload, label):
+        try:
+            _parse_yahoo_result(payload, now)
+        except (ValueError, TypeError, KeyError):
+            return
+        raise AssertionError(label)
+
+    rejected(result([day1.timestamp(), day1.timestamp()]), "중복 원본 날짜를 숨겼다")
+    rejected(result([day2.timestamp(), day1.timestamp()]), "역순 원본 날짜를 정렬해 숨겼다")
+    missing_adj = result(); missing_adj["indicators"] = {"quote": [{"close": [100, 101]}]}
+    rejected(missing_adj, "수정종가 누락을 raw close로 대체했다")
+    rejected(result(closes=[100.0, None]), "수정종가 내부 누락 행을 dropna로 숨겼다")
+    missing_meta = result(); missing_meta["meta"]["currentTradingPeriod"]["regular"].pop("start")
+    rejected(missing_meta, "정규장 meta 누락을 허용했다")
+    future = now + pd.Timedelta(days=1)
+    rejected(result([day1.timestamp(), future.timestamp()], [100, 102],
+                    {"regularMarketTime": future.timestamp(),
+                     "currentTradingPeriod": {"regular": {
+                         "start": future.timestamp() + 86400,
+                         "end": future.timestamp() + 86400 + 23400}}}),
+             "미래 일봉을 허용했다")
+    live_meta = {"regularMarketTime": day2.timestamp(),
+                 "currentTradingPeriod": {"regular": {
+                     "start": day2.timestamp() - 3600, "end": day2.timestamp() + 3600}}}
+    live = _parse_yahoo_result(result(meta=live_meta), day2)
+    assert len(live) == 1 and live.index[-1] == day1.tz_convert(None).normalize()
+    print("update_signal selftest: PASS (수정주가 · 원본 순서 · meta · 미래/장중)")
+
+
 if __name__ == "__main__":
-    main()
+    if "--selftest" in sys.argv:
+        selftest()
+    else:
+        main()

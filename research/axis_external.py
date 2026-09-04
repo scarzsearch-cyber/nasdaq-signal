@@ -52,6 +52,9 @@ SEGS = [('1972-85', '1972-01-01', '1985-12-31'),
         ('1986-99', '1986-01-01', '1999-12-31'),
         ('2000-13', '2000-01-01', '2013-12-31'),
         ('2014-26', '2014-01-01', '2026-12-31')]
+BASE_NAME = '현행 -16/-16'
+G_CONTROL = 'G (v50 최근접)'
+CONTROL_NAMES = frozenset((BASE_NAME, G_CONTROL))
 
 
 def load(path, idx):
@@ -86,6 +89,30 @@ def chg(a, k):
     o = np.full(len(a), np.nan)
     o[k:] = a[k:] - a[:-k]
     return o
+
+
+def turnover_from(pos, lo0):
+    """후보와 기준선을 실제로 비교하는 시작점 이후의 전환만 센다."""
+    p = np.asarray(pos, dtype=float)[lo0:]
+    return int((np.abs(np.diff(p)) > 1e-9).sum())
+
+
+def passing_external(external_names, gate_results):
+    """외부정보 후보 집합 안에서만 전 관문 통과자를 고른다."""
+    return sorted(nm for nm in external_names
+                  if nm in gate_results and all(gate_results[nm]))
+
+
+def selfcheck():
+    """비교 전 전환과 비외부 G 대조군이 판정에 섞이는 회귀를 막는다."""
+    p = np.array([0., 1., 0., 1., 1., 0.])
+    assert turnover_from(p, 3) == 1
+    p[:3] = [1., 0., 1.]
+    assert turnover_from(p, 3) == 1
+
+    external = {'A 외부후보'}
+    gates = {G_CONTROL: [True] * 6, 'A 외부후보': [False] * 6}
+    assert passing_external(external, gates) == []
 
 
 def main():
@@ -133,7 +160,7 @@ def main():
     dd20 = chg(ddv, 20)
     G = np.where((ddv <= ENTER) & (dd20 > 0.03), 1.0, np.where(ddv > ENTER, 1.0, 0.0))
 
-    cd = {'현행 -16/-16': (base, 1972), 'G (v50 최근접)': (G, 1972)}
+    cd = {BASE_NAME: (base, 1972), G_CONTROL: (G, 1972)}
 
     # --- A. VIX -------------------------------------------------------------
     if 'VIX' in SRC:
@@ -204,11 +231,13 @@ def main():
                      np.where(ddv > ENTER, 1.0, 0.0)), 1972)
 
     # ---------------------------------------------------------- 평가
+    external_names = set(cd) - CONTROL_NAMES
+    assert CONTROL_NAMES <= set(cd) and G_CONTROL not in external_names
     print("=" * 112)
     print("1. 결과 — 각 후보는 **자기 데이터 가용구간**에서, 기준선도 같은 구간으로 잘라 비교")
     print("=" * 112)
     C = {nm: curve(rk, dfr, w) for nm, (w, _) in cd.items()}
-    cbase, _ = C['현행 -16/-16']
+    cbase, _ = C[BASE_NAME]
 
     def evalr(nm, y0):
         c, pos = C[nm]
@@ -226,13 +255,13 @@ def main():
                 blk.append(np.nan); continue
             blk.append(dca(c, mstart, lo, hi, 10 ** 9) / dca(cbase, mstart, lo, hi, 10 ** 9) - 1)
         return dict(isa=isa, per=per, mdd=m, blk=np.array(blk), st=st,
-                    sw=int((np.abs(np.diff(pos)) > 1e-9).sum()), y0=y0)
+                    sw=turnover_from(pos, lo0), y0=y0)
 
     R = {nm: evalr(nm, y0) for nm, (_, y0) in cd.items()}
     BASE = {}                       # 시작연도별 기준선 (같은 구간끼리 비교해야 한다)
     for _, y0 in cd.values():
         if y0 not in BASE:
-            BASE[y0] = evalr('현행 -16/-16', y0)
+            BASE[y0] = evalr(BASE_NAME, y0)
 
     print("  괄호 안 = **같은 구간으로 자른 현행 기준선**. 구간이 다르면 절대값 비교 금지(§23).")
     print()
@@ -264,9 +293,9 @@ def main():
     print("=" * 112)
     print("2. 6관문 (각자의 가용구간 기준선과 비교, 완화 없음)")
     print("=" * 112)
-    passed = []
+    gate_results = {}
     for nm in cd:
-        if nm.startswith('현행'):
+        if nm == BASE_NAME:
             continue
         r = R[nm]
         if len(r['isa']) < 5:
@@ -279,11 +308,10 @@ def main():
              np.median(r['per']) > np.median(b['per']),
              int(np.isfinite(r['blk']).sum()) == 4 and int(np.nansum(r['blk'] > 0)) >= 3,
              r['mdd'] >= b['mdd']]
+        gate_results[nm] = g
         print("  %-30s %d/6  %s   %s" % (nm, sum(g),
               ''.join('O' if x else 'X' for x in g),
               '' if int(np.isfinite(r['blk']).sum()) == 4 else '(4블록 검증 불가)'))
-        if all(g):
-            passed.append(nm)
     print()
     print("  G1 ISA중앙 · G2 P20 · G3 P5 · G4 영구중앙 · G5 4블록 3/4 · G6 MDD 비악화")
     print()
@@ -305,11 +333,13 @@ def main():
     print()
 
     print("=" * 112)
+    passed_external = passing_external(external_names, gate_results)
     print(verdict('외부 정보원이 현행을 개선하는가', [
-        ('6관문 전부 통과한 후보가 있다', len(passed) > 0,
-         '%d개 / 후보 %d개' % (len(passed), len(cd) - 2)),
+        ('6관문 전부 통과한 외부정보 후보가 있다', len(passed_external) > 0,
+         '%d개 / 외부정보 후보 %d개' % (len(passed_external), len(external_names))),
     ])['text'])
 
 
 if __name__ == '__main__':
+    selfcheck()
     main()

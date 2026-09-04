@@ -34,6 +34,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 import numpy as np
 import pandas as pd
 
+import hist_data as H
 import hist_defensive as DF
 from axis_lib import rule_w
 from axis_defmix import materials, mix_monthly_from, sim_def
@@ -48,8 +49,55 @@ THR_CALMAR = 0.102          # 2σ (v41 §0 에서 실측)
 THR_FINAL = 0.372
 
 
-def dd_from(px, lb):
-    return (px / px.rolling(lb, min_periods=lb).max() - 1).fillna(0).values
+def dd_from(px_all, lb, eval_idx=None):
+    """절단 전 가격 이력에서 낙폭을 만든 뒤 평가 구간만 자른다."""
+    px_all = pd.Series(px_all, copy=False).astype(float)
+    dd = px_all / px_all.rolling(lb, min_periods=lb).max() - 1
+    if eval_idx is not None:
+        missing = pd.Index(eval_idx).difference(px_all.index)
+        if len(missing):
+            raise ValueError(f'평가일 {len(missing)}개가 전체 가격 이력에 없다.')
+        dd = dd.reindex(eval_idx)
+    return dd.fillna(0.0).values
+
+
+def path_key(values):
+    """완전히 같은 결과 경로를 같은 후보로 세기 위한 정확한 키."""
+    a = np.ascontiguousarray(values, dtype=np.float64)
+    return (a.shape, a.tobytes())
+
+
+def adoption_gate_state(calmar_pass, tail_pass, accum_kr_pass=None, wfa_pass=None):
+    """v41의 네 필수 관문. 미측정(None)은 채택할 수 없게 실패-폐쇄한다."""
+    checks = {
+        'calmar': bool(calmar_pass),
+        'tail': bool(tail_pass),
+        'accum_kr': accum_kr_pass is not None and bool(accum_kr_pass),
+        'wfa': wfa_pass is not None and bool(wfa_pass),
+    }
+    checks['adopt'] = all(checks.values())
+    return checks
+
+
+def _selfcheck_contracts():
+    # 평가 시작 전에 있던 고점이 첫 평가일 낙폭에 반드시 남아야 한다.
+    ix = pd.date_range('2000-01-03', periods=6, freq='B')
+    px = pd.Series([100.0, 120.0, 90.0, 80.0, 85.0, 90.0], index=ix)
+    got = dd_from(px, 3, ix[3:])
+    expected = (px / px.rolling(3, min_periods=3).max() - 1).reindex(ix[3:]).values
+    naive = dd_from(px.reindex(ix[3:]), 3)
+    assert np.allclose(got, expected)
+    assert got[0] < -0.30 and naive[0] == 0.0
+
+    # 이미 방어 중인 추가 하락은 최초 진입 뒤의 쿨다운 시계를 되감지 않는다.
+    dd = np.array([-0.10, -0.17, -0.18, -0.17, -0.15])
+    assert np.array_equal(cool_w(dd, -0.16, -0.16, 3), [1, 0, 0, 0, 1])
+    assert np.array_equal(cool_w(dd, -0.16, -0.16, 0), rule_w(dd, -0.16, -0.16))
+
+    # 중복 경로는 행 수를 부풀리지 않고, 미측정 후속 관문은 채택을 막는다.
+    assert len({path_key([1, 0]), path_key([1, 0]), path_key([1, 1])}) == 2
+    assert not adoption_gate_state(True, True)['adopt']
+    assert adoption_gate_state(True, True, True, True)['adopt']
 
 
 def met(c):
@@ -80,9 +128,7 @@ def cool_w(ddv, enter, exit_, cool):
                 cur = 0.0; since = 0
         else:
             since += 1
-            if ddv[i] <= enter:
-                since = 0
-            elif ddv[i] > exit_ and since >= cool:
+            if ddv[i] > exit_ and since >= cool:
                 cur = 1.0
         w[i] = cur
     return w
@@ -107,29 +153,54 @@ def vshape_w(ddv, enter, exit_, bounce):
 
 
 def main():
+    _selfcheck_contracts()
     D = DF.build('chain')
     idx, px, ddq = D['idx'], D['px'], D['ddv']
+    proxy_r, _ = H.qqq_proxy()
+    px_all = (1 + proxy_r).cumprod()
+    if not np.allclose(px_all.reindex(idx).values, px.values, rtol=1e-12, atol=1e-12):
+        raise AssertionError('전체 이력 가격과 평가 구간 가격이 일치하지 않는다.')
+    if not np.allclose(dd_from(px_all, 252, idx), ddq, rtol=0.0, atol=1e-14):
+        raise AssertionError('252일 전체-이력 낙폭이 기준 엔진과 일치하지 않는다.')
+
+    base_w = rule_w(ddq, -0.16, -0.16)
+    for bounce in (0.03, 0.05, 0.08, 0.10, 0.15, 0.20):
+        assert np.array_equal(vshape_w(ddq, -0.16, -0.16, bounce), base_w)
+    assert not np.array_equal(vshape_w(ddq, -0.16, -0.11, 0.05), base_w)
+
     comp = materials(D)
     defr = mix_monthly_from({k: comp[k] for k in ('div', 'ust5', 'gold')},
                             {'div': .4, 'ust5': .4, 'gold': .2}, idx)
-    B = met(sim_def(D, rule_w(ddq, -0.16, -0.16), defr))
-    rb = roll(sim_def(D, rule_w(ddq, -0.16, -0.16), defr))
+    base_curve = sim_def(D, base_w, defr)
+    base_key = path_key(base_curve)
+    B = met(base_curve)
+    rb = roll(base_curve)
     print(f"기준선 B(-16/-16): {B['final']:,.0f}배  Calmar {B['calmar']:.3f}  MDD {B['mdd']*100:.2f}%")
     print(f"판별 문턱(2σ): Calmar {THR_CALMAR*100:.1f}%p  최종배수 {THR_FINAL*100:.1f}%p\n")
 
     best = []
+    best_keys = set()
+    evaluated_keys = []
+    group_counts = {}
 
     def report(tag, rows, top=6):
+        group_counts[tag] = len(rows)
+        for nm, m, rr, c in rows:
+            key = path_key(c)
+            evaluated_keys.append(key)
+            dc = m['calmar'] / B['calmar'] - 1
+            if dc > THR_CALMAR and key not in best_keys:
+                best.append((tag, nm, m, rr, dc))
+                best_keys.add(key)
         rows.sort(key=lambda r: -r[1]['calmar'])
         print(f"  {'':<22}{'최종배수':>12}{'Calmar':>9}{'현행대비':>10}{'MDD':>9}{'20년5분위':>11}")
-        for nm, m, rr in rows[:top]:
+        for nm, m, rr, c in rows[:top]:
             dc = m['calmar'] / B['calmar'] - 1
             mark = ' ***' if dc > THR_CALMAR else ''
+            duplicate = '  (=기준선 중복)' if path_key(c) == base_key else ''
             p5 = np.percentile(rr, 5) if np.isfinite(rr).all() else np.nan
             print(f"  {nm:<22}{m['final']:>12,.0f}{m['calmar']:>9.3f}{dc*100:>9.1f}%"
-                  f"{m['mdd']*100:>8.2f}%{p5:>10.2f}{mark}")
-            if dc > THR_CALMAR:
-                best.append((tag, nm, m, rr, dc))
+                  f"{m['mdd']*100:>8.2f}%{p5:>10.2f}{mark}{duplicate}")
         print()
 
     # ---------------------------------------------------------------- 1 격자
@@ -141,7 +212,7 @@ def main():
         for x in np.arange(e, -0.03, 0.01):
             w = rule_w(ddq, round(e, 2), round(x, 2))
             c = sim_def(D, w, defr)
-            rows.append((f'{e*100:.0f}/{x*100:.0f}', met(c), roll(c)))
+            rows.append((f'{e*100:.0f}/{x*100:.0f}', met(c), roll(c), c))
     report('격자', rows, 8)
 
     # ---------------------------------------------------------------- 2 룩백
@@ -150,11 +221,11 @@ def main():
     print("=" * 86)
     rows = []
     for lb in (63, 126, 189, 252, 378, 504, 756):
-        dv = dd_from(px, lb)
+        dv = dd_from(px_all, lb, idx)
         for e, x in ((-0.16, -0.16), (-0.16, -0.11), (-0.12, -0.12), (-0.20, -0.20)):
             w = rule_w(dv, e, x)
             c = sim_def(D, w, defr)
-            rows.append((f'{lb}일 {e*100:.0f}/{x*100:.0f}', met(c), roll(c)))
+            rows.append((f'{lb}일 {e*100:.0f}/{x*100:.0f}', met(c), roll(c), c))
     report('룩백', rows, 8)
 
     # ---------------------------------------------------------------- 3 쿨다운
@@ -166,7 +237,7 @@ def main():
         for e, x in ((-0.16, -0.16), (-0.16, -0.11)):
             w = cool_w(ddq, e, x, cool)
             c = sim_def(D, w, defr)
-            rows.append((f'쿨{cool}일 {e*100:.0f}/{x*100:.0f}', met(c), roll(c)))
+            rows.append((f'쿨{cool}일 {e*100:.0f}/{x*100:.0f}', met(c), roll(c), c))
     report('쿨다운', rows, 8)
 
     # ---------------------------------------------------------------- 4 V자
@@ -178,7 +249,7 @@ def main():
         for e, x in ((-0.16, -0.16), (-0.16, -0.11)):
             w = vshape_w(ddq, e, x, b)
             c = sim_def(D, w, defr)
-            rows.append((f'반등{b*100:.0f}%p {e*100:.0f}/{x*100:.0f}', met(c), roll(c)))
+            rows.append((f'반등{b*100:.0f}%p {e*100:.0f}/{x*100:.0f}', met(c), roll(c), c))
     report('V자', rows, 8)
 
     # ---------------------------------------------------------------- 5 재조정
@@ -190,29 +261,38 @@ def main():
     W = rule_w(ddq, -0.16, -0.16)
     for reb, nm in ((None, '재조정 없음'), ('M', '월 1회'), ('Q', '분기 1회')):
         c = sim_hold(D, W, comp, {'div': .4, 'ust5': .4, 'gold': .2}, rebal=reb)
-        rows.append((nm, met(c), roll(c)))
+        rows.append((nm, met(c), roll(c), c))
     report('재조정', rows, 3)
 
     # ---------------------------------------------------------------- 판정
     print("=" * 86)
     print("판정")
     print("=" * 86)
+    total = sum(group_counts.values())
+    distinct = len(set(evaluated_keys))
+    baseline_dupes = sum(k == base_key for k in evaluated_keys)
+    print(f"  평가행 {total}개 · 서로 다른 결과경로 {distinct}개 · 기준선 중복행 {baseline_dupes}개")
+    print("  " + " + ".join(f"{tag} {n}개" for tag, n in group_counts.items()))
+    best.sort(key=lambda r: -r[4])
     if not best:
         print(f"  **문턱(Calmar +{THR_CALMAR*100:.1f}%p)을 넘은 후보 없음.**")
         print(f"  현행 -16/-16 이 여전히 최선이다.")
-        print(f"  탐색한 조합: 격자 {len([1 for e in np.arange(-0.24,-0.09,0.01) for x in np.arange(e,-0.03,0.01)])}개"
-              f" + 룩백 28개 + 쿨다운 14개 + V자 12개 + 재조정 3개")
     else:
-        print(f"  문턱을 넘은 후보 {len(best)}개 — 정밀검증 필요:")
+        print(f"  문턱을 넘은 서로 다른 후보경로 {len(best)}개 — 정밀검증 필요:")
         for tag, nm, m, rr, dc in best:
             p5b = np.percentile(rb, 5)
             p5 = np.percentile(rr, 5)
+            gates = adoption_gate_state(dc > THR_CALMAR, p5 >= p5b,
+                                        accum_kr_pass=None, wfa_pass=None)
             v = verdict(f'{tag} {nm}', [
-                (f'Calmar +{THR_CALMAR*100:.0f}%p 초과', dc > THR_CALMAR, f'{dc*100:+.1f}%'),
-                ('좌측꼬리 비악화', p5 >= p5b, f'{p5:.2f} vs {p5b:.2f}'),
-                ('MDD 비악화', m['mdd'] >= B['mdd'], f"{m['mdd']*100:.2f}% vs {B['mdd']*100:.2f}%"),
+                (f'Calmar +{THR_CALMAR*100:.0f}%p 초과', gates['calmar'], f'{dc*100:+.1f}%'),
+                ('좌측꼬리 비악화', gates['tail'], f'{p5:.2f} vs {p5b:.2f}'),
+                ('적립식·원화 관문', gates['accum_kr'], '미도달'),
+                ('워크포워드 관문', gates['wfa'], '미도달'),
             ])
+            assert v['adopt'] == gates['adopt']
             print(v['text']); print()
+            print(f"  참고(필수 관문 아님): MDD {m['mdd']*100:.2f}% vs {B['mdd']*100:.2f}%\n")
 
 
 if __name__ == '__main__':

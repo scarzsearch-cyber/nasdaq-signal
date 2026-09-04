@@ -38,15 +38,34 @@ THS = [(-0.10, -0.05), (-0.12, -0.08), (-0.15, -0.10), (-0.16, -0.11),
        (-0.25, -0.15)]
 
 
+def _us_curve_known_at_korea_close(us_curve, us_idx, kidx):
+    """한국 날짜마다 그 시각에 이미 끝난 직전 미국 세션 값만 고른다."""
+    us_idx = pd.DatetimeIndex(us_idx)
+    kidx = pd.DatetimeIndex(kidx)
+    curve = np.asarray(us_curve, float)
+    assert len(curve) == len(us_idx) and us_idx.is_monotonic_increasing
+    pos = us_idx.searchsorted(kidx, side='left') - 1       # 같은 날짜 미국 종가는 미래
+    if np.any(pos < 0):
+        raise ValueError('첫 한국 날짜보다 앞선 미국 세션이 없어 원화 환산 불가')
+    return curve[pos]
+
+
+def _selfcheck_market_clock():
+    us = pd.to_datetime(['2020-01-01', '2020-01-02', '2020-01-03'])
+    kr = pd.to_datetime(['2020-01-02', '2020-01-03'])
+    got = _us_curve_known_at_korea_close([1.0, 2.0, 4.0], us, kr)
+    assert np.array_equal(got, [1.0, 2.0])                 # [2,4]면 같은 날 미래참조
+
+
 def to_krw(us_curve, us_idx, kidx, fxk):
-    """미국 달러 누적곡선 → 한국 거래일 원화 누적곡선 (ffill 재색인 × 환율)."""
-    s = pd.Series(np.asarray(us_curve, float), index=us_idx)
-    v = s.reindex(kidx.union(us_idx)).ffill().reindex(kidx)
-    out = (v * fxk).values
+    """미국 달러 누적곡선 → 한국 거래일 원화곡선 (직전 미국 종가 × 당일 환율)."""
+    v = _us_curve_known_at_korea_close(us_curve, us_idx, kidx)
+    out = np.asarray(v * np.asarray(fxk, float), float)
     return out / out[0]
 
 
 def main():
+    _selfcheck_market_clock()
     G, X = EC.selfcheck()
     us_idx = G.idx
     tb = G.tb

@@ -49,11 +49,24 @@ for nm,a,b in CR:
             va*100,vo*100,vc*100))
 print("\n  메타A 가 위기에서 현행을 이긴 횟수: %d/%d  (중앙 %+.1f%%p)"
       %(sum(1 for g in gapA if g>0),len(gapA),np.median(gapA)*100))
-# 직전 10년 1등이 다음 10년에도 1등인가
+# 직전 10년 1등이 다음 **완료된** 10년에도 1등인가
 print("\n  '직전 10년 1등'이 '다음 10년 1등'과 같은가")
 print("  %-12s%-14s%-14s%10s"%('구간','직전10년 1등','그 10년 1등','같은가'))
 same=0; tot=0
-for y in (1992,2002,2012,2022):
+def completed_decades(index, candidates):
+    """끝난 달력연도만 채택한다. 마지막 해가 진행 중이면 보수적으로 제외한다."""
+    if len(index) == 0:
+        return []
+    last_year = int(index[-1].year)
+    return [y for y in candidates if last_year > y + 9]
+
+
+# 2026-08 표본에서는 2022~2031을 빼고, 2032년 관측이 생긴 뒤에만 넣는다.
+assert completed_decades(pd.DatetimeIndex(['2026-08-28']), (2012, 2022)) == [2012]
+assert completed_decades(pd.DatetimeIndex(['2032-01-02']), (2022,)) == [2022]
+all_starts = (1992, 2002, 2012, 2022)
+starts = completed_decades(idx, all_starts)
+for y in starts:
     a='%d-01-01'%y; b='%d-12-31'%(y+9)
     lo=int(idx.searchsorted(pd.Timestamp(a))); hi=min(N,int(idx.searchsorted(pd.Timestamp(b),side='right')))
     prev=max(POOL,key=lambda c:(mult(c,max(0,lo-LOOK),lo),-POOL.index(c)))
@@ -62,3 +75,7 @@ for y in (1992,2002,2012,2022):
     print("  %-12s%-14s%-14s%10s"%('%d-%d'%(y,y+9),'%.0f/%.0f'%(prev[0]*100,prev[1]*100),
           '%.0f/%.0f'%(now[0]*100,now[1]*100),'O' if prev==now else 'X'))
 print("\n  일치 %d/%d"%(same,tot))
+omitted = [y for y in all_starts if y not in starts]
+if omitted:
+    print("  미완성 창 제외: %s (자료 마지막 %s)" %
+          (', '.join('%d-%d' % (y, y + 9) for y in omitted), idx[-1].date()))

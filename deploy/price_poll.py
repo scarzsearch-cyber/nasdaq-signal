@@ -68,18 +68,42 @@ def at(d, t):
     return datetime.combine(d, t, tzinfo=KST)
 
 
-def load_holidays():
+def load_holidays(for_date=None):
+    """검증된 한국장 휴장일만 반환한다.
+
+    달력을 못 읽었는데 평일로 간주하면 휴장일의 전일 종가를 새 시각으로 계속
+    발행해 화면에 거짓 신선도를 만든다. 모르면 폴링하지 않는 쪽이 안전하다.
+    """
+    if not os.path.exists(HOLI):
+        raise RuntimeError('kr_holidays.json 이 없다 — 시세 날짜를 판정할 수 없음')
     try:
-        return set(json.load(io.open(HOLI, encoding='utf-8'))['holidays'])
-    except Exception:
-        return set()
+        doc = json.load(io.open(HOLI, encoding='utf-8'))
+    except Exception as e:
+        raise RuntimeError('kr_holidays.json 파싱 실패') from e
+    if (not isinstance(doc, dict) or not isinstance(doc.get('range'), list)
+            or len(doc['range']) != 2 or not isinstance(doc.get('holidays'), dict)):
+        raise RuntimeError('kr_holidays.json 구조가 잘못됨')
+    try:
+        y0, y1 = (int(doc['range'][0]), int(doc['range'][1]))
+        if y0 > y1:
+            raise ValueError
+        dates = list(doc['holidays'])
+        parsed = [datetime.strptime(s, '%Y-%m-%d').date() for s in dates]
+        if any(d.isoformat() != s or not (y0 <= d.year <= y1)
+               for s, d in zip(dates, parsed)):
+            raise ValueError
+    except Exception as e:
+        raise RuntimeError('kr_holidays.json 날짜·범위를 해석할 수 없음') from e
+    if for_date is not None and not (y0 <= for_date.year <= y1):
+        raise RuntimeError('kr_holidays.json 범위 밖 날짜 — 시세 폴링 중단')
+    return set(dates)
 
 
 def is_trading_day(d, holidays=None):
     if d.weekday() >= 5:
         return False
     if holidays is None:
-        holidays = load_holidays()
+        holidays = load_holidays(d)
     return d.isoformat() not in holidays
 
 
@@ -108,19 +132,14 @@ def sleep_until(t):
 
 # ── 스냅샷 · 브랜치 · 배포 ─────────────────────────────────────────────
 def snapshot():
-    """price_now 와 같은 수집·같은 파일 규약. 실패하면 None (파일은 안 건드린다)."""
+    """price_now와 같은 규약으로 수집한다. 실패는 폴러의 연속 실패 계수로 올린다."""
     try:
         doc = price_now.build(price_now.fetch())
     except Exception as e:
-        log(f'수집 실패({e}) — 이번 슬롯 건너뜀')
-        return None
+        raise RuntimeError(f'수집 실패({type(e).__name__}: {e})') from e
     if not doc['items']:
-        log('대상 종목 0건 — 이번 슬롯 건너뜀')
-        return None
-    os.makedirs(os.path.dirname(PRICE), exist_ok=True)
-    with io.open(PRICE, 'w', encoding='utf-8') as f:
-        json.dump(doc, f, ensure_ascii=False, indent=1)
-        f.write('\n')
+        raise RuntimeError('대상 종목 0건')
+    price_now.atomic_json_write(PRICE, doc)
     return doc
 
 
@@ -215,8 +234,6 @@ def cycle(last_items, dry):
     """스냅샷 1회: 수집 → 값이 바뀌었으면 브랜치 덮어쓰기 → 배포 깨우기.
     반환 (items, ok). ok=False 면 배포 경로가 막힌 것 — 호출자가 종료한다."""
     doc = snapshot()
-    if doc is None:
-        return last_items, True
     log(f"{doc['as_of_kst']} · {len(doc['items'])}종목 · "
         + ' '.join(f"{c}={r['px']:,}" for c, r in doc['items'].items()))
     if doc['items'] == last_items:
@@ -248,6 +265,31 @@ def selftest():
     assert is_trading_day(date(2026, 9, 5), hol) is False    # 토
     assert is_trading_day(date(2026, 9, 6), hol) is False    # 일
     assert is_trading_day(date(2026, 10, 9), hol) is False   # 한글날
+    # UTC 일~목 23시가 KST 월~금 08시가 되는지 확인한다. 월요일 슬롯 누락 방지.
+    assert datetime(2026, 8, 30, 23, 30, tzinfo=timezone.utc).astimezone(KST).weekday() == 0
+    assert datetime(2026, 9, 3, 23, 50, tzinfo=timezone.utc).astimezone(KST).weekday() == 4
+    # 달력을 모르면 휴장일을 거래일로 지어내지 않는다.
+    real_holi = globals()['HOLI']
+    with tempfile.TemporaryDirectory(prefix='price_holiday_') as td:
+        test_holi = os.path.join(td, 'kr_holidays.json')
+        globals()['HOLI'] = test_holi
+        try:
+            for label, payload in (
+                    ('missing', None), ('broken', '{broken'),
+                    ('range', json.dumps({'range': [2025, 2025], 'holidays': {}}))):
+                if payload is None:
+                    if os.path.exists(test_holi):
+                        os.unlink(test_holi)
+                else:
+                    with io.open(test_holi, 'w', encoding='utf-8') as f:
+                        f.write(payload)
+                try:
+                    is_trading_day(date(2026, 9, 2))
+                    raise AssertionError(f'{label} 휴장 달력을 거래일로 허용했다')
+                except RuntimeError:
+                    pass
+        finally:
+            globals()['HOLI'] = real_holi
     # 하루 시뮬레이션: 08:40 에 뜬 오전 실행 + 12:26 에 이어받는 오후 실행
     #   = 정렬 슬롯 84개(종전 `*/5` 와 같은 수) + 인계 실행이 시작 즉시 찍는 1개
     shots = []
@@ -271,11 +313,122 @@ def selftest():
     assert phase_end(now) == T(12, 26) and next_slot(now) == T(10, 40, 20)
     # 폴러가 15:56 뒤에 뜨면 아무것도 안 한다 (main 이 DAY_END 검사)
     assert T(15, 56) >= at(d, DAY_END)
-    print('selftest OK — 구간·정렬·휴장·하루 85스냅샷(정렬 84 + 인계 1) 검산 통과')
+
+    # 실제 snapshot 실패가 cycle 바깥으로 전파돼 main의 연속 실패 계수에 닿아야 한다.
+    real_fetch = price_now.fetch
+    try:
+        price_now.fetch = lambda: (_ for _ in ()).throw(OSError('HTTP 실패 모의'))
+        try:
+            cycle(None, True)
+            raise AssertionError('수집 실패를 성공 슬롯으로 삼켰다')
+        except RuntimeError:
+            pass
+    finally:
+        price_now.fetch = real_fetch
+
+    # 외부 JSON 이 bool·NaN·Infinity 를 숫자로 돌려도 표시 파일에 실리지 않아야 한다.
+    # Python json.dumps 기본값은 NaN 토큰을 허용하지만 브라우저 JSON.parse 는 거부한다.
+    malformed = [
+        {'itemcode': '418660', 'itemname': 'NaN 가격', 'nowVal': float('nan')},
+        {'itemcode': '458730', 'itemname': float('nan'), 'nowVal': 10000,
+         'nav': float('inf'), 'changeVal': float('nan'), 'changeRate': True,
+         'quant': -1},
+        {'itemcode': '305080', 'itemname': '불리언 가격', 'nowVal': True},
+    ]
+    clean = price_now.build(malformed)
+    assert set(clean['items']) == {'458730'}
+    clean_row = clean['items']['458730']
+    assert clean_row['name'] == ''
+    assert clean_row['chg'] is None and clean_row['chg_pct'] is None
+    assert clean_row['volume'] is None and 'nav' not in clean_row
+    json.dumps(clean, allow_nan=False)
+    assert price_now._plausible({'itemcode': '418660', 'nowVal': True}) is False
+    import kr_sources
+    assert kr_sources._num(True) is None
+    assert kr_sources._num(float('nan')) is None
+    assert kr_sources._num(float('inf')) is None
+    try:
+        kr_sources._item('418660', float('nan'))
+        raise AssertionError('NaN 가격을 예비 시세로 허용했다')
+    except ValueError:
+        pass
+
+    # 직렬화나 쓰기가 실패해도 마지막 정상 스냅샷은 바이트 단위로 보존한다.
+    with tempfile.TemporaryDirectory(prefix='price_atomic_') as td:
+        target = os.path.join(td, 'price.json')
+        with open(target, 'wb') as f:
+            f.write(b'SENTINEL')
+        try:
+            price_now.atomic_json_write(target, {'bad': float('nan')})
+            raise AssertionError('비표준 JSON 값이 저장됐다')
+        except ValueError:
+            pass
+        with open(target, 'rb') as f:
+            assert f.read() == b'SENTINEL'
+
+    # workflow_dispatch 기본 once도 거래일 달력과 장중 경계를 우회하지 않는다.
+    # 누락·손상·범위 밖 달력, 휴일, 개장 전·마감 뒤에는 cycle이 한 번도 불리지 않는다.
+    real_holi = globals()['HOLI']
+    real_cycle = globals()['cycle']
+    real_branch_items = globals()['branch_items']
+    calls = []
+    with tempfile.TemporaryDirectory(prefix='price_once_') as td:
+        once_holi = os.path.join(td, 'kr_holidays.json')
+        globals()['HOLI'] = once_holi
+        globals()['cycle'] = lambda *args, **kwargs: calls.append((args, kwargs)) or (None, True)
+        globals()['branch_items'] = lambda: {'before': True}
+        try:
+            # 파일 없음·파싱 실패·범위 밖은 모두 발행 없이 종료한다.
+            assert main(['--mode', 'once', '--dry-run'], now=T(10, 0)) == 0
+            with io.open(once_holi, 'w', encoding='utf-8') as f:
+                f.write('{broken')
+            assert main(['--mode', 'once', '--dry-run'], now=T(10, 0)) == 0
+            with io.open(once_holi, 'w', encoding='utf-8') as f:
+                json.dump({'range': [2025, 2025], 'holidays': {}}, f)
+            assert main(['--mode', 'once', '--dry-run'], now=T(10, 0)) == 0
+
+            with io.open(once_holi, 'w', encoding='utf-8') as f:
+                json.dump({'range': [2026, 2026],
+                           'holidays': {'2026-09-02': '합성 휴장일'}}, f)
+            assert main(['--mode', 'once', '--dry-run'], now=T(10, 0)) == 0
+            with io.open(once_holi, 'w', encoding='utf-8') as f:
+                json.dump({'range': [2026, 2026], 'holidays': {}}, f)
+            assert main(['--mode', 'once', '--dry-run'], now=T(8, 59)) == 0
+            assert main(['--mode', 'once', '--dry-run'], now=T(15, 56)) == 0
+            assert calls == []
+            assert main(['--mode', 'once', '--dry-run'], now=T(10, 0)) == 0
+            assert len(calls) == 1
+
+            # 수집 예외를 snapshot/cycle이 삼켜 성공으로 바꾸면 이 3회 종료 계약은
+            # 도달 불가다. 진입점에서 연속 실패는 3회 뒤 종료하고, 1~2회 뒤 성공은 회복한다.
+            failed = []
+            def always_fail(*args, **kwargs):
+                failed.append(1)
+                raise RuntimeError('수집 실패 모의')
+            globals()['cycle'] = always_fail
+            assert main(['--mode', 'poll', '--dry-run'], now=T(10, 0),
+                        clock=lambda: T(10, 0), sleeper=lambda target: None) == 0
+            assert len(failed) == 3
+
+            attempts = []
+            def recover_third(*args, **kwargs):
+                attempts.append(1)
+                if len(attempts) < 3:
+                    raise RuntimeError('일시 실패 모의')
+                return {'after': True}, True
+            globals()['cycle'] = recover_third
+            assert main(['--mode', 'poll', '--dry-run', '--cycles', '3'], now=T(10, 0),
+                        clock=lambda: T(10, 0), sleeper=lambda target: None) == 0
+            assert len(attempts) == 3
+        finally:
+            globals()['HOLI'] = real_holi
+            globals()['cycle'] = real_cycle
+            globals()['branch_items'] = real_branch_items
+    print('selftest OK — 구간·정렬·휴장·once 관문·유한 시세·원자 저장·수집 3회 실패·하루 85스냅샷 검산 통과')
     return 0
 
 
-def main(argv=None):
+def main(argv=None, now=None, clock=None, sleeper=sleep_until):
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', choices=['poll', 'once'], default='once')
     ap.add_argument('--dry-run', action='store_true', help='수집·파일 쓰기만 — push·배포·인계 없음')
@@ -285,22 +438,40 @@ def main(argv=None):
     if a.selftest:
         return selftest()
 
-    now = datetime.now(KST)
-    if a.mode == 'once':
-        cycle(branch_items(), a.dry_run)
+    clock = clock or (lambda: datetime.now(KST))
+    now = clock() if now is None else now
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=KST)
+    else:
+        now = now.astimezone(KST)
+    try:
+        trading_day = is_trading_day(now.date())
+    except RuntimeError as e:
+        log(f'휴장일 표 검증 실패({e}) — 시세 발행 없이 종료')
         return 0
-
-    if not is_trading_day(now.date()):
+    if not trading_day:
         log(f'{now:%Y-%m-%d} 휴장 — 종료')
         return 0
     if now >= at(now.date(), DAY_END):
         log('장 마감 후 — 종료')
         return 0
-    end = phase_end(now)
     start = at(now.date(), OPEN)
+    if a.mode == 'once':
+        # 수동 기본값도 검증된 거래일의 장중에만 현재 시각을 붙인다. 장외 quote는
+        # 전일 종가일 수 있어 새 as_of_kst로 발행하면 화면에 거짓 신선도를 만든다.
+        if now < start:
+            log('개장 전 — 수동 1회 시세 발행 없이 종료')
+            return 0
+        try:
+            cycle(branch_items(), a.dry_run)
+        except Exception as e:
+            log(f'수동 스냅샷 실패: {type(e).__name__}: {str(e)[:200]}')
+        return 0
+
+    end = phase_end(now)
     if now < start:
         log(f'개장 전 — {start:%H:%M:%S} 까지 {(start - now).total_seconds():.0f}초 대기')
-        sleep_until(start)
+        sleeper(start)
     log(f'폴링 시작 — {end:%H:%M} 까지 5분마다')
     last = branch_items()
     n = 0
@@ -328,10 +499,10 @@ def main(argv=None):
         if a.cycles and n >= a.cycles:
             log('시험 횟수 도달 — 종료')
             return 0
-        nxt = next_slot(datetime.now(KST))
+        nxt = next_slot(clock())
         if nxt >= end:
             break
-        sleep_until(nxt)
+        sleeper(nxt)
     if end < at(now.date(), DAY_END):
         handover(a.dry_run)
     log('구간 끝 — 종료')

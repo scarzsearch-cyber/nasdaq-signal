@@ -17,8 +17,8 @@
     전부 **B의 0% 도피를 보존**하므로 그 기각의 적용 범위 밖이다(v82 범위 원칙).
     단 변동성 조기방어(v32/40 기각) 혈통인 후보(BVOL·RMAP)는 그 사실을 명기한다.
 
-[다중성 선언] 같은 54.5년 표본의 **18번째 채굴**이다. 시험 변형 수 23
-  (혼합 6 + 구조 4 + 격자 12 + 무손잡이 1). 표본 안 성적은 등록 자격 심사일 뿐이며
+[다중성 선언] 같은 54.5년 표본의 **18번째 채굴**이다. 신규 변형 22종과
+  B·T4 대조군 2종, 합계 24종이다. 표본 안 성적은 등록 자격 심사일 뿐이며
   증거는 미래 그림자 OOS 만이 준다. 통과자가 나와도 **채택이 아니라
   "그림자 등록 논의 자격"**이다 — 등록 여부·규약은 소유자 결정 사항.
 
@@ -38,7 +38,7 @@
 [★ 등록 관문 N1~N8 — 실행 전 고정. 기준: 54.5년 · T-bill 방어 · lag=1 · 편도 0.2%]
   N1 방어 개선   MDD ≥ B(0.2%) MDD + 3%p
   N2 보험료 한도 최종 ≥ 0.90 × B(0.2%)   (평상시 기회비용 ≤ 10% — 요청 Q의 보험료 관점)
-  N3 사건 반복   독립 도피 22사건창 MDD 승률 vs B ≥ 60%
+  N3 사건 반복   독립 도피 사건창 MDD 승률 vs B ≥ 60%
   N4 시대 불변   전반(1972–99)·후반(2000–26) 사건들 각각에서 사건승 ≥ 50%
   N5 회전 한도   연회전 ≤ 5.0 (B 2.6 의 약 2배 — "손 안 대는 시스템" 유지선)
   N6 고원        격자 후보는 모든 이웃 셀에서 N1∧N2 유지 (한 점 첨탑 무효)
@@ -73,7 +73,7 @@ import pandas as pd
 import hist_data as H
 from axis_lib import sim
 from research_kit import dist, fmt_dist, verdict
-from axis_t4_shadow import build, met, VT, TH
+from axis_t4_shadow import build, met, VT, TH, independent_escapes, event_bounds
 
 try:
     _sys.stdout.reconfigure(encoding='utf-8')
@@ -113,16 +113,28 @@ def make_candidates(wB, wT, votes, rv, ddv, px):
     return C
 
 
+def duplicate_paths(cands):
+    """삽입 순서상 먼저 나온 동일 경로를 별칭으로 돌려준다."""
+    first, aliases = [], {}
+    for name, path in cands.items():
+        same = next((old for old, old_path in first
+                     if np.array_equal(np.asarray(path), np.asarray(old_path), equal_nan=True)), None)
+        if same is None:
+            first.append((name, path))
+        else:
+            aliases[name] = same
+    return aliases
+
+
+def check_duplicate_paths():
+    x = np.array([0.0, 1.0])
+    aliases = duplicate_paths({'A': x, 'B': 1 - x, 'A2': x.copy()})
+    assert aliases == {'A2': 'A'}
+
+
 # ==================================================================== 사건
 def indep_events(D, wB):
-    idx = D['idx']
-    esc = np.where((wB[1:] == 0) & (wB[:-1] == 1))[0] + 1
-    keep, last = [], None
-    for e in esc:
-        if last is None or (idx[e] - idx[last]).days > 252:
-            keep.append(e)
-        last = e
-    return keep
+    return independent_escapes(wB)
 
 
 def event_stats(D, w, curve, cB, wBv, keep, px):
@@ -131,7 +143,7 @@ def event_stats(D, w, curve, cB, wBv, keep, px):
     n = len(idx)
     wins, m1, rec = [], [], []
     for e in keep:
-        a = max(0, e - 63); b = min(n - 1, e + 252)
+        a, b = event_bounds(n, e)
         sT = curve.iloc[a:b]; sB = cB.iloc[a:b]
         wins.append(float((sT / sT.cummax() - 1).min()) > float((sB / sB.cummax() - 1).min()))
         m1.append(w[max(0, e - 10):e].mean() < 0.7)
@@ -148,6 +160,7 @@ def event_stats(D, w, curve, cB, wBv, keep, px):
 
 # ==================================================================== main
 def main():
+    check_duplicate_paths()
     D, wT, wB, votes, rv = build('tbill')
     idx = D['idx']; n = len(idx); yrs = (idx[-1] - idx[0]).days / 365.25
     r_full, _ = H.qqq_proxy()
@@ -180,16 +193,25 @@ def main():
     mM2 = met(sim(D, 0.25 * wB + 0.75 * wT, cost=KCOST)[0])
 
     # --- 1. 본 표 ---------------------------------------------------------------
+    cands = make_candidates(wB, wT, votes, rv, ddv, px)
+    aliases = duplicate_paths(cands)
+    controls = {'MIX(0.00)', 'MIX(1.00)'}
+    nominal_novel = len(cands) - len(controls)
+    distinct_total = len(cands) - len(aliases)
+    distinct_novel = len([nm for nm in cands
+                          if nm not in controls and nm not in aliases])
     print()
     print('=' * 112)
-    print('1. 후보 23종 — 편도 0.2%% (참고 0.1%%) · 사건 %d회 · 관문 N1~N8' % len(keep))
+    print('1. 평가행 %d개(명목 신규 %d + 대조 2) · 서로 다른 경로 %d개(신규 %d)'
+          ' — 편도 0.2%% (참고 0.1%%) · 사건 %d회 · 관문 N1~N8'
+          % (len(cands), nominal_novel, distinct_total, distinct_novel, len(keep)))
     print('=' * 112)
     print('%-14s %10s %7s %7s %6s %5s %6s %6s %7s %9s %10s %6s' %
           ('후보', '최종0.2%', 'MDD', 'Calmar', '회전yr', '사건승', '전/후', 'M1',
            '회복Δw', '최종0.1%', '반쪽72/00', 'N관문'))
     wBv = wB
     rows = {}
-    for nm, w in make_candidates(wB, wT, votes, rv, ddv, px).items():
+    for nm, w in cands.items():
         c, _ = sim(D, w, cost=KCOST)
         m = met(c)
         turn = np.abs(np.diff(w, prepend=w[0])).sum() / yrs
@@ -253,7 +275,11 @@ def main():
         if others:
             print('   그 외 통과(타이브레이크 탈락): %s' % ', '.join(others))
     else:
-        print('[판정] 전멸 — N1~N8 을 전부 충족한 신규 구조 없음')
+        print('[판정] 전멸 — N1~N8 을 전부 충족한 신규 구조 없음'
+              ' (명목 %d개 / 중복 제거 %d개)' % (nominal_novel, distinct_novel))
+    if aliases:
+        print('   기준선·후보와 같은 경로: %s' %
+              ', '.join('%s=%s' % item for item in aliases.items()))
     for nm, r in rows.items():
         if nm in ('MIX(0.00)', 'MIX(1.00)') or all(r['ks'].values()):
             continue

@@ -63,6 +63,26 @@ def episodes(a, b):
     return out
 
 
+def relative_log_edge(lev, dfr):
+    """레버리지/방어의 누적 상대수익을 합산 가능한 로그 차이로 바꾼다."""
+    lev = np.asarray(lev, dtype=float)
+    dfr = np.asarray(dfr, dtype=float)
+    if np.any(lev <= -1) or np.any(dfr <= -1):
+        raise ValueError('에피소드 수익률은 -100%보다 커야 한다')
+    return np.log1p(lev) - np.log1p(dfr)
+
+
+def _assert_relative_compounding():
+    """퍼센트포인트 차이를 복리수익처럼 곱하는 회귀를 막는다."""
+    lev = np.array([0.10, -0.05])
+    dfr = np.array([0.05, -0.02])
+    got = float(np.expm1(relative_log_edge(lev, dfr).sum()))
+    expected = float(np.prod((1 + lev) / (1 + dfr)) - 1)
+    wrong_pp = float(np.prod(1 + (lev - dfr)) - 1)
+    assert np.isclose(got, expected, rtol=0, atol=1e-15), '상대수익 복리 검산 실패'
+    assert not np.isclose(got, wrong_pp, rtol=0, atol=1e-6), '퍼센트포인트 복리 회귀'
+
+
 def s1_real():
     print("=" * 84)
     print("1. 실물 TIGER 3.2년 — 실제로 무슨 일이 있었나")
@@ -93,18 +113,22 @@ def s1_real():
     ea = ha.shift(1).fillna(1.0).values
     dlog = np.log1p(rb) - np.log1p(ra)
     same = (eb == ea)
+    same_days = int(same.sum())
+    diff_days = int((~same).sum())
 
     print()
     print("  두 전략이 **같은 자산을 든 날** %d일 / %d일 = %.1f%%"
-          % (int(same.sum()), len(idx), same.mean() * 100))
+          % (same_days, len(idx), same.mean() * 100))
     print("    그 날들의 기여   %+.2f%%   <- 전환비용 차이만 남는다"
           % ((np.exp(dlog[same].sum()) - 1) * 100))
     print("    갈린 날 %d일 기여 %+.2f%%"
-          % (int((~same).sum()), (np.exp(dlog[~same].sum()) - 1) * 100))
+          % (diff_days, (np.exp(dlog[~same].sum()) - 1) * 100))
     print("    합계 검산 %+.2f%%  vs 실제 B/A-1 %+.2f%%   <- 일치해야 한다"
           % ((np.exp(dlog.sum()) - 1) * 100, (fb / fa - 1) * 100))
 
     eps = episodes(eb, ea)
+    assert not np.any(eb < ea), 'A만 공격인 날은 선행구간 정의 밖이다'
+    assert sum(j - i for i, j in eps) == diff_days, '선행구간과 보유 차이 일수가 어긋났다'
     print()
     print("  선행구간(B 는 레버리지 · A 는 방어) %d개" % len(eps))
     print("  %-3s%-13s%-13s%5s%10s%10s%10s"
@@ -118,7 +142,7 @@ def s1_real():
     lo, hi = eps[0][0], eps[-1][1]
     print()
     print("  ** 갈린 기간은 %s ~ %s 뿐이다. 나머지 %d일은 두 전략이 완전히 같다. **"
-          % (idx[lo].date(), idx[hi - 1].date(), len(idx) - (hi - lo)))
+          % (idx[lo].date(), idx[hi - 1].date(), same_days))
     return len(eps), fa / fb
 
 
@@ -144,19 +168,24 @@ def s2_history():
         lev = float(np.prod(1 + np.nan_to_num(q[i:j])) - 1)
         dfv = float(np.prod(1 + np.nan_to_num(defr[i:j])) - 1)
         rows.append(dict(start=idx[i], end=idx[j - 1], days=j - i,
-                         lev=lev, dfr=dfv, edge=lev - dfv))
+                         lev=lev, dfr=dfv, edge_pp=lev - dfv,
+                         log_edge=float(relative_log_edge(lev, dfv))))
     R = pd.DataFrame(rows)
+    expected_log = relative_log_edge(R.lev.values, R.dfr.values)
+    assert np.allclose(R.log_edge.values, expected_log, rtol=0, atol=1e-15), \
+        '에피소드 상대수익 열 검산 실패'
     print("  선행구간 %d개  (%s ~ %s, 54년)" % (len(R), idx[0].date(), idx[-1].date()))
     print("  B 가 이긴 구간 %d개 / 진 구간 %d개  = 승률 %.0f%%"
-          % (int((R.edge > 0).sum()), int((R.edge <= 0).sum()), (R.edge > 0).mean() * 100))
+          % (int((R.log_edge > 0).sum()), int((R.log_edge <= 0).sum()),
+             (R.log_edge > 0).mean() * 100))
     print("  기여 중앙 %+.1f%%p   평균 %+.1f%%p   표준편차 %.1f%%p"
-          % (R.edge.median() * 100, R.edge.mean() * 100, R.edge.std() * 100))
+          % (R.edge_pp.median() * 100, R.edge_pp.mean() * 100, R.edge_pp.std() * 100))
     print("  최악 %+.1f%%p (%s)   최고 %+.1f%%p (%s)"
-          % (R.edge.min() * 100, R.loc[R.edge.idxmin(), 'start'].date(),
-             R.edge.max() * 100, R.loc[R.edge.idxmax(), 'start'].date()))
+          % (R.edge_pp.min() * 100, R.loc[R.edge_pp.idxmin(), 'start'].date(),
+             R.edge_pp.max() * 100, R.loc[R.edge_pp.idxmax(), 'start'].date()))
 
-    for lab, sub in [('가장 나쁜 5개 (A 가 이긴 구간)', R.nsmallest(5, 'edge')),
-                     ('가장 좋은 5개 (B 가 이긴 구간)', R.nlargest(5, 'edge'))]:
+    for lab, sub in [('가장 나쁜 5개 (A 가 이긴 구간)', R.nsmallest(5, 'edge_pp')),
+                     ('가장 좋은 5개 (B 가 이긴 구간)', R.nlargest(5, 'edge_pp'))]:
         print()
         print("  " + lab)
         print("  %-13s%-13s%5s%10s%9s%10s"
@@ -164,7 +193,7 @@ def s2_history():
         for _, r in sub.iterrows():
             print("  %-13s%-13s%5d%9.1f%%%8.1f%%%9.1f%%p"
                   % (r.start.date(), r.end.date(), int(r.days),
-                     r.lev * 100, r.dfr * 100, r.edge * 100))
+                     r.lev * 100, r.dfr * 100, r.edge_pp * 100))
     return R
 
 
@@ -174,10 +203,10 @@ def s3_smallsample(R, n_real):
     print("3. 선행구간 %d개로 결론을 낼 수 있는가" % n_real)
     print("=" * 84)
     rng = np.random.default_rng(11)
-    e = R.edge.values
+    e = R.log_edge.values
 
     def p_lose(n, trials=40000):
-        d = np.array([np.prod(1 + rng.choice(e, n, replace=True)) - 1
+        d = np.array([np.expm1(rng.choice(e, n, replace=True).sum())
                       for _ in range(trials)])
         return float((d <= 0).mean()), float(np.median(d))
 
@@ -236,6 +265,7 @@ def s4_horizon():
 
 
 def main():
+    _assert_relative_compounding()
     n_real, _ = s1_real()
     R = s2_history()
     p2 = s3_smallsample(R, n_real)
@@ -245,8 +275,9 @@ def main():
     v = verdict('실물 3.2년의 A 우세가 규칙을 바꿀 근거가 되는가', [
         ('선행구간 표본이 판단 최소치(19) 이상', n_real >= 19, '%d개' % n_real),
         ('우연으로 뒤집힐 확률이 5% 미만', p2 < 0.05, '%.0f%%' % (p2 * 100)),
-        ('54년 선행구간에서 A 가 앞선다', R.edge.median() <= 0,
-         '중앙 %+.1f%%p, B 승률 %.0f%%' % (R.edge.median() * 100, (R.edge > 0).mean() * 100)),
+        ('54년 선행구간에서 A 가 앞선다', R.log_edge.median() <= 0,
+         '중앙 %+.1f%%p, B 승률 %.0f%%' %
+         (R.edge_pp.median() * 100, (R.log_edge > 0).mean() * 100)),
         ('3.2년 창 대부분에서 A 가 앞선다', w3 < 0.5, 'B 승률 %.0f%%' % (w3 * 100)),
     ])
     print(v['text'])

@@ -16,7 +16,8 @@
                           무덤 재탐색 아님을 위해 결과 해석에 명시)
 
 실행 엔진: 3-way(공격/mix/T-bill) 벡터 엔진 — sim_def 와 같은 규약(lag=1, 편도
-0.1%, 비용은 공격측 회전에만). 퇴화 검산 2건(혼합 x=1 == B, x=0 == T4)이 내장돼
+0.1%). 세 슬리브 전체의 한쪽 편도 회전율을 과금한다. 퇴화 검산 2건(혼합 x=1 == B,
+x=0 == T4)이 내장돼
 조합 실행의 산수를 기존 검증 곡선과 오차 0 으로 대조한다.
 
 평가: 1972-02~ 전창(54년) · 세전 · 달러 · 거치식.
@@ -61,15 +62,42 @@ def vscale(vt):
     return v
 
 
+def _lag1(w):
+    w = np.asarray(w, float)
+    out = np.empty(len(w), float); out[:1] = w[0]; out[1:] = w[:-1]
+    return out
+
+
+def _one_way_turnover(*positions):
+    """완전투자 포트폴리오의 편도 회전율 = 전체 비중변화 절댓값 합의 절반."""
+    return 0.5 * sum(np.abs(np.diff(np.asarray(p, float), prepend=float(p[0])))
+                     for p in positions)
+
+
+def _selfcheck_three_way_cost():
+    # 공격 50%가 그대로여도 mix 50%→T-bill 50% 교체는 편도 50%다.
+    pq = _lag1([0.5, 0.5, 0.5, 0.5])
+    pm = _lag1([0.5, 0.0, 0.0, 0.0])
+    pt = _lag1([0.0, 0.5, 0.5, 0.5])
+    turn = _one_way_turnover(pq, pm, pt)
+    assert np.allclose(turn, [0.0, 0.0, 0.5, 0.0])
+    assert np.allclose(np.abs(np.diff(pq, prepend=pq[0])), 0.0)  # 옛 식은 전부 0
+    # 두 슬리브 퇴화에서는 기존 공격비중 회전과 정확히 같아야 한다.
+    pq2 = _lag1([1.0, 0.0, 0.0]); pm2 = _lag1([0.0, 1.0, 1.0]); pt2 = np.zeros(3)
+    assert np.allclose(_one_way_turnover(pq2, pm2, pt2),
+                       np.abs(np.diff(pq2, prepend=pq2[0])))
+
+
 def three_way(wq, wm, wt, cost=COST):
-    """공격/mix/T-bill 3분할 실행 — sim_def 규약(lag=1, 비용은 공격 회전만)."""
+    """공격/mix/T-bill 3분할 실행 — lag=1, 세 슬리브 전체 편도 회전 과금."""
+    wq = np.asarray(wq, float); wm = np.asarray(wm, float); wt = np.asarray(wt, float)
+    assert len(wq) == len(wm) == len(wt) == n
     assert np.max(np.abs(wq + wm + wt - 1)) < 1e-9
-    pos = np.empty(n); pos[:1] = wq[0]; pos[1:] = wq[:-1]
-    pm = np.empty(n);  pm[:1] = wm[0];  pm[1:] = wm[:-1]
-    pt = np.empty(n);  pt[:1] = wt[0];  pt[1:] = wt[:-1]
+    assert min(np.min(wq), np.min(wm), np.min(wt)) >= -1e-12
+    pos, pm, pt = _lag1(wq), _lag1(wm), _lag1(wt)
     r = pos * QLDR + pm * MIXR + pt * tb
     r[0] = 0.0
-    turn = np.abs(np.diff(pos, prepend=pos[0]))
+    turn = _one_way_turnover(pos, pm, pt)
     return pd.Series(np.cumprod((1 + r) * (1 - cost * turn)), index=idx)
 
 
@@ -79,6 +107,7 @@ def blend(x):
 
 
 def main():
+    _selfcheck_three_way_cost()
     # ---- 퇴화 검산: 조합 실행의 산수가 검증 곡선과 일치하는가 ----
     eB = float(np.max(np.abs(blend(1.0).values / sim_def(G.D, wB, MIXR).values - 1)))
     eT = float(np.max(np.abs(blend(0.0).values / sim_def(G.D, wT4, tb).values - 1)))
@@ -115,7 +144,8 @@ def main():
               f"② {'통과' if g2 else '탈락'} ({r['q20']:.1f})  → {mark}")
         if g1 and g2:
             both.append(r['name'])
-    print(f"\n육각형 후보: {both if both else '없음 — 두 관문을 동시에 넘는 조합이 이 공간엔 없다'}")
+    print(f"\n사전 지정 후보 8개 중 육각형 후보: "
+          f"{both if both else '없음 — 연속 혼합 x 탐색은 아래 부록에서 따로 본다'}")
 
     # ---- 부록: 혼합 x 전선 지도 — 문턱 근처 한 점 쇼핑(과적합)을 피하려고
     #      전 구간을 훑는다. 이웃한 여러 x 가 같이 넘으면 고원, 한 점이면 첨탑. ----

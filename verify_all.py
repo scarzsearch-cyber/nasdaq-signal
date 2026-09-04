@@ -49,7 +49,7 @@
   I11 규칙 동결      코드·화면이 data/freeze.json 과 같은가 (+ 룩백 3곳 대조)
   I12 T4 그림자      평가 전용 기록의 정의상 불변식 (+ 기록이 실제로 쌓이는가)
   I13 B 판정 규약    data/oos_protocol_b.json 지문 — 사후 수정 방지 (02 §5-1)
-  I14 셀프테스트     파수꾼 34경우 · 종가 대기 루프 9경로
+  I14 셀프테스트     운영·알림·자료 갱신·배포 스크립트의 합성 회귀검사
 
 [저장소 위생 관문 — 전략 불변식이 아니다 · §2 경계 밖]
   g_repo_map        FILES.md 파일 지도       g_toc          04 절 목차
@@ -58,7 +58,7 @@
   g_signal_coupling 판정 경로가 표시 자료를 안 읽는가
   g_freeze_seal     freeze.json 내용 봉인 (FREEZE_SEAL)
 
-⚠ [2026-09-04] §2 는 「verify_all 의 전략 검사(I1~I12)는 읽기만」이라고 정한다.
+⚠ [2026-09-04] §2 는 「verify_all 의 전략 검사(I1~I14)는 읽기만」이라고 정한다.
   위생 관문(g_*)은 그 경계 **밖**이다 — 종전에는 전부 i5_decisions 안에 있어서
   경계가 지켜질 수 없었다(최근 비-시세 커밋 13건이 전부 i5_decisions 를 고쳤다).
 """
@@ -77,6 +77,7 @@ import pandas as pd
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
@@ -546,6 +547,110 @@ def g_deploy():
         ok('배포: 낙폭 백분위가 월간 워크플로에서 갱신된다',
            both and ms.index('refresh_hist.py') < ms.index('emit_dd_distribution.py'),
            '원자료 연장 뒤에 돌아야 한다 (v197)')
+        # [v203] `git add data/`는 예상 밖 새 파일까지 먼저 스테이징해 누락 관문을
+        # 우회한다. 허용 산출물을 파일 단위로만 올린 뒤 tracked+untracked 잔여를 본다.
+        ms_cmd = chr(10).join(
+            line for line in ms.splitlines() if not line.strip().startswith('#'))
+        add_at = ms_cmd.find('git add --')
+        tracked_at = ms_cmd.find('git diff --name-only')
+        untracked_at = ms_cmd.find('git ls-files --others --exclude-standard')
+        monthly_outputs = (
+            'data/strategy_stats.json', 'data/signal.json', 'data/dd_percentile.json',
+            'data/hist/yahoo_TNX.csv', 'data/hist/lbma_gold_pm.csv',
+            'data/hist/fred_DEXKOUS.csv', 'data/hist/kr__5EKS11.csv',
+            'data/hist/kr_133690_KS.csv', 'data/hist/kr_418660_KS.csv',
+            'data/hist/kr_458730_KS.csv', 'data/hist/kr_305080_KS.csv',
+            'data/hist/kr_411060_KS.csv', 'qqq_us_d.csv', 'qld_us_d.csv',
+            'schd_us_d.csv', '01_Strategy_Logic.md')
+        ok('배포: 월간 잡은 허용 산출물만 명시적으로 스테이징한다',
+           add_at >= 0 and 'git add data/' not in ms_cmd
+           and all(path in ms_cmd for path in monthly_outputs)
+           and tracked_at > add_at and untracked_at > add_at,
+           '예상 밖 파일은 먼저 스테이징하지 않고 잔여 관문에서 멈춘다 (v203)')
+        ok('배포: 월간 산출물은 non-fast-forward에 재사용되지 않는다',
+           'git pull --rebase' not in ms_cmd,
+           '경합이면 실패-폐쇄 후 최신 HEAD의 새 실행으로만 재계산 (v203)')
+    if os.path.exists('.github/workflows/daily-signal.yml'):
+        daily = _read('.github/workflows/daily-signal.yml') or ''
+        ok('배포: 전환 알림 실패가 OOS 기록과 무관하게 이슈로 남는다',
+           'id: sigalert' in daily and "steps.sigalert.outcome == 'failure'" in daily
+           and 'signal_alert_state.json' in (_read('FILES.md') or ''),
+           '발송 실패 뒤 장부가 쌓여도 다음 슬롯 재시도 + GitHub 이슈 (v203)')
+        ok('배포: NAV·OOS 장부 실패가 다음 슬롯 재시도와 이슈로 남는다',
+           'id: navlog' in daily and 'id: ooslog' in daily
+           and "steps.navlog.outcome == 'failure'" in daily
+           and "steps.ooslog.outcome == 'failure'" in daily,
+           '부분 기록은 원자 쓰기로 막고 실패한 수집은 열린 이슈로 드러낸다 (v203)')
+        issue_blocks = []
+        for step_name in ('전환 알림 실패 이슈', '실측 장부 실패 이슈'):
+            marker = '- name: ' + step_name
+            start = daily.find(marker)
+            end = daily.find(chr(10) + '      - name:', start + len(marker))
+            issue_blocks.append(daily[start:end if end >= 0 else len(daily)] if start >= 0 else '')
+        ok('배포: 실패 이슈 API 장애가 NAV/OOS·신호 커밋을 막지 않는다',
+           all('continue-on-error: true' in block for block in issue_blocks)
+           and daily.find('변경분 커밋') > daily.find('실측 장부 실패 이슈'),
+           '보고 통로 실패는 비차단 — 정상 계산된 신호는 계속 커밋·배포 (v203)')
+        finalizer = daily.find('실패 보고 통로 상태 확정')
+        ok('배포: 비차단 보고·토큰 실패가 커밋 뒤 다시 빨간 실행으로 드러난다',
+           all(('id: sigissue' in daily, 'id: ledgerissue' in daily,
+                'id: keepalive' in daily, 'steps.sigissue.outcome' in daily,
+                'steps.ledgerissue.outcome' in daily, 'steps.keepalive.outcome' in daily))
+           and finalizer > daily.find('변경분 커밋')
+           and 'if: always()' in daily[max(0, finalizer - 100):finalizer + 100],
+           '핵심 신호는 먼저 살리고 보고 통로·토큰 장애도 성공으로 숨기지 않는다 (v203)')
+        active_daily = chr(10).join(
+            line for line in daily.splitlines() if not line.strip().startswith('#'))
+        daily_outputs = ('data/qqq.csv', 'data/signal.json',
+                         'data/signal_alert_state.json', 'data/nav_history.csv',
+                         'data/oos_log.csv')
+        ok('배포: 일일 잡도 허용 장부만 스테이징한다',
+           'git add data/' not in active_daily
+           and all(path in active_daily for path in daily_outputs)
+           and 'git diff --name-only' in active_daily
+           and 'git ls-files --others --exclude-standard' in active_daily,
+           '예상 밖 data 파일을 신호 커밋에 자동 포함하지 않는다 (v203)')
+        watchdog_yml = _read('.github/workflows/watchdog.yml') or ''
+        ok('배포: 일일·파수꾼 잡은 경합 때 옛 산출물을 rebase하지 않는다',
+           'git pull --rebase' not in active_daily
+           and 'git pull --rebase' not in watchdog_yml,
+           '다음 예약 슬롯이 최신 HEAD에서 처음부터 다시 계산한다 (v203)')
+        ok('배포: 회전한 카카오 토큰이 후속 스텝에 유지된다',
+           active_daily.count('KAKAO_REFRESH_TOKEN:') == 1
+           and watchdog_yml.count('KAKAO_REFRESH_TOKEN:') == 1
+           and 'INITIAL_KAKAO_REFRESH_TOKEN:' in active_daily
+           and 'INITIAL_KAKAO_REFRESH_TOKEN:' in watchdog_yml
+           and 'GITHUB_ENV' in active_daily and 'GITHUB_ENV' in watchdog_yml,
+           'queued secret은 한 번만 초기화하고 회전값은 잡 환경으로 전달 (v203)')
+        notify_workflows = (daily, watchdog_yml,
+                            _read('.github/workflows/monthly-stats.yml') or '',
+                            _read('.github/workflows/notify-test.yml') or '')
+        scripts_needing_pat = ('deploy/notify.py', 'deploy/signal_alert.py',
+                               'deploy/kakao_keepalive.py', 'deploy/watchdog.py')
+        pat_ok = True
+        for workflow in notify_workflows:
+            active = [line for line in workflow.splitlines()
+                      if not line.strip().startswith('#')]
+            calls = sum(any(script in line for script in scripts_needing_pat)
+                        for line in active)
+            pat_ok = pat_ok and workflow.count('GH_PAT:') >= calls
+        ok('배포: 토큰을 회전할 수 있는 모든 호출에 GH_PAT가 전달된다', pat_ok,
+           '새 refresh token 저장 실패를 성공으로 숨기지 않는다 (v203)')
+        price_yml = _read('.github/workflows/price.yml') or ''
+        ok('배포: 개장 전 시세 폴러가 KST 월~금 모두 예약된다',
+           "cron: '30,40,50 23 * * 0-4'" in price_yml
+           and "cron: '30,40,50 23 * * 1-5'" not in price_yml,
+           'UTC 일~목 23시 = KST 월~금 08시, 월요일 누락·토요일 오실행 방지 (v203)')
+        refresh = _read('deploy/refresh_hist.py') or ''
+        ok('배포: DEXKOUS 주 공급원은 실제 FRED CSV 경로를 쓴다',
+           'fred.stlouisfed.org/graph/fredgraph.csv?id=DEXKOUS' in refresh
+           and 'fred.stlouisfed.org/graphs/fredgraph.csv' not in refresh,
+           '복수형 graphs는 HTTP 404라 Yahoo 보강만 쓰게 되는 회귀 차단 (v203)')
+        pages_yml = _read('.github/workflows/pages.yml') or ''
+        ok('배포: 일일 잡이 커밋 뒤 실패해도 최신 main은 화면에 반영된다',
+           'workflow_run:' in pages_yml
+           and "workflow_run.conclusion == 'success'" not in pages_yml,
+           '봇 push는 재트리거되지 않으므로 workflow_run 결론과 무관하게 재배포 (v203)')
 
 
 def g_signal_coupling():
@@ -563,10 +668,14 @@ def g_signal_coupling():
     if os.path.exists('deploy/kr_sources.py'):
         pn, nc = _read('deploy/price_now.py') or '', _read('deploy/nav_collect.py') or ''
         rh, wc = _read('deploy/refresh_hist.py') or '', _read('deploy/wait_close.py') or ''
-        ok('시세: 예비 출처 체인이 표시·기록·원자료 경로에 붙고 판정 경로엔 없다',
-           'kr_sources' in pn and 'kr_sources' in nc and 'kr_sources' in rh
-           and 'kr_sources' not in up and 'kr_sources' not in wc,
-           '네이버 → 다음 → 토스 → 야후 → 구글 (2026-09-03) · 판정은 QQQ 종가 3중 체인')
+        ok('시세: 가격 표시·KOSPI 원자료만 예비 체인을 쓰고 판정·NAV 경로엔 없다',
+           'kr_sources' in pn and 'kr_sources' in rh
+           and all('kr_sources' not in text for text in (nc, up, wc)),
+           'NAV 없는 가격 폴백은 NAV 장부를 빈 성공으로 만들므로 금지 · 판정은 QQQ 종가 체인')
+        ok('NAV: 핵심 4종 완전 수집·수치 검증 실패가 다음 슬롯 재시도로 이어진다',
+           'CORE_CODES' in nc and '_validate_nav_rows(rows)' in nc
+           and '핵심 4종 NAV가 모두 오지 않아' in nc,
+           '부분/절단 HTTP 200과 비유한 값은 원자 append 전에 실패-폐쇄 (v203)')
 
 
 def g_watchdog():
@@ -733,6 +842,9 @@ def i5_decisions(D):
             ok("설명서: 필수 절 존재",
                'id="t4"' in g and 'id="must"' in g and 'href="./"' in g,
                'T4 상세 + 이해 필수 6가지(section id=must) + 돌아가기 탭')
+            ok("설명서: 자동 검증 개수의 낡은 고정 숫자가 없다",
+               '검증 12종' not in g and '자동 검증이 잡아내고' in g,
+               '검증 항목이 늘어도 화면 문구가 다시 낡지 않게 숫자를 고정하지 않는다')
         # [v145] 화면이 시세를 **표시 경로로만** 쓰는가 (판정 결합 차단은 g_signal_coupling)
         ok('시세: 화면이 시세를 표시 경로로만 쓴다',
            'loadPrice' in h and 'chgBadge' in h,
@@ -897,6 +1009,13 @@ def i11_freeze():
     n = 0
     if os.path.exists('data/oos_log.csv'):
         n = sum(1 for _ in io.open('data/oos_log.csv', encoding='utf-8')) - 1
+        import csv
+        with io.open('data/oos_log.csv', encoding='utf-8', newline='') as fh:
+            rows = list(csv.DictReader(fh))
+        fingerprints = [r.get('fingerprint', '') for r in rows]
+        ok('OOS 장부 지문이 전부 현행 동결본과 같다',
+           all(v == fz.get('fingerprint') for v in fingerprints),
+           '%d행 · 기대 지문 %s' % (len(fingerprints), fz.get('fingerprint')))
     # [2026-09-04 코드리뷰] 종전 `ok(..., n >= 1, ..., warn=(n < 1))` 은 조건이 거짓인
     #   경우가 전부 warn 이라 **FAIL 경로가 구조적으로 도달 불가**였다. 장부가 통째로
     #   비워져도 WARN 한 줄이 전부였다(§2 절대 수정 금지 실측 장부다).
@@ -928,16 +1047,18 @@ def i12_shadow():
         ok('oos_log.csv 존재', False, '파일 없음', warn=True)
         return
     import csv
-    bad, n = [], 0
+    bad, missing_t4, n = [], [], 0
     with io.open(p, encoding='utf-8', newline='') as fh:
         for r in csv.DictReader(fh):
             if (r.get('t4_votes') or '') == '':
-                continue                       # 그림자 실패일은 빈 칸이 정상
+                missing_t4.append(r.get('as_of', '?'))
+                continue
             n += 1
             try:
                 v = int(r['t4_votes']); rv = float(r['t4_rv']); w = float(r['t4_w'])
-                if not (0 <= v <= 4 and rv > 0 and 0 <= w <= 1
-                        and ((v < 2) == (w == 0))):
+                expected_w = 0.0 if v < 2 else (1.0 if rv == 0 else min(1.0, 40.0 / rv))
+                if not (0 <= v <= 4 and rv >= 0 and 0 <= w <= 1
+                        and abs(w - expected_w) <= 0.003):
                     bad.append(r['as_of'])
             except (KeyError, ValueError, TypeError):
                 bad.append(r.get('as_of', '?'))
@@ -950,6 +1071,9 @@ def i12_shadow():
     ok('그림자 기록이 실제로 쌓여 있다', n > 0 or tot == 0,
        '장부 %d행 중 그림자 %d행 — 0 이면 T4 파이프라인이 죽은 것이다' % (tot, n),
        warn=(tot <= 3))
+    ok('그림자 세 필드가 모든 OOS 행에 있다', not missing_t4,
+       '누락 %d행%s' % (len(missing_t4),
+                        ' · ' + ','.join(missing_t4[:3]) if missing_t4 else ''))
 
     # [v73] 01 문서 AUTO-STATS 블록이 최신 스냅샷과 같은 끝 날짜인가
     if os.path.exists('01_Strategy_Logic.md') and os.path.exists('data/strategy_stats.json'):
@@ -1145,15 +1269,19 @@ def i7_stats(D):
 # ------------------------------------------------------------------ I8
 SHARED_SEAL = {
     # [2026-09-04 코드리뷰] axis_lib 3종 갱신 — rule_w(중복 갈래 제거) ·
-    # lev_r(c_k 인자 추가) · accumulate(0/1 가드 + rk/buy_cost 인자).
+    # lev_r(c_k 인자 추가) · accumulate(0/1 가드 + rk/buy_cost 인자 및
+    # 원금 대비 최저를 검산하기 위한 opt-in 경로 반환).
     # ★ 출력은 안 바뀐다: 문턱 격자 681조합 · dip/park 전 조합 · 세율 격자
     #   전수를 수정 전후로 재서 지문 15/15 동일함을 확인하고 갱신했다.
-    'accumulate': ('axis_lib.py', 'e4c0d328080d'),
+    'accumulate': ('axis_lib.py', '06e4434e5b5c'),
     'lev_r': ('axis_lib.py', '8d551b166196'),
     'mix_monthly': ('hist_defasset.py', 'da5c3ec9a7b3'),
     'mix_monthly_from': ('axis_defmix.py', 'adb498b68308'),
     'mix_monthly_parts': ('hist_defasset.py', '28e5cb665804'),
     'rule_w': ('axis_lib.py', 'dc1de1e02376'),
+    # reentry_lib.run 은 히스테리시스·최소유지일·부분복귀 연구의 공용 상태기계다.
+    # 0→0 방어 지속일에 쿨다운 시계를 되감던 결함을 고친 뒤 처음 봉인했다.
+    'run': ('reentry_lib.py', '96bc80cc5084'),
     # [2026-09-04 코드리뷰 2차] ust_tr 갱신 — ① y.bfill() 제거(원자료 시작 이전을
     # 첫 관측 금리로 소급해 채우던 미래 당겨쓰기: ^TYX 1972~77 의 1,311행 9.5%가
     # 연 7.70% 고정 · 일간 σ 8.4e-06 = 실제의 1/1000 이었다) · ② fee 를 futures
@@ -1178,7 +1306,7 @@ def i8_deps():
       탐색어 'mix_monthly(' 는 mix_monthly_from( 을 부분일치 못 해 28개가 안 보였고,
       정의 파일 자신을 「사용처」로 셌다.
 
-    → **봉인으로 바꿨다**: 공용 모형 7종의 함수 소스를 해시해 아래 상수와 대조한다.
+    → **봉인으로 바꿨다**: 공용 모형 8종의 함수 소스를 해시해 아래 상수와 대조한다.
       모형을 고치면 여기서 실패하고, 사용처를 다시 돌린 뒤 **의도적으로** 이 상수를
       갱신해야 통과한다. 공표 수치 쪽은 I7 이 us_1972 B 를 라이브 엔진으로 재계산해 지킨다.
     """
@@ -1208,14 +1336,13 @@ def i8_deps():
         got = hashlib.sha256((seg or '').encode('utf-8')).hexdigest()[:12] if seg else '(못찾음)'
         # 사용처는 **모듈 한정 호출까지** 세고 정의 파일은 뺀다 (DA.ust_tr(...) 형태)
         pat = re.compile(r'(?<!\w)' + re.escape(fn) + r'\s*\(')
+        def_line = re.compile(r'^\s*def\s+' + re.escape(fn) + r'\b', re.M)
         users = [f for f, t in srcs.items()
-                 if f != 'verify_all.py'
-                 and not re.search(r'^\s*def\s+' + re.escape(fn) + r'', t, re.M)
-                 and pat.search(t)]
+                 if f != 'verify_all.py' and not def_line.search(t) and pat.search(t)]
         if got != want:
             drift.append('%s (%s: %s → %s · 사용처 %d개)' % (fn, deffile, want, got, len(users)))
         print('    %-18s %-16s 사용처 %3d개' % (fn, deffile, len(users)))
-    ok('공용 모형 7종이 봉인과 같다', not drift,
+    ok('공용 모형 8종이 봉인과 같다', not drift,
        ('바뀐 모형 %d개: %s — 사용처를 재실행하고 SHARED_SEAL 을 갱신하라'
         % (len(drift), '; '.join(drift[:3]))) if drift
        else '%d개 파일에서 사용처를 셌다 (research/·audit/ 포함)' % len(srcs))
@@ -1352,19 +1479,38 @@ def i10_premise(D):
 
 
 def i14_selftests():
-    """[2026-09-03] 파수꾼·종가 대기 루프의 합성 셀프테스트 — 코드를 고치면 여기서 잡는다 (전체 모드만).
+    """운영·배포 경계의 합성 셀프테스트 — 코드를 고치면 여기서 잡는다 (전체 모드만).
 
-    v192 때 파수꾼 24경우가 스크래치에만 있었다 — 「검사를 추가했다」와 「검사가 돈다」는 다르다(v148)."""
-    head("I14 셀프테스트 (파수꾼 · 종가 대기 루프)")
-    import subprocess
+    v192 때 파수꾼 24경우가 스크래치에만 있었다 — 「검사를 추가했다」와 「검사가 돈다」는
+    다르다(v148). v203 배포 리뷰에서 만든 작은 회귀검사도 같은 실수를 반복하지 않도록
+    단일 검증 진입점에 연결한다."""
+    head("I14 셀프테스트 (운영 · 알림 · 데이터 갱신 · 배포)")
     for label, args in (("파수꾼 모드 셀프테스트 (switchday·near·heartbeat 합성 30여 경우)",
                          ['deploy/watchdog.py', '--selftest']),
-                        ("종가 대기 루프 셀프테스트 (v190 9경로)", ['deploy/wait_close.py', '--selftest'])):
+                        ("종가 대기 루프 셀프테스트 (날짜 일치·v190 대기 경로)",
+                         ['deploy/wait_close.py', '--selftest']),
+                        ("신호 원천 셀프테스트 (수정주가·순서·meta·미래/장중)",
+                         ['deploy/update_signal.py', '--selftest']),
+                        ("성과 스냅샷 셀프테스트", ['deploy/build_stats.py', '--selftest']),
+                        ("다운로드 자료 검증 셀프테스트", ['deploy/data_check.py', '--selftest']),
+                        ("장중 시세 폴러 셀프테스트 (요일·휴장일·스냅샷 경계)",
+                         ['deploy/price_poll.py', '--selftest']),
+                        ("월간 원자료 연장 셀프테스트", ['deploy/refresh_hist.py', '--selftest']),
+                        ("알림 전송 셀프테스트", ['deploy/notify.py', '--selftest']),
+                        ("전환 알림 셀프테스트", ['deploy/signal_alert.py', '--selftest']),
+                        ("OOS 장부 셀프테스트", ['deploy/oos_log.py', '--selftest']),
+                        ("NAV 장부 셀프테스트", ['deploy/nav_collect.py', '--selftest']),
+                        ("카카오 최초 설정 셀프테스트", ['deploy/kakao_setup.py', '--selftest']),
+                        ("카카오 토큰 연명 셀프테스트", ['deploy/kakao_keepalive.py', '--selftest']),
+                        ("한국 휴장일 셀프테스트", ['deploy/kr_holidays.py', '--selftest']),
+                        ("화면 개정 도장 셀프테스트", ['deploy/stamp_rev.py', '--selftest']),
+                        ("최종 장부 감사 셀프테스트", ['research/axis_finalverify.py', '--selftest'])):
         if not os.path.exists(args[0]):
+            ok(label, False, f'{args[0]} 없음 — 등록된 셀프테스트를 조용히 건너뛸 수 없다')
             continue
         try:
             r = subprocess.run([sys.executable] + args, capture_output=True, text=True,
-                               encoding='utf-8', timeout=240)
+                               encoding='utf-8', errors='replace', timeout=240)
             last = (r.stdout.strip().splitlines() or ['(출력 없음)'])[-1]
             ok(label, r.returncode == 0, last[:140] if r.returncode == 0
                else (r.stderr.strip().splitlines() or [last])[-1][:140])

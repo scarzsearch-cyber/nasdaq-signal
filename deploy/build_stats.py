@@ -477,6 +477,10 @@ def selftest():
         pass
     else:
         raise AssertionError('NaN 이 엄격한 JSON 검사를 통과했다')
+    flat = pd.Series([1.0, 1.0, 1.0], index=pd.date_range('2026-01-01', periods=3))
+    flat_pack = pack(flat, np.zeros(3))
+    assert flat_pack['calmar'] is None and flat_pack['sortino'] is None \
+        and flat_pack['sharpe'] is None
     old = {'generated_at': 'same', 'value': 1}
     new = {'generated_at': 'same', 'value': 2}
     assert json.loads(signal_stats_text({'stats': old}, new))['stats'] == new
@@ -498,7 +502,7 @@ def selftest():
             pass
         else:
             raise AssertionError('깨진 AUTO-STATS 표식이 통과했다')
-    print('build_stats selftest: PASS (엄격 JSON · 선택 지표 · 달력 정렬)')
+    print('build_stats selftest: PASS (엄격 JSON · 정의 안 된 지표 · 달력 정렬)')
 
 
 

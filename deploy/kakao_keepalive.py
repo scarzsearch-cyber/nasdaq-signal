@@ -18,6 +18,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import urllib.parse
 import urllib.request
 
@@ -46,7 +47,11 @@ def token_values(tok):
         raise ValueError('토큰 응답에 access_token 이 없다')
     if refresh is not None and (not isinstance(refresh, str) or not refresh.strip()):
         raise ValueError('토큰 응답의 refresh_token 형식이 잘못됐다')
-    return access.strip(), refresh.strip() if refresh else None
+    access = access.strip()
+    refresh = refresh.strip() if refresh else None
+    if '\r' in access or '\n' in access or (refresh and ('\r' in refresh or '\n' in refresh)):
+        raise ValueError('토큰 응답에 줄바꿈이 들어 있다')
+    return access, refresh
 
 
 def refresh_body(key, refresh_token, client_secret=''):
@@ -80,6 +85,23 @@ def set_github_secret(new_rt, pat, repo, runner=subprocess.run):
         print(f'[경고] gh 실행 자체가 실패({type(e).__name__}) - 아래 수동 경고로 전환',
               file=sys.stderr)
         return False
+
+
+def activate_refresh_token(new_rt, github_env=None):
+    """회전된 토큰을 현재 프로세스와 뒤따르는 GitHub Actions 스텝에 즉시 반영한다.
+
+    secret 저장 API가 성공해도 이미 시작한 잡의 ``secrets`` 문맥은 옛 값이다. 따라서
+    GITHUB_ENV에도 새 값을 넘겨, 같은 잡의 다음 알림/연명 스텝이 방금 무효가 된 토큰을
+    다시 쓰지 않게 한다. 토큰 값은 stdout에 출력하지 않는다.
+    """
+    if not isinstance(new_rt, str) or not new_rt.strip() or '\r' in new_rt or '\n' in new_rt:
+        raise ValueError('새 refresh 토큰 형식이 잘못됐다')
+    new_rt = new_rt.strip()
+    os.environ['KAKAO_REFRESH_TOKEN'] = new_rt
+    path = os.environ.get('GITHUB_ENV', '') if github_env is None else github_env
+    if path:
+        with open(path, 'a', encoding='utf-8', newline='') as f:
+            f.write('KAKAO_REFRESH_TOKEN=' + new_rt + '\n')
 
 
 def rotation_warning(repo):
@@ -117,6 +139,16 @@ def main():
     if not new_rt:
         return 0
 
+    try:
+        activate_refresh_token(new_rt)
+    except Exception as e:
+        # 이후 스텝이 옛(이미 무효) 토큰을 다시 쓰므로 저장 성공과 별개로 실패 상태다.
+        print(f'[경고] 현재 잡에 새 refresh 토큰 반영 실패: {type(e).__name__}: {e}',
+              file=sys.stderr)
+        job_token_ready = False
+    else:
+        job_token_ready = True
+
     pat = os.environ.get('GH_PAT', '').strip()
     repo = os.environ.get('GITHUB_REPOSITORY', '').strip()
     if pat and repo:
@@ -126,7 +158,7 @@ def main():
         #   그 시점엔 카카오가 이미 새 토큰을 발급해 옛 토큰을 죽인 뒤라 복구 수단이 없다.
         if set_github_secret(new_rt, pat, repo):
             print('KAKAO_REFRESH_TOKEN secret 자동 교체 완료')
-            return 0
+            return 0 if job_token_ready else 2
         print('[경고] secret 자동 교체 실패 - 아래 수동 경고로 전환', file=sys.stderr)
     # PAT 없음/실패 — 본인에게 카카오로 경고 (지금 access 토큰은 살아 있다)
     try:
@@ -192,6 +224,25 @@ def selftest():
         raise subprocess.TimeoutExpired(args, kwargs['timeout'])
     assert not set_github_secret('new-token', 'pat', 'owner/repo', timeout_runner)
 
+    old_active_token = os.environ.get('KAKAO_REFRESH_TOKEN')
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            env_file = os.path.join(td, 'github_env')
+            activate_refresh_token('next-token', env_file)
+            assert os.environ['KAKAO_REFRESH_TOKEN'] == 'next-token'
+            assert open(env_file, encoding='utf-8').read() == 'KAKAO_REFRESH_TOKEN=next-token\n'
+            try:
+                activate_refresh_token('bad\ntoken', env_file)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('줄바꿈 토큰을 GITHUB_ENV에 허용했다')
+    finally:
+        if old_active_token is None:
+            os.environ.pop('KAKAO_REFRESH_TOKEN', None)
+        else:
+            os.environ['KAKAO_REFRESH_TOKEN'] = old_active_token
+
     class Response:
         def __init__(self, body):
             self.body = body
@@ -203,8 +254,11 @@ def selftest():
             return self.body
 
     old_open = urllib.request.urlopen
+    # 셀프테스트가 Actions 안에서 돌 때 실제 GITHUB_ENV 를 상속하면, 아래 가짜
+    # refresh_token 회전이 **다음 워크플로 스텝** 환경에 기록된다. 테스트가 명시적으로
+    # 만든 임시 파일 밖에는 절대 쓰지 않도록 특수 파일 변수도 격리한다.
     names = ('KAKAO_REST_API_KEY', 'KAKAO_REFRESH_TOKEN', 'KAKAO_CLIENT_SECRET',
-             'GH_PAT', 'GITHUB_REPOSITORY')
+             'GH_PAT', 'GITHUB_REPOSITORY', 'GITHUB_ENV')
     old_env = {k: os.environ.get(k) for k in names}
     try:
         for k in names:
@@ -226,7 +280,7 @@ def selftest():
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = value
-    print('kakao_keepalive selftest: PASS (Client Secret 선택 · 응답 계약 · secret 저장 · 폴백)')
+    print('kakao_keepalive selftest: PASS (Client Secret 선택 · 응답 계약 · 환경 격리 · secret 저장 · 폴백)')
 
 
 if __name__ == '__main__':

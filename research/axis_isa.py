@@ -61,8 +61,8 @@ SLIP = 0.001                         # 슬리피지
 FX_START = pd.Timestamp('1981-04-13')
 
 
-def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
-    """월 정액 적립 + 세금. 반환 (총납입, 세전평가, 세후평가, 낸세금, 전환횟수).
+def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP, months=None):
+    """월 정액 적립 + 세금. 반환 (총납입, 정산직전평가, 세후평가, 낸세금, 전환횟수).
 
     mode: 'pre' 세전 / 'gen' 일반계좌 / 'defer' 이연만 / 'defer99' 이연+9.9%
           / 'isa' 이연+9.9%+400만 비과세
@@ -75,7 +75,7 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
     settled = 0.0                                          # isa3: 직전 정산 시점 평가액
     nextset = lo + 3 * 252                                 # isa3: 3년마다 정산
     prev = w[lo]
-    dtax = DIV_YIELD * GEN_RATE / 252.0 if mode == 'gen' else 0.0
+    month_ids = MONTH if months is None else np.asarray(months)
     for i in range(lo, hi):
         # [v33 정정] 전환을 **그날 수익 적용 전에** 한다.
         # 기존 순서(수익 -> 전환)는 전일 종가 신호가 하루 더 늦게 반영되는
@@ -101,10 +101,17 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
 
         R *= (1 + rr[i])
         C *= (1 + dfr[i])
-        if dtax and C > 0:
-            C *= (1 - dtax)
+        if mode == 'gen' and C > 0:
+            # dfr 는 분배금 재투자를 포함한 총수익 계열이다. 원천징수액을 실제 낸
+            # 세금에 더하고, 세후 재투자분은 취득원가에 넣어 다음 전환 때 같은
+            # 분배금을 매매차익으로 다시 과세하지 않는다.
+            gross_dist = C * DIV_YIELD / 252.0
+            t = gross_dist * GEN_RATE
+            C -= t
+            tax += t
+            basis += gross_dist - t
 
-        if i > lo and MONTH[i] != MONTH[i - 1]:             # 월초 납입
+        if i > lo and month_ids[i] != month_ids[i - 1]:     # 월초 납입
             mi += 1
             if mi <= YEARS_PAY * 12:
                 a = MONTHLY
@@ -135,6 +142,10 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
         t = max(0.0, g - EXEMPT) * ISA_RATE
         v -= t
         tax += t
+    if mode == 'gen':                                      # 만기 청산도 실현이다
+        t = max(0.0, v - basis) * GEN_RATE
+        v -= t
+        tax += t
     if mode in ('defer', 'defer99', 'isa'):
         net = max(0.0, v - paid)
         if mode == 'defer':
@@ -151,7 +162,28 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP):
 MODES = [('pre', '세전 (참고)'), ('gen', '① 일반계좌 15.4% 매번'),
          ('defer', '② 이연만 · 해지시 15.4%'), ('defer99', '③ 이연 + 9.9%'),
          ('isa', '④ ISA 서민형 — 만기 연장해 끝까지 보유'),
-         ('isa3', '⑤ ISA 3년마다 해지·재가입')]
+         ('isa3', '⑤ ISA 3년마다 해지·재가입(낙관적 상한)')]
+
+
+def selfcheck_tax():
+    """만기 청산과 분배금 원가가 빠지면 바로 실패하는 최소 축퇴 검산."""
+    rr = np.array([0.0, 0.0, 1.0, 0.0])
+    z = np.zeros(4)
+    paid, pre, post, tax, _ = accum_tax(
+        rr, z, np.ones(4), 0, 4, 'gen', cost=0.0,
+        months=np.arange(4))
+    scale = MONTHLY
+    assert abs(paid - 3.0 * scale) < 1e-6 and abs(pre - 4.0 * scale) < 1e-6
+    assert abs(post - 3.846 * scale) < 1e-6 and abs(tax - 0.154 * scale) < 1e-6
+
+    # 총수익이 0 이어도 그 안의 분배금에는 원천징수가 생길 수 있다. 세후
+    # 재투자분을 원가에 더했으므로 만기에서 같은 금액을 두 번 걷지 않아야 한다.
+    paid, _, post, tax, _ = accum_tax(
+        np.zeros(3), np.zeros(3), np.zeros(3), 0, 3, 'gen', cost=0.0,
+        months=np.array([0, 1, 1]))
+    want = scale * DIV_YIELD * GEN_RATE / 252.0
+    assert abs(paid - scale) < 1e-6 and abs(tax - want) < 1e-6
+    assert abs(post - (scale - want)) < 1e-6
 
 
 def rolling(rr, dfr, w, years, step=126):
@@ -159,14 +191,24 @@ def rolling(rr, dfr, w, years, step=126):
     span = int(years * 252)
     first = int(IDX.searchsorted(FX_START))
     starts = list(range(first, n - span, step))
+    # 모든 세제의 분모는 같은 세전 경로여야 한다. 종전 gen/isa3 의 `pre`는
+    # 중간 세금이 이미 빠진 값이라 서로 다른 분모로 실효세율을 비교했다.
+    pretax = {}
+    for lo in starts:
+        paid, _, post, _, _ = accum_tax(rr, dfr, w, lo, lo + span, 'pre')
+        pretax[lo] = (paid, post)
     out = {}
     for key, lab in MODES:
         vals, taxes = [], []
         for lo in starts:
-            paid, pre, post, tax, nsw = accum_tax(rr, dfr, w, lo, lo + span, key)
+            paid, _, post, tax, nsw = accum_tax(rr, dfr, w, lo, lo + span, key)
             if paid > 0:
                 vals.append(post)
-                taxes.append(tax / max(pre - paid, 1.0))
+                pre_paid, pre_value = pretax[lo]
+                assert abs(pre_paid - paid) < 1e-6
+                # 낸 세금을 같은 세전 이익으로 나눈다. 조기 납세 뒤 이미 깎인
+                # mode별 평가액을 분모로 쓰면 똑같은 15.4%도 18.2%로 부풀었다.
+                taxes.append(tax / max(pre_value - paid, 1.0))
         out[key] = dict(label=lab, median=float(np.median(vals)),
                         q10=float(np.quantile(vals, .10)),
                         worst=float(min(vals)),
@@ -190,6 +232,7 @@ def show(res, years, paid):
 
 
 if __name__ == '__main__':
+    selfcheck_tax()
     D = DF.build('chain')
     IDX = D['idx']
     MONTH = pd.Series(IDX).dt.to_period('M').values

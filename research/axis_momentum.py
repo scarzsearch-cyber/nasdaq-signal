@@ -61,6 +61,20 @@ def curve_of(rk, dfr, w):
     return np.cumprod((1 + r) * (1 - COST * t)), pos
 
 
+def ma_signal(px, window):
+    """이동평균이 준비되기 전에는 기존 계약대로 공격(1), 이후에만 비교한다."""
+    s = pd.Series(np.asarray(px, dtype=float))
+    ma = s.rolling(window, min_periods=window).mean()
+    return np.where(ma.isna(), 1.0, (s > ma).astype(float)).astype(float)
+
+
+def _selfcheck_ma_warmup():
+    rising = np.arange(1.0, 6.0)
+    assert np.array_equal(ma_signal(rising, 3), np.ones(5))
+    falling = np.arange(5.0, 0.0, -1.0)
+    assert np.array_equal(ma_signal(falling, 3), [1, 1, 0, 0, 0])
+
+
 def dca_fast(c, mstart, lo, hi, pay):
     m = mstart[(mstart > lo) & (mstart < hi)][:pay]
     if len(m) == 0:
@@ -172,8 +186,7 @@ def candidates(D, rk, dfr):
 
     # ---------------------------------------------------------- ⑥ 이평 100/150
     for nn in (100, 150):
-        s = pd.Series(px)
-        cd['⑥ 이평 %d일' % nn] = (s > s.rolling(nn, min_periods=nn).mean()).astype(float).fillna(1.0).values
+        cd['⑥ 이평 %d일' % nn] = ma_signal(px, nn)
     return cd
 
 
@@ -243,6 +256,7 @@ def blocks(curves, mstart, idx, names):
 
 
 def main():
+    _selfcheck_ma_warmup()
     D = DF.build('chain')
     idx, N = D['idx'], len(D['idx'])
     comp = materials(D)

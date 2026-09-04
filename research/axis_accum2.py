@@ -40,6 +40,7 @@ import hist_defensive as DF
 import hist_korea as K
 import hist_krfinal as KF
 from axis_lib import COST, rule_w, check
+from research_kit import mdd_vs_paid
 
 SEEDS = 12                      # 불규칙 납입은 난수라 여러 번 돌려 분포를 본다
 
@@ -48,11 +49,11 @@ SEEDS = 12                      # 불규칙 납입은 난수라 여러 번 돌�
 def accum(rr, dfr, w, lo, hi, contrib, cost=COST):
     """월초 임의금액 적립. contrib[m] = 그 달 납입액.
 
-    반환 (총납입, 최종평가액, 경로MDD). 전일 신호만 쓴다(미래 참조 없음).
+    반환 (총납입, 최종평가액, 원금대비최저). 전일 신호만 쓴다(미래 참조 없음).
     """
     R = C = paid = 0.0
     prev = w[lo]
-    vals = []
+    vals, pays = [], []
     mi = -1
     for i in range(lo, hi):
         # [v33 정정] 전환을 그날 수익 적용 **전에** 한다.
@@ -82,11 +83,11 @@ def accum(rr, dfr, w, lo, hi, contrib, cost=COST):
                     C += a
 
         vals.append(R + C)
+        pays.append(paid)
 
-    v = pd.Series(vals, index=IDX[lo:hi])
     if paid <= 0:
         return 0.0, 0.0, 0.0
-    return paid, float(v.iloc[-1]), float((v / v.cummax() - 1).min())
+    return paid, float(vals[-1]), mdd_vs_paid(vals, pays)
 
 
 def make_contrib(kind, n, rng, mret=None):
@@ -110,11 +111,12 @@ def make_contrib(kind, n, rng, mret=None):
     raise ValueError(kind)
 
 
-def month_returns(rr, lo, hi):
+def month_returns(rr, lo, hi, idx=None):
     """창 안의 월별 시장수익(전월 대비). 추격/역추격 트리거용."""
-    s = pd.Series(np.cumprod(1 + np.nan_to_num(rr[lo:hi])), index=IDX[lo:hi])
+    use_idx = IDX if idx is None else pd.DatetimeIndex(idx)
+    s = pd.Series(np.cumprod(1 + np.nan_to_num(rr[lo:hi])), index=use_idx[lo:hi])
     m = s.resample('MS').last().pct_change().fillna(0.0).values
-    return np.concatenate([[0.0], m[:-1]])                  # 전월 수익(미래 참조 없음)
+    return m                                                # 다음 월초가 직전 달 값을 쓴다
 
 
 # ---------------------------------------------------------------- 실행
@@ -144,7 +146,7 @@ def rolling(policies, years, step=126,
             mult = np.array(mult)
             out.append(dict(납입=kind, 정책=nm, 중앙값=np.median(mult),
                             분위10=np.quantile(mult, .10), 최악=mult.min(),
-                            최고=mult.max(), 경로MDD중앙=np.median(mdd) * 100, n=len(mult)))
+                            최고=mult.max(), 원금대비최저=np.median(mdd) * 100, n=len(mult)))
     return pd.DataFrame(out)
 
 
@@ -194,6 +196,12 @@ def min_contribution():
 
 
 if __name__ == '__main__':
+    # pct_change가 이미 앞 달과 비교한다. 다시 한 칸 밀면 두 달 전 수익이 된다.
+    _ix = pd.DatetimeIndex(['2000-01-03', '2000-01-31', '2000-02-01',
+                            '2000-02-29', '2000-03-01', '2000-03-31'])
+    _r = np.array([0.0, 0.10, 0.0, 0.20, 0.0, -0.10])
+    _m = month_returns(_r, 0, len(_r), idx=_ix)
+    assert len(_m) == 3 and abs(_m[1] - 0.20) < 1e-12 and abs(_m[2] + 0.10) < 1e-12
     D = DF.build('chain')
     assert check(D), '검산 실패'
     IDX = D['idx']

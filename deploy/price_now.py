@@ -18,13 +18,16 @@
 """
 import io
 import json
+import math
 import os
 import sys
+import tempfile
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
@@ -46,6 +49,45 @@ CODES = {
 KST = timezone(timedelta(hours=9))
 
 
+def _finite_number(value, *, positive=False, nonnegative=False):
+    """JSON 숫자 중 유한값만 허용한다. bool 은 int 의 하위형이라 명시적으로 거부한다."""
+    if type(value) not in (int, float):
+        return None
+    if not math.isfinite(float(value)):
+        return None
+    if positive and value <= 0:
+        return None
+    if nonnegative and value < 0:
+        return None
+    return value
+
+
+def json_text(value):
+    """브라우저 JSON.parse 와 같은 엄격 JSON을 쓰기 전에 완성한다."""
+    return json.dumps(value, ensure_ascii=False, indent=1, allow_nan=False) + '\n'
+
+
+def atomic_json_write(path, value):
+    """직렬화·디스크 쓰기를 모두 마친 파일만 기존 스냅샷과 교체한다."""
+    text = json_text(value)
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(path) + '.',
+                               suffix='.tmp', dir=parent, text=True)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def fetch_naver_list():
     raw = urllib.request.urlopen(
         urllib.request.Request(SRC, headers=UA), timeout=40).read()
@@ -60,7 +102,7 @@ def fetch():
     try:
         items = [it for it in fetch_naver_list() if str(it.get('itemcode')) in CODES]
         have = {str(it.get('itemcode')) for it in items
-                if isinstance(it.get('nowVal'), (int, float)) and it.get('nowVal') > 0}
+                if _finite_number(it.get('nowVal'), positive=True) is not None}
     except Exception as e:
         print('[price] 네이버 목록 실패(%s) — 예비 출처로' % e, file=sys.stderr)
     missing = [c for c in CODES if c not in have]
@@ -82,7 +124,8 @@ def _last_known(code):
             if r.get('code') == code:
                 last = r.get('close')
     try:
-        return float(last) if last else None
+        value = float(last) if last else None
+        return value if value is not None and math.isfinite(value) and value > 0 else None
     except ValueError:
         return None
 
@@ -93,8 +136,8 @@ def _plausible(it, tol=0.25):
     2배 ETF 의 하루 최대 움직임(±20%대)보다 넓게 잡았다 — v122 체결가 오타 가드(±20%)와 같은 발상."""
     code = str(it.get('itemcode', ''))
     ref = _last_known(code)
-    px = it.get('nowVal')
-    if not isinstance(px, (int, float)) or px <= 0:
+    px = _finite_number(it.get('nowVal'), positive=True)
+    if px is None:
         return False
     # [2026-09-04 코드리뷰] ★ 종전엔 대조 기준이 없으면 `return bool(px>0)` 로 **아무 양수나
     #   통과**시켰다 — 이 가드가 막으려던 바로 그 상황(구글 HTML 에서 다른 종목 금액을 긁어온
@@ -122,22 +165,23 @@ def build(items):
         c = str(it.get('itemcode', ''))
         if c not in CODES:
             continue
-        px = it.get('nowVal')
-        if not isinstance(px, (int, float)) or px <= 0:
+        px = _finite_number(it.get('nowVal'), positive=True)
+        if px is None:
             continue                      # 값이 이상하면 아예 싣지 않는다 (화면은 없으면 숨김)
-        nav = it.get('nav')
+        nav = _finite_number(it.get('nav'), positive=True)
+        raw_name = it.get('itemname')
         row = {
-            'name': it.get('itemname') or '',
+            'name': raw_name if isinstance(raw_name, str) else '',
             'role': CODES[c],
             'px': int(px),
-            'chg': it.get('changeVal'),
-            'chg_pct': it.get('changeRate'),
-            'volume': it.get('quant'),
+            'chg': _finite_number(it.get('changeVal')),
+            'chg_pct': _finite_number(it.get('changeRate')),
+            'volume': _finite_number(it.get('quant'), nonnegative=True),
         }
         # 괴리율 — 설명서 §③ 「주문 전에」가 쓰라고 한 그 숫자다.
-        if isinstance(nav, (int, float)) and nav > 0:
-            row['nav'] = round(float(nav), 1)
-            row['dev_pct'] = round((px / float(nav) - 1) * 100, 3)
+        if nav is not None:
+            row['nav'] = round(nav, 1)
+            row['dev_pct'] = round((px / nav - 1) * 100, 3)
         out[c] = row
     # [2026-09-03] 어느 출처가 채웠는지 남긴다 — 예비가 끼면 「naver etfItemList + daum(kakao)」처럼.
     srcs = sorted({str(it.get('_source') or 'naver etfItemList') for it in items
@@ -154,21 +198,22 @@ def build(items):
 def main():
     try:
         items = fetch()
+        doc = build(items)
     except Exception as e:
         # 시세를 못 받는 것은 사고가 아니다 — 화면이 옛 스냅샷을 그대로 두고
         # 「언제 잰 값인지」로 알린다. 기존 파일을 절대 덮어쓰지 않는다.
         print('[price] 수집 실패(%s) — 기존 파일 유지' % e, file=sys.stderr)
         return 0
 
-    doc = build(items)
     if not doc['items']:
         print('[price] 대상 종목 0건 — 기존 파일 유지', file=sys.stderr)
         return 0
 
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with io.open(OUT, 'w', encoding='utf-8') as f:
-        json.dump(doc, f, ensure_ascii=False, indent=1)
-        f.write('\n')
+    try:
+        atomic_json_write(OUT, doc)
+    except Exception as e:
+        print('[price] 저장 실패(%s) — 기존 파일 유지' % type(e).__name__, file=sys.stderr)
+        return 0
     print('[price] %s · %d종목' % (doc['as_of_kst'], len(doc['items'])))
     for c, r in doc['items'].items():
         print('   %s %-28s %8s원  %+.2f%%' %

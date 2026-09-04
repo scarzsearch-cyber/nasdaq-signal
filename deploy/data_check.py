@@ -32,16 +32,21 @@ MAX_GAP_DAYS = 16              # 달력일 기준 최대 공백 (실측 최대 1
 
 def validate_frame(df, name, price_cols, date_col='Date', prev_close=None,
                    max_move=MAX_DAILY_MOVE, max_gap=MAX_GAP_DAYS, allow_move_cols=(),
-                   prev_date=None):
+                   prev_date=None, value_bounds=None, prev_values=None,
+                   ohlc_cols=None):
     """붙이려는 새 구간(df)을 검사한다.
 
     price_cols : 0 이하·결측을 검사할 가격 열들
     prev_close : 이음새 검사용 - 기존 파일의 마지막 종가 (첫 새 행과의 변동도 검사)
+    prev_values: 열별 이음새 기준값. 예: 새 Open/High/Low도 기존 Close와 대조한다.
     prev_date  : 이음새 검사용 - 기존 파일의 마지막 날짜. [코드리뷰 2026-09-04]
                  없으면 공백 검사가 **새 구간 안**만 본다. 정작 append 가 만드는
                  유일한 이음새(기존 끝 -> 첫 새 행)를 못 봐서, 그 자리에 몇 달짜리
                  구멍이 있어도 통과했다 (splice_tnx 가 실제 경로다).
     allow_move_cols : ±30% 검사에서 제외할 열 (예: 금리처럼 수준 변동이 큰 것)
+    value_bounds : 열별 절대 허용범위 ``{'Close': (하한, 상한)}``. 금리처럼
+                   비율 변화 한도만 넓혀야 하는 자료의 10배 오염을 별도로 막는다.
+    ohlc_cols : ``(Open, High, Low, Close)`` 열 이름. 봉 내부 고저 관계도 검사한다.
     """
     probs = []
     if df is None:
@@ -63,18 +68,26 @@ def validate_frame(df, name, price_cols, date_col='Date', prev_close=None,
     if d.duplicated().any():
         probs.append(f'{name}: 중복 날짜 {int(d.duplicated().sum())}건')
     valid_d = d.dropna().reset_index(drop=True)
-    if not valid_d.is_monotonic_increasing:
+    days = valid_d.dt.normalize()
+    if not valid_d.equals(days):
+        probs.append(f'{name}: 일간 날짜에 시각이 포함됨')
+    if days.duplicated().any() and not d.duplicated().any():
+        probs.append(f'{name}: 같은 날짜가 여러 시각으로 중복됨 '
+                     f'{int(days.duplicated().sum())}건')
+    if not days.is_monotonic_increasing:
         probs.append(f'{name}: 날짜 순서 역전')
-    dchk = valid_d
+    dchk = days
     if prev_date is not None:
         prev_ts = pd.to_datetime(prev_date, errors='coerce', utc=True)
         if pd.isna(prev_ts):
             probs.append(f'{name}: 기존 마지막 날짜가 잘못됨 — {prev_date}')
-        elif len(valid_d):
-            if valid_d.iloc[0] <= prev_ts:
+        elif prev_ts != prev_ts.normalize():
+            probs.append(f'{name}: 기존 마지막 날짜에 시각이 포함됨 — {prev_date}')
+        elif len(days):
+            if days.iloc[0] <= prev_ts:
                 probs.append(f'{name}: 새 구간 첫 날짜가 기존 끝보다 늦지 않음 '
                              f'({df[date_col].iloc[0]} <= {prev_date})')
-            dchk = pd.concat([pd.Series([prev_ts]), valid_d], ignore_index=True)
+            dchk = pd.concat([pd.Series([prev_ts]), days], ignore_index=True)
     gaps = dchk.diff().dt.days.dropna()
     if len(gaps) and gaps.max() > max_gap:
         probs.append(f'{name}: 데이터 공백 {int(gaps.max())}일 (허용 {max_gap}일)')
@@ -86,6 +99,12 @@ def validate_frame(df, name, price_cols, date_col='Date', prev_close=None,
             continue
         if (v <= 0).any():
             probs.append(f'{name}.{c}: 0 이하 값 {int((v <= 0).sum())}건')
+        if value_bounds and c in value_bounds:
+            lo, hi = value_bounds[c]
+            outside = (v < lo) | (v > hi)
+            if outside.any():
+                probs.append(f'{name}.{c}: 절대 범위 밖 {int(outside.sum())}건 '
+                             f'(허용 {lo:g}~{hi:g})')
         if c in allow_move_cols:
             continue
         seq = v.values
@@ -94,9 +113,14 @@ def validate_frame(df, name, price_cols, date_col='Date', prev_close=None,
         #   안 붙인 열(= price_cols[0] 이 아닌 전부)은 df 의 **i+1** 행이다.
         #   종전에는 둘 다 i 행을 찍어 조사자를 하루 앞 날짜로 보냈다.
         base = 1
-        if prev_close is not None and c == price_cols[0]:
+        prior_value = None
+        if prev_values is not None and c in prev_values:
+            prior_value = prev_values[c]
+        elif prev_close is not None and c == price_cols[0]:
+            prior_value = prev_close
+        if prior_value is not None:
             try:
-                prior = float(prev_close)
+                prior = float(prior_value)
             except (TypeError, ValueError):
                 prior = float('nan')
             if not np.isfinite(prior) or prior <= 0:
@@ -109,6 +133,18 @@ def validate_frame(df, name, price_cols, date_col='Date', prev_close=None,
             i = int(np.nanargmax(r))
             probs.append(f'{name}.{c}: 일간 변동 {np.nanmax(r)*100:.1f}% > {max_move*100:.0f}% '
                          f'({df[date_col].iloc[i + base]})')
+    if ohlc_cols is not None:
+        op, hi, lo, cl = ohlc_cols
+        if not all(c in df.columns for c in ohlc_cols):
+            probs.append(f'{name}: OHLC 관계 검사 열 누락')
+        else:
+            vals = [pd.to_numeric(df[c], errors='coerce') for c in ohlc_cols]
+            if not any(v.isna().any() for v in vals):
+                o, h, l, c = vals
+                bad = (l > pd.concat([o, c], axis=1).min(axis=1)) | \
+                      (h < pd.concat([o, c], axis=1).max(axis=1)) | (l > h)
+                if bad.any():
+                    probs.append(f'{name}: OHLC 고저 관계 위반 {int(bad.sum())}건')
     return probs
 
 
@@ -133,10 +169,29 @@ def selftest():
     bad_date.loc[bad_date.index[0], 'Date'] = 'not-a-date'
     assert any('날짜 결측' in p for p in validate_frame(bad_date, 'date', ['Close']))
 
+    intraday = pd.DataFrame({'Date': ['2026-09-01 10:00', '2026-09-01 11:00'],
+                             'Close': [100.0, 101.0]})
+    intraday_probs = validate_frame(intraday, 'intraday', ['Close'])
+    assert any('시각이 포함됨' in p for p in intraday_probs)
+    assert any('여러 시각으로 중복' in p for p in intraday_probs)
+
     seam = validate_frame(clean.iloc[:1], 'gap', ['Close'], prev_close=100.0,
                           prev_date='2026-07-01', max_gap=16)
     assert any('데이터 공백' in p for p in seam)
-    print('data_check selftest: PASS (이음새 · 비유한 값 · 날짜 파싱)')
+    bounded = validate_frame(clean.iloc[:1], 'bounded', ['Close'],
+                             value_bounds={'Close': (0.01, 30.0)})
+    assert any('절대 범위 밖' in p for p in bounded)
+    one_row_seam = validate_frame(
+        pd.DataFrame({'Date': ['2026-09-01'], 'Close': [101.0], 'Open': [1000.0]}),
+        'per-column', ['Close', 'Open'], prev_date='2026-08-31',
+        prev_values={'Close': 100.0, 'Open': 100.0})
+    assert any('.Open: 일간 변동' in p for p in one_row_seam)
+    bad_bar = pd.DataFrame({'Date': ['2026-09-01'], 'Open': [100.0],
+                            'High': [99.0], 'Low': [98.0], 'Close': [101.0]})
+    assert any('OHLC 고저 관계' in p for p in validate_frame(
+        bad_bar, 'ohlc', ['Open', 'High', 'Low', 'Close'],
+        ohlc_cols=('Open', 'High', 'Low', 'Close')))
+    print('data_check selftest: PASS (이음새·열별 기준 · 비유한 값 · 날짜 · 절대범위·OHLC)')
 
 
 if __name__ == '__main__':

@@ -5,10 +5,11 @@
 소유자 지시: 「한국 시세나 종가는 해외 사이트뿐 아니라 네이버·구글·토스·카카오·증권사 등 뭐든 —
 개선이 되고 보험료가 없다면 보험은 많을수록 좋다」.
 
-어디에 붙나 (셋 다 **표시·기록·원자료** 경로 — 전환 판정은 여전히 QQQ 미국 종가 3중 체인 + 캐시):
+어디에 붙나 (**표시·원자료** 경로 — 전환 판정은 여전히 QQQ 미국 종가 3중 체인 + 캐시):
   · price_now.py / price_poll.py  장중 스냅샷 `price.json` — 네이버 목록이 죽거나 종목이 빠지면 그 종목만 예비로
-  · nav_collect.py                일별 NAV 기록 — 네이버 목록이 죽으면 예비로(예비엔 NAV 가 없어 그날 행은 안 쌓임)
-  · refresh_hist.py splice_kr     월간 원자료 연장 — 야후가 죽으면 네이버 일봉 XML 로
+  · nav_collect.py                **사용 안 함** — 예비 출처에는 NAV가 없어 핵심 4종 완전 수집 실패로 닫는다
+  · refresh_hist.py splice_kr     KOSPI(^KS11)만 야후 실패 시 네이버 일봉 XML 허용.
+                                  배당 ETF는 수정주가가 없으면 영구 오염되므로 실패-폐쇄
 
 체인 (종목별, 앞에서부터, 12초씩):
   네이버 polling → 네이버 모바일 basic → 다음(카카오) quotes → 토스 v1 stock-prices → 야후 chart → 구글 파이낸스(HTML)
@@ -22,6 +23,7 @@
 import datetime as dt
 import gzip
 import json
+import math
 import re
 import sys
 import time
@@ -29,6 +31,7 @@ import urllib.request
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
@@ -53,15 +56,20 @@ def _num(x):
     """'37,935' · '-3.69' · 37935.0 → float. 못 읽으면 None."""
     if x is None:
         return None
-    if isinstance(x, (int, float)):
-        return float(x)
+    if type(x) in (int, float):
+        value = float(x)
+        return value if math.isfinite(value) else None
     s = str(x).replace(',', '').strip()
-    return float(s) if re.match(r'^-?\d+(\.\d+)?$', s) else None
+    if not re.match(r'^-?\d+(\.\d+)?$', s):
+        return None
+    value = float(s)
+    return value if math.isfinite(value) else None
 
 
 def _item(code, px, chg_pct=None, chg=None, vol=None, name='', src=''):
     """price_now.build() 가 먹는 네이버 목록 모양 — NAV 는 예비 출처에 없다(None → 화면은 괴리 배지만 숨김)."""
-    if not (px and px > 0):
+    px, chg_pct, chg, vol = (_num(px), _num(chg_pct), _num(chg), _num(vol))
+    if px is None or px <= 0:
         raise ValueError('가격 없음')
     return {'itemcode': code, 'itemname': name or '', 'nowVal': int(round(px)), 'nav': None,
             'changeVal': chg, 'changeRate': None if chg_pct is None else round(chg_pct, 2),

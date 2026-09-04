@@ -22,8 +22,8 @@
   기준 규약: 54.5년 · T-bill 방어 · lag=1 · **편도 0.2%** (0.1% 는 참고 병기)
   K1 비용 완화   최종 ≥ 1.15 × T4      (T4 0.2% = 109,451 → 한도 ≥ 125,869)
   K2 방어 총량   MDD ≥ T4 MDD − 1.5%p  (T4 0.2% = −54.7% → 한도 ≥ −56.2%)
-  K3 방어 사건   독립 도피 22사건창 MDD 승률 vs B ≥ 70%   (T4 = 77%)
-  K4 기전 보존   M1 사전 감속(도피 전 10일 평균 노출 < 0.7) ≥ 60%   (T4 = 73%)
+  K3 방어 사건   독립 도피 사건창 MDD 승률 vs B ≥ 70%
+  K4 기전 보존   M1 사전 감속(도피 전 10일 평균 노출 < 0.7) ≥ 60%   (T4 = 16/21=76%, v203)
   K5 고원        같은 패밀리의 이웃 손잡이 값도 K1 의 90% 이상 (한 점 첨탑 배제)
   K6 부분표본    1972–1999 / 2000–2026 두 반쪽 **모두** 최종 ≥ 같은 반쪽의 T4
   K7 지연 강건   lag=2 에서 MDD ≥ T4(lag=2) − 1.5%p
@@ -41,7 +41,7 @@ import pandas as pd
 
 from axis_lib import sim
 from research_kit import verdict
-from axis_t4_shadow import build, met, VT, TH
+from axis_t4_shadow import build, met, VT, TH, independent_escapes, event_bounds
 
 try:
     _sys.stdout.reconfigure(encoding='utf-8')
@@ -103,21 +103,14 @@ def variants(votes):
 
 # ==================================================================== 평가
 def events(D, wB):
-    idx = D['idx']
-    esc = np.where((wB[1:] == 0) & (wB[:-1] == 1))[0] + 1
-    keep, last = [], None
-    for e in esc:
-        if last is None or (idx[e] - idx[last]).days > 252:
-            keep.append(e)
-        last = e
-    return keep
+    return independent_escapes(wB)
 
 
 def ev_stats(D, w, cB, keep):
     c, _ = sim(D, w, cost=KCOST)
     wins, m1 = [], []
     for e in keep:
-        a = max(0, e - 63); b = min(len(D['idx']) - 1, e + 252)
+        a, b = event_bounds(len(D['idx']), e)
         sT = c.iloc[a:b]; sB = cB.iloc[a:b]
         wins.append(float((sT / sT.cummax() - 1).min()) > float((sB / sB.cummax() - 1).min()))
         m1.append(w[max(0, e - 10):e].mean() < 0.7)

@@ -47,15 +47,21 @@ daily-signal.yml   [v75] 대기 루프 체제 — 트리거 8개([v190] 04:35/04
                        (사건 단위 M1·M2 기전 관문 · 한도 −29% 고정 · 혼합 0.25B 평가 전용 병기)
 pages.yml            push 시 배포 + stamp_rev.py 가 화면 개정일·커밋 주입
 notify.py            [v73/v77] 실패·전환 알림 — 카카오톡 "나에게 보내기"(권장:
-                     KAKAO_REST_API_KEY+KAKAO_REFRESH_TOKEN, 최초 발급은 deploy/kakao_setup.py)
+                     KAKAO_REST_API_KEY+KAKAO_REFRESH_TOKEN, Client Secret이 켜졌으면
+                     KAKAO_CLIENT_SECRET도 등록. 최초 발급은 deploy/kakao_setup.py)
                      또는 Discord/Telegram. 미설정이면 조용히 생략
 kakao_keepalive.py   [v77] 카카오 refresh 토큰(2개월 시한부)을 매일 갱신해 연명.
-                     교체 신호 시 GH_PAT 로 secret 자동 교체, 없으면 카톡 만료 예고
+                     교체 신호 시 GH_PAT 로 secret 자동 교체. 새 토큰 발급 순간 옛 토큰은
+                     무효이므로 저장 실패 시 즉시 재설정하라는 카톡을 보내고 실패로 표시
 data_check.py        [v73] 월간 연장의 검증 게이트 — 결측·중복·역순·0이하·±30%·공백·열누락 시
-                     해당 파일 갱신 거부(기존 유지) + 종료코드 1 (build_stats 미실행 = downstream 보호)
+                     해당 파일 갱신 거부(기존 유지) + 종료코드 1. 열별 절대범위·OHLC 모순·
+                     각 가격열의 이음새도 따로 검사한다. 공백 한도는 미국계 8일,
+                     한국 16일로 분리 (build_stats 미실행 = downstream 보호)
 monthly-stats.yml    매월 1일 07:17 UTC (미·한 장 모두 휴장 시각) — refresh_hist.py 로
-                     원자료 연장(append-only·수정주가 비율 이음·장중 가드) 후
-                     build_stats.py 재계산, verify_all 통과 시에만 커밋 (v72)
+                     원자료 연장(append-only·수정주가 비율 이음·장중 가드). 빈 응답이나
+                     기존 끝 날짜가 없는 응답은 「이미 최신」으로 넘기지 않고 실패한 뒤
+                     build_stats.py 재계산, verify_all 통과 시에만 커밋한다. 허용 산출물만
+                     스테이징하며 push 경합은 rebase하지 않고 최신 HEAD 재실행에 맡긴다 (v203)
 verify.yml           push 마다 verify_all.py --fast — 실패하면 GitHub 이슈 자동 생성
 watchdog.yml         [v140] 자동 파수꾼 — **「실패」가 아니라 「아예 안 돈 것」을 잡는다**
                      (기존 알림은 전부 if: failure() 라 워크플로가 스킵되면 침묵했다)
@@ -72,11 +78,11 @@ watchdog.yml         [v140] 자동 파수꾼 — **「실패」가 아니라 「
                          (Level 상승·새 AUM 경보) — 밴드·규약은 무변경, 주기만 분기→주
 ```
 
-- 예약 실행은 부하 시 **통째로 건너뛸 수 있다** (2026-08-26 실제 발생) — 그래서 예비 슬롯 2개
-  + 화면 신선도 배너(미국장 기준 경과 거래일로 계산)가 있다.
+- 예약 실행은 부하 시 **통째로 건너뛸 수 있다** (2026-08-26 실제 발생) — 그래서 마감 전 4개와
+  예비 4개, 총 8슬롯 + 화면 신선도 배너가 있다.
 - 화면 3줄 표기: `종가 기준일·자동갱신 시각` / `전략 반영(화면 마지막 커밋)` / `규칙 동결·경과 N영업일`.
 
-## 4. 불변식 I1~I12 (`verify_all.py`, 전체 4초)
+## 4. 불변식 I1~I14 (`verify_all.py`, 전체 약 7초)
 
 | | 무엇을 막는가 |
 |---|---|
@@ -88,10 +94,12 @@ watchdog.yml         [v140] 자동 파수꾼 — **「실패」가 아니라 「
 | I6 | signal.json 재계산 일치 + 내장 stats 사본 정합 + 신선도 |
 | I7 | 공표 수치가 현재 코드와 일치 + 벤치마크 정합 |
 | I8 | 공용 모형 사용처 목록 (수정 시 재실행 안내) |
-| I9 | **폐기 수치 12종**이 현행 문서(`retired_numbers.json`의 current_docs)에 없는가 + 보관 문서 정정 배너 |
+| I9 | **폐기 수치 대장**의 값이 현행 문서(`retired_numbers.json`의 current_docs)에 없는가 + 보관 문서 정정 배너 |
 | I10 | 전제 감시 — 나스닥 고유 성질(2배 MDD ≤−90% · 장기 상승 · 전략>보유) 유지 |
 | I11 | **규칙 동결** — 코드·화면이 freeze.json 과 다르면 실패 |
 | I12 | T4 그림자 열 무결성 — votes 0~4 · rv>0 · w∈[0,1] · votes<2 ⟺ w=0 (v82) |
+| I13 | B 판정 규약 지문 — 사건이 쌓인 뒤 사후 수정되는 것 방지 |
+| I14 | 운영·알림·자료 갱신·배포 스크립트의 합성 회귀검사 16종 |
 
 ## 5. 파일 지도 (핵심층만)
 
@@ -101,10 +109,10 @@ data/freeze.json      ← 동결 규칙 (기계용 truth)
 data/signal.json      ← 오늘의 신호 (매일 덮어씀)
 data/oos_log.csv      ← 전향적 OOS 장부 (append-only)
 signal.html           ← 화면 (단일 파일)
-deploy/               ← 라이브 파이프라인 5개 — 건드리지 말 것
-verify_all.py         ← 불변식 I1~I12
+deploy/               ← 라이브 파이프라인 18개 — 결함 수정 뒤 I14까지 검증
+verify_all.py         ← 불변식 I1~I14
 reentry_lib.py 등     ← 엔진·데이터 체인 (FILES.md 상세)
-docs/history/         ← 전략_v18~v83 보관 (56개, 온디맨드 참조. v80 §6·§7 = T4 판정 부속서)
+docs/history/         ← 전략_v18~v203 보관 (59개, 온디맨드 참조. v80 §6·§7 = T4 판정 부속서)
 docs/raw/             ← 각 버전 문서의 원본 출력
 research/             ← 기각 축 재현 스크립트 (04 문서와 1:1)
 ```
@@ -113,8 +121,8 @@ research/             ← 기각 축 재현 스크립트 (04 문서와 1:1)
 
 | 사고 | 원인 | 장치 |
 |---|---|---|
-| 종가 미갱신 (08-26) | GitHub 예약 실행 스킵 | 예비 슬롯 2개 + 신선도 배너 |
-| 종가 6시간 지각 (08-27→28) | 예약 3슬롯 전부 스킵/지연 — 15:04 KST 에야 반영 | [v66] 슬롯 3→7개, 혼잡한 :30 분 회피(:17/:47) |
+| 종가 미갱신 (08-26) | GitHub 예약 실행 스킵 | 예약 8슬롯 + 신선도 배너 |
+| 종가 6시간 지각 (08-27→28) | 당시 예약 3슬롯 전부 스킵/지연 — 15:04 KST 에야 반영 | [v190] 현재 마감 전 4+예비 4슬롯 |
 | 장중가가 종가로 둔갑할 뻔 | 실행이 미국장 개장 뒤로 밀리면 Yahoo 가 진행 중 봉을 줌 | [v66] update_signal.py 장중 가드 (regularMarketTime < 정규장 마감이면 마지막 봉 제외) |
 | 화면이 옛 수치 표시 | signal.json 내장 stats 가 옛 판 | I6 사본 대조 + build_stats 가 사본 동시 갱신 |
 | 문서 결정 ≠ 화면 | v43 결정을 코드에 반영 안 함 | I5 가 화면을 직접 읽어 대조 |

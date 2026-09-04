@@ -19,6 +19,21 @@ import hist_defensive as DF
 from axis_lib import rule_w, lev_r, COST
 from axis_defmix import materials, mix_monthly_from
 sys.stdout.reconfigure(encoding='utf-8')
+
+
+def median_rank(values):
+    """짝수 개 구간의 중앙순위를 반정수까지 보존한다."""
+    return float(np.median(np.asarray(values, dtype=float)))
+
+
+def _selfcheck_median_rank():
+    assert median_rank([19, 126, 94, 37, 84, 11]) == 60.5
+    tied = [('later', 126, 134.5), ('earlier', 126, 134.0)]
+    tied.sort(key=lambda t: (t[1], t[2]))
+    assert tied[0][0] == 'earlier'
+
+
+_selfcheck_median_rank()
 D=DF.build('chain'); idx=D['idx']
 comp=materials(D)
 dfr=mix_monthly_from({k:comp[k] for k in ('div','ust5','gold')},{'div':.4,'ust5':.4,'gold':.2},idx)
@@ -42,7 +57,7 @@ for nm,a,b in WIN:
     for i,c in enumerate(order,1): R.setdefault(c,[]).append(i)
 rows=[]
 for c in combos:
-    v=np.array(R[c]); rows.append((c,v.max(),int(np.median(v)),v.min()))
+    v=np.array(R[c]); rows.append((c,v.max(),median_rank(v),v.min()))
 rows.sort(key=lambda t:(t[1],t[2]))
 CUR=(-0.16,-0.16)
 print("  겹치지 않는 6구간에서의 순위 (격자 210개, 최종배수)")
@@ -50,13 +65,13 @@ print("  **최악 순위**가 좋은 순으로 정렬 = 미니맥스")
 print("  %-12s%10s%10s%10s   %s"%('규칙','최악순위','중앙순위','최고순위','구간별'))
 for c,mx,md,mn in rows[:8]:
     mk='  <- 현행' if c==CUR else ''
-    print("  %-12s%10d%10d%10d   %s%s"%('%.0f/%.0f'%(c[0]*100,c[1]*100),mx,md,mn,
+    print("  %-12s%10d%10.1f%10d   %s%s"%('%.0f/%.0f'%(c[0]*100,c[1]*100),mx,md,mn,
           ' '.join('%3d'%x for x in R[c]),mk))
 i=[j for j,(c,_,_,_) in enumerate(rows,1) if c==CUR][0]
 if i>8:
     c,mx,md,mn=[r for r in rows if r[0]==CUR][0]
     print("  ...")
-    print("  %-12s%10d%10d%10d   %s  <- 현행"%('-16/-16',mx,md,mn,' '.join('%3d'%x for x in R[CUR])))
+    print("  %-12s%10d%10.1f%10d   %s  <- 현행"%('-16/-16',mx,md,mn,' '.join('%3d'%x for x in R[CUR])))
 print()
 print("  현행의 미니맥스 순위: **%d위 / %d**"%(i,len(rows)))
 # 각 구간 1등들의 최악 순위
@@ -69,5 +84,5 @@ for nm,a,b in WIN:
     if top in seen: continue
     seen.add(top)
     v=np.array(R[top])
-    print("  %-12s%10d%10d   %s"%('%.0f/%.0f'%(top[0]*100,top[1]*100),v.max(),int(np.median(v)),
+    print("  %-12s%10d%10.1f   %s"%('%.0f/%.0f'%(top[0]*100,top[1]*100),v.max(),median_rank(v),
           ' '.join('%3d'%x for x in v)))

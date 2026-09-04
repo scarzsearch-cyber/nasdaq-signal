@@ -18,7 +18,7 @@ v21 은 -16/-11(A) 을 권했다. 근거 두 개가 **틀렸다**:
   1  슬리피지 스윕 — A 가 이기려면 얼마나 커야 하나
   2  갭 분산 몬테카를로 — v21 이 실측한 2.58% 를 전환마다 물린다
   3  보조전략 후보 — B 와 얼마나 다른가(상태일치·상관), B 부진창을 메우나
-  4  -11/-11 시대별 분해 — 유일한 저상관 후보가 시대 전용인지
+  4  -11/-11 시대별 분해 — B 부진창에서 좋아 보인 후보가 시대 전용인지
 """
 # --- [v39] 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------
 import os as _os, sys as _sys
@@ -57,8 +57,19 @@ def krw_setup():
 
 def run_kr(Dx, krd, S, slip):
     c, w, t = K.run_kr(Dx, S, cost=0.001, slip=slip, start=KF.ST, krdays=krd)
-    n = int(np.abs(np.diff(np.r_[1.0, w.values])).sum())
+    # 신호 변화가 아니라 한국 거래일 매핑 뒤 실제 체결을 센다. 휴장 사이에
+    # 신호가 왕복하면 한 번도 체결되지 않을 수 있다.
+    n = int(np.count_nonzero(np.asarray(t, dtype=float)))
     return float(c.iloc[-1]), n, c
+
+
+def flip_text(flip, tested_max=0.03):
+    return ('편도 %.1f%%' % (flip * 100) if flip is not None
+            else '편도 %.1f%%까지 역전 없음' % (tested_max * 100))
+
+
+def flip_is_implausible(flip):
+    return flip is None or flip >= 0.005
 
 
 def s1_slip(Dx, krd):
@@ -73,13 +84,15 @@ def s1_slip(Dx, krd):
         mk = ''
         if va > vb:
             mk = ' <- A 우세'
-            flip = flip or s
+            if flip is None:
+                flip = s
         print(f"  {s*100:>9.1f}%{'':<6}{vb:>13,.1f}{va:>13,.1f}{vb/va:>9.2f}{mk}")
     vb, tb, _ = run_kr(Dx, krd, SB, 0.001)
     va, ta, _ = run_kr(Dx, krd, SA, 0.001)
     print(f"\n  전환 B {tb}회 / A {ta}회")
     print(f"  실제 가정(0.1%)에서 B/A = {vb/va:.2f}")
-    print(f"  역전 지점 = 편도 {flip*100:.1f}%  (실제 가정의 {flip/0.001:.0f}배)")
+    extra = (' (실제 가정의 %.0f배)' % (flip / 0.001)) if flip is not None else ''
+    print(f"  역전 지점 = {flip_text(flip)}{extra}")
     return vb, va, tb, ta, flip
 
 
@@ -122,21 +135,29 @@ def s3_secondary():
     L = 20 * 252; st = list(range(0, N - L, 63))
     rB = np.array([np.exp(Bl[s:s + L].sum()) for s in st])
     bad = np.argsort(rB)[:len(st) // 4]
-    CAND = {'A -16/-11 (현행 보조)': (-0.16, -0.11), '-19/-18': (-0.19, -0.18),
+    CAND = {'A -16/-11 (참조)': (-0.16, -0.11), '-19/-18': (-0.19, -0.18),
             '-16/-15': (-0.16, -0.15), '-23/-7': (-0.23, -0.07),
             '-11/-11': (-0.11, -0.11), '-12/-6': (-0.12, -0.06)}
     print(f"  {'후보':<22}{'상태일치':>9}{'수익상관':>9}{'B부진창서':>11}{'전체승률':>9}")
+    rec = [i for i in range(len(st)) if idx[st[i]].year >= 2000]
+    stats = {}
     for nm, (e, x) in CAND.items():
         w, l = mk(e, x)
         r = np.array([np.exp(l[s:s + L].sum()) for s in st])
-        cor = np.corrcoef(np.diff(np.log(rB)), np.diff(np.log(r)))[0, 1]
+        # 같은 날짜의 일간 로그수익 상관. 겹치는 20년 말기배수의 차분은
+        # 동시점 수익이 아니며 0.9 관문을 위로 왜곡했다.
+        cor = float(np.corrcoef(Bl, l)[0, 1])
+        recent_win = float((r[rec] > rB[rec]).mean())
+        stats[nm] = dict(corr=cor, recent_win=recent_win)
         print(f"  {nm:<22}{(w==Bw).mean()*100:>8.0f}%{cor:>9.2f}"
               f"{np.median(r[bad]/rB[bad]-1)*100:>10.0f}%{(r>rB).mean()*100:>8.0f}%")
-    print("\n  -> 같은 신호에 문턱만 다르니 상관이 0.92 밑으로 안 내려간다.")
+    low = [(nm, d) for nm, d in stats.items() if d['corr'] < 0.9]
+    print("\n  -> 일간 수익상관 0.90 미만 후보: %s"
+          % (', '.join('%s %.3f' % (nm, d['corr']) for nm, d in low) if low else '없음'))
     print("     -16/-15 는 상태일치 99%, 상관 1.00 — 사실상 같은 전략이다.")
 
     print("\n" + "=" * 78)
-    print("4. -11/-11 시대별 분해 — 유일한 저상관 후보가 시대 전용인가")
+    print("4. -11/-11 시대별 분해 — B 부진창의 우위가 시대 전용인가")
     print("=" * 78)
     _, Cl = mk(-0.11, -0.11)
     print(f"  {'구간':<12}{'-11/-11':>12}{'B':>12}{'차이':>10}")
@@ -149,32 +170,38 @@ def s3_secondary():
         print(f"  {nm:<12}{v1:>12,.1f}{v0:>12,.1f}{(v1/v0-1)*100:>9.0f}%")
     rC = np.array([np.exp(Cl[s:s + L].sum()) for s in st])
     yrs = np.array([idx[st[i]].year for i in bad])
-    rec = [i for i in range(len(st)) if idx[st[i]].year >= 2000]
     print(f"\n  'B 부진창' {len(bad)}개 중 1970년대 시작 {(yrs<1980).sum()}개")
     print(f"  2000년 이후 시작 창 {len(rec)}개에서 -11/-11 승리 {(rC[rec]>rB[rec]).sum()}개"
           f"  (중앙 {np.median(rC[rec]/rB[rec]-1)*100:+.0f}%)")
-    return float((rC[rec] > rB[rec]).mean())
+    return stats
 
 
 def main():
     Dx, ki, krd = krw_setup()
     vb, va, tb, ta, flip = s1_slip(Dx, krd)
     winrate, ratio = s2_gap(vb, va, tb, ta)
-    c11 = s3_secondary()
+    stats = s3_secondary()
+    low = [(nm, d) for nm, d in stats.items() if d['corr'] < 0.9]
+    viable = [(nm, d) for nm, d in low if d['recent_win'] > 0.3]
     print("\n" + "=" * 78)
     v = verdict('메인 규칙 B(-16/-16)', [
         ('마찰 반영 후에도 A 를 앞선다', vb > va, f'{vb:,.0f} vs {va:,.0f} ({vb/va:.2f}배)'),
         ('갭 분산 반영 후에도 앞선다', ratio > 1.0, f'{ratio:.2f}배, 승률 {winrate*100:.0f}%'),
-        ('역전에 필요한 슬리피지가 비현실적', flip >= 0.005, f'편도 {flip*100:.1f}%'),
+        ('역전에 필요한 슬리피지가 비현실적', flip_is_implausible(flip), flip_text(flip)),
     ])
     print(v['text'])
     print()
     v2 = verdict('보조전략 채택', [
-        ('B 와 상관 0.9 미만인 후보가 있다', False, '최저 0.92 (-11/-11, -12/-6)'),
-        ('-11/-11 이 최근 구간에서 쓸 만하다', c11 > 0.3, f'2000- 승률 {c11*100:.0f}%'),
+        ('B 와 상관 0.9 미만인 후보가 있다', bool(low),
+         ', '.join('%s %.3f' % (nm, d['corr']) for nm, d in low) if low else '없음'),
+        ('그 저상관 후보가 최근 구간에서도 쓸 만하다', bool(viable),
+         ', '.join('%s 승률 %.0f%%' % (nm, d['recent_win'] * 100) for nm, d in low)
+         if low else '대상 없음'),
     ])
     print(v2['text'])
 
 
 if __name__ == '__main__':
+    assert flip_text(None).endswith('역전 없음')
+    assert flip_text(0.0).startswith('편도 0.0%') and not flip_is_implausible(0.0)
     main()

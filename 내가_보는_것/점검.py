@@ -83,7 +83,7 @@ def main():
     # 자동화(파수꾼)와 화면이 읽는 결과. 사람이 읽는 출력과 **같은 계산에서 나온다** —
     # 두 벌로 만들지 않는다(수치가 갈리는 사고를 여기서 원천 차단).
     R = {'as_of': str(date.today()), 'level': 0, 'level_msg': '', 'todo': [],
-         'vars': [], 'aum': [], 'exec': {}, 'ok': True}
+         'vars': [], 'aum': [], 'exec': {}, 'health_errors': [], 'ok': True}
 
     say(f'\n{LINE}\n 점검 — {date.today()}\n{LINE}')
 
@@ -94,6 +94,7 @@ def main():
         say('  ★ 실행 실패 — 아래 원문을 확인하라')
         say('  ' + out1.strip().splitlines()[-1] if out1.strip() else '')
         todo.append('전제 감시 스크립트가 실패했다 — AI에게 원문을 보여줄 것')
+        R['health_errors'].append('survival_run')
         R['ok'] = False
         # [코드리뷰 2026-09-04] 종전엔 -1 이었다. 파수꾼은 `lv1 > lv0` 로 악화를 보므로
         #   -1 은 정상(0)보다 **낮게** 정렬돼, 실패가 이어지는 둘째 주부터는 악화로 안 잡혔다.
@@ -119,6 +120,7 @@ def main():
             if v is None:
                 say(f'    {nm:<14} 값을 못 읽음')
                 R['vars'].append({'name': nm, 'value': None, 'state': '못 읽음'})
+                R['health_errors'].append('var_missing:' + nm)
                 unread.append(nm)          # [코드리뷰 2026-09-04] 아래에서 판정에 반영
                 continue
             bad_w = (v < w) if d == 'lo' else (v > w)
@@ -162,12 +164,31 @@ def main():
         #   surv_map.py 는 수집분이 없는 다리에 태그 없이 「수집분 없음」을 찍는다. 그러면
         #   R['aum'] 이 짧아지고 아래 종목별 경보 루프가 아무것도 안 돌아, 「감시가 이상을
         #   못 찾았다」와 「감시가 아무것도 못 봤다」가 같은 JSON 이 된다.
-        if len(R['aum']) != len(SUBSTITUTE):
-            got = {a['code'] for a in R['aum']}
-            miss = [c for c in SUBSTITUTE if c not in got]
-            todo.append('4다리 중 %d개만 읽혔다 — 못 읽은 종목: %s. 상장폐지 감시가 그만큼 '
-                        '꺼져 있다(수집분 없음이면 nav_collect.py 확인).'
-                        % (len(R['aum']), ', '.join(miss) if miss else '알 수 없음'))
+        counts = {}
+        for a in R['aum']:
+            counts[a['code']] = counts.get(a['code'], 0) + 1
+        miss = [c for c in SUBSTITUTE if c not in counts]
+        dup = [c for c in SUBSTITUTE if counts.get(c, 0) > 1]
+        extra = sorted(c for c in counts if c not in SUBSTITUTE)
+        if miss or dup or extra:
+            # 단순 len 비교는 「한 종목 중복 + 다른 종목 누락」을 4개로 오인한다.
+            # 코드 순서를 고정해 주간 비교용 health_errors 가 실행마다 흔들리지 않게 한다.
+            R['health_errors'].extend('aum_missing:' + c for c in miss)
+            R['health_errors'].extend('aum_duplicate:' + c for c in dup)
+            R['health_errors'].extend('aum_unexpected:' + c for c in extra)
+            details = []
+            if miss:
+                details.append('못 읽음 ' + ', '.join(miss))
+            if dup:
+                details.append('중복 ' + ', '.join(dup))
+            if extra:
+                details.append('예상 밖 ' + ', '.join(extra))
+            todo.append('4다리 AUM 결과가 불완전하다 — %s. 상장폐지 감시가 일부 꺼져 '
+                        '있다(수집분 없음이면 nav_collect.py 확인).'
+                        % '; '.join(details))
+            # todo 만 추가하면 화면에는 보이지만 watchdog 의 「정상→실패」 악화 조건에는
+            # 걸리지 않아 카톡이 생략된다. 감시가 일부 꺼진 상태는 정상 실행이 아니다.
+            R['ok'] = False
 
         # 경보·주의는 **종목별로** 낸다 — 어느 다리가 위태로운지가 곧 대응이다.
         # 대체 상품을 문구에 같이 실어 화면·카톡만 보고도 움직일 수 있게 한다.
@@ -185,6 +206,7 @@ def main():
     if not ok2:
         say('  ★ 실행 실패')
         todo.append('체결비용 스크립트가 실패했다 — AI에게 알릴 것')
+        R['health_errors'].append('exec_run')
         R['ok'] = False
     else:
         for ln in pick(out2, '진행률', '수집', '모형 슬리피지'):
@@ -196,6 +218,13 @@ def main():
         m = re.search(r'수집\s+(\d+)\s*영업일', out2)
         if m:
             R['exec']['nav_days'] = int(m.group(1))
+        missing_exec = [k for k in ('switches', 'need', 'nav_days') if k not in R['exec']]
+        if missing_exec:
+            R['health_errors'].extend('exec_parse:' + k for k in missing_exec)
+            todo.append('체결비용 결과에서 %s 값을 못 읽었다 — exec_cost.py 출력 서식이 '
+                        '바뀌었는지 확인. 값을 못 읽은 것은 정상이 아니다.'
+                        % ', '.join(missing_exec))
+            R['ok'] = False
         if '판정 가능' in out2:
             todo.append('체결비용 표본이 찼다 — 비용 가정을 실측으로 교체할 시점')
         elif '★모형 초과' in out2:

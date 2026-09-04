@@ -15,10 +15,10 @@
 [검증 순서]
   1) 전제       왜 현금이 아닌가 — 방어자산이 실제로 버는 돈
   2) 예측력     방어자산 3종에 낙폭·모멘텀 신호가 통하는가 (QQQ 대비)
-  3) 유효표본   도피 에피소드가 몇 개인가 — 통계적 검정력의 상한
+  3) 유효표본   실제 방어 보유 에피소드가 몇 개인가 — 통계적 검정력의 상한
   4) 본 판정    선택규칙 10종 x 전략 A/B, 전구간 / 2000-
   5) 스윕       룩백·문턱이 고원인가 첨탑인가
-  6) 워크포워드 1972-1999 에서 고르고 2000- 에 적용 (진짜 OOS)
+  6) 워크포워드 학습 Calmar 로 고르고 다음 구간에 적용 (진짜 OOS)
   7) 롤링       창별 분포 — 중앙값이 아니라 좌측꼬리를 본다
   8) 원화       실제로 사게 될 통화 기준
   9) 판정
@@ -38,6 +38,8 @@ _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 # ---------------------------------------------------------------------------
 
+from math import comb
+
 import numpy as np
 import pandas as pd
 
@@ -52,6 +54,63 @@ KEYS = ['div', 'ust5', 'gold', 'tbill']
 BASE = {'div': 0.40, 'ust5': 0.40, 'gold': 0.20, 'tbill': 0.0}
 NAMEK = {'div': '배당', 'ust5': '국채5Y', 'gold': '금', 'tbill': '현금'}
 SLEEVE_COST = 0.0005
+
+
+def _curve_stats(curve):
+    """최종배수·CAGR·MDD·Calmar 를 한 규약으로 계산한다."""
+    if len(curve) < 2:
+        raise ValueError('성과곡선은 2행 이상이어야 한다')
+    years = (curve.index[-1] - curve.index[0]).days / 365.25
+    if years <= 0:
+        raise ValueError('성과곡선 기간은 양수여야 한다')
+    final = float(curve.iloc[-1])
+    cagr = final ** (1 / years) - 1
+    mdd = float((curve / curve.cummax() - 1).min())
+    calmar = cagr / abs(mdd) if mdd < 0 else (np.inf if cagr > 0 else 0.0)
+    return dict(final=final, cagr=float(cagr), mdd=mdd, calmar=float(calmar))
+
+
+def _episode_bounds(mask, min_sessions=1):
+    """True 보유구간의 양끝 포함 경계. 정확히 min_sessions 일도 포함한다."""
+    m = np.asarray(mask, dtype=bool)
+    if m.ndim != 1:
+        raise ValueError('에피소드 마스크는 1차원이어야 한다')
+    if min_sessions < 1:
+        raise ValueError('최소 세션 수는 1 이상이어야 한다')
+    if len(m) == 0:
+        return np.array([], dtype=int), np.array([], dtype=int)
+    starts = np.flatnonzero(m & ~np.r_[False, m[:-1]])
+    ends = np.flatnonzero(m & ~np.r_[m[1:], False])
+    assert len(starts) == len(ends)
+    keep = (ends - starts + 1) >= min_sessions
+    return starts[keep], ends[keep]
+
+
+def _one(rows, **wanted):
+    found = [r for r in rows if all(r.get(k) == v for k, v in wanted.items())]
+    assert len(found) == 1, '결과 행 조회 실패: %r (%d행)' % (wanted, len(found))
+    return found[0]
+
+
+def _df_one(df, **wanted):
+    mask = np.ones(len(df), dtype=bool)
+    for k, v in wanted.items():
+        mask &= (df[k].values == v)
+    found = df.loc[mask]
+    assert len(found) == 1, '결과 표 조회 실패: %r (%d행)' % (wanted, len(found))
+    return found.iloc[0]
+
+
+def _selfcheck():
+    """경계·포맷 회귀검사 — 외부 자료 없이 즉시 실패해야 하는 부분."""
+    mask = np.array([0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0], dtype=bool)
+    st, en = _episode_bounds(mask)
+    assert st.tolist() == [1, 7] and en.tolist() == [5, 10]
+    st5, en5 = _episode_bounds(mask, min_sessions=5)
+    assert st5.tolist() == [1] and en5.tolist() == [5]  # 정확히 5일도 포함
+    signal = np.array([1., 0., 0., 1.])
+    executed = np.r_[signal[0], signal[:-1]]
+    assert executed.tolist() == [1., 1., 0., 0.]       # 신호보다 한 세션 뒤 체결
 
 
 # ---------------------------------------------------------------- 신호 (전부 i-1 까지만 본다)
@@ -207,12 +266,14 @@ def s1_premise(D, comp, idx):
     esc = (pos == 0)
     yrs_esc = esc.sum() / 252.0
     parts = {k: comp[k] for k in KEYS}
+    component_escape = {}
     print()
     print('  [성분 자체의 도피구간 수익 — 도피한 날짜만 이어붙인 연율]')
     print('  %-10s %10s' % ('성분', '도피중 CAGR'))
     for k in KEYS:
         pr = np.prod(1 + comp[k][esc])
-        print('  %-10s %9.2f%%' % (NAMEK[k], (pr ** (1 / yrs_esc) - 1) * 100))
+        component_escape[k] = (pr ** (1 / yrs_esc) - 1) * 100
+        print('  %-10s %9.2f%%' % (NAMEK[k], component_escape[k]))
     rows = []
     for nm in ('현금100', '배당100', '고정 40/40/20'):
         dfr = mix_dyn(parts, wpath(nm, None, len(idx)), idx)
@@ -229,7 +290,9 @@ def s1_premise(D, comp, idx):
     print(df.to_string(index=False, float_format=lambda x: format(x, ',.2f')))
     print('  도피 비중은 전체의 %.0f%%(%.1f년). 현금 대비 차이가 "방어도 번다"의 값이다.'
           % (100.0 * esc.mean(), yrs_esc))
-    return wB
+    return dict(wB=wB, executed_position=pos, defense_mask=esc,
+                defense_share=float(esc.mean()), defense_years=float(yrs_esc),
+                component_escape=component_escape, policy_rows=df)
 
 
 # ---------------------------------------------------------------- 2) 예측력
@@ -244,14 +307,19 @@ def _split(rser, sig, valid, idx):
 
 
 def _report(tag, nm, on, off):
+    row = dict(asset=tag, signal=nm, n=int(len(on) + len(off)), enough=False,
+               on_annual=None, off_annual=None, diff_pp=None, t=None)
     if len(on) < 24 or len(off) < 24:
         print('%-12s %-18s %7d  표본부족' % (tag, nm, len(on) + len(off)))
-        return
+        return row
     a = (1 + on.mean()) ** 12 - 1
     b = (1 + off.mean()) ** 12 - 1
     t = (on.mean() - off.mean()) / np.sqrt(on.var() / len(on) + off.var() / len(off))
     print('%-12s %-18s %7d %9.2f%% %9.2f%% %8.2f%%p %7.2f'
           % (tag, nm, len(on) + len(off), a * 100, b * 100, (a - b) * 100, t))
+    row.update(enough=True, on_annual=float(a * 100), off_annual=float(b * 100),
+               diff_pp=float((a - b) * 100), t=float(t))
+    return row
 
 
 def s2_power(D, comp, idx, S):
@@ -261,13 +329,14 @@ def s2_power(D, comp, idx, S):
     print('%-12s %-18s %7s %10s %10s %9s %7s'
           % ('자산', '신호', 'n(월)', '켜짐', '꺼짐', '차이', 't'))
     tb = np.nan_to_num(S['mom']['tbill'][252])
+    rows = []
     for k in ('div', 'ust5', 'gold'):
         raw = [('12M 모멘텀 >현금', S['mom'][k][252], S['mom'][k][252] > tb),
                ('252일 낙폭 >-10%', S['dd'][k][252], S['dd'][k][252] > -0.10),
                ('MA200 위', S['ma'][k][200], S['ma'][k][200] > 0)]
         for nm, rawv, sig in raw:
             on, off, _ = _split(comp[k], sig, ~np.isnan(rawv), idx)
-            _report(NAMEK[k], nm, on, off)
+            rows.append(_report(NAMEK[k], nm, on, off))
     print('  ---- 대조군: 같은 신호를 QQQ(1배) 에 걸면 ----')
     rq = np.nan_to_num(D['px'].pct_change().values)
     qc = cum_of(rq)
@@ -276,28 +345,30 @@ def s2_power(D, comp, idx, S):
                           ('MA200 위', ma_arr(qc, 200), ma_arr(qc, 200) > 0),
                           ('252일 낙폭 >-16%(현행)', D['ddv'], D['ddv'] > -0.16)]:
         on, off, _ = _split(rq, sig, ~np.isnan(np.asarray(rawv, dtype=float)), idx)
-        _report('QQQ', nm, on, off)
+        rows.append(_report('QQQ', nm, on, off))
     print('  ※ 이 표가 이 축의 핵심이다. 현행 규칙이 QQQ 에서 사는 이유는 수익 예측력이')
     print('    아니라 **2배 상품의 변동성 손실을 끊는 것**이다. 1배 방어자산에는 그 기전이')
     print('    아예 없으므로, 같은 신호를 걸어도 남는 것은 수익 예측력뿐이다.')
+    assert len(rows) == 13 and all(r['n'] > 0 for r in rows)
+    return rows
 
 
 # ---------------------------------------------------------------- 3) 유효표본
 def s3_episodes(D, comp, idx, wB, S):
-    print('\n===== 3) 유효표본 — 도피 에피소드는 몇 개인가 =====')
-    z = (wB == 0).astype(int)
-    d = np.diff(z, prepend=0)
-    st = np.where(d == 1)[0]
-    en = np.where(np.diff(z, append=0) == -1)[0]
-    n = min(len(st), len(en))
+    print('\n===== 3) 유효표본 — 실제 방어 보유 에피소드는 몇 개인가 =====')
+    pos = np.r_[wB[0], wB[:-1]]
+    defense = (pos == 0)
+    all_st, all_en = _episode_bounds(defense)
+    st, en = _episode_bounds(defense, min_sessions=5)
+    n = len(all_st)
     print('%-12s %-12s %6s %8s %8s %8s %8s  %-8s %-8s %s'
           % ('시작', '종료', '일수', '배당', '국채5Y', '금', '현금', '사후1등', '모멘텀선택', '적중'))
-    hit = tot = shown = 0
-    for j in range(n):
+    hit = tot = 0
+    for j in range(len(st)):
         a, b = st[j], en[j]
-        if b - a < 5:
-            continue
-        shown += 1
+        assert b - a + 1 >= 5 and defense[a:b + 1].all()
+        assert a == 0 or not defense[a - 1]
+        assert b == len(defense) - 1 or not defense[b + 1]
         cells = {}
         for k in KEYS:
             cells[k] = (np.prod(1 + np.nan_to_num(comp[k][a:b + 1])) - 1) * 100
@@ -311,16 +382,23 @@ def s3_episodes(D, comp, idx, wB, S):
         print('%-12s %-12s %6d %7.1f%% %7.1f%% %7.1f%% %7.1f%%  %-8s %-8s %s'
               % (idx[a].date(), idx[b].date(), b - a + 1,
                  cells['div'], cells['ust5'], cells['gold'], cells['tbill'],
-                 NAMEK[best], NAMEK.get(pick, pick),
-                 '' if pick == '—' else ('O' if pick == best else 'X')))
-    print('  도피 에피소드 %d개(그중 5일 이상 %d개). 모멘텀 1등 선택의 **사후 적중 %d/%d = %.0f%%**'
-          % (n, shown, hit, tot, 100.0 * hit / max(tot, 1)))
-    print('  세 다리 중 하나를 무작위로 찍으면 33%다. 즉 12M 모멘텀은 다음 도피에서')
-    print('  어느 방어자산이 1등일지 **맞히지 못한다**(오히려 무작위보다 나쁘다).')
-    print('  ※ 이것이 이 축의 유효표본 전체다. 54년을 돌려도 독립 사건은 %d개뿐이고,' % n)
-    print('    그중 의미 있는 길이(20일 이상)는 손에 꼽는다. 선택규칙을 3지선다로 놓으면')
-    print('    검정력이 없다 — 무엇이 이겨도 우연과 구별되지 않는다.')
-    return n
+                  NAMEK[best], NAMEK.get(pick, pick),
+                  '' if pick == '—' else ('O' if pick == best else 'X')))
+    rate = hit / max(tot, 1)
+    random_rate = 1 / 3
+    p_random_ge = (sum(comb(tot, k) * random_rate ** k * (1 - random_rate) ** (tot - k)
+                       for k in range(hit, tot + 1)) if tot else 1.0)
+    print('  방어 에피소드 %d개(양끝 포함 5거래일 이상 %d개). 모멘텀 1등 선택의 **사후 적중 %d/%d = %.0f%%**'
+          % (n, len(st), hit, tot, 100.0 * rate))
+    print('  세 다리 중 하나를 무작위로 찍는 33%%보다 %+.0f%%p 높지만, 무작위에서도 이 이상일'
+          ' 확률은 %.3f다. 우월하다는 증거가 아니다.'
+          % ((rate - random_rate) * 100, p_random_ge))
+    print('  ※ 이것은 실제로 방어를 보유한 **에피소드** 수다. 가까운 구간을 합친 독립 위기 수가')
+    print('    아니다. 5일 이상 표본도 %d개뿐이라 3지선다 선택규칙의 검정력이 낮다.' % len(st))
+    assert len(st) == len(en) and hit <= tot <= len(st)
+    return dict(total=n, qualifying=len(st), hit=int(hit), evaluated=int(tot),
+                hit_rate=float(rate), random_rate=float(random_rate),
+                p_random_ge=float(p_random_ge))
 
 
 POLICIES = ['고정 40/40/20', '배당100', '현금100', '동일가중 1/3',
@@ -394,6 +472,7 @@ def s5_sweep(D, comp, idx, S):
             ('상대모멘텀 2등까지', (63, 126, 189, 252, 378, 504)),
             ('모멘텀가중', (63, 126, 189, 252, 378, 504)),
             ('낙폭배제', (5, 8, 10, 15, 20, 30))]
+    rows = []
     for nm, ps in grid:
         for p in ps:
             dfr = defr_of(parts, idx, nm, S, param=p)
@@ -404,7 +483,15 @@ def s5_sweep(D, comp, idx, S):
             print('%-16s %-8s %14s %9.1f%% %14s %9.1f%%'
                   % (nm, ('%d일' % p) if nm != '낙폭배제' else ('-%d%%' % p),
                      format(cells[0], ',.1f'), cells[1], format(cells[2], ',.1f'), cells[3]))
+            rows.extend([
+                dict(policy=nm, param=p, period='1972-', final=float(cells[0]),
+                     delta=float(cells[1])),
+                dict(policy=nm, param=p, period='2000-', final=float(cells[2]),
+                     delta=float(cells[3])),
+            ])
     print('  ※ 인접 파라미터끼리 부호가 뒤집히면 신호가 아니라 잡음이다.')
+    assert len(rows) == sum(len(ps) for _, ps in grid) * 2
+    return rows
 
 
 # ---------------------------------------------------------------- 5b) 무작위 대조
@@ -433,6 +520,7 @@ def s5b_placebo(D, comp, idx, S, n_sim=200):
                     for st, lab in ((None, '1972-'), ('2000-01-03', '2000-'))}
     print('%-18s %8s %10s %10s %10s %10s %10s'
           % ('무작위 규칙', 'n', '중앙값', '90%분위', '최고', '실제규칙', '백분위'))
+    rows = []
     for pick, nm in ((1, '상대모멘텀 1등'), (2, '상대모멘텀 2등까지')):
         res = {'1972-': [], '2000-': []}
         for sd in range(n_sim):
@@ -457,8 +545,13 @@ def s5b_placebo(D, comp, idx, S, n_sim=200):
             print('%-18s %8s %9.1f%% %9.1f%% %9.1f%% %9.1f%% %9.0f%%'
                   % ('%d개 무작위 %s' % (pick, lab), n_sim, np.median(a),
                      np.quantile(a, .90), a.max(), r, pct))
+            rows.append(dict(pick=pick, period=lab, n=n_sim, median=float(np.median(a)),
+                             p90=float(np.quantile(a, .90)), maximum=float(a.max()),
+                             actual=float(r), percentile=float(pct)))
     print('  실제규칙 = 12M 모멘텀으로 고른 결과의 현행대비(%). 백분위 = 무작위 분포 안에서의 위치.')
     print('  ※ 백분위가 95% 미만이면 그 규칙은 동전던지기와 구별되지 않는다.')
+    assert len(rows) == 4 and all(0 <= r['percentile'] <= 100 for r in rows)
+    return rows
 
 
 # ---------------------------------------------------------------- 6) 워크포워드
@@ -468,20 +561,38 @@ def s6_wf(D, comp, idx, S):
     wB = rule_w(D['ddv'], -0.16, -0.16)
     splits = [('1972-1989', '1990-01-02'), ('1972-1999', '2000-01-03'),
               ('1972-2009', '2010-01-04')]
-    print('%-14s %-20s %16s %16s %s' % ('학습구간', '학습 1등', 'OOS 그 정책', 'OOS 현행', '판정'))
+    print('%-14s %-20s %12s %12s %12s %13s %s'
+          % ('학습구간', '학습 Calmar 1등', '후보Calmar', '현행Calmar', 'CalmarΔ', '최종배수Δ', '판정'))
+    rows = []
     for tr, cut in splits:
         best, bv = None, -1e18
+        scores = {}
+        cut_i = int(idx.searchsorted(pd.Timestamp(cut)))
+        assert 0 < cut_i < len(idx)
+        train_end = idx[cut_i - 1]
         for nm in POLICIES:
             dfr = defr_of(parts, idx, nm, S)
-            v = float(sim_def(D, wB, dfr, end=cut).iloc[-1])
-            if v > bv:
-                best, bv = nm, v
-        a = float(sim_def(D, wB, defr_of(parts, idx, best, S), start=cut).iloc[-1])
-        b = float(sim_def(D, wB, defr_of(parts, idx, '고정 40/40/20', S), start=cut).iloc[-1])
-        print('%-14s %-20s %16s %16s %s'
-              % (tr, best, format(a, ',.2f'), format(b, ',.2f'),
-                 '이김 %+.1f%%' % ((a / b - 1) * 100) if a > b else '짐 %+.1f%%' % ((a / b - 1) * 100)))
-    print('  ※ 학습에서 1등이던 정책이 OOS 에서도 이기는가. 이것이 유일한 정직한 시험이다.')
+            score = _curve_stats(sim_def(D, wB, dfr, end=train_end))['calmar']
+            scores[nm] = score
+            if score > bv:
+                best, bv = nm, score
+        assert best == max(scores, key=scores.get)
+        a = _curve_stats(sim_def(D, wB, defr_of(parts, idx, best, S), start=cut))
+        b = _curve_stats(sim_def(D, wB, defr_of(parts, idx, '고정 40/40/20', S), start=cut))
+        calmar_delta = (a['calmar'] / b['calmar'] - 1) * 100
+        final_delta = (a['final'] / b['final'] - 1) * 100
+        row = dict(train=tr, cutoff=cut, best=best, train_calmar=float(bv),
+                   candidate_calmar=a['calmar'], baseline_calmar=b['calmar'],
+                   calmar_delta=float(calmar_delta), final_delta=float(final_delta),
+                   candidate_final=a['final'], baseline_final=b['final'])
+        rows.append(row)
+        print('%-14s %-20s %12.3f %12.3f %11.1f%% %12.1f%% %s'
+              % (tr, best, a['calmar'], b['calmar'], calmar_delta, final_delta,
+                 'Calmar 이김' if calmar_delta > 0 else 'Calmar 짐'))
+    print('  ※ 학습 Calmar 1등을 다음 구간에 적용한다. OOS 판정은 CalmarΔ와 최종배수Δ를')
+    print('    분리해 표시한다. 수익이 비슷해도 낙폭 대비 효율이 나쁘면 통과가 아니다.')
+    assert len(rows) == len(splits) and all(np.isfinite(r['calmar_delta']) for r in rows)
+    return rows
 
 
 # ---------------------------------------------------------------- 7) 롤링
@@ -491,6 +602,7 @@ def s7_rolling(D, comp, idx, S, cache, years=(10, 15, 20), step=126, start=None,
     n = len(idx)
     lo0 = 0 if start is None else int(idx.searchsorted(pd.Timestamp(start)))
     lo0 = max(lo0, 520)
+    result = []
     for y in years:
         span = int(y * 252)
         starts = list(range(lo0, n - span, step))
@@ -515,6 +627,11 @@ def s7_rolling(D, comp, idx, S, cache, years=(10, 15, 20), step=126, start=None,
             print('  %-20s %10s %10s %10s %9.1f%% %9.0f%%'
                   % (nm, format(np.median(vs), ',.2f'), format(np.quantile(vs, .10), ',.2f'),
                      format(vs.min(), ',.2f'), np.median(md) * 100, win))
+            result.append(dict(tag=tag, years=y, n=len(starts), policy=nm,
+                               median=float(np.median(vs)), p10=float(np.quantile(vs, .10)),
+                               worst=float(vs.min()), median_mdd=float(np.median(md) * 100),
+                               win_rate=float(win)))
+    return result
 
 
 # ---------------------------------------------------------------- 8) 원화
@@ -542,13 +659,17 @@ def s8_krw(D, DUSD, SUSD):
         v = float(c.iloc[-1])
         if nm == '고정 40/40/20':
             ub = v
-        urow.append((nm, v))
-    for nm, v in sorted(urow, key=lambda r: -r[1]):
-        print('  %-20s %14s %9.1f%%' % (nm, format(v, ',.1f'), (v / ub - 1) * 100))
+        urow.append(dict(policy=nm, final=v))
+    for row in urow:
+        row['delta'] = (row['final'] / ub - 1) * 100
+    for row in sorted(urow, key=lambda r: -r['final']):
+        print('  %-20s %14s %9.1f%%'
+              % (row['policy'], format(row['final'], ',.1f'), row['delta']))
     print()
     print('%-20s %-10s %14s %8s %10s %10s'
           % ('정책', '규칙', '최종배수', 'CAGR', 'MDD', '현행대비'))
     out = {}
+    krw_rows = []
     for lab, w in (('B -16/-16', wB), ('A -16/-11', wA)):
         base = None
         res = []
@@ -562,10 +683,14 @@ def s8_krw(D, DUSD, SUSD):
                 base = v
             res.append((nm, v, (v ** (1 / y) - 1) * 100, float((c / c.cummax() - 1).min()) * 100))
         for nm, v, cg, md in sorted(res, key=lambda r: -r[1]):
+            delta = (v / base - 1) * 100
             print('%-20s %-10s %14s %7.2f%% %9.2f%% %9.1f%%'
-                  % (nm, lab, format(v, ',.1f'), cg, md, (v / base - 1) * 100))
+                  % (nm, lab, format(v, ',.1f'), cg, md, delta))
+            krw_rows.append(dict(policy=nm, rule=lab, final=float(v), cagr=float(cg),
+                                 mdd=float(md), delta=float(delta)))
         print()
-    return dict(idx=idx, qldr=lev2, ddv=D['ddv']), comp, S, out, FXS
+    return (dict(idx=idx, qldr=lev2, ddv=D['ddv']), comp, S, out, FXS,
+            dict(usd_same_window=urow, krw=krw_rows))
 
 
 # ---------------------------------------------------------------- 비용 민감도
@@ -594,43 +719,104 @@ def s_cost(D, comp, idx, S):
 
 
 # ---------------------------------------------------------------- 9) 판정
-def s9_verdict():
+def s9_verdict(premise, power, episodes, main_df, sweep, placebo, wf,
+               rolling_krw, currency):
+    div_t = max(abs(r['t']) for r in power if r['asset'] == '배당' and r['t'] is not None)
+    bond_mom = _one(power, asset='국채5Y', signal='12M 모멘텀 >현금')
+    bond_ma = _one(power, asset='국채5Y', signal='MA200 위')
+    gold_mom = _one(power, asset='금', signal='12M 모멘텀 >현금')
+
+    peak = _one(sweep, policy='상대모멘텀 2등까지', param=252, period='1972-')
+    left = _one(sweep, policy='상대모멘텀 2등까지', param=189, period='1972-')
+    right = _one(sweep, policy='상대모멘텀 2등까지', param=378, period='1972-')
+    pb_full = _one(placebo, pick=2, period='1972-')
+    pb_recent = _one(placebo, pick=2, period='2000-')
+
+    pfull = premise['policy_rows']
+    base = _df_one(pfull, 방어='고정 40/40/20', 구간='1972-')
+    dividend = _df_one(pfull, 방어='배당100', 구간='1972-')
+    cash = _df_one(pfull, 방어='현금100', 구간='1972-')
+    kr_base = _one(rolling_krw, years=20, policy='고정 40/40/20')
+    kr_div = _one(rolling_krw, years=20, policy='배당100')
+    usd_div = _one(currency['usd_same_window'], policy='배당100')
+    won_div = _one(currency['krw'], policy='배당100', rule='B -16/-16')
+
+    eq_full = _df_one(main_df, 정책='동일가중 1/3', 규칙='B -16/-16', 구간='1972-')
+    eq_recent = _df_one(main_df, 정책='동일가중 1/3', 규칙='B -16/-16', 구간='2000-')
+    iv_full = _df_one(main_df, 정책='역변동성', 규칙='B -16/-16', 구간='1972-')
+    iv_recent = _df_one(main_df, 정책='역변동성', 규칙='B -16/-16', 구간='2000-')
+    base_full = _df_one(main_df, 정책='고정 40/40/20', 규칙='B -16/-16', 구간='1972-')
+    base_recent = _df_one(main_df, 정책='고정 40/40/20', 규칙='B -16/-16', 구간='2000-')
+
+    gates = {
+        '예측력': any(abs(r['t']) >= 1.96 for r in power
+                    if r['asset'] in ('배당', '국채5Y', '금') and r['t'] is not None),
+        '적중': (episodes['hit_rate'] > episodes['random_rate']
+               and episodes['p_random_ge'] < 0.05),
+        '고원': min(left['delta'], peak['delta'], right['delta']) > 0,
+        '플라시보': min(pb_full['percentile'], pb_recent['percentile']) >= 95,
+        '워크포워드': all(r['calmar_delta'] > 0 for r in wf),
+    }
+    verdict = '재검토 필요' if all(gates.values()) else '기각. 방어 바스켓은 고정한다'
+
     print()
-    print('===== 9) 판정 — 기각. 방어 바스켓은 고정한다 =====')
+    print('===== 9) 판정 — %s =====' % verdict)
     print()
     print('  [사용자 가설] "방어자산도 우상향 여부를 보고 고르면 낫지 않나?"')
-    print('  [답] 논리는 맞다. 그런데 네 개의 관문을 전부 통과하지 못한다.')
+    print('  [답] 논리는 맞다. 그러나 다섯 관문을 함께 통과하지 못한다.')
     print()
-    print('  ① 예측력(§2)  배당·국채는 어떤 신호에도 t ~ 0 이다. 금만 12M 모멘텀 t=3.86')
-    print('     으로 진짜 신호다. 그런데 금은 바스켓의 20% 이고 그 바스켓은 전체 시간의')
-    print('     18% 만 산다 — 신호가 통해도 전략에 닿는 지분이 3.6% 다.')
-    print('  ② 적중(§3)   모멘텀 1등이 다음 도피의 실제 1등을 맞힌 비율 23%. 무작위 33%')
-    print('     보다 **나쁘다**. 도피는 직전 추세가 꺾이는 자리라서 그렇다.')
-    print('  ③ 첨탑(§5)   유일하게 이긴 규칙(상대모멘텀 2등까지)은 252일에서만 +16% 고')
-    print('     189일 -6%, 378일 -15% 다. 고원이 아니라 첨탑이면 잡음이다.')
-    print('  ④ 플라시보(§5b) 그 +16% 는 매달 동전을 던져 2개를 고르는 규칙 분포의 82백분위다.')
-    print('     무작위 규칙 5개 중 1개가 그보다 낫다. 95% 문턱을 못 넘는다.')
-    print('  ⑤ 워크포워드(§6) 학습에서 1등이던 규칙은 OOS 에서 3전 3패다(-33%/-36%/-3%).')
+    print('  ① 예측력(§2)  배당 신호의 |t| 최대는 %.2f다. 반면 국채 12M/MA200은 %.2f/%.2f,'
+          % (div_t, bond_mom['t'], bond_ma['t']))
+    print('     금 12M은 %.2f다. 일부 자산 신호는 보이지만 아래 정책 관문으로 이어지지 않는다.'
+          % gold_mom['t'])
+    print('  ② 적중(§3)   실제 방어 에피소드에서 %d/%d = %.0f%%. 무작위 33%%보다 %+.0f%%p지만'
+          % (episodes['hit'], episodes['evaluated'], episodes['hit_rate'] * 100,
+             (episodes['hit_rate'] - episodes['random_rate']) * 100))
+    print('     무작위에서도 이 이상일 확률 %.3f로, 우월 증거가 아니다.' % episodes['p_random_ge'])
+    print('  ③ 첨탑(§5)   상대모멘텀 2등까지는 252일에서 %+.1f%%지만 189일 %+.1f%%,'
+          % (peak['delta'], left['delta']))
+    print('     378일 %+.1f%%다. 인접 설정에서 유지되는 고원이 아니다.' % right['delta'])
+    print('  ④ 플라시보(§5b) 같은 2개 선택 규칙의 위치는 1972- %.0f백분위, 2000- %.0f백분위다.'
+          % (pb_full['percentile'], pb_recent['percentile']))
+    print('     둘 다 사전 문턱 95백분위를 못 넘는다.')
+    print('  ⑤ 워크포워드(§6) 학습 Calmar 1등의 OOS 결과:')
+    for r in wf:
+        print('     %s %-18s  Calmar %+.1f%% / 최종배수 %+.1f%%'
+              % (r['train'], r['best'], r['calmar_delta'], r['final_delta']))
     print()
-    print('  [뒤집힌 것] 이 축의 진짜 소득은 반대편에 있다.')
-    print('  · §1  [v36 정정] 국채 다리를 **선물형**으로 고치자 도피구간 연율이')
-    print('    국채 7.92% -> 2.50%, 바스켓 9.32% -> 7.08% 로 내려갔다.')
-    print('    **바스켓이 성분을 전부 이긴다는 주장은 더 이상 성립하지 않는다**')
-    print('    (배당 8.57 / 금 8.55 > 바스켓 7.08). 재조정 프리미엄이 근거가 아니다.')
-    print('    바스켓의 근거는 **낙폭과 좌측꼬리**다 — MDD -60.48% vs 배당100 -68.12%,')
-    print('    원화 20년창 5분위 40.82 vs 35.73, 2008 위기 +9.0% vs -22.7%.')
-    print('  · §1  현금100 은 여전히 바스켓에 진다(-17.85%, 1972-). MDD 도 더 나쁘다')
-    print('    (-63.1% vs -60.5%) — 위기에 버는 자산이 있으면 낙폭 자체가 얕아지기 때문이다.')
+    print('  [고정 바스켓을 유지하는 실제 근거]')
+    ce = premise['component_escape']
+    print('  · §1  방어 보유 중 연율은 배당 %.2f%% / 국채 %.2f%% / 금 %.2f%% / 바스켓 %.2f%%다.'
+          % (ce['div'], ce['ust5'], ce['gold'], float(base['도피중CAGR'])))
+    print('    바스켓이 모든 성분을 이기는 것은 아니다. 근거는 재조정 프리미엄이 아니라 낙폭과 꼬리다.')
+    print('    전체 MDD는 바스켓 %.2f%% vs 배당100 %.2f%%, 원화 20년 10%%분위는 %.2f vs %.2f다.'
+          % (float(base['MDD']), float(dividend['MDD']), kr_base['p10'], kr_div['p10']))
+    cash_delta = (float(cash['최종배수']) / float(base['최종배수']) - 1) * 100
+    print('  · §1  현금100은 최종배수 %+.2f%%이고 MDD %.2f%% vs 바스켓 %.2f%%다.'
+          % (cash_delta, float(cash['MDD']), float(base['MDD'])))
     print('    "벌 생각 없으면 현금" 은 틀렸다. 방어도 벌어야 한다 — 다만 **고르지 말고**.')
-    print('  · §8  원화에서 배당100 이 +12.2% 로 1등처럼 보이지만, 달러 동일창(1981-)에서도')
-    print('    똑같이 +12.2% 다. 이중차분 0.0%p — 통화가 아니라 **창** 효과다.')
-    print('  · §4  동일가중 1/3(+1.8%) 과 역변동성(-9.7%~+4.3%) 은 현행과 사실상 동률이다.')
-    print('    비중은 고원이다 — 40/40/20 을 소수점까지 지킬 필요는 없다.')
+    currency_gap = won_div['delta'] - usd_div['delta']
+    if abs(currency_gap) < 0.05:
+        currency_gap = 0.0
+    print('  · §8  배당100의 동일창 현행대비는 원화 %+.1f%%, 달러 %+.1f%%, 차이 %+.1f%%p다.'
+          % (won_div['delta'], usd_div['delta'], currency_gap))
+    print('    통화 효과가 아니라 같은 표본 창에서 함께 나타난 결과다.')
+    eq_deltas = ((float(eq_full['최종배수']) / float(base_full['최종배수']) - 1) * 100,
+                 (float(eq_recent['최종배수']) / float(base_recent['최종배수']) - 1) * 100)
+    iv_deltas = ((float(iv_full['최종배수']) / float(base_full['최종배수']) - 1) * 100,
+                 (float(iv_recent['최종배수']) / float(base_recent['최종배수']) - 1) * 100)
+    print('  · §4  동일가중은 1972-/2000- %+.1f%%/%+.1f%%, 역변동성은 %+.1f%%/%+.1f%%다.'
+          % (eq_deltas[0], eq_deltas[1], iv_deltas[0], iv_deltas[1]))
+    print('    단순 대체도 구간별로 일관된 우위를 만들지 못한다.')
     print()
-    print('  [채택] 방어 바스켓은 배당40 / 국채40 / 금20 고정, 월 1회 재조정. 변경 없음.')
+    print('  [결론] 방어 바스켓은 배당%.0f / 국채%.0f / 금%.0f 고정, 월 1회 재조정. 변경 없음.'
+          % (BASE['div'] * 100, BASE['ust5'] * 100, BASE['gold'] * 100))
+    return dict(verdict=verdict, gates=gates, episode=episodes,
+                placebo=dict(full=pb_full, recent=pb_recent), wfa=wf)
 
 
 if __name__ == '__main__':
+    _selfcheck()
     D = DF.build('chain')
     assert check(D), '검산 실패'
     idx = D['idx']
@@ -639,15 +825,18 @@ if __name__ == '__main__':
     assert s4_check(comp, idx), 'mix_dyn 규약 불일치'
     S = signals(comp)
 
-    wB = s1_premise(D, comp, idx)
-    s2_power(D, comp, idx, S)
-    s3_episodes(D, comp, idx, wB, S)
+    premise = s1_premise(D, comp, idx)
+    wB = premise['wB']
+    power = s2_power(D, comp, idx, S)
+    episodes = s3_episodes(D, comp, idx, wB, S)
     df, cache = s4_verdict(D, comp, idx, S)
-    s5_sweep(D, comp, idx, S)
-    s5b_placebo(D, comp, idx, S)
-    s6_wf(D, comp, idx, S)
-    s7_rolling(D, comp, idx, S, cache, start='1973-01-02', tag='달러')
+    sweep = s5_sweep(D, comp, idx, S)
+    placebo = s5b_placebo(D, comp, idx, S)
+    wf = s6_wf(D, comp, idx, S)
+    rolling_usd = s7_rolling(D, comp, idx, S, cache, start='1973-01-02', tag='달러')
     s_cost(D, comp, idx, S)
-    Dk, ck, Sk, ok, fxs = s8_krw(D, comp, S)
-    s7_rolling(Dk, ck, Dk['idx'], Sk, ok, years=(15, 20), start=fxs, tag='원화')
-    s9_verdict()
+    Dk, ck, Sk, ok, fxs, currency = s8_krw(D, comp, S)
+    rolling_krw = s7_rolling(Dk, ck, Dk['idx'], Sk, ok, years=(15, 20), start=fxs, tag='원화')
+    assert rolling_usd and rolling_krw
+    s9_verdict(premise, power, episodes, df, sweep, placebo, wf,
+               rolling_krw, currency)

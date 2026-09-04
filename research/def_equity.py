@@ -24,7 +24,9 @@
     · 배당100 이 P5 에서 이기면 = 형성기엔 방어에 주식을 더 넣는 게 맞다
     · 주식0(국채/금)이 P5 에서 이기면 = 배당 다리는 불필요하다
     · 둘 다 지면 = 현행 배합이 형성기에도 맞다
-  세 답이 서로 다르다 → 관문으로 성립한다.
+  [2026-09-04 독립 재검증] 위 초판의 인과 관문은 성립하지 않았다. 주식0 50/50은
+  배당 -40%뿐 아니라 국채 +10%·금 +30%를 함께 바꾼다. 수치상 승패는 그대로
+  공개하되, 그 승패를 "배당이 원인"으로 읽지 않고 한 갈래씩 옮긴 대조를 병기한다.
 
 전략 무변경 — 동결 규칙이며 이 파일은 「형성기에도 현행이 맞나」의 답만 낸다.
 실행: python research/def_equity.py
@@ -107,7 +109,47 @@ def dist_row(vals):
     return (np.median(v), np.quantile(v, 0.20), np.quantile(v, 0.05), len(v))
 
 
+def executed_defense_runs(w):
+    """전일 종가 신호를 하루 늦춰 실제 방어 보유 구간(양끝 포함)을 돌려준다."""
+    w = np.asarray(w, float)
+    pos = np.r_[w[0], w[:-1]]
+    mask = pos < 0.5
+    runs, i = [], 0
+    while i < len(mask):
+        if mask[i]:
+            j = i
+            while j + 1 < len(mask) and mask[j + 1]:
+                j += 1
+            runs.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+    return pos, mask, runs
+
+
+def defense_stats(r, runs):
+    """방어 보유일 조건부 CAGR과 각 에피소드 안에서 실제로 겪은 최악 MDD."""
+    r = np.asarray(r, float)
+    seg = np.concatenate([r[i:j + 1] for i, j in runs])
+    cagr = (np.prod(1 + seg) ** (252 / len(seg)) - 1) * 100
+    mdds = []
+    for i, j in runs:
+        path = np.r_[1.0, np.cumprod(1 + r[i:j + 1])]
+        mdds.append(float((path / np.maximum.accumulate(path) - 1).min()) * 100)
+    return cagr, min(mdds)
+
+
+def mechanism_selfcheck():
+    # 신호가 t에 방어로 바뀌면 실제 보유는 t+1부터다.
+    _pos, _mask, runs = executed_defense_runs(np.array([1.0, 0.0, 0.0, 1.0]))
+    assert runs == [(2, 3)], '방어 구간이 전일 신호보다 하루 먼저 시작했다'
+    # +10%, -10%의 종점 손익은 -1%지만 실제 경로 MDD는 -10%다.
+    _cg, mdd = defense_stats(np.array([0.0, 0.0, 0.10, -0.10]), runs)
+    assert abs(mdd + 10.0) < 1e-12, '에피소드 종점 손익을 MDD로 잘못 썼다'
+
+
 def main():
+    mechanism_selfcheck()
     G, _ = EC.selfcheck()
     idx, D, wB = G.idx, G.D, np.asarray(G.wB, float)
     n = len(idx)
@@ -172,42 +214,38 @@ def main():
     print('\n' + '=' * 78)
     print(' 배당 다리는 무엇을 하는가 — 방어 구간의 길이와 수익')
     print('=' * 78)
-    defmask = wB < 0.5
-    runs, i = [], 0
-    while i < n:
-        if defmask[i]:
-            j = i
-            while j + 1 < n and defmask[j + 1]:
-                j += 1
-            runs.append((i, j))
-            i = j + 1
-        else:
-            i += 1
+    _pos, defmask, runs = executed_defense_runs(wB)
     lens = np.array([j - i + 1 for i, j in runs])
     print(f'  방어 구간 {len(runs)}회 · 총 {int(defmask.sum()):,}일 (전체의 {defmask.mean():.0%})')
     print(f'  길이 중앙 {np.median(lens):.0f}거래일(~{np.median(lens)/21:.1f}개월) · '
           f'최장 {lens.max():,}일(~{lens.max()/252:.1f}년) · '
           f'1년 넘는 구간 {int((lens > 252).sum())}회')
     print(f"\n  {'방어 배합':<18}{'방어 중 연CAGR':>15}{'방어 중 최악낙폭':>17}")
+    def_stats = {}
     for nm, wt in DEFS:
         mixr = DA.mix_monthly_parts(idx, wt, {k: np.nan_to_num(parts[k]) for k in wt})
-        seg = np.concatenate([mixr[i:j + 1] for i, j in runs])
-        cg = (np.prod(1 + seg) ** (252 / len(seg)) - 1) * 100
-        worst = min((np.prod(1 + mixr[i:j + 1]) - 1) * 100 for i, j in runs)
+        cg, worst = defense_stats(mixr, runs)
+        def_stats[nm] = {'cagr': cg, 'worst': worst}
         print(f'  {nm:<18}{cg:>14.2f}%{worst:>16.1f}%')
     print('  ※ 「방어 중 최악낙폭」 = 방어 구간 하나에서 난 최악의 누적 손실.')
 
     # ── 분해 + 반증 ⓑ — 「배당을 빼도 되나」는 식별되는 질문인가 ─────────────
-    #   주식0(ust50/gold50)은 배당 40→0 과 금 20→50 을 **동시에** 바꾼다. 교란이다.
+    #   주식0(ust50/gold50)은 배당 -40 · 국채 +10 · 금 +30 을 **동시에** 바꾼다. 교란이다.
     #   갈라서 재고, 내가 고른 배합이 아니라 무작위 300개 분포로 판정한다(§-1 ⓑ).
-    def p5med(a, w=5040, L=120, c0=0):
+    def tailstats(a, w=5040, L=120, c0=0):
         st = np.arange(c0, n - w, 21)
         out = []
         for s0 in st:
             out.append(accum_mult(a, mstart, s0, s0 + w, L))
-        return np.quantile(out, 0.05), np.median(out)
+        return np.quantile(out, 0.05), np.quantile(out, 0.20), np.median(out)
 
-    for cy, a_mul, c0 in (('원화 (판정 기준) 1981~', fxr, kr_lo), ('달러 1972~ (대조)', None, 0)):
+    audits = {}
+    audit_specs = (
+        ('kr1981', '원화 (판정 기준) 1981~', fxr, kr_lo),
+        ('usd1981', '달러 (원화와 같은 창) 1981~', None, kr_lo),
+        ('usd1972', '달러 전구간 1972~', None, 0),
+    )
+    for key, cy, a_mul, c0 in audit_specs:
         print('\n' + '=' * 78)
         print(f' 분해 + 반증 — {cy} · 20년창 · 거치120:1 · P5')
         print('=' * 78)
@@ -216,57 +254,104 @@ def main():
             m = DA.mix_monthly_parts(idx, wt, {k: np.nan_to_num(parts[k]) for k in wt})
             a = EC.sim2(wB, QLDR, np.nan_to_num(m))
             return a if a_mul is None else a * a_mul
-        bp5, _ = p5med(C(.40, .40, .20), c0=c0)
-        print(f"  {'배합':<26}{'P5':>9}{'현행대비':>10}")
-        for lab, wt3 in [('현행 div40/ust40/gold20', (.40, .40, .20)),
-                         ('배당만 뺌 ust80/gold20', (0, .80, .20)),
-                         ('금만 늘림 div25/ust25/gold50', (.25, .25, .50)),
-                         ('주식0 ust50/gold50', (0, .50, .50)),
-                         ('금 뺌 div50/ust50', (.50, .50, 0)),
-                         ('배당100', (1.0, 0, 0))]:
-            q, _ = p5med(C(*wt3), c0=c0)
-            print(f'  {lab:<26}{q:>8.2f}배{(q/bp5-1)*100:>+9.1f}%')
+        bp5, bp20, _ = tailstats(C(.40, .40, .20), c0=c0)
+        print(f"  {'배합':<28}{'P5':>9}{'P20':>9}{'현행대비 P5':>14}")
+        qmap = {}
+        # 조성비는 합이 1이라 한 자산을 줄이면 반드시 다른 자산이 늘어난다.
+        # 인과 비교는 한 번에 **한 갈래의 비중 이전**만 한 행끼리 한다.
+        controlled = [('현행 div40/ust40/gold20', (.40, .40, .20)),
+                      ('배당40→국채40', (0, .80, .20)),
+                      ('배당40→금40', (0, .40, .60)),
+                      ('국채40→배당40', (.80, 0, .20)),
+                      ('국채40→금40', (.40, 0, .60)),
+                      ('금20→배당20', (.60, .40, 0)),
+                      ('금20→국채20', (.40, .60, 0)),
+                      ('주식0 50/50 (사전등록 복합)', (0, .50, .50)),
+                      ('배당100 (코너 대조)', (1.0, 0, 0))]
+        for lab, wt3 in controlled:
+            q5, q20, _ = tailstats(C(*wt3), c0=c0)
+            qmap[lab] = {'p5': q5, 'p20': q20}
+            print(f'  {lab:<28}{q5:>8.2f}배{q20:>8.2f}배{(q5/bp5-1)*100:>+13.1f}%')
         rng = np.random.default_rng(20260831)
         res = []
         for _ in range(300):
             vv = rng.dirichlet([1, 1, 1])
-            res.append((vv, p5med(C(*vv), c0=c0)[0]))
+            res.append((vv, tailstats(C(*vv), c0=c0)[0]))
         qs = np.array([r[1] for r in res])
         arr = np.array([r[0] for r in res])
-        print(f'  [반증 ⓑ] 무작위 300개 — 현행은 상위 {np.mean(qs <= bp5)*100:.0f}백분위 · '
+        pctile = float(np.mean(qs <= bp5) * 100)
+        corr = np.array([np.corrcoef(arr[:, j], qs)[0, 1] for j in range(3)])
+        audits[key] = {'base': bp5, 'base20': bp20, 'qmap': qmap, 'pctile': pctile,
+                       'corr': corr, 'weights': arr}
+        print(f'  [반증 ⓑ] 무작위 300개 — 현행은 상위 {pctile:.0f}백분위 · '
               f'최고 {qs.max()/bp5-1:+.1%}')
         top = sorted(res, key=lambda r: -r[1])[:3]
         print('    상위 3 (div/ust/gold): ' + ' · '.join(
             f'{v[0]*100:.0f}/{v[1]*100:.0f}/{v[2]*100:.0f}' for v, _ in top))
-        print(f'    비중-P5 상관 — 배당 {np.corrcoef(arr[:,0],qs)[0,1]:+.2f} · '
-              f'국채 {np.corrcoef(arr[:,1],qs)[0,1]:+.2f} · 금 {np.corrcoef(arr[:,2],qs)[0,1]:+.2f}')
+        print(f'    비중-P5 상관 — 배당 {corr[0]:+.2f} · '
+              f'국채 {corr[1]:+.2f} · 금 {corr[2]:+.2f}')
 
     print('\n' + '=' * 78)
     print(' 판정')
     print('=' * 78)
-    print(' ① 배당100 은 형성기에도 아니다 — 원화 20년창 P5 −10.2%,')
-    print('    그리고 **방어 중 연 −8.04% · 최악 −22.3%**. 방어하러 들어가서 잃는다.')
-    print(' ② 「배당 다리를 빼도 되나」는 **식별되지 않는 질문**이다:')
-    print('    최적 배합이 **표본 창**에 따라 정반대 코너로 튄다 (배당-P5 상관')
-    print('    1972~ +0.96 / 1981~ −0.78). **통화는 무관** — 같은 창이면 원화·달러가')
-    print('    같다(4다리 전부 환노출). 코너 최적은 sweep 이 예외로 거부하는 형태다.')
-    print('    1981~ 창은 금 고점(1980-01) 직후부터라 최악 진입점을 뺀 편향된 창이다.')
+    kr, us_same, us_full = audits['kr1981'], audits['usd1981'], audits['usd1972']
+    # 세 표 모두 같은 무작위 배합을 썼다. 그래야 통화 또는 시작일만 하나씩 바뀐다.
+    assert np.array_equal(kr['weights'], us_same['weights'])
+    assert np.array_equal(us_same['weights'], us_full['weights'])
+    div = '배당100 (코너 대조)'
+    div_delta = (kr['qmap'][div]['p5'] / kr['base'] - 1) * 100
+    ds = def_stats['배당100']
+    prereg = kr['qmap']['주식0 50/50 (사전등록 복합)']
+    prereg_pass = prereg['p5'] > kr['base'] and prereg['p20'] > kr['base20']
+    print(' ① 사전등록 수치 관문 — 현행 유지 조건 %s:' % ('실패' if prereg_pass else '통과'))
+    print('    주식0 50/50은 현행보다 P5 %+.1f%% · P20 %+.1f%%다.' %
+          ((prereg['p5'] / kr['base'] - 1) * 100,
+           (prereg['p20'] / kr['base20'] - 1) * 100))
+    print('    하지만 배당 -40%·국채 +10%·금 +30%를 동시에 바꿔 배당의 인과효과는 식별 못 한다.')
+    print(' ② 이 표본의 형성기 기준에서 배당100은 현행을 못 이겼다 — 원화 20년창 P5 %.2f배,'
+          % kr['qmap'][div]['p5'])
+    print('    현행 대비 %+.1f%%이며 방어 중 연 %+.2f%% · 최악 %+.1f%%다.' %
+          (div_delta, ds['cagr'], ds['worst']))
+    print('    배당 다리 제거도 한 원인으로 단정하지 않는다. 같은 40%%를 국채로 옮기면 %+.1f%%,'
+          % ((kr['qmap']['배당40→국채40']['p5'] / kr['base'] - 1) * 100))
+    print('    금으로 옮기면 %+.1f%%로 목적지가 달라질 때 답도 달라진다.'
+          % ((kr['qmap']['배당40→금40']['p5'] / kr['base'] - 1) * 100))
+    print(' ③ 「배당 다리를 빼도 되나」는 **식별되지 않는 질문**이다:')
+    print('    통화만 바꾼 같은 1981~ 창의 배당비중-P5 상관은 원화 %+.2f / 달러 %+.2f로'
+          % (kr['corr'][0], us_same['corr'][0]))
+    print('    방향이 같다. 반면 달러 안에서 시작일만 1981~ → 1972~로 바꾸면 %+.2f → %+.2f로'
+          % (us_same['corr'][0], us_full['corr'][0]))
+    print('    뒤집힌다. 즉 이 표에서 부호를 바꾼 것은 통화가 아니라 표본 창이다.')
+    print('    1981~ 창은 1980년 금 고점을 포함하지 않는다. 코너 최적은 sweep 이 예외로')
+    print('    거부하는 형태이며, 어느 한 창의 코너를 현행으로 고르지 않는다.')
     print('    04 §5-15 C 의 「방어 비중은 고를 여지 없음」과 같은 결론 — 내가 본 ±10%는')
     print('    **다리 하나를 0 으로 만드는 코너를 포함해서** 생긴 폭이다.')
-    print(' → 현행 40/40/20 유지. 근거는 「최적이라서」가 아니라 **어느 코너에도 걸지')
-    print('    않아서**이고, 실제로 방어 중 최악낙폭이 4개 중 최소(−5.9%)다.')
+    print(' → 이 파일의 인과 판정은 미식별이다. 현행 유지 관문 결과(%s)를 숨기지 않고,'
+          % ('실패' if prereg_pass else '통과'))
+    print('    한 창의 복합 후보 승리를 동결 전략 변경으로 연결하지 않는다. 현행 40/40/20은')
+    print('    동결 상태 그대로이며, 이 파일은 현행이 최적이라고 입증하지 않는다.')
+    cur_worst = def_stats[cur_nm]['worst']
+    shallowest = max(v['worst'] for v in def_stats.values())
+    if abs(cur_worst - shallowest) < 1e-12:
+        print('    실제 체결 구간의 방어 중 최악낙폭은 4개 중 가장 얕다(%+.1f%%).'
+              % cur_worst)
+    else:
+        print('    실제 체결 구간의 현행 최악낙폭은 %+.1f%%이며 4개 중 가장 얕지는 않다.'
+              % cur_worst)
     print('=' * 78)
 
     # ── 파생 질문 (CLAUDE.md §-1 절대멈춤 6 — 판정만 내고 끝내지 않는다) ──────
     print('\n' + '=' * 74)
     print(' 이 측정이 낳은 다음 질문 — 답은 04 §7 대장에 등재')
     print('=' * 74)
-    print('  · [답함 §5-15C] 무작위 300 배합 현행 44백분위 → 코너 빼면 평평, 고를 여지 없음')
-    print('  · [답함 §5-8  ] 방어 구간 중앙 4거래일 → 잔왕복 비용? 손익분기 편도 2.5%')
-    print('  · [답함 01 §  ] 방어 중 CAGR +0.08% → 설계대로. 방어의 목적함수는 수익이 아니다')
-    print('  · [답함 §7-2] 금 국면을 5번째 감시 변수로? — **넣지 않는다.** 금이 최악이던')
-    print('               20년(−65.5%)에도 바스켓은 +261.7%(배당이 +2,172%). 그 창으로')
-    print('               금을 빼면 전체 최종배수 −9.7%. 관문 테스트도 실패(양쪽 답이 같다)')
+    print('  · [답함 §5-15C] 무작위 300 배합 현행 %.0f백분위 → 코너 빼면 평평, 고를 여지 없음'
+          % kr['pctile'])
+    print('  · [답함 §5-8  ] 방어 구간 중앙 %.0f거래일 → 잔왕복 비용? §5-8의 현재 결론 참조'
+          % np.median(lens))
+    print('  · [답함 01 §  ] 방어 중 CAGR %+.2f%% → 방어의 목적함수는 수익이 아니다'
+          % def_stats[cur_nm]['cagr'])
+    print('  · [답함 §7-2] 금 국면을 5번째 감시 변수로? — **넣지 않는다.**')
+    print('               별도 반증 결과와 관문 테스트는 04 §7-2의 현재 기록을 참조한다.')
     print('  (미결은 「하지 마라」가 아니다. 조건이 오면 사전 등록부터 다시 한다.)')
 
 

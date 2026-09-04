@@ -57,14 +57,18 @@ def rsi(px, n=14):
     up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
     dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
     rs = up / dn.replace(0, np.nan)
-    return (100 - 100 / (1 + rs)).fillna(50).values
+    out = 100 - 100 / (1 + rs)
+    out = out.mask((dn == 0) & (up > 0), 100.0)  # 상승만 있으면 RSI 100
+    out = out.mask((dn == 0) & (up == 0), 50.0)  # 변화가 없을 때만 중립
+    return out.fillna(50).values
 
 
 def sma_cross(px, n):
     """종가가 n일 이동평균 위면 1, 아래면 0. 당일까지의 값."""
     s = pd.Series(px)
     m = s.rolling(n, min_periods=n).mean()
-    return (s > m).astype(float).fillna(1.0).values
+    # NaN 비교는 False 가 되어 fillna() 로는 복구되지 않는다. 준비 구간은 위험 1이다.
+    return np.where(m.isna(), 1.0, (s > m).astype(float))
 
 
 # ================================================================= 시뮬레이터
@@ -72,8 +76,8 @@ def dca(D, rk, dfr, wpath, lo, hi, pay=PAY_MONTHS, cost=COST,
         route=None, months=None):
     """월초 1단위 적립. wpath[i] = **그날 들고 있어야 할 위험자산 비중**(이미 지연 반영).
 
-    route(i, R, C, avg) -> True 면 그달 납입금을 위험자산으로, False 면 대기.
-                           None 이면 wpath 를 따른다(현행 규약).
+    route(i, R, C, avg, px) -> 그달 납입금의 위험자산 비중(0~1).
+                               bool 도 0/1 로 호환한다. None 이면 wpath 를 따른다.
     반환 (납입, 평가액 시계열, 위험자산 평단가 시계열)
     """
     R = C = paid = 0.0
@@ -88,7 +92,9 @@ def dca(D, rk, dfr, wpath, lo, hi, pay=PAY_MONTHS, cost=COST,
             if pos > prev:                               # 방어 -> 공격
                 mv = C * (pos - prev) / max(1 - prev, 1e-12)
                 C -= mv; R += mv * (1 - cost)
-                units += mv * (1 - cost) / px[i]; cost_basis += mv * (1 - cost)
+                # 전환은 그날 수익 전에 일어난다. px[i] 는 이미 그날 종가 수익을 포함하므로
+                # 전일 종가로 구좌수를 잡아야 R 과 units*px 가 같은 경로를 탄다.
+                units += mv * (1 - cost) / px[i - 1]; cost_basis += mv * (1 - cost)
             else:                                        # 공격 -> 방어
                 mv = R * (prev - pos) / max(prev, 1e-12)
                 R -= mv; C += mv * (1 - cost)
@@ -102,14 +108,14 @@ def dca(D, rk, dfr, wpath, lo, hi, pay=PAY_MONTHS, cost=COST,
         if i > lo and months[i] != months[i - 1] and paid < pay:
             paid += 1.0
             avg = cost_basis / units if units > 1e-12 else 0.0
-            if route is None:
-                to_risk = (pos >= 1)
-            else:
-                to_risk = route(i, R, C, avg, px)
-            if to_risk:
-                R += 1.0; units += 1.0 / px[i]; cost_basis += 1.0
-            else:
-                C += 1.0
+            risk_frac = pos if route is None else float(route(i, R, C, avg, px))
+            if not np.isfinite(risk_frac) or not 0.0 <= risk_frac <= 1.0:
+                raise ValueError('route 위험비중은 0~1 이어야 한다: %r' % risk_frac)
+            R += risk_frac
+            C += 1.0 - risk_frac
+            if risk_frac:
+                units += risk_frac / px[i]
+                cost_basis += risk_frac
         vals.append(R + C)
         avg_hist.append(cost_basis / units if units > 1e-12 else np.nan)
     return paid, np.array(vals), np.array(avg_hist)
@@ -135,7 +141,22 @@ def selfcheck(D, rk, dfr, months):
           .replace('%,', '%') % (paid1, paid0, v1[-1], fin0, err))
     if err > 1e-9 or paid1 != paid0:
         raise SystemExit('  검산 실패 — 엔진이 다르다. 결과를 믿을 수 없다.')
-    print("         오차 0 — 같은 엔진이다.\n")
+    print("         오차 0 — 같은 엔진이다.")
+
+    # 부분비중 납입: 0.5를 전부 현금으로 보내지 않고 50/50으로 나눈다.
+    _, v, _ = dca({}, np.array([0.0, 0.0, 1.0]), np.zeros(3),
+                  np.full(3, 0.5), 0, 3, pay=1, cost=0,
+                  months=pd.PeriodIndex(['2000-01', '2000-02', '2000-02'], freq='M').values)
+    # 방어→공격은 전일 가격에 매수한 뒤 당일 수익을 먹는다. 평단도 전일 가격이어야 한다.
+    _, _, avg = dca({}, np.array([0.0, 0.0, 0.1]), np.zeros(3),
+                    np.array([0.0, 0.0, 1.0]), 0, 3, pay=1, cost=0,
+                    months=pd.PeriodIndex(['2000-01', '2000-02', '2000-02'], freq='M').values)
+    edge_ok = (abs(v[-1] - 1.5) < 1e-12 and abs(avg[-1] - 1.0) < 1e-12
+               and rsi([1, 2, 3])[-1] == 100.0
+               and np.array_equal(sma_cross([1, 2, 3], 3), [1.0, 1.0, 1.0]))
+    if not edge_ok:
+        raise SystemExit('  검산 실패 — 부분비중·평단가·지표 경계값이 어긋난다.')
+    print("         부분비중·평단가 시점·RSI/이평 경계값도 정상이다.\n")
 
 
 # ================================================================= 후보
@@ -144,18 +165,23 @@ def build_candidates(D, rk, dfr):
     ddv = D['ddv']
     n = len(ddv)
     base = rule_w(ddv, -0.16, -0.16)
+    held = lag(base)                 # 그날 실제 보유 상태(전일 종가 신호)
     r = rsi(px)
     cands = {}
 
-    cands['C0 현행 -16/-16'] = dict(w=lag(base), route=None)
+    cands['C0 현행 -16/-16'] = dict(w=held, route=None)
     cands['C1 그냥 레버리지 DCA'] = dict(w=np.ones(n), route=None)
 
     # C2 평단가 이하 매수 — 규칙은 현행 그대로 쓰되 **납입 배치만** 바꾼다
     def route_avg(i, R, C, avg, px_):
+        # 납입은 당일 실제 보유 상태를 따라야 한다. base[i]는 당일 종가 뒤에야
+        # 알 수 있는 신호라 월초 교차일 5곳에서 하루 미래를 당겨 보고 있었다.
+        if held[i] < 1.0:              # 현행이 방어 중이면 QLD 를 새로 사지 않는다
+            return False
         if avg <= 0:
             return True
         return px_[i] < avg           # 평단가보다 쌀 때만 위험자산에
-    cands['C2 평단가 이하 매수'] = dict(w=lag(base), route=route_avg)
+    cands['C2 평단가 이하 매수'] = dict(w=held, route=route_avg)
 
     # C3 RSI — 전일까지의 RSI 로 당일 비중 결정
     for hi_, lo_ in ((75, 35), (70, 30), (80, 40)):
@@ -194,7 +220,7 @@ def build_candidates(D, rk, dfr):
 
     # RSI/이평을 현행과 **겹쳐서** 쓰는 안 (단독이 아니라 보조)
     w = base.copy()
-    w[(base >= 1.0) & (np.r_[r[0], r[:-1]] >= 75)] = 0.0
+    w[(base >= 1.0) & (r >= 75)] = 0.0
     cands['C3b 현행 + RSI75 익절'] = dict(w=lag(w), route=None)
     w = base.copy()
     m20 = sma_cross(px, 20)
@@ -223,7 +249,7 @@ def main():
     cands = build_candidates(D, rk, dfr)
     L = 20 * 252
     st = list(range(0, N - L, 126))
-    print("  20년 창 %d개 · 후보 %d개\n" % (len(st), len(cands)))
+    print("  20년 창 %d개 · 기준 1개 + 도전자 %d개\n" % (len(st), len(cands) - 1))
 
     res = {}
     for nm, c in cands.items():
@@ -243,8 +269,8 @@ def main():
         w = cands[nm]['w']
         inmkt = float(np.mean(w)) * 100                 # 위험자산 평균 비중
         sw = int((np.abs(np.diff(w)) > 1e-9).sum())
-        wr = '' if nm.startswith('C0') else '%6.0f%%' % ((m > b).mean() * 100)
-        rel = '' if nm.startswith('C0') else '%8.0f%%' % ((d['median'] / db['median'] - 1) * 100)
+        wr = '%6.0f%%' % (0 if nm.startswith('C0') else (m > b).mean() * 100)
+        rel = '%8.0f%%' % (0 if nm.startswith('C0') else (d['median'] / db['median'] - 1) * 100)
         print("  %-26s%9.1f%9.1f%9.1f%8s%9s%8.0f%%%8d"
               % (nm, d['median'], d['p5'], d['worst'], wr, rel, inmkt, sw))
     print()

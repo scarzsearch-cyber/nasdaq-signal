@@ -234,7 +234,11 @@ def concentration(contrib, refit=None, base=None, dates=None,
     gap_cal = int(round(gap_days * 365.25 / 252.0))
     n_indep, gap_note = len(c), '간격 미측정(dates 미제공)'
     if dates is not None:
-        d = pd.to_datetime(pd.Series(list(dates))).sort_values().values
+        dates = list(dates)
+        if len(dates) != len(c):
+            raise DesignError('concentration(): dates 와 contrib 길이가 다르다 '
+                              '(%d != %d)' % (len(dates), len(c)))
+        d = pd.to_datetime(pd.Series(dates)).sort_values().values
         if len(d) > 1:
             n_indep = 1 + int((np.diff(d).astype('timedelta64[D]').astype(int)
                                > gap_cal).sum())
@@ -319,7 +323,8 @@ def verdict(name, checks, adopt_if=None):
     #   둘 있고 하나만 통과하면 나머지 실패가 가려졌다(중복 이름은 concentration() 과
     #   leave_one_crisis_out() 의 checks 를 이어붙이면 실제로 생긴다 — docstring 이 권하는
     #   사용법이다). 이제 **같은 이름은 전부 통과해야 통과**로 센다.
-    need = set(adopt_if) if adopt_if else {c[0] for c in checks}
+    # None 은 모든 관문, 빈 목록은 필수 관문 없음이다. docstring 의 계약을 그대로 지킨다.
+    need = {c[0] for c in checks} if adopt_if is None else set(adopt_if)
     failed_names = {c[0] for c in checks if not c[1]}
     passed = {c[0] for c in checks if c[1]} - failed_names
     missing = need - {c[0] for c in checks}
@@ -444,6 +449,8 @@ def _selftest():
     ok('dates 가 없으면 독립 위기 관문을 통과시키지 않는다',
        [c for c in concentration(flat)['checks'] if '독립' in c[0]][0][1] is False)
     raises('빈 기여 배열로 concentration()', lambda: concentration([]))
+    raises('dates/contrib 길이 불일치',
+           lambda: concentration(flat, dates=pd.date_range('2000-01-01', periods=31)))
 
     # #5 판정문 생성
     v = verdict('테스트축', [('플라시보', True, 'p=0.02'), ('워크포워드', False, 'OOS -7.3%')])
@@ -451,6 +458,8 @@ def _selftest():
     ok('전부 통과면 채택한다', verdict('t', [('a', True, ''), ('b', True, '')])['adopt'] is True)
     ok('같은 이름의 관문 하나가 실패하면 가려지지 않는다',
        verdict('dup', [('관문X', True, ''), ('관문X', False, '')])['adopt'] is False)
+    ok('빈 adopt_if 는 필수 관문 없음으로 처리한다',
+       verdict('none', [('참고', False, '')], adopt_if=[])['adopt'] is True)
     raises('adopt_if 에 없는 관문 이름',
            lambda: verdict('t', [('a', True, '')], adopt_if=['없는관문']))
     print('\n' + '\n'.join('         ' + x for x in v['text'].split('\n')))

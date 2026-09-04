@@ -29,7 +29,8 @@
                  한국 실효비용(0.2%)에서 T4 의 알려진 약점(회전 ×3.3)을 줄이는가.
 
 [★ 사전 고정 판정 기준 — 실행 전에 적었다]
-  A-1 v68 재현: MDD 오차 ≤ 0.3%p (최종배수는 데이터 기준일 1일 차로 ±5% 허용)
+  A-1 v68 재현: v68 입력 종료일(2026-08-26)까지 잘라 MDD 오차 ≤ 0.3%p,
+                 최종배수 오차 ≤ 5% (당시 실행 코드는 보관되지 않아 잔차 허용)
   A-2 장부 구현 동치: 최근 250 세션에서 t4_shadow() vs pandas 오차 0 (반올림 단위)
   A-3 원천 이원화: 게이트 상태(votes≥2) 불일치 < 2% 일수, |Δw| 중앙 < 0.02
   C-1 한도 해석(−8% vs −29%)에 3년 창 판정 뒤집힘 < 10% 면 "둔감"(모호성 무해)
@@ -67,6 +68,7 @@ TH = 2
 VT = 0.40
 WIN = 20
 V68 = dict(t4_final=155279, t4_mdd=-0.534, b_final=168413, b_mdd=-0.631)
+V68_END = pd.Timestamp('2026-08-26')
 
 
 # ==================================================================== 신호
@@ -89,6 +91,37 @@ def build(cash):
     return D, wT, wB, votes.reindex(D['idx']), rv.reindex(D['idx'])
 
 
+def independent_escapes(w, gap=252):
+    """1→0 도피 중 직전 *원시 도피*와 gap 거래행 초과인 사건만 남긴다.
+
+    oos_protocol_b.independent()/lookback200.independent()의 동형이다. `last`는
+    보관 여부와 무관하게 매 원시 사건에서 갱신해야 한 위기의 연쇄를 중간 사건
+    하나 때문에 둘로 쪼개지 않는다.
+    """
+    esc = np.flatnonzero((np.asarray(w[1:]) == 0) & (np.asarray(w[:-1]) == 1)) + 1
+    keep, last = [], None
+    for e in esc:
+        if last is None or e - last > gap:
+            keep.append(int(e))
+        last = int(e)
+    return keep
+
+
+def event_bounds(n, event, pre=63, post=252):
+    """iloc용 [start, stop): 사건일-pre부터 사건일+post까지 양끝 포함."""
+    return max(0, event - pre), min(n, event + post + 1)
+
+
+def selfcheck_events():
+    """kept-only·달력일·끝점 누락이 되살아나지 않는 최소 반례."""
+    w = np.ones(656)
+    for e in (1, 201, 401, 654):
+        w[e] = 0.0
+    assert independent_escapes(w) == [1, 654]
+    a, b = event_bounds(1000, 100)
+    assert (a, b, b - a) == (37, 353, 316)
+
+
 def met(curve):
     yrs = (curve.index[-1] - curve.index[0]).days / 365.25
     fin = float(curve.iloc[-1] / curve.iloc[0])
@@ -104,15 +137,20 @@ def sec_a(D, wT, wB):
     print('=' * 100)
     cT, _ = sim(D, wT)
     cB, _ = sim(D, wB)
-    mT, mB = met(cT), met(cB)
-    ok_mdd = (abs(mT['mdd'] - V68['t4_mdd']) <= 0.003
-              and abs(mB['mdd'] - V68['b_mdd']) <= 0.003)
-    ok_fin = (abs(mT['final'] / V68['t4_final'] - 1) <= 0.05
-              and abs(mB['final'] / V68['b_final'] - 1) <= 0.05)
+    if V68_END not in cT.index or V68_END not in cB.index:
+        raise DesignError('v68 기준일 %s 이 재구성 곡선에 없다' % V68_END.date())
+    # [코드리뷰 2026-09-04] v68의 고정 숫자와 현재 데이터 끝을 비교하면 자료가
+    # 연장될수록 오차가 커져 언젠가 반드시 실패한다. 같은 종료일끼리만 재현한다.
+    mT_ref, mB_ref = met(cT.loc[:V68_END]), met(cB.loc[:V68_END])
+    ok_mdd = (abs(mT_ref['mdd'] - V68['t4_mdd']) <= 0.003
+              and abs(mB_ref['mdd'] - V68['b_mdd']) <= 0.003)
+    ok_fin = (abs(mT_ref['final'] / V68['t4_final'] - 1) <= 0.05
+              and abs(mB_ref['final'] / V68['b_final'] - 1) <= 0.05)
+    print('  v68 기준일 %s까지 같은 창으로 재현' % V68_END.date())
     print('  T4  최종 {:,.0f} (v68 {:,d})  MDD {:.1f}% (v68 {:.1f}%)  Calmar {:.3f}'.format(
-        mT['final'], V68['t4_final'], mT['mdd'] * 100, V68['t4_mdd'] * 100, mT['calmar']))
+        mT_ref['final'], V68['t4_final'], mT_ref['mdd'] * 100, V68['t4_mdd'] * 100, mT_ref['calmar']))
     print('  B   최종 {:,.0f} (v68 {:,d})  MDD {:.1f}% (v68 {:.1f}%)  Calmar {:.3f}'.format(
-        mB['final'], V68['b_final'], mB['mdd'] * 100, V68['b_mdd'] * 100, mB['calmar']))
+        mB_ref['final'], V68['b_final'], mB_ref['mdd'] * 100, V68['b_mdd'] * 100, mB_ref['calmar']))
 
     # 장부 구현 vs pandas — 같은 원시 파일(data/qqq.csv)
     _sys.path.insert(0, _os.path.join(_ROOT, 'deploy'))
@@ -144,19 +182,16 @@ def sec_a(D, wT, wB):
     d_dw = dist(dw.values, '|Δw| 원천 간')
     print('  원천 이원화: 게이트 불일치 %.2f%% 일수, |Δw| 중앙 %.4f · 최악 %.3f (n=%d)'
           % (dis * 100, d_dw['median'], -d_dw['worst'] if d_dw['worst'] < 0 else d_dw['best'], d_dw['n']))
-    # [코드리뷰 2026-09-04] 종전 A-1 은 MDD 조건과 최종배수 조건을 하나의 불리언으로 AND
-    #   했다. 지금 실제로 깨지는 것은 **최종배수 쪽**(T4 +5.08% vs 한도 5%)인데 이름이
-    #   「MDD ≤0.3%p」라 읽는 사람은 MDD 가 깨진 줄 안다. 게다가 docstring 32행은 그
-    #   최종배수 오차를 「데이터 기준일 1일 차」로 **무해하다고 명시**한다 — 즉 그 관문은
-    #   구현 건전성이 아니라 원자료의 최신도를 재고, 달이 갈수록 더 벌어진다. 둘로 가른다.
+    # MDD와 최종배수는 따로 보고해 어느 쪽이 깨졌는지 숨기지 않는다.
     checks = [
         ('A-1a v68 MDD 재현 (≤0.3%p)', ok_mdd,
          'MDD 오차 T4 %+.2f%%p · B %+.2f%%p'
-         % ((mT['mdd'] - V68['t4_mdd']) * 100, (mB['mdd'] - V68['b_mdd']) * 100)),
-        ('A-1b v68 최종배수 재현 (≤5%, 기준일 차이 허용)', ok_fin,
-         '최종 오차 T4 %+.1f%% · B %+.1f%% (docstring 32행: 기준일 1일 차는 무해)'
-         % ((mT['final'] / V68['t4_final'] - 1) * 100,
-            (mB['final'] / V68['b_final'] - 1) * 100)),
+         % ((mT_ref['mdd'] - V68['t4_mdd']) * 100,
+            (mB_ref['mdd'] - V68['b_mdd']) * 100)),
+        ('A-1b v68 최종배수 재현 (같은 종료일·≤5%)', ok_fin,
+         '최종 오차 T4 %+.1f%% · B %+.1f%% (기준일 %s)'
+         % ((mT_ref['final'] / V68['t4_final'] - 1) * 100,
+            (mB_ref['final'] / V68['b_final'] - 1) * 100, V68_END.date())),
         ('A-2 장부 구현 동치 (불일치 0)', n_bad == 0, '250세션 중 %d건' % n_bad),
         ('A-3 원천 이원화 미미', dis < 0.02 and d_dw['median'] < 0.02,
          '게이트 %.2f%% · |Δw| 중앙 %.4f' % (dis * 100, d_dw['median'])),
@@ -209,18 +244,9 @@ def sec_b(D, wT, wB, votes, rv, cT, cB):
              ' · '.join('%d %+.2f' % (y, x) for y, x in top.tail(3).items())))
 
     # --- 기전 직접 측정: B 가 도피하는 날, T4 는 이미 줄여 놓았나 ---------------
-    esc = np.where((wB[1:] == 0) & (wB[:-1] == 1))[0] + 1     # B 도피일 (신호일)
-    # [코드리뷰 2026-09-04] 두 가지를 바로잡는다. ① 간격을 **달력일**(.days)로 재면서
-    #   252 라는 **거래일** 문턱과 비교했다 — 252 거래일은 달력 약 352일이라 관문이 느슨했다
-    #   (research_kit.concentration 이 같은 날 고친 것과 같은 결함). 인덱스 차이로 재면
-    #   그 자체가 거래일이다. ② `last = e` 가 조건 밖이라 **마지막으로 보관한 사건**이 아니라
-    #   직전 사건과의 간격을 쟀다. 실측: 원래 70개 도피 -> 종전 22개(구성이 다름), 지금 21개.
-    #   이 값들이 아래 [부속서] M1/M2 기저율의 분모이고 docstring 이 「사전 등록용」이라 부른다.
-    keep, last = [], None
-    for e in esc:                                             # 252 거래일 간격 독립 사건만
-        if last is None or (e - last) > 252:
-            keep.append(e)
-            last = e
+    # 공표 부속서와 OOS 관문의 계약: 직전 원시 도피와 252 **거래행** 초과.
+    # 2026-09-04 교차검증에서 calendar-day 사본과 kept-only 사본을 모두 제거했다.
+    keep = independent_escapes(wB)
     at_esc = np.array([w[e] for e in keep])
     pre10 = np.array([w[max(0, e - 10):e].mean() for e in keep])
     d_at = dist(at_esc, 'B도피일 T4 노출')
@@ -231,7 +257,7 @@ def sec_b(D, wT, wB, votes, rv, cT, cB):
              (at_esc < 0.7).mean() * 100))
     ev_rows = []
     for e in keep:
-        a = max(0, e - 63); b = min(len(idx) - 1, e + 252)
+        a, b = event_bounds(len(idx), e)
         sT = cT.iloc[a:b]; sB = cB.iloc[a:b]
         mT_ = float((sT / sT.cummax() - 1).min()); mB_ = float((sB / sB.cummax() - 1).min())
         ev_rows.append(mT_ > mB_)
@@ -239,11 +265,11 @@ def sec_b(D, wT, wB, votes, rv, cT, cB):
           % (sum(ev_rows), len(ev_rows), np.mean(ev_rows) * 100))
     # 부속서(M1·M2) 기저율 — 문턱 민감도까지 함께 (사전 등록용 수치)
     m2 = np.array(ev_rows)
-    for th in (0.5, 0.7):
+    for th, label in ((0.7, '공식'), (0.5, '민감도')):
         m1 = pre10 < th
-        print('    [부속서] M1(직전10일 평균<%.1f) %d/%d (%.0f%%) · M1∧M2 %d/%d (%.0f%%)'
-              % (th, int(m1.sum()), len(keep), m1.mean() * 100,
-                 int((m1 & m2).sum()), len(keep), (m1 & m2).mean() * 100))
+        print('    [부속서 %s] M1(직전10일 평균<%.1f) %d/%d (%.0f%%) · M1∧M2 %d/%d (%.0f%%)'
+              % (label, th, int(m1.sum()), len(keep), m1.mean() * 100,
+                  int((m1 & m2).sum()), len(keep), (m1 & m2).mean() * 100))
     print('    [부속서] M1·M2 둘 다 실패: %d/%d (%.0f%%)'
           % (int(((pre10 >= 0.7) & ~m2).sum()), len(keep), ((pre10 >= 0.7) & ~m2).mean() * 100))
 
@@ -438,6 +464,7 @@ def sec_d(D, wT):
 
 # ==================================================================== main
 def main():
+    selfcheck_events()
     D, wT, wB, votes, rv = build('tbill')
     ck_a, cT, cB = sec_a(D, wT, wB)
     sec_b(D, wT, wB, votes, rv, cT, cB)

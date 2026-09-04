@@ -28,7 +28,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # workflow_run이 빨간색이어도 앞선 커밋은 이미 main에 들어갔을 수 있다. 특히
+    # 이슈 API 실패를 커밋 뒤 드러내는 daily-signal은 그렇다. 최신 main을 다시
+    # 배포하는 것은 안전하고, success만 허용하면 새 신호가 화면에 안 나오는 쪽이 위험하다.
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

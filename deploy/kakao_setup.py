@@ -55,6 +55,8 @@ def token_values(tok):
         raise ValueError('응답에 access_token 이 없다')
     if not isinstance(refresh, str) or not refresh.strip():
         raise ValueError('응답에 refresh_token 이 없다')
+    if '\r' in access or '\n' in access or '\r' in refresh or '\n' in refresh:
+        raise ValueError('토큰 응답에 줄바꿈이 섞여 있다')
     return access.strip(), refresh.strip()
 
 
@@ -176,6 +178,15 @@ def selftest():
         assert 'secret-access' not in str(e)
     else:
         raise AssertionError('refresh_token 없는 응답이 통과했다')
+    for bad in (
+            {'access_token': 'access\nFAKE=value', 'refresh_token': 'refresh'},
+            {'access_token': 'access', 'refresh_token': 'refresh\r\nFAKE=value'}):
+        try:
+            token_values(bad)
+        except ValueError as e:
+            assert 'FAKE' not in str(e)
+        else:
+            raise AssertionError('줄바꿈이 섞인 토큰이 통과했다')
     assert 'sensitive' not in oauth_error(
         b'{"error":"bad","access_token":"sensitive"}')
     message_ok(b'{"result_code":0}')
@@ -192,7 +203,7 @@ def selftest():
             pass
         else:
             raise AssertionError('정수가 아닌 result_code 가 통과했다')
-    print('kakao_setup selftest: PASS (Client Secret 선택 · URL 인코딩 · 토큰 비노출 · 발송 응답)')
+    print('kakao_setup selftest: PASS (Client Secret 선택 · URL 인코딩 · 토큰 비노출/줄바꿈 거부 · 발송 응답)')
 
 
 if __name__ == '__main__':

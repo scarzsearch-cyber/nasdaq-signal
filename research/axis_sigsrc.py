@@ -50,6 +50,7 @@ import hist_korea as K
 import hist_krfinal as KF
 from axis_lib import dd_from, rule_w
 from reentry_lib import met
+from research_kit import verdict
 
 CRISES = [('닷컴 00-02', '2000-03-10'), ('GFC 07-09', '2007-10-31'),
           ('2011 유럽', '2011-07-07'), ('2015 차이나', '2015-08-10'),
@@ -64,7 +65,13 @@ def sources(D):
     fxs = K.fx(idx)
     out = {}
     out['A 미국 QQQ 종가'] = dd_from(px, 252)
-    out['B QQQ x 환율'] = dd_from(px * fxs, 252)
+    krw_px = px * fxs
+    krw_dd = np.array(dd_from(krw_px, 252), dtype=float, copy=True)
+    # dd_from의 워밍업 0은 유효한 가격 계열에만 허용된다. 환율 원자료가 없는
+    # 1981-04 이전까지 0=정상 낙폭으로 바꾸면 가짜 신호 이력이 생긴다.
+    fx_ok = krw_px.notna().rolling(252, min_periods=252).sum().values == 252
+    krw_dd[~fx_ok] = np.nan
+    out['B QQQ x 환율'] = krw_dd
     kr = DA.kr('133690')                       # TIGER 미국나스닥100 (1배, 원화)
     kr = kr.reindex(idx.union(kr.index)).ffill().reindex(idx)
     krv = np.array(dd_from(kr, 252), dtype=float)
@@ -82,6 +89,7 @@ def s1_gap(D, S):
     print('%-20s %8s %9s %9s %9s %9s'
           % ('신호원', 'n', '평균', '표준편차', 'QQQ최악5%일 평균', '최대'))
     worst = np.argsort(np.nan_to_num(D['px'].pct_change().values))[:int(len(idx) * 0.05)]
+    stats = {}
     for nm, v in S.items():
         if nm.startswith('A'):
             continue
@@ -90,8 +98,11 @@ def s1_gap(D, S):
         w = worst[ok[worst]]
         print('%-20s %8d %8.2f %9.2f %17.2f %9.2f'
               % (nm, ok.sum(), np.nanmean(d), np.nanstd(d), np.nanmean(d[w]), np.nanmax(d)))
+        stats[nm] = dict(n=int(ok.sum()), mean=float(np.nanmean(d)),
+                         worst_mean=float(np.nanmean(d[w])), maximum=float(np.nanmax(d)))
     print('  ※ 양수 = 그 신호원이 낙폭을 **얕게** 본다 = 도피가 늦어진다는 뜻이다.')
     print('    특히 "QQQ최악5%일" 열을 봐라 — 도피 판정이 실제로 걸리는 날들이다.')
+    return stats
 
 
 # ---------------------------------------------------------------- 2) 상태 불일치
@@ -119,6 +130,7 @@ def s3_timing(D, S, W, valid):
     print('===== 3) 위기별 도피 시점 — 국내 종가로 재면 며칠 늦는가 =====')
     print('%-14s %-12s %-12s %-12s %-12s  %s'
           % ('위기', 'A 미국', 'B 원화환산', 'C 국내ETF', 'D 1일지연', '늦은 일수(B/C/D)'))
+    observed_lags = []
     for nm, dt in CRISES:
         t0 = idx.searchsorted(pd.Timestamp(dt))
         cells, firsts = [], {}
@@ -136,10 +148,16 @@ def s3_timing(D, S, W, valid):
         lags = []
         for k in ('B QQQ x 환율', 'C 국내 133690 종가', 'D 미국 종가 1일지연'):
             jk = firsts[k]
-            lags.append('—' if (jk is None or ja is None) else '%+d' % (jk - ja))
+            if jk is None or ja is None:
+                lags.append('—')
+            else:
+                lag = int(jk - ja)
+                lags.append('%+d' % lag)
+                observed_lags.append(lag)
         print('%-14s %-12s %-12s %-12s %-12s  %s'
               % (nm, cells[0], cells[1], cells[2], cells[3], ' / '.join(lags)))
     print('  ※ 거래일 기준 차이다. 양수 = 그만큼 늦게 도피했다.')
+    return observed_lags
 
 
 # ---------------------------------------------------------------- 4) 성과
@@ -175,13 +193,13 @@ def s4_perf(D, S, krstart):
                 print('  %-20s %-11s %12s %7.2f%% %8.2f%% %8.2f %6d'
                       % (nm if R is RB else '', R['name'], format(m['final'], ',.1f'),
                          m['cagr'] * 100, m['mdd'] * 100, m['calmar'],
-                         int(np.abs(np.diff(w.values)).sum())))
+                         int(np.count_nonzero(np.asarray(t, dtype=float)))))
     print('  ※ 공통창은 133690 상장 + 252일 룩백 확보 이후다. 짧아서 판정용이 아니라')
     print('    "국내 종가로 재면 실제로 어떻게 달라지는가"의 확인용이다.')
 
 
 # ---------------------------------------------------------------- 5) 판정
-def s5_verdict():
+def s5_verdict(D, S, krstart, gap_stats, observed_lags):
     print()
     print('===== 5) 판정 =====')
     print()
@@ -190,6 +208,24 @@ def s5_verdict():
     print('   · 국채·금에도 신호가 없다 — v27 에서 방어자산 선택을 기각했다. 그냥 사서 든다.')
     print('   · 국내 ETF 는 **체결 자산**이고, 미국 QQQ 는 **신호원**이다. 층이 다르다.')
     print()
+    fx = gap_stats['B QQQ x 환율']
+    checks = [
+        ('위기일 환율 혼합은 QQQ 낙폭을 더 얕게 보인다', fx['worst_mean'] > 0,
+         'QQQ 최악5%%일 평균 %+.2f%%p' % fx['worst_mean']),
+        ('대체 신호에서 도피 지연이 실제 관측된다', bool(observed_lags) and max(observed_lags) > 0,
+         '관측 지연 최대 %+d거래일' % max(observed_lags) if observed_lags else '비교 불가'),
+        ('국내 ETF 이력은 미국 원본보다 짧다', krstart > D['idx'][0],
+         '%s 상장 vs 원본 %s 시작' % (krstart.date(), D['idx'][0].date())),
+        ('원화환산 신호는 252개 유효 관측 전을 제외한다',
+         int(np.isfinite(S['B QQQ x 환율']).sum()) < len(D['idx']),
+         '유효 %d/%d일' % (np.isfinite(S['B QQQ x 환율']).sum(), len(D['idx']))),
+    ]
+    decision = verdict('미국 QQQ 신호원 유지 근거', checks)
+    print(decision['text'])
+    print()
+    if not decision['adopt']:
+        print('  [답] 계산 근거가 달라졌다 — 자동 변경하지 말고 신호원 규약을 재검토한다.')
+        return
     print('  [답] 신호는 **미국 QQQ 종가**로 잰다. 이유 넷.')
     print('   ① 환율 오염 — 국내 ETF 가격에는 환율이 섞여 있다. 위기에 원화가 약세면')
     print('      원화 기준 낙폭이 **얕게** 보여 도피가 늦어진다. 정확히 최악의 방향이다.')
@@ -214,8 +250,8 @@ if __name__ == '__main__':
     print('133690 상장 %s -> 252일 낙폭 유효 %s~'
           % (krstart.date(), (krstart + pd.Timedelta(days=400)).date()))
     print()
-    s1_gap(D, S)
+    gap_stats = s1_gap(D, S)
     W, valid = s2_disagree(D, S)
-    s3_timing(D, S, W, valid)
+    observed_lags = s3_timing(D, S, W, valid)
     s4_perf(D, S, krstart)
-    s5_verdict()
+    s5_verdict(D, S, krstart, gap_stats, observed_lags)

@@ -44,10 +44,45 @@ ENTER = -0.16
 H, XDROP = 20, -0.10        # 라벨: 앞으로 20일 안에 추가 -10%
 TRAIN = 10 * 252
 L = 20 * 252
+FREEZE_CUTOFF = pd.Timestamp('2026-08-26')
 SEGS = [('1972-85', '1972-01-01', '1985-12-31'),
         ('1986-99', '1986-01-01', '1999-12-31'),
         ('2000-13', '2000-01-01', '2013-12-31'),
         ('2014-26', '2014-01-01', '2026-12-31')]
+
+
+def freeze_aligned(D, cutoff=FREEZE_CUTOFF):
+    """기준 인덱스와 정렬된 모든 필드를 사전등록 동결일까지 함께 자른다."""
+    idx = pd.DatetimeIndex(D['idx'])
+    n = len(idx)
+    stop = int(idx.searchsorted(cutoff, side='right'))
+    if stop == 0:
+        raise ValueError('동결일 이전 자료가 없다')
+    out = dict(D)
+    for key, value in D.items():
+        if isinstance(value, (str, bytes)):
+            continue
+        try:
+            aligned = len(value) == n
+        except TypeError:
+            aligned = False
+        if aligned:
+            out[key] = value[:stop].copy()
+    if len(out['idx']) != stop or pd.Timestamp(out['idx'][-1]) > cutoff:
+        raise AssertionError('동결일 절단 실패')
+    return out
+
+
+def selfcheck_freeze():
+    """동결 뒤 행을 덧붙여도 동결 자료와 정렬 필드가 변하지 않아야 한다."""
+    dates = pd.date_range('2026-08-24', periods=5, freq='D')
+    D = {'idx': dates, 'px': pd.Series([1., 2., 3., 99., 100.]),
+         'ddv': np.array([0., -.1, -.2, .9, .8]), 'meta': 'chain'}
+    cut = freeze_aligned(D)
+    assert list(cut['idx']) == list(dates[:3])
+    assert np.array_equal(np.asarray(cut['px']), np.array([1., 2., 3.]))
+    assert np.array_equal(cut['ddv'], np.array([0., -.1, -.2]))
+    assert cut['meta'] == 'chain'
 
 
 # ============================================================ 로지스틱 (IRLS)
@@ -76,7 +111,8 @@ def logistic_pred(b, X):
 
 # ============================================================ 본체
 def main():
-    D = DF.build('chain')
+    selfcheck_freeze()
+    D = freeze_aligned(DF.build('chain'))
     idx, N = D['idx'], len(D['idx'])
     comp = materials(D)
     dfr = mix_monthly_from({k: comp[k] for k in ('div', 'ust5', 'gold')},

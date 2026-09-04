@@ -35,6 +35,7 @@ import pandas as pd
 import hist_data as H
 import hist_defensive as DF
 from axis_lib import COST, rule_w, accumulate, check
+from research_kit import mdd_vs_paid
 
 
 def policies(D):
@@ -63,14 +64,15 @@ def run_accum(D, years, step=63):
     starts = list(range(0, len(idx) - span, step))
     for st in starts:
         for n, k, w, park, dip in POL:
-            paid, fin, m = accumulate(D, k, w, st, st + span, park=park, dip=dip)
+            paid, fin, _, path, paid_path = accumulate(
+                D, k, w, st, st + span, park=park, dip=dip, return_paths=True)
             res[n].append(fin / paid)
-            mdd[n].append(m * 100)
+            mdd[n].append(mdd_vs_paid(path, paid_path) * 100)
 
     print('\n===== 적립식 %d년 롤링 (%d창, 월 1단위) — 납입액 대비 배수 ====='
           % (years, len(starts)))
     print('%-20s %9s %9s %9s %9s %11s %11s' %
-          ('정책', '중앙값', '10%분위', '최악', '최고', 'B2x대비승률', '경로MDD중앙'))
+          ('정책', '중앙값', '10%분위', '최악', '최고', 'B2x대비승률', '원금대비최저'))
     base = np.array(res['전략B x2.0'])
     for n, *_ in POL:
         a = np.array(res[n])
@@ -85,11 +87,13 @@ if __name__ == '__main__':
     print('데이터 %s ~ %s  n=%d  방어=배당체인  편도비용 %.2f%%'
           % (D['idx'][0].date(), D['idx'][-1].date(), len(D['idx']), COST * 100))
     assert check(D), '검산 실패'
-    run_accum(D, 15)
-    run_accum(D, 25)
+    r15 = run_accum(D, 15)
+    r25 = run_accum(D, 25)
     print('\n판정 1: dip 대기 투입(= QLD Dip Alert 형)의 기여는 0 이다.')
     print('        중앙값이 그냥 적립과 같고 좌측꼬리는 오히려 나빠진다.')
     print('        -25% 까지 기다리면 확실히 손해다. 가치는 "싸게 사는 것"이 아니라')
     print('        "도피하는 것"에 있다 — v21 §11.3 의 f*=0.5 와 같은 얘기다.')
     print('판정 2: 적립식에서 전환전략의 우위는 거치식보다 오히려 크다.')
-    print('        최악 창이 QLD 그냥 적립의 6~11배다(그쪽은 원금 절반을 잃는다).')
+    ratios = [min(r['전략B x2.0']) / min(r['QLD2x 그냥 적립']) for r in (r15, r25)]
+    print('        최악 창이 QLD 그냥 적립의 %.1f~%.1f배다(원금 대비 최저도 위 표에서 직접 계산).'
+          % (min(ratios), max(ratios)))

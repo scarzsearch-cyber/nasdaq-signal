@@ -41,15 +41,22 @@ try:
 except Exception:
     pass
 
-QS = (0.90, 0.925, 0.95, 0.975, 0.99)
-GATES = (-0.03, -0.05, -0.08, -0.12)
-LBS = (10, 21, 42, 63)
+# v32 §1의 사전 등록 격자: p92.5 고정, 7개 룩백 x 6개 게이트 = 42칸.
+GRID_Q = 0.925
+LBS = (3, 5, 7, 10, 14, 21, 31)
+GATES = (-0.01, -0.02, -0.03, -0.04, -0.05, -0.06)
+SELECTED = (10, 0.925, -0.03)
+
+# WFA는 v32 계약대로 Calmar로 고르는 별도 선택 집합이다.
+WFA_LBS = (5, 7, 10, 14, 21)
+WFA_QS = (0.875, 0.90, 0.925, 0.95)
+WFA_GATES = (-0.02, -0.03, -0.04, -0.05)
 
 
 def zc(a, win=756, minp=252):
     s = pd.Series(np.asarray(a, dtype=float)).reset_index(drop=True)
     return ((s - s.rolling(win, min_periods=minp).mean())
-            / s.rolling(win, min_periods=minp).std()).fillna(0).values
+            / s.rolling(win, min_periods=minp).std()).values
 
 
 def exp_q(a, q, minp=252):
@@ -57,13 +64,26 @@ def exp_q(a, q, minp=252):
     return s.expanding(min_periods=minp).quantile(q).shift(1).values
 
 
+def lagged_positions(w, lag=1):
+    """종가 신호를 정확히 ``lag`` 거래일 뒤 포지션으로 옮긴다."""
+    w = np.asarray(w, dtype=float)
+    if lag < 0:
+        raise ValueError('lag must be non-negative')
+    if len(w) == 0 or lag == 0:
+        return w.copy()
+    pos = np.empty_like(w)
+    k = min(lag, len(w))
+    pos[:k] = w[0]
+    if lag < len(w):
+        pos[lag:] = w[:-lag]
+    return pos
+
+
 def sim(D, w, cost=COST, lag=1, lo=0, hi=None):
     n = len(D['idx']) if hi is None else hi
     sl = slice(lo, n)
-    wv = w[sl]
-    pos = np.empty_like(wv)
-    pos[:lag] = wv[0]
-    pos[lag:] = wv[:-lag]
+    # 전체 신호를 먼저 지연해 OOS/연도 경계에서도 직전 신호를 보존한다.
+    pos = lagged_positions(w, lag)[sl]
     r = np.nan_to_num(pos * D['qldr'][sl] + (1 - pos) * D['schdr'][sl])
     r[0] = 0.0
     turn = np.abs(np.diff(pos, prepend=pos[0]))
@@ -75,6 +95,7 @@ def mdd(c):
 
 
 def cagr(c, n):
+    """보관 연구표의 252거래일 연율. 달력연수 재순위도 v203 선택과 동일하다."""
     return c[-1] ** (252 / n) - 1
 
 
@@ -91,7 +112,66 @@ def roll_mdd(c, L, step=63):
     return np.array(out)
 
 
+def nonworsening_fixed(fixed, candidate_mdd):
+    """후보와 같거나 덜 깊은 MDD(0에 더 가까움)의 고정문턱만 고른다."""
+    return [row for row in fixed if row[2] >= candidate_mdd]
+
+
+def compare_fixed_frontier(cells, fixed):
+    """비교 가능한 후보만 프론티어 승패에 넣고, 비교 불가는 따로 센다."""
+    beat = comparable = unmatched = 0
+    for _, (_, _, curve) in cells.items():
+        alt = nonworsening_fixed(fixed, mdd(curve))
+        if not alt:
+            unmatched += 1
+            continue
+        comparable += 1
+        if curve[-1] > max(row[3] for row in alt):
+            beat += 1
+    return beat, comparable, unmatched
+
+
+def select_by_calmar(curves, n):
+    """최종부가 아니라 IS Calmar가 가장 큰 후보를 선택한다."""
+    scored = {}
+    for key, curve in curves.items():
+        g, m = cagr(curve, n), mdd(curve)
+        scored[key] = g / abs(m) if m < 0 else np.inf
+    key = max(scored, key=scored.get)
+    return key, scored[key]
+
+
+def selfcheck():
+    w = np.array([1.0, 0.0, 1.0, 0.0])
+    assert np.array_equal(lagged_positions(w, 0), w)
+    assert np.array_equal(lagged_positions(w, 1), [1.0, 1.0, 0.0, 1.0])
+    toy_d = {'idx': np.arange(3), 'qldr': np.array([0.10, 0.10, 0.10]),
+             'schdr': np.zeros(3)}
+    sig = np.array([1.0, 0.0, 0.0])
+    assert np.allclose(sim(toy_d, sig, cost=0, lag=0), [1.0, 1.0, 1.0])
+    assert np.allclose(sim(toy_d, sig, cost=0, lag=1), [1.0, 1.1, 1.1])
+    dd = np.array([-0.20, -0.15, -0.12])
+    assert np.array_equal(rule_w(dd, -0.16, -0.11), [0.0, 0.0, 0.0])
+    assert not np.array_equal(rule_w(dd, -0.16, -0.11)[1:],
+                              rule_w(dd[1:], -0.16, -0.11))
+    zz = zc([1.0, 2.0, 3.0, 4.0], win=3, minp=3)
+    assert np.isnan(zz[:2]).all() and np.isfinite(zz[2:]).all()
+    toy = [('safer', 0.0, -0.60, 1.0), ('riskier', 0.0, -0.70, 2.0)]
+    assert [row[0] for row in nonworsening_fixed(toy, -0.65)] == ['safer']
+    toy_cells = {
+        'comparable': (0.0, 0.0, np.array([1.0, 0.8, 1.1])),
+        'unmatched': (0.0, 0.0, np.array([1.0, 0.95, 1.2])),
+    }
+    assert compare_fixed_frontier(toy_cells, [('fixed', 0.0, -0.10, 1.0)]) == (1, 1, 1)
+    curves = {'wealth': np.array([1.0, 4.0, 1.5, 3.0]),
+              'calmar': np.array([1.0, 1.2, 1.1, 2.5])}
+    assert max(curves, key=lambda k: curves[k][-1]) == 'wealth'
+    assert select_by_calmar(curves, 252)[0] == 'calmar'
+    assert len(LBS) * len(GATES) == 42 and SELECTED[0] in LBS and SELECTED[2] in GATES
+
+
 def main():
+    selfcheck()
     D = DF.build('chain')
     idx = D['idx']
     ddq = D['ddv']
@@ -105,7 +185,7 @@ def main():
           f"Calmar {b_cagr/abs(b_mdd):.3f}  전환 {np.abs(np.diff(base_w)).sum():.0f}회\n")
 
     RV = {lb: zc(px.pct_change().rolling(lb, min_periods=lb).std().values) for lb in LBS}
-    TRIG = {(lb, q): (RV[lb] >= exp_q(RV[lb], q)) for lb in LBS for q in QS}
+    TRIG = {(lb, GRID_Q): (RV[lb] >= exp_q(RV[lb], GRID_Q)) for lb in LBS}
 
     # ============================================================ Q1
     print("=" * 84)
@@ -114,7 +194,7 @@ def main():
     cells = {}
     for lb in LBS:
         print(f"\n  변동성 룩백 {lb}일     " + "".join(f"{g*100:>18.0f}%" for g in GATES))
-        for q in QS:
+        for q in (GRID_Q,):
             row = []
             for g in GATES:
                 w = early_w(ddq, TRIG[(lb, q)], g)
@@ -149,16 +229,11 @@ def main():
 
     print("\n  [질문] 변동성 규칙의 MDD 를 고정문턱으로도 낼 수 있나?")
     print("         각 격자칸에 대해 '같거나 더 낮은 MDD 를 내는 고정문턱' 중 최고 수익과 비교")
-    beat = 0
-    for (lb, q, g), (dv, dm, c) in cells.items():
-        m = mdd(c)
-        alt = [f for f in fixed if f[2] <= m]           # 같거나 더 안전한 고정문턱
-        if not alt:
-            beat += 1
-            continue
-        if c[-1] > max(a[3] for a in alt):
-            beat += 1
-    print(f"    고정문턱 프론티어를 이긴 칸 = {beat}/{len(cells)} ({beat/len(cells)*100:.0f}%)")
+    beat, comparable, unmatched = compare_fixed_frontier(cells, fixed)
+    rate = beat / comparable if comparable else np.nan
+    print(f"    비교 가능한 칸 중 고정문턱 프론티어를 이긴 칸 = "
+          f"{beat}/{comparable} ({rate*100:.0f}%)")
+    print(f"    비교 불가(후보만 더 안전하고 같은 MDD의 고정문턱 없음) = {unmatched}/{len(cells)}")
     print(f"    ** 이 비율이 낮으면 '변동성 정보'가 아니라 '문턱을 낮춘 것'이다 **")
 
     # ============================================================ Q3
@@ -192,7 +267,7 @@ def main():
     segs = [('1972-1985 종합지수(합성)', '1972-02-07', '1985-09-30'),
             ('1985-1999 NDX(합성)', '1985-10-01', '1999-03-09'),
             ('1999- QQQ 실물', '1999-03-10', '2026-08-26')]
-    best_w = early_w(ddq, TRIG[(21, 0.95)], -0.05)
+    best_w = early_w(ddq, TRIG[SELECTED[:2]], SELECTED[2])
     for nm, s, e in segs:
         lo = int(idx.searchsorted(pd.Timestamp(s)))
         hi = int(idx.searchsorted(pd.Timestamp(e), side='right'))
@@ -200,7 +275,7 @@ def main():
         cb = sim(D, base_w, lo=lo, hi=hi)
         print(f"\n  {nm}")
         print(f"    기준선          {cb[-1]:>10,.2f}배  CAGR {cagr(cb,n)*100:6.2f}%  MDD {mdd(cb)*100:7.2f}%")
-        for lbl, ww in [('고른 칸(p95/21일)', best_w), ('앙상블(과반)', ens_w)]:
+        for lbl, ww in [('고른 칸(10일/p92.5/-3%)', best_w), ('앙상블(과반)', ens_w)]:
             cc = sim(D, ww, lo=lo, hi=hi)
             print(f"    {lbl:<16}{cc[-1]:>10,.2f}배  CAGR {cagr(cc,n)*100:6.2f}%  MDD {mdd(cc)*100:7.2f}%"
                   f"   [{(cc[-1]/cb[-1]-1)*100:+6.1f}% / MDD {-(abs(mdd(cc))-abs(mdd(cb)))*100:+.2f}p]")
@@ -229,24 +304,40 @@ def main():
               f"중앙 {np.median(rb)*100:6.2f}% -> {np.median(rc)*100:6.2f}%   "
               f"최악 {rb.min()*100:6.2f}% -> {rc.min()*100:6.2f}%")
 
-    print("\n  워크포워드 — 1972-1999 에서 고르고 2000- 에 적용")
+    print("\n  워크포워드 — 1972-1999 Calmar로 고르고 2000- 에 적용")
     sp = int(idx.searchsorted(pd.Timestamp('2000-01-01')))
     n2 = N - sp
     cb2 = sim(D, base_w, lo=sp)
-    bk, bv = None, -1
-    for k, (dv, dm, c) in cells.items():
-        v = sim(D, early_w(ddq, TRIG[(k[0], k[1])], k[2]), hi=sp)[-1]
-        if v > bv:
-            bv, bk = v, k
-    print(f"    IS 최적 = 룩백 {bk[0]}일 / p{bk[1]*100:.1f} / 게이트 {bk[2]*100:.0f}%")
+    wfa = {}
+    for lb in WFA_LBS:
+        rz = RV.get(lb)
+        if rz is None:
+            rz = zc(px.pct_change().rolling(lb, min_periods=lb).std().values)
+        for q in WFA_QS:
+            tq = rz >= exp_q(rz, q)
+            for g in WFA_GATES:
+                wfa[(lb, q, g)] = early_w(ddq, tq, g)
+    is_curves = {k: sim(D, w, hi=sp) for k, w in wfa.items()}
+    bk, best_calmar = select_by_calmar(is_curves, sp)
+    print(f"    IS Calmar 최적 = 룩백 {bk[0]}일 / p{bk[1]*100:.1f} / "
+          f"게이트 {bk[2]*100:.0f}%  (Calmar {best_calmar:.3f})")
     print(f"    OOS 기준선   {cb2[-1]:>9,.2f}배  CAGR {cagr(cb2,n2)*100:6.2f}%  MDD {mdd(cb2)*100:7.2f}%")
-    for lbl, ww in [('OOS IS최적', early_w(ddq, TRIG[(bk[0], bk[1])], bk[2])),
+    oos_results = {}
+    for lbl, ww in [('OOS IS최적', wfa[bk]),
                     ('OOS 앙상블', ens_w)]:
         cc = sim(D, ww, lo=sp)
+        oos_results[lbl] = cc
         print(f"    {lbl:<12}{cc[-1]:>9,.2f}배  CAGR {cagr(cc,n2)*100:6.2f}%  MDD {mdd(cc)*100:7.2f}%"
               f"   [{(cc[-1]/cb2[-1]-1)*100:+6.1f}% / MDD {-(abs(mdd(cc))-abs(mdd(cb2)))*100:+.2f}p]")
 
-    print("\n[판정] 전략_v32.md 에 기록")
+    chosen = oos_results['OOS IS최적']
+    print("\n[이 스크립트의 판정]")
+    print(f"    등록 격자의 MDD 개선 = {(dms < 0).sum()}/{len(cells)}; "
+          f"비교 가능한 고정문턱 프론티어 승리 = {beat}/{comparable}; 비교 불가 = {unmatched}칸.")
+    print(f"    Calmar 선택 OOS는 기준보다 최종금액 {(chosen[-1]/cb2[-1]-1)*100:+.1f}%, "
+          f"MDD {-(abs(mdd(chosen))-abs(mdd(cb2)))*100:+.2f}p다.")
+    print("    따라서 거치식 MDD 개선은 재현되지만, 이것만으로 채택할 근거는 아니다.")
+    print("    다음 질문인 플라시보와 실제 적립식 판정은 v203 통합 리뷰에 연결한다.")
 
 
 if __name__ == '__main__':

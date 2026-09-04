@@ -821,8 +821,8 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     </details>
   </div>
 
-  <!-- 수치 출처: axis_isa.py [v33 정정 반영] (원본 출력 전략_v29_raw.txt / data/isa_stats.json).
-       갱신하려면  python axis_isa.py --emit  후 아래 표를 맞춰 쓸 것. -->
+  <!-- 수치 출처: axis_isa.py [v203 세금·납입 회계 정정 반영] (data/isa_stats.json).
+       갱신하려면  python research/axis_isa.py --emit  후 아래 표를 맞춰 쓸 것. -->
   <div class="guide" id="taxPanel" data-fold data-foldshut>
     <h2>계좌 — ISA 중개형 · 서민형 기준</h2>
 
@@ -830,17 +830,17 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div>
         <div class="k">ISA 실효세율</div>
         <div class="v good">9.9%</div>
-        <div class="s">일반계좌 15.2~16.9%</div>
+        <div class="s">일반계좌 13.1~16.9%</div>
       </div>
       <div>
         <div class="k">일반계좌 대비</div>
-        <div class="v good">+48.8%</div>
+        <div class="v good">+54.7%</div>
         <div class="s">20년 창 중앙값 · 세후</div>
       </div>
       <div>
         <div class="k">이득의 출처</div>
-        <div class="v">과세이연 82%</div>
-        <div class="s">세율 인하 13% · 비과세 400만 0%</div>
+        <div class="v">과세이연 83%</div>
+        <div class="s">세율 인하 12% · 비과세 400만 0%</div>
       </div>
     </div>
 
@@ -850,17 +850,17 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
           <th class="num">20년</th><th class="num">실효세율</th></tr></thead>
         <tbody>
           <tr class="best"><td class="acct">ISA · 만기 연장해 계속 보유</td>
-            <td class="num">6.27배</td><td class="num">28.3배</td><td class="num">136.7배</td>
-            <td class="num">9.9%</td></tr>
-          <tr><td class="acct">ISA · 3년마다 해지·재가입</td>
-            <td class="num">5.96배</td><td class="num">25.0배</td><td class="num">115.2배</td>
-            <td class="num">10.7%</td></tr>
+            <td class="num">6.34배</td><td class="num">31.15배</td><td class="num">135.24배</td>
+            <td class="num">9.8~9.9%</td></tr>
+          <tr><td class="acct">ISA · 3년마다 해지·재가입 <span class="muted">(낙관적 상한)</span></td>
+            <td class="num">6.02배</td><td class="num">27.22배</td><td class="num">114.38배</td>
+            <td class="num">8.3~9.1%</td></tr>
           <tr><td class="acct">일반계좌 · 전환마다 15.4%</td>
-            <td class="num">5.97배</td><td class="num">23.6배</td><td class="num">91.8배</td>
-            <td class="num">16.9%</td></tr>
+            <td class="num">5.54배</td><td class="num">22.39배</td><td class="num">87.44배</td>
+            <td class="num">13.1~16.9%</td></tr>
           <tr class="ref"><td class="acct">세전 (참고)</td>
-            <td class="num">6.84배</td><td class="num">31.3배</td><td class="num">151.6배</td>
-            <td class="num">—</td></tr>
+            <td class="num">6.93배</td><td class="num">34.46배</td><td class="num">149.99배</td>
+            <td class="num">0.0%</td></tr>
         </tbody>
       </table>
     </div>
@@ -884,14 +884,14 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div class="p"><div class="n">3</div><div class="t">
         <b>3년 만기가 오면 — 해지하지 말고 연장합니다.</b>
         해지하면 불어난 돈을 다시 넣을 수 없습니다(재납입도 연 2,000만원 한도).
-        <em>20년 기준으로 연장이 3년마다 해지보다 약 19% 앞섭니다(136.7배 vs 115.2배).</em>
+        <em>20년 기준으로 연장이 3년마다 해지보다 약 18% 앞섭니다(135.24배 vs 114.38배).</em>
       </div></div>
     </div>
 
     <div class="rules">
       <b>놓치기 쉬운 것</b><br>
       · 비과세 400만원은 이 규모에서 사실상 의미가 없습니다 — 실효세율은 <b>9.9%로 수렴</b>합니다.
-        ISA의 값어치는 비과세가 아니라 <b>과세이연</b>에서 나옵니다(이득의 80%).<br>
+        ISA의 값어치는 비과세가 아니라 <b>과세이연</b>에서 나옵니다(이득의 83%).<br>
       · 3년 의무보유. 그 전에 해지하면 세제혜택이 사라집니다.
     </div>
   </div>

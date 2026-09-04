@@ -122,8 +122,25 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v202</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v203</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v203</span><span class="tag fix">수정</span>
+        <span class="ttl">계산·자동화 통합 점검 — 틀린 근거는 고치고 매매 규칙은 그대로</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>연구 계산과 새벽 자동화 코드를 여러 번 나눠 읽고 서로 대조했습니다.
+          세금을 떼는 순서, 해가 바뀔 때의 정산, 비교할 수 없는 결과를 승리로 세던 곳,
+          자료가 비었는데도 성공으로 끝나던 곳처럼 <b>겉으로는 정상인데 안쪽 계산이 어긋나는 문제</b>를 고쳤습니다.
+          옛 문서에 남은 숫자는 현재 계산과 헷갈리지 않도록 정정 표시를 붙였습니다.</dd>
+        <dt>왜</dt><dd>한 코드가 낸 값을 같은 코드가 다시 확인하면 둘이 함께 틀려도 통과할 수 있습니다.
+          그래서 계산 순서를 손으로 만든 작은 예와 맞춰 보고, 같은 질문을 서로 다른 코드로 다시 재고,
+          수정 전후에 현행 전략의 결과가 움직였는지도 따로 확인했습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>−16% 전환선·252일·방어 40/40/20은 전혀 바뀌지 않았습니다.</b>
+          바뀐 것은 잘못된 연구 근거와 실패를 숨기던 자동화입니다. 현재 화면의 ISA 금액도 고친 세금 계산으로
+          다시 만들었고, 이미 기각한 후보를 되살릴 새 근거는 나오지 않았습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix">
       <div class="head"><span class="v">v202</span><span class="tag fix">수정</span>
@@ -538,7 +555,7 @@ details.more[open] summary{margin-bottom:6px}
           <b>원화 2,800배(1997~)</b> 기준으로 재정렬.</dd>
         <dt>왜</dt><dd>54년 전체 배수는 1970년대 합성 데이터가 만든 숫자라 <b>기대치를 왜곡</b>합니다.</dd>
         <dt>결론</dt><dd class="res">70년대 표본은 <b>폭락 검증용으로만</b> 남깁니다 —
-          원금손실 확률표·독립 사건 22번. 성과·배수 주장은 21세기 기준입니다.</dd>
+          원금손실 확률표·독립 사건 21번. 성과·배수 주장은 21세기 기준입니다.</dd>
       </dl>
     </div>
   </section>

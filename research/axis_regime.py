@@ -141,7 +141,7 @@ def m3_vol(D, ddq, idx, q=0.70, win=756):
     px = D['px']
     rv = px.pct_change().rolling(252, min_periods=252).std()
     s = pd.Series(rv.values).reset_index(drop=True)
-    thr = s.expanding(min_periods=756).quantile(q).shift(1).values
+    thr = s.expanding(min_periods=win).quantile(q).shift(1).values
     hi = np.nan_to_num(s.values, nan=0) >= np.nan_to_num(thr, nan=1e9)
     pick = [CONS if h else AGGR for h in hi]
     return state_machine(ddq, pick), hi
@@ -177,6 +177,11 @@ def m4_memory(ddq, idx, k=3, slow=126):
 def main():
     D, defr = build()
     idx, ddq, N = D['idx'], D['ddv'], len(D['idx'])
+    # win 인자가 실제 워밍업을 바꾸는지 확인한다. 종전에는 756 하드코딩이라
+    # win=1과 win=N+1이 완전히 같은 경로를 냈다.
+    _, h_short = m3_vol(D, ddq, idx, win=1)
+    _, h_long = m3_vol(D, ddq, idx, win=N + 1)
+    assert not np.array_equal(h_short, h_long) and not h_long.any()
     print(f"구간 {idx[0].date()} ~ {idx[-1].date()}")
     print(f"보수 {CONS[0]*100:.0f}/{CONS[1]*100:.0f}  ·  공격 {AGGR[0]*100:.0f}/{AGGR[1]*100:.0f}\n")
 

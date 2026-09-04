@@ -25,7 +25,7 @@
   1. 예상 종가 날짜 = Yahoo meta 의 regularMarketTime (마지막 세션 마감 시각) 의 날짜.
      마감 후에는 이 값이 마감 시각으로 굳으므로 주말·휴장에도 자동으로 맞다
      (휴장일: 예상 = 직전 거래일 = 이미 반영됨 → 즉시 종료. 헛돌지 않는다).
-  2. signal.json 의 as_of ≥ 예상이면 **아무것도 안 하고** 종료 — 신선한 날엔
+  2. signal.json 의 as_of = 예상이면 **아무것도 안 하고** 종료 — 신선한 날엔
      signal.json 을 다시 쓰지 않으므로 의미 없는 커밋도 안 생긴다.
   3. 아니면 update_signal.py 실행 → 재확인 → 될 때까지 240초 간격, 최대 170분.
   4. 시한 초과 시 종료코드 1 (workflow 실패 → notify 알림).
@@ -43,6 +43,7 @@ from datetime import datetime, timezone
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
@@ -191,6 +192,38 @@ def current_as_of():
         return ''
 
 
+def as_of_is_current(cur, expected):
+    """예상일과 정확히 같은 날만 최신이다. 미래 날짜는 성공이 아니라 손상이다."""
+    if not cur:
+        return False
+    try:
+        cur_day = datetime.strptime(cur, '%Y-%m-%d').date()
+        exp_day = datetime.strptime(expected, '%Y-%m-%d').date()
+    except (TypeError, ValueError) as e:
+        raise ValueError(f'as_of/예상일이 YYYY-MM-DD가 아님: {cur!r}, {expected!r}') from e
+    if cur_day.isoformat() != cur or exp_day.isoformat() != expected:
+        raise ValueError(f'as_of/예상일이 YYYY-MM-DD 정규형이 아님: {cur!r}, {expected!r}')
+    if cur_day > exp_day:
+        raise ValueError(f'signal as_of {cur}가 예상 종가일 {expected}보다 미래임')
+    return cur_day == exp_day
+
+
+def validate_signal_as_of(cur, today=None):
+    """장중 조기 종료 전에도 signal 날짜의 정규형·비미래 계약을 확인한다."""
+    if not cur:
+        return None
+    try:
+        parsed = datetime.strptime(cur, '%Y-%m-%d').date()
+    except (TypeError, ValueError) as e:
+        raise ValueError(f'signal as_of가 YYYY-MM-DD가 아님: {cur!r}') from e
+    if parsed.isoformat() != cur:
+        raise ValueError(f'signal as_of가 YYYY-MM-DD 정규형이 아님: {cur!r}')
+    today = today or datetime.now(timezone.utc).date()
+    if parsed > today:
+        raise ValueError(f'signal as_of {cur}가 현재 날짜 {today}보다 미래임')
+    return parsed
+
+
 def main():
     # [v190] 장중에 떴으면 마감까지 기다린다 (조회 실패면 v75 루프가 그대로 맡는다)
     meta = None
@@ -213,18 +246,38 @@ def main():
             print(f'[{n}] 예상일 조회 실패({e}) — 재시도 대기', file=sys.stderr)
             exp = None
         cur = current_as_of()
+        try:
+            parsed_cur = validate_signal_as_of(cur)
+        except ValueError as e:
+            print(f'[{n}] 손상된 신호 날짜: {e}', file=sys.stderr)
+            sys.exit(1)
         if exp == 'IN_SESSION':
+            if parsed_cur is None:
+                print(f'[{n}] 미국 장중인데 검증할 기존 signal as_of가 없음', file=sys.stderr)
+                sys.exit(1)
             print(f'[{n}] 미국 장중 — 직전 종가({cur})가 최신. 종료.')
             return
-        if exp and cur >= exp:
-            print(f'[{n}] 이미 최신 (as_of {cur} = 예상 {exp}) — 갱신 없이 종료.')
-            return
+        if exp:
+            try:
+                current = as_of_is_current(cur, exp)
+            except ValueError as e:
+                print(f'[{n}] 손상된 신호 날짜: {e}', file=sys.stderr)
+                sys.exit(1)
+            if current:
+                print(f'[{n}] 이미 최신 (as_of {cur} = 예상 {exp}) — 갱신 없이 종료.')
+                return
         print(f'[{n}] as_of {cur} < 예상 {exp or "?"} — 갱신 시도', flush=True)
         subprocess.call([sys.executable, os.path.join('deploy', 'update_signal.py')])
         cur = current_as_of()
-        if exp and cur >= exp:
-            print(f'[{n}] 종가 반영 완료: as_of {cur} (시도 {n}회, {int(time.time() - t0)}초)')
-            return
+        if exp:
+            try:
+                current = as_of_is_current(cur, exp)
+            except ValueError as e:
+                print(f'[{n}] 갱신 뒤 손상된 신호 날짜: {e}', file=sys.stderr)
+                sys.exit(1)
+            if current:
+                print(f'[{n}] 종가 반영 완료: as_of {cur} (시도 {n}회, {int(time.time() - t0)}초)')
+                return
         if (time.time() - t0) > MAX_MIN * 60:
             print(f'시한 {MAX_MIN}분 초과 — as_of {cur}, 예상 {exp}. 수동 확인 필요.',
                   file=sys.stderr)
@@ -265,6 +318,24 @@ def selftest():
 
     assert expected_close_date(live) == 'IN_SESSION'
     assert expected_close_date(shut) == '1970-01-12'
+    assert as_of_is_current('2026-09-03', '2026-09-03')
+    assert not as_of_is_current('2026-09-02', '2026-09-03')
+    try:
+        as_of_is_current('2026-09-04', '2026-09-03')
+        raise AssertionError('미래 signal as_of를 최신으로 인정했다')
+    except ValueError:
+        pass
+    assert validate_signal_as_of('2026-09-03', datetime(2026, 9, 4).date())
+    try:
+        validate_signal_as_of('2099-01-01', datetime(2026, 9, 4).date())
+        raise AssertionError('장중 분기에서 미래 signal as_of를 허용했다')
+    except ValueError:
+        pass
+    try:
+        validate_signal_as_of('2026-9-3', datetime(2026, 9, 4).date())
+        raise AssertionError('장중 분기에서 비정규 signal as_of를 허용했다')
+    except ValueError:
+        pass
     # [2026-09-04 코드리뷰] 기간 롤오버·프리마켓 — 종전 `qt < end` 는 둘 다 「장중」으로 오판했다.
     #   롤오버는 실측(2026-09-03 ^KS11·418660.KS)이고, 오판하면 이 스크립트가 이미 끝난 마감을
     #   기다리다 시한에 걸려 조용히 끝난다(= 그날 갱신 없음).
@@ -332,7 +403,7 @@ def selftest():
     c = Clock(END + 1)
     m, _ = wait_for_close(live, now=c.now, sleep=c.sleep, refetch=seq(shut), xsrc_closed=boom, big_move=.1)
     assert m is shut
-    print('selftest OK — 대기·폴링·안정 확인·휴장·큰 움직임 9경로 검산 통과')
+    print('selftest OK — 날짜 일치·대기·폴링·안정 확인·휴장·큰 움직임 검산 통과')
 
 
 if __name__ == '__main__':
