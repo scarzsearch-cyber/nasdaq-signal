@@ -87,12 +87,23 @@ def fetch():
     """
     try:
         raw = urllib.request.urlopen(urllib.request.Request(SRC, headers=UA), timeout=40).read()
-        items = json.loads(raw.decode('utf-8', 'replace'))['result']['etfItemList']
+        items = json.loads(decode_naver(raw))['result']['etfItemList']
         if not isinstance(items, list):
             raise ValueError('etfItemList가 배열이 아님')
         return items
     except Exception as e:
         raise RuntimeError(f'네이버 ETF NAV 목록 수집 실패({type(e).__name__})') from e
+
+
+def decode_naver(raw):
+    """[B01-1 · 2026-09-05] 네이버 ETF 목록은 **cp949** 다(price_now 가 겪은 것과 같은 함정).
+    종전엔 utf-8 로 풀어 `name` 열이 전부 깨진 채(U+FFFD) 장부에 적혔다 — 매칭은 itemcode 라
+    기능 영향은 0 이지만 nav_history.csv 의 이름 열과 --report 표가 읽을 수 없었다.
+    cp949 가 안 풀리는 응답(형식 변경)만 utf-8 로 물러선다. 옛 행은 장부(§2)라 그대로 둔다."""
+    try:
+        return raw.decode('cp949')
+    except UnicodeDecodeError:
+        return raw.decode('utf-8', 'replace')
 
 
 def universe_stats(lst):
@@ -361,6 +372,10 @@ def selftest():
                 json.dump(payload, f)
             monday = dt.datetime(2026, 10, 5, 10, 0, tzinfo=KST)
             assert trading_as_of(monday) == '2026-10-02'
+
+            # [B01-1] cp949 응답의 이름이 깨지지 않고, utf-8 응답도 읽는다.
+            assert decode_naver('{"n":"미국배당"}'.encode('cp949')) == '{"n":"미국배당"}'
+            assert decode_naver('{"n":"ok"}'.encode('utf-8')) == '{"n":"ok"}'
 
             # [v206] 장중 적립 금지 - 개장 중엔 fetch 조차 부르지 않고 빈 손으로 돌아온다.
             tue_open = dt.datetime(2026, 10, 6, 9, 35, tzinfo=KST)
