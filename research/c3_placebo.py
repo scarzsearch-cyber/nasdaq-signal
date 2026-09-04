@@ -59,9 +59,12 @@ def state(dd, th):
     return w
 
 
-def evalw(w):
-    c = np.asarray(EC.sim2(w[LO:], QLDR[LO:], MIX[LO:]), float)
-    m = EC.fullmet(c, idx=IDX[LO:]); return m['calmar'], EC.p05_20y(c), m['final']
+LB_MAX = 350          # G1 이 뽑는 룩백 상한 (rng.integers(150, 351))
+
+
+def evalw(w, lo=LO):
+    c = np.asarray(EC.sim2(w[lo:], QLDR[lo:], MIX[lo:]), float)
+    m = EC.fullmet(c, idx=IDX[lo:]); return m['calmar'], EC.p05_20y(c), m['final']
 
 
 def main():
@@ -73,14 +76,26 @@ def main():
     print(f'  B Calmar {calB:.3f} · p05 {p05B:.1f}배 | C3 Calmar {calC:.3f} ({dC:+.1%}) · p05 {p05C:.1f}배 ({pC:+.1%})')
     rng = np.random.default_rng(42)
     # G1
+    # [2026-09-04 코드리뷰] 종전엔 절단이 LO=252 로 고정인데 룩백을 350 까지 뽑았다.
+    # dd_of 는 min_periods=win 이라 lb=350 이면 0~348 이 NaN 이고, state() 가 NaN 을
+    # 건너뛰어 그 날들이 **공격 고정**으로 남는다. 그래서 252~348 의 최대 97일이
+    # 「신호가 아직 없는 강제 공격」인 채로 채점됐다 — lb=150 후보에는 그런 날이 0.
+    # 귀무분포의 구성원이 룩백 길이만으로 유불리를 받으면 그 분포로 C3 를 판정할 수 없다.
+    # 룩백 상한을 덮는 공통 절단(LB_MAX)에서 기준선·C3·후보를 모두 다시 잰다.
+    calB1, p05B1, _ = evalw(state(dd_of(RQ, 252), -0.16), LB_MAX)
+    calC1, p05C1, _ = evalw(state(dd_of(ex, 252), -0.16), LB_MAX)
+    dC1, pC1 = calC1 / calB1 - 1, p05C1 / p05B1 - 1
     g1 = []
     for i in range(200):
         th = rng.uniform(-0.20, -0.12); lb = int(rng.integers(150, 351))
-        c, p, f = evalw(state(dd_of(RQ, lb), th)); g1.append((c / calB - 1, p / p05B - 1, th, lb))
+        c, p, f = evalw(state(dd_of(RQ, lb), th), LB_MAX)
+        g1.append((c / calB1 - 1, p / p05B1 - 1, th, lb))
     a = np.array([x[0] for x in g1]); b = np.array([x[1] for x in g1])
-    print(f'\n[G1] B 무작위 변형 200 (문턱 −20~−12 · 룩백 150~350): ΔCalmar 중앙 {np.median(a):+.1%} · p95 {np.quantile(a,.95):+.1%} · '
-          f'≥ C3(+{dC*100:.1f}%) 인 비율 {np.mean(a >= dC)*100:.1f}% | Δp05 p95 {np.quantile(b,.95):+.1%} · ≥ C3 비율 {np.mean(b >= pC)*100:.1f}% | '
+    print(f'\n[G1] B 무작위 변형 200 (문턱 −20~−12 · 룩백 150~350 · 공통 절단 {LB_MAX}일): ΔCalmar 중앙 {np.median(a):+.1%} · p95 {np.quantile(a,.95):+.1%} · '
+          f'≥ C3(+{dC1*100:.1f}%) 인 비율 {np.mean(a >= dC1)*100:.1f}% | Δp05 p95 {np.quantile(b,.95):+.1%} · ≥ C3 비율 {np.mean(b >= pC1)*100:.1f}% | '
           f'①② 동시 {np.mean((a > 0.102) & (b >= 0))*100:.1f}%')
+    print(f'   ※ 이 줄만 절단 {LB_MAX}일 기준이다(룩백 350 후보까지 워밍업을 덮으려고) — '
+          f'그 창의 B Calmar {calB1:.3f} · C3 {dC1:+.1%}/{pC1:+.1%}.')
     top = sorted(g1, key=lambda x: -x[0])[:5]
     print('   상위 5:', ' · '.join(f'문턱 {th*100:.1f}%·룩백 {lb}: {c:+.1%}/{p:+.1%}' for c, p, th, lb in top))
     # G2
@@ -93,9 +108,9 @@ def main():
     g3 = []
     for i in range(200):
         perm = rng.permutation(len(uniq))
-        shuf = np.empty(N)
-        pos = 0
-        # 연 블록 단위로 T-bill 일수익을 뒤섞어 같은 길이로 잇는다 (연 길이 차이는 순환 보정)
+        # 연 블록 단위로 T-bill 일수익을 뒤섞어 같은 길이로 잇는다.
+        # [코드리뷰] 여기 있던 `shuf = np.empty(N)` 과 `pos = 0` 은 곧바로 덮이거나
+        # 전혀 안 쓰이는 죽은 줄이었다. 모든 해를 이어붙이므로 len(src) == N 이다.
         src = np.concatenate([TB[yrs == uniq[k]] for k in perm])
         shuf = src[:N] if len(src) >= N else np.resize(src, N)
         exs = (1 + RQ) / (1 + shuf) - 1
@@ -107,7 +122,7 @@ def main():
     exp_ = (1 + RQ) * (1 + TB) - 1
     c, p, f = evalw(state(dd_of(exp_, 252), -0.16)); print(f'\n[G4] 반대 부호(가격 + T-bill): ΔCalmar {c/calB-1:+.1%} / Δp05 {p/p05B-1:+.1%}')
     print('\n판정:')
-    print(f"  G1 상위 5% 밖? Calmar {'예' if np.mean(a >= dC) < 0.05 else '아니오'} · p05 {'예' if np.mean(b >= pC) < 0.05 else '아니오'}")
+    print(f"  G1 상위 5% 밖? Calmar {'예' if np.mean(a >= dC1) < 0.05 else '아니오'} · p05 {'예' if np.mean(b >= pC1) < 0.05 else '아니오'}   (절단 {LB_MAX}일 기준)")
     print(f"  G3 상위 5% 밖? Calmar {'예' if np.mean(a3 >= dC) < 0.05 else '아니오'} · p05 {'예' if np.mean(b3 >= pC) < 0.05 else '아니오'}")
     print('  → 둘 다 「예」일 때만 「파라미터 잡음도 시점 무관 잡음도 아니다」. 하나라도 「아니오」면 그 축에선 우연과 구별되지 않는다.')
 

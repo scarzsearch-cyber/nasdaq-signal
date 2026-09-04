@@ -116,7 +116,11 @@ def main():
 
     # 수비수들
     r_tb = G.tb
-    r_mx = rets(np.cumprod(1 + np.nan_to_num(np.asarray(G.Dm['schdr'], float))))
+    # [2026-09-04 코드리뷰] 종전엔 rets(np.cumprod(1 + r)) 로 수익→곡선→수익을 왕복했다.
+    # rets 정의상 그 왕복은 입력을 그대로 되돌려준다(첫 원소 포함) — 배열 두 개와
+    # 나눗셈만 버리고, 읽는 사람은 무슨 정규화가 있는 줄 알고 확인해야 했다.
+    # G.Dm['schdr'] 은 이미 일수익 계열이다.
+    r_mx = np.nan_to_num(np.asarray(G.Dm['schdr'], float))
     legsA = [(G.r_eq1, G.r_eq1, 1.0), (G.r_b10, G.r_b3x, 3.0), (G.r_gld, G.r_gld, 1.0)]
     cA = G.sim_multi(legsA)
     rA = rets(cA.values)

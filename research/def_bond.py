@@ -85,16 +85,21 @@ def bond_parts(idx):
         out[f'ust{m}'] = DA.ust_tr(idx, m, src, futures=True, fee=DA.UST_FEE)
     out['ust5_cash'] = DA.ust_tr(idx, 5, 'TNX')          # 현물형 대조군
     out['tbill'] = H.tbill_daily(idx)
-    # ★ TYX(30년 금리)는 1977-02-15 고시 시작이다. ust_tr 안의 bfill 이 그 이전을
-    #   1977년 금리로 **채워 버리므로** 반드시 잘라낸다 (axis_defmix.materials 와 같은 처리).
-    #   이 마스킹을 빠뜨리면 1972~77 이 지어낸 값으로 채워져 20·30년이 유리해진다.
+    # ★ TYX(30년 금리)는 1977-02-15 고시 시작이라 그 이전 구간을 잘라낸다
+    #   (axis_defmix.materials 와 같은 처리). 이 마스킹을 빠뜨리면 자료가 없는
+    #   1972~77 이 20·30년 다리에 섞여 그쪽이 유리해진다.
+    #   [2026-09-04 코드리뷰] 종전 주석은 이유를 「ust_tr 안의 bfill 이 1977년 금리로
+    #   채워 버리므로」라고 적었는데 **그 bfill 은 같은 날 엔진에서 제거됐다**
+    #   (hist_defasset.py:131). 지금 ust_tr 은 자료 이전 구간을 0 으로 두고 경고한다.
+    #   마스킹은 여전히 필요하다 — 0% 수익을 NaN 으로 바꿔 「없음」을 명시해야
+    #   아래 공통창 산출(np.isnan(parts['ust30']))이 성립한다. 이유만 갱신했다.
     for k in ('ust20', 'ust30'):
         out[k] = np.where(idx < TYX_START, np.nan, out[k])
     return out
 
 
 def krw_fx(idx):
-    """원/달러 일간 변화율 — 환노출 자산의 원화 수익 = 달러수익 + 환변화."""
+    """원/달러 일간 변화율. 환노출 원화 수익 = (1+달러수익)(1+환변화)−1 (저장소 공통 규약)."""
     d = pd.read_csv(_os.path.join('data', 'hist', 'fred_DEXKOUS.csv'))
     c = [x for x in d.columns if x.lower().startswith('observation')][0]
     v = [x for x in d.columns if x != c][0]
@@ -153,12 +158,16 @@ def main():
     print('  ※ 상관이 낮아도 「같이 빠지면」 소용없다 — 최악5%일 평균이 그 답이다.')
 
     # 원화 기준 (환노출 반영) — 실제로 사는 것은 원화 상품
-    print(f'\n  ── 원화 기준 (환노출: 달러수익 + 원/달러 변화, {str(fx0.date())}~) ──')
+    # [2026-09-04 코드리뷰] 환노출을 **곱셈**으로 바꿨다. 종전엔 r + fx 로 더해
+    # 교차항 r*fx 를 버렸는데, 저장소의 다른 원화 환산은 전부 (1+r)(1+fx)-1 이다
+    # (audit_all.py · verify_volguard.py). 같은 양을 두 규약으로 재면 이 표와
+    # 엔진 원화 수치를 나란히 놓을 수 없다.
+    print(f'\n  ── 원화 기준 (환노출: (1+달러수익)(1+환변화)−1, {str(fx0.date())}~) ──')
     kb = idx >= fx0
     print(f"  {'자산':<12}{'전체상관':>9}{'최악5%상관':>11}{'최악5%일평균':>13}")
     kworst = np.argsort(np.where(kb, qr, np.inf))[:int(kb.sum() * 0.05)]
     for k in ['div', 'gold'] + [f'ust{m}' for m in (5, 10, 30)]:
-        r = np.nan_to_num(parts[k], nan=np.nan) + fx     # 환노출
+        r = (1 + np.nan_to_num(parts[k], nan=np.nan)) * (1 + fx) - 1     # 환노출(곱셈)
         ok = (~np.isnan(r)) & kb
         if ok.sum() < 252:
             continue
@@ -199,6 +208,7 @@ def main():
         m['p05'] = EC.p05_20y(a)
         return m
 
+    swept = {}                     # [코드리뷰] 판정문이 읽을 실제 결과를 남긴다
     for i0, lab in ((lo, f'공통창 {idx[lo].year}~'), (0, f'전구간 {idx[0].year}~ (20·30년 제외)')):
         keys = ([f'ust{m}' for m in MATS] + ['ust5_cash', 'tbill'] if i0 == lo else
                 [f'ust{m}' for m in MATS if m <= 10] + ['ust5_cash', 'tbill'])
@@ -213,6 +223,8 @@ def main():
             star = ' ←현행' if k == 'ust5' else (' ★①통과' if d1 > GATE1_CALMAR else '')
             print(f"  {k:<12}{m['final']:>12,.1f}{m['cagr']:>7.2f}%{m['mdd']:>8.1f}%"
                   f"{m['calmar']:>8.3f}{d1*100:>8.1f}%{m['p05']:>9.2f}배{d2*100:>7.1f}%{star}")
+            if i0 == lo:
+                swept[k] = dict(d1=d1, d2=d2)
 
     # ── [2-b] 반증 — 「ust5 가 최적」이 창·분위 하나의 산물인가 ──────────────
     #   현행이 이겼다 = 「기각」 방향이다. §-1 ⓓ: 기각도 편향된다 → ⓑ 를 적용한다.
@@ -258,6 +270,7 @@ def main():
             ('1981~2021 금리하락', '1981-10-01', '2021-08-31'),
             ('2021~2026 금리상승', '2021-09-01', '2026-08-28')]
     print(f"  {'국면':<20}{'10년금리':>12}{'ust5':>12}{'ust30':>12}{'차이':>10}")
+    era_gap = []                   # [코드리뷰] 판정문이 읽을 국면별 차이
     for nm, s, e in ERAS:
         i0, i1 = idx.searchsorted(pd.Timestamp(s)), idx.searchsorted(pd.Timestamp(e), side='right')
         yy = f'{y10.values[i0]*100:.1f}→{y10.values[i1-1]*100:.1f}%'
@@ -268,6 +281,7 @@ def main():
             v[k] = (np.nanprod(1 + np.nan_to_num(seg)) ** (1 / yrs) - 1) * 100
         print(f"  {nm:<20}{yy:>12}{v['ust5']:>11.2f}%{v['ust30']:>11.2f}%"
               f"{v['ust30']-v['ust5']:>+9.2f}%p")
+        era_gap.append(v['ust30'] - v['ust5'])
     print('  ※ 국채 다리는 **선물형**이라 위 값은 단기금리 초과분이다(절대수익 아님).')
     print('    장기채 초과수익의 부호가 국면과 함께 뒤집히면 — 만기는 「최적화 대상」이')
     print('    아니라 **금리 방향 베팅**이다. 그건 이 전략이 하지 않는 종류의 판단이다.')
@@ -299,11 +313,25 @@ def main():
     print('\n' + '=' * 74)
     print(' 판정 — 사전 등록 관문 적용')
     print('=' * 74)
-    print(' ① Calmar > +10.2% : 최대가 ust30 의 +2.9% — **전부 미달**. 여기서 끝난다.')
-    print(' ② 20년창 p05      : 현행이 1등이나 10·15년창에선 ust30 이 1등 —')
+    # [2026-09-04 코드리뷰] 이 블록은 결과를 문자열로 **박아** 두고 있었다
+    # (+2.9% · −6.6/+2.9/−8.3%p · 「현행이 1등」). 자료나 엔진이 움직이면 위 표와
+    # 판정문이 갈린다 — 실제로 ② 의 「현행이 1등」은 같은 실행의 표가 이미 부정하고
+    # 있었다(ust5_cash Δp05 +1.8%). 전부 계산해서 쓴다.
+    mats_only = {k: v for k, v in swept.items() if k.startswith('ust') and k != 'ust5_cash'}
+    b1 = max(mats_only.items(), key=lambda t: t[1]['d1'])
+    p05_win = max(swept.items(), key=lambda t: t[1]['d2'])
+    n_pass = sum(1 for v in mats_only.values() if v['d1'] > GATE1_CALMAR)
+    print(f' ① Calmar > +{GATE1_CALMAR*100:.1f}% : 만기 중 최대가 {b1[0]} 의 '
+          f'{b1[1]["d1"]*100:+.1f}% — **{"전부 미달" if n_pass == 0 else f"{n_pass}종 통과"}**.')
+    print(f' ② 20년창 p05      : 만기 축 1등은 {max(mats_only.items(), key=lambda t: t[1]["d2"])[0]}, '
+          f'대조군 포함 1등은 {p05_win[0]}({p05_win[1]["d2"]*100:+.1f}%) —')
+    print('                     10·15년창에선 [2-b] 대로 ust30 이 1등이다.')
     print('                     **창에 따라 부호가 뒤집힌다. 견고하지 않다.**')
+    print('                     ※ ust5_cash 는 현물형 대조군이라 만기 순위에서 뺀다')
+    print('                       (아래 Q1 — 국내에 없는 「살 수 없는 물건」).')
     print(' ④ 고원            : 만기 축은 고원이 아니라 **금리 국면에 따라 기울기가')
-    print('                     뒤집히는 경사면**이다 ([2-c] 부호 반전 −6.6/+2.9/−8.3%p).')
+    print('                     뒤집히는 경사면**이다 ([2-c] 부호 반전 '
+          + '/'.join(f'{g:+.1f}' for g in era_gap) + '%p).')
     print('')
     print(' → **현행 ust5 유지.** 단 「ust5 가 최적」이라고 말하면 과하다.')
     print('   정확한 결론은 **「만기는 최적화할 수 있는 축이 아니다」** —')

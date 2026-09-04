@@ -49,6 +49,12 @@ DAYS = 400                             # trajectories(days=400) 와 같은 창
 OUT = os.path.join('data', 'crisis_paths.json')
 STATS = os.path.join('data', 'strategy_stats.json')
 LADDER_B = [(('dd', -0.16), 1.0, 0)]   # build_stats.STRATS['B'] 와 동일
+# 검증 ② 대상 — 느린 약세장에서는 전략이 그냥 보유보다 나아야 한다 (01 §4-1).
+# [2026-09-04 코드리뷰] 종전엔 `if name in ('닷컴 2000','GFC 2007')` 로 이름을
+# 코드 안에 박아 뒀다. 이 이름의 주인은 deploy/update_signal.py 이고 여기는 읽기만
+# 하므로, 거기서 라벨을 바꾸면 이 검사는 **아무 말 없이 안 돈다**(v148: 「검사를
+# 추가했다」와 「검사가 돈다」는 다르다). 이름이 사라지면 알아채도록 아래에서 검증한다.
+SLOW_BEAR = ('닷컴 2000', 'GFC 2007')
 
 
 def main():
@@ -82,13 +88,26 @@ def main():
         'note': '과거 재현이다 — 예측이 아니다. 갱신은 research/build_crisis_paths.py 수동 실행.',
     }}
 
+    # [코드리뷰] 검증 ② 가 겨누는 이름이 실제로 CRISES 에 있는지 먼저 확인한다.
+    # 없으면 그 검사는 조용히 사라진 것이므로 여기서 멈춘다.
+    _names = {n for n, _ in CRISES}
+    _gone = [n for n in SLOW_BEAR if n not in _names]
+    if _gone:
+        raise SystemExit(f'[실패] 검증 ② 대상 {_gone} 가 update_signal.CRISES 에 없다 — '
+                         f'라벨이 바뀌었다면 SLOW_BEAR 를 같이 고쳐라 (현재 목록: {sorted(_names)})')
+
     print(f'{"위기":<12} {"일수":>4} {"전략 최저":>9} {"보유 최저":>9} {"전략 최종":>9} {"보유 최종":>9}')
     for name, peak in CRISES:
         i0 = int(curve.index.searchsorted(pd.Timestamp(peak)))
         seg_s = curve.iloc[i0:i0 + DAYS]
         seg_h = hold.iloc[i0:i0 + DAYS]
-        if len(seg_s) < 20:
-            raise SystemExit(f'[실패] {name}: 구간이 너무 짧다 ({len(seg_s)}일)')
+        # [2026-09-04 코드리뷰] 종전엔 20일 하한만 봤다. 고점이 자료 끝에서 400일
+        # 안쪽이면 짧은 배열이 그대로 json 에 실리고, 화면(trajPanel)은 400일 창을
+        # 전제로 스크러버를 그리므로 잘린 궤적이 조용히 나간다. 길이를 못 박는다.
+        if len(seg_s) != DAYS:
+            raise SystemExit(f'[실패] {name}: {DAYS}일이 아니라 {len(seg_s)}일이다 '
+                             f'(고점 {peak} 이후 자료가 모자란다 — 자료를 늘리거나 '
+                             f'이 위기를 CRISES 에서 빼라)')
         s = (seg_s / seg_s.iloc[0]).values
         h = (seg_h / seg_h.iloc[0]).values
         # ---- 검증 ③ 형식 ----
@@ -96,7 +115,7 @@ def main():
         assert abs(s[0] - 1.0) < 1e-12 and abs(h[0] - 1.0) < 1e-12
         print(f'{name:<12} {len(s):>4} {s.min():>9.3f} {h.min():>9.3f} {s[-1]:>9.3f} {h[-1]:>9.3f}')
         # ---- 검증 ② 느린 약세장 정합 (01 §4-1: 닷컴·GFC 는 전략이 덜 빠져야 한다) ----
-        if name in ('닷컴 2000', 'GFC 2007'):
+        if name in SLOW_BEAR:
             if not (s.min() > h.min() and s[-1] > h[-1]):
                 raise SystemExit(f'[실패] {name}: 전략이 그냥 보유보다 못하다 — 공표 서술과 모순')
         out[name] = {

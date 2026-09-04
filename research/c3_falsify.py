@@ -95,7 +95,9 @@ def main():
     # F1 사건 단위
     print('\n[F1] B 와 갈린 날 — 상태가 다른 날수와 갈린 사건')
     diff = (wB != wC)
-    print(f'  상태가 다른 날 {int(diff.sum())}일 / {N-LO} ({diff[LO:].mean()*100:.1f}%)')
+    # [2026-09-04 코드리뷰] 종전엔 분자가 diff.sum()(전 구간)인데 분모와 괄호 안
+    # 백분율은 [LO:] 였다 — 한 문장이 두 창을 섞어 서로 안 맞았다. 전부 [LO:] 로.
+    print(f'  상태가 다른 날 {int(diff[LO:].sum())}일 / {N-LO} ({diff[LO:].mean()*100:.1f}%)')
     ev = []
     for t in range(LO, N):
         if wB[t] != wB[t-1] or wC[t] != wC[t-1]:
@@ -134,13 +136,19 @@ def main():
         print(f'  {nb}블록 — Calmar 이김 {wins}/{nb}'); [print('    ' + r) for r in row]
 
     # F3 고원
-    print('\n[F3] 고원 — 문턱 × 룩백에서 ΔCalmar(%) / Δp05(%) (B 는 −16·252 고정)')
+    # [2026-09-04 코드리뷰] 격자가 룩백 300 까지 쓰는데 절단은 LO=252 로 고정이었다.
+    # dd_of 는 min_periods=win 이라 lb=300 이면 252~298 이 아직 NaN 이고, state() 가
+    # NaN 을 건너뛰어 그 날들이 **강제 공격**으로 채점됐다 — lb=200 칸에는 없는 날이다.
+    # 룩백 상한을 덮는 공통 절단에서 기준선까지 다시 재야 칸끼리 비교가 된다.
+    LB3 = 300
+    mB3 = met(curve(state(dd_of(RQ)), LB3), LB3)
+    print(f'\n[F3] 고원 — 문턱 × 룩백에서 ΔCalmar(%) / Δp05(%) (기준 B −16·252 · 공통 절단 {LB3}일)')
     print('  문턱\\룩백' + ''.join(f'{lb:>16}' for lb in (200, 252, 300)))
     for th in (-0.12, -0.14, -0.16, -0.18, -0.20):
         cells = []
         for lb in (200, 252, 300):
-            w = state(dd_of(excess_r(RQ), lb), th); m = met(curve(w))
-            cells.append(f'{m["calmar"]/mB["calmar"]-1:+6.1%}/{m["p05"]/mB["p05"]-1:+6.1%}')
+            w = state(dd_of(excess_r(RQ), lb), th); m = met(curve(w, LB3), LB3)
+            cells.append(f'{m["calmar"]/mB3["calmar"]-1:+6.1%}/{m["p05"]/mB3["p05"]-1:+6.1%}')
         print(f'  {th*100:>6.0f}%   ' + '  '.join(cells))
     print('  (참고) 가격 낙폭 B 자체의 문턱 고원:', '  '.join(f'{th*100:.0f}%:{met(curve(state(dd_of(RQ), th)))["calmar"]/mB["calmar"]-1:+.1%}' for th in (-0.12, -0.14, -0.18, -0.20)))
 
@@ -149,7 +157,10 @@ def main():
     W = 5040
     rb = cB[W:] / cB[:-W]; rc = cC[W:] / cC[:-W]; ratio = rc / rb
     q = np.quantile(ratio, [0.05, 0.25, 0.5, 0.75, 0.95])
-    print(f'  창 {len(ratio):,}개(비중첩 {len(ratio)/W:.1f}개) · C3/B 배수비 p05 {q[0]:.2f} · p25 {q[1]:.2f} · 중앙 {q[2]:.2f} · p75 {q[3]:.2f} · p95 {q[4]:.2f} · C3 가 이긴 창 {np.mean(ratio>1)*100:.0f}%')
+    # [2026-09-04 코드리뷰] 비중첩 = 표본일수 / 지평 이다. 종전 len(ratio)/W 는
+    # (n-W)/W 라 정확히 1.0 만큼 과소였다(1.7 로 찍혔으나 실제 2.7).
+    # audit_stat.py:237 이 같은 통계를 n/W 로 맞게 낸다.
+    print(f'  창 {len(ratio):,}개(비중첩 {len(cB)/W:.1f}개) · C3/B 배수비 p05 {q[0]:.2f} · p25 {q[1]:.2f} · 중앙 {q[2]:.2f} · p75 {q[3]:.2f} · p95 {q[4]:.2f} · C3 가 이긴 창 {np.mean(ratio>1)*100:.0f}%')
     print(f'  20년창 최종배수 자체: B p05 {np.quantile(rb,.05):.1f} 중앙 {np.median(rb):.1f} / C3 p05 {np.quantile(rc,.05):.1f} 중앙 {np.median(rc):.1f}')
 
     # F5 금리 국면
