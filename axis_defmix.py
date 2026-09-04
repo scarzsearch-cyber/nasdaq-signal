@@ -37,6 +37,12 @@ import hist_defensive as DF
 import hist_korea as K
 from reentry_lib import met, rolling_stats
 from axis_lib import COST, rule_w, check
+import sys
+
+try:                       # [코드리뷰 2026-09-04] 이 파일은 콘솔에 표를 찍는다.
+    sys.stdout.reconfigure(encoding='utf-8')   # cp949 콘솔에서 em-dash 로 죽지 않게
+except Exception:
+    pass
 
 UST_FEE = 0.0029          # [v36] 305080 회귀 절편. 실제 보수와 대조 필요
 TYX_START = pd.Timestamp('1977-02-15')      # 30년 금리 고시 시작

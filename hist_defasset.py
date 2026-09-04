@@ -33,6 +33,12 @@ import os
 import warnings
 import numpy as np
 import pandas as pd
+import sys
+
+try:                       # [코드리뷰 2026-09-04] 이 파일은 콘솔에 표를 찍는다.
+    sys.stdout.reconfigure(encoding='utf-8')   # cp949 콘솔에서 em-dash 로 죽지 않게
+except Exception:
+    pass
 
 DIR = 'data/hist'
 
