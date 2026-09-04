@@ -67,12 +67,20 @@ if __name__ == '__main__':
     for k, d in _T().items():
         u = _US()[k]
         lvl = (u.pct_change().fillna(0) + 1).cumprod()
-        # 미국 종가 t 는 한국 t+1 에 반영 -> 한국 달력으로 shift
-        th = (lvl * fxr.reindex(lvl.index).ffill())
-        th = th.reindex(th.index.union(d.index)).ffill()
         rt = d['close'].pct_change().dropna()
-        # 이론치는 '전일 미국 종가' 기준이므로 한국 날짜에서 하루 당겨 맞춘다
-        rth = th.pct_change().shift(1).reindex(rt.index).dropna()
+        # [코드리뷰 2026-09-04] 이론 레벨은 **미국 달력 위에서만** 만든다.
+        #   종전에는 미국+한국 합집합으로 reindex+ffill 한 뒤 pct_change().shift(1) 을
+        #   걸었는데, 합집합에서 한 행 미는 것은 '직전 미국 거래일'이 아니라 '직전
+        #   합집합 행'이다. 미국 휴장·한국 개장인 날(7월 4일·추수감사절 등)에는
+        #   합집합에 한국 날짜만 있고 th 가 ffill 값이라 pct_change 가 0 이 되고,
+        #   그 0 이 shift 로 밀리면서 이론 수익률이 미국 세션 하나만큼 어긋났다.
+        #   이제 한국 날짜 d 마다 'd 직전에 마감한 미국 세션'의 레벨을 집어와
+        #   한국 달력에서 pct_change 한다 — 미국 휴장이면 레벨이 같아 0,
+        #   한국 휴장으로 건너뛴 날은 그 사이 미국 세션들이 누적된다.
+        th_us = lvl * fxr.reindex(lvl.index).ffill()
+        pos = th_us.index.searchsorted(rt.index, side='left') - 1
+        ok = pos >= 0
+        rth = pd.Series(th_us.values[pos[ok]], index=rt.index[ok]).pct_change().dropna()
         ix = rt.index.intersection(rth.index)
         a, b = rt.reindex(ix), rth.reindex(ix)
         n = len(ix)
