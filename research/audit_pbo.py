@@ -40,7 +40,8 @@ wT4 = R.t4_w(G.r_eq1)
 
 
 def rets(curve):
-    a = curve.values
+    """곡선 -> 일수익. 곡선은 1.0 에서 시작한다는 규약."""
+    a = np.asarray(curve.values if hasattr(curve, 'values') else curve, float)
     return np.diff(a, prepend=1.0) / np.concatenate(([1.0], a[:-1]))
 
 
@@ -83,7 +84,12 @@ def metric(Rsub, kind):
     a = np.cumprod(1 + Rsub, axis=1)
     peak = np.maximum.accumulate(a, axis=1)
     mdd = np.abs(np.min(a / peak - 1, axis=1))
-    cagr = a[:, -1] ** (252.0 / Rsub.shape[1]) - 1
+    # [2026-09-04 코드리뷰] a[:, -1] 이 음수면 분수 거듭제곱이 NaN 이 된다
+    # (블록 부분집합에서 누적곱이 0 아래로 내려가는 후보). 그 NaN 이 아래
+    # argmax 를 통째로 삼키므로 여기서 -inf 로 눌러 「최악 후보」로 만든다.
+    end = a[:, -1]
+    cagr = np.where(end > 0, np.power(np.where(end > 0, end, 1.0),
+                                      252.0 / Rsub.shape[1]) - 1, -np.inf)
     return cagr / np.maximum(mdd, 1e-9)
 
 
@@ -98,12 +104,24 @@ def cscv(Rm, names, kind, label):
         o_idx = np.concatenate([blocks[b] for b in oob])
         mi = metric(Rm[:, i_idx], kind)
         mo = metric(Rm[:, o_idx], kind)
-        best = int(np.argmax(mi))
+        # [2026-09-04 코드리뷰] np.argmax 는 NaN 을 최댓값으로 집어 든다
+        # (NaN 비교가 전부 False 라서). 후보 하나가 NaN 이면 70분할 **전부**에서
+        # 그것이 IS 1등으로 뽑히고, 아래 순위식에서 NaN 은 어떤 비교도 참이 아니라
+        # w=0 -> below 누적 -> PBO 가 무조건 1.000 으로 나온다. 진짜 과적합
+        # 수준과 구별이 안 되므로 NaN 은 후보에서 뺀다.
+        ok = np.isfinite(mi) & np.isfinite(mo)
+        if not ok.any():
+            continue
+        best = int(np.flatnonzero(ok)[np.argmax(mi[ok])])
         picks[names[best]] = picks.get(names[best], 0) + 1
-        w = (np.sum(mo < mo[best]) + 0.5 * np.sum(mo == mo[best])) / len(mo)
+        mok = mo[ok]                     # [코드리뷰] 순위 모집단도 유한값만
+        w = (np.sum(mok < mo[best]) + 0.5 * np.sum(mok == mo[best])) / len(mok)
         w = min(max(w, 1e-6), 1 - 1e-6)
         lam.append(np.log(w / (1 - w)))
         below += int(w < 0.5)
+    if not lam:
+        print(f'  {label:<26} 분할 0개 — 유한 지표를 낸 후보가 없다')
+        return
     lam = np.asarray(lam)
     top = sorted(picks.items(), key=lambda t: -t[1])[:4]
     print(f'  {label:<26} PBO={below/len(lam):.3f} · λ중앙 {np.median(lam):+.2f} · '

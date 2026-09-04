@@ -44,38 +44,54 @@ except Exception:
 
 import eng_common as EC                                  # noqa: E402
 
-with contextlib.redirect_stdout(io.StringIO()):
-    G, _ = EC.selfcheck()
-IDX = pd.DatetimeIndex(G.idx)
-PX = pd.Series(G.D['px'], index=IDX).astype(float)
-QLDR = np.nan_to_num(np.asarray(G.D['qldr'], float))
-MIX = np.nan_to_num(np.asarray(G.Dm['schdr'], float))
 GATE1 = 0.102
 EXPL = dict(med=-0.050, p95=0.079, g12=0.010)           # 탐구 G1 (EXPLORATION.md B-2 표) — 재현 대조용
 L = '=' * 100
 
+# [2026-09-04 코드리뷰] 종전엔 selfcheck() · 54년 곡선 · 공표 재현 assert 가 전부
+# **모듈 최상위**에서 돌았다. 이 모듈의 curve()/blocks()/neighborhood() 를 다른
+# 연구 스크립트가 임포트만 해도 그 전부가 실행되고, 엔진 수치가 움직이면
+# import 도중에 AssertionError 로 죽어 호출부가 잡을 수도 없었다. 지연 초기화로
+# 바꾼다 — hist_divetf 가 같은 이유로 이미 고쳐진 자리다.
+_S = {}
+
+
+def setup():
+    """엔진·기준선 1회 초기화 (임포트 시점이 아니라 호출 시점)."""
+    if _S:
+        return _S
+    with contextlib.redirect_stdout(io.StringIO()):
+        G, _ = EC.selfcheck()
+    idx = pd.DatetimeIndex(G.idx)
+    _S.update(IDX=idx,
+              PX=pd.Series(G.D['px'], index=idx).astype(float),
+              QLDR=np.nan_to_num(np.asarray(G.D['qldr'], float)),
+              MIX=np.nan_to_num(np.asarray(G.Dm['schdr'], float)))
+    B = curve(-0.16, 252)
+    cal, p05, fin, bl = measure(B)
+    assert abs(fin - 217110.075) < 0.5 and abs(cal - 0.418) < 0.001, f'B 공표 재현 실패 {fin} {cal}'
+    _S.update(calB=cal, p05B=p05, finB=fin, blB=bl)
+    return _S
+
 
 def curve(th, lb):
-    w = EC.rule_dd(PX, th, th, win=lb)
-    return np.asarray(EC.sim2(w, QLDR, MIX), float)
+    w = EC.rule_dd(_S['PX'], th, th, win=lb)
+    return np.asarray(EC.sim2(w, _S['QLDR'], _S['MIX']), float)
 
 
 def blocks(c, nb=4):
     e = np.linspace(0, len(c), nb + 1).astype(int)
-    return [EC.fullmet(c[a:b] / c[a], idx=IDX[a:b])['calmar'] for a, b in zip(e[:-1], e[1:])]
+    idx = _S['IDX']
+    return [EC.fullmet(c[a:b] / c[a], idx=idx[a:b])['calmar'] for a, b in zip(e[:-1], e[1:])]
 
 
 def measure(c):
-    m = EC.fullmet(c, idx=IDX)
+    m = EC.fullmet(c, idx=_S['IDX'])
     return m['calmar'], EC.p05_20y(c), m['final'], blocks(c)
 
 
-B = curve(-0.16, 252)
-calB, p05B, finB, blB = measure(B)
-assert abs(finB - 217110.075) < 0.5 and abs(calB - 0.418) < 0.001, f'B 공표 재현 실패 {finB} {calB}'
-
-
 def neighborhood(name, draw, n=200, seed=42):
+    calB, p05B, finB, blB = _S['calB'], _S['p05B'], _S['finB'], _S['blB']
     rng = np.random.default_rng(seed)
     rows = []
     for _ in range(n):
@@ -99,6 +115,8 @@ def neighborhood(name, draw, n=200, seed=42):
 
 
 def main():
+    setup()
+    calB, p05B, finB, blB = _S['calB'], _S['p05B'], _S['finB'], _S['blB']
     print(L); print('B 의 무작위 이웃 분포 — 정식 엔진(rule_dd·sim2·fullmet·p05_20y) · 54년 · 채택 방어 · 편도 0.1% (규칙 무변경 · 후보 선택 없음)'); print(L)
     print(f'  B: 최종 {finB:,.0f} · Calmar {calB:.3f} · 20년 p05 {p05B:.1f}배 · 4블록 Calmar {" / ".join(f"{x:.2f}" for x in blB)}  (공표 재현 OK)')
     n1 = neighborhood('[N1] 넓은 이웃 200 — 문턱 U(−20,−12) · 룩백 U(150,350) · seed 42 (탐구 G1 과 같은 파라미터 집합)',
@@ -113,6 +131,14 @@ def main():
     for s, d in zip((44, 45, 46), extra):
         print(f'  seed {s}: ΔCalmar p95 {d.dcal.quantile(.95):+.1%} · B 보다 높은 이웃 {np.mean(d.dcal > 0):.1%} · ①② {np.mean((d.dcal > GATE1) & (d.dp05 >= 0)):.1%} · '
               f'①②③ {np.mean((d.dcal > GATE1) & (d.dp05 >= 0) & (d.wins >= 3)):.1%}')
+        # [2026-09-04 코드리뷰] 이 세 씨앗은 출력을 StringIO 로 삼켜서 돌리므로
+        # neighborhood() 안의 「⚠ ①②③ 동시 통과 이웃」 줄이 통째로 버려졌다.
+        # 문서가 그 파라미터를 「적지만 채택 후보로 다루지 않는다」고 약속했는데
+        # 비율만 남고 정체는 재실행 없이는 못 찾는 상태였다. 여기서 다시 낸다.
+        hit = d[(d.dcal > GATE1) & (d.dp05 >= 0) & (d.wins >= 3)]
+        if len(hit):
+            print('    ⚠ ①②③ 동시 통과(채택 후보 아님 — 기록만): '
+                  + ' · '.join(f'문턱 {r.th*100:.1f}%·룩백 {int(r.lb)}' for r in hit.itertuples()))
     allq = [n2.dcal.quantile(.95)] + [d.dcal.quantile(.95) for d in extra]
     print(f'  4씨앗 p95 범위 {min(allq):+.1%} ~ {max(allq):+.1%} · 관문 ① +10.2% 를 넘는 씨앗 {sum(q >= GATE1 for q in allq)}/4')
 

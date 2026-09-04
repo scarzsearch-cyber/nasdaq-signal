@@ -108,8 +108,13 @@ def main():
     ALL = {}
     for nm, r in cand.items():
         print('\n' + L); print(f'[{nm}] 을 공격 다리에 섞을 때'); print(L)
+        # [2026-09-04 코드리뷰] 「분산보너스」 열을 뺐다. 이 열은 무수익 직선을
+        # 기준으로 잡아 전부 「초과」로 찍히는 잘못된 값이었고, 아래 요약 A 가
+        # 이미 그 사실을 적으면서 T-bill 기준으로 다시 낸다. 틀린 값을 40줄 위에
+        # 먼저 보여주고 나중에 정정하는 배치라 읽는 사람이 틀린 쪽을 먼저 가져간다
+        # (§-1 ③: 철회한 주장을 남겨두지 마라). 값은 요약 A 에만 있다.
         print(f"  {'QLD':>5}{'최종배수':>13}{'CAGR':>8}{'변동성':>8}{'vs100':>8}{'MDD':>8}{'Calmar':>8}"
-              f"{'ΔCal':>8}{'20y p05':>9}{'Δp05':>8}{'10년중앙':>9}{'분산보너스':>11}{'블록':>5}  관문")
+              f"{'ΔCal':>8}{'20y p05':>9}{'Δp05':>8}{'10년중앙':>9}{'블록':>5}  관문")
         rows = {}
         for w in WS:
             att = np.asarray(DA.mix_monthly_parts(idx, {'a': w, 'b': 1 - w},
@@ -125,24 +130,16 @@ def main():
             wins = sum(1 for x, y in zip(rows[w]['bl'], b['bl']) if x > y)
             d1 = m['calmar'] / b['m']['calmar'] - 1
             dp = m['p05_20'] / b['m']['p05_20'] - 1
-            # 분산 보너스: 같은 변동성 감소를 「QLD 를 줄이고 나머지를 무수익·무변동 현금으로」 얻었을 때의 CAGR 과 비교
-            #   현금 배합의 근사: 변동성은 w 에 비례, 수익은 w·(기준 CAGR) — 그 직선 위에 있으면 보너스 0
-            lin_vol = b['m']['vol'] * w
-            lin_cagr = b['m']['cagr'] * w
-            bonus = ''
-            if m['vol'] <= lin_vol + 1e-9:
-                bonus = f'{m["cagr"] - lin_cagr:+.2f}%p'      # 같은 변동성 이하인데 수익이 더 높으면 +
-            else:
-                bonus = f'변동성 {m["vol"]-lin_vol:+.1f}%p 초과'
             g = (d1 > 0.102, dp >= 0, wins >= 3)
             tag = '★①②③' if all(g) else ('①' if g[0] else '-') + ('②' if g[1] else '-') + ('③' if g[2] else '-')
             print(f"  {w*100:>4.0f}%{m['final']:>13,.0f}{m['cagr']:>7.2f}%{m['vol']:>7.1f}%"
                   f"{(m['vol']/b['m']['vol']-1)*100:>+7.1f}%{m['mdd']:>7.1f}%{m['calmar']:>8.3f}{d1:>+7.1%}"
-                  f"{m['p05_20']:>8.1f}배{dp:>+7.1%}{m['med10']:>8.1f}배{bonus:>11}{wins:>4}/4  {tag}")
+                  f"{m['p05_20']:>8.1f}배{dp:>+7.1%}{m['med10']:>8.1f}배{wins:>4}/4  {tag}")
 
     # ── 분산 보너스: 같은 변동성을 「현금(T-bill)」으로 만들었을 때와 비교 ────────
     print('\n' + L); print('요약 A — 분산 보너스: **같은 변동성**을 현금으로 만들었을 때 대비 수익 차이'); print(L)
-    print('  ⚠ 초판의 「분산 보너스」 열은 잘못 잡혀 있었다(무수익 직선 기준이라 전부 「초과」로 찍혔다). 여기서 다시 낸다 —')
+    print('  ※ 분산 보너스는 이 표에만 있다. 초판은 위 표에도 열이 하나 있었는데 무수익 직선 기준이라 전부')
+    print('  「초과」로 찍히는 잘못된 값이었고, 2026-09-04 코드리뷰에서 그 열을 삭제했다.')
     print('  기준선은 **T-bill 배합 곡선**이다. 같은 연변동성이 되도록 T-bill 비중을 보간해 그때의 CAGR 과 비교한다.')
     tbv = [(ALL['T-bill(현금)'][w]['m']['vol'], ALL['T-bill(현금)'][w]['m']['cagr']) for w in WS]
     tbv = sorted(tbv)
@@ -176,8 +173,10 @@ def main():
     print('\n  → 금 배합이 이기는 구간이 **1970년대 하나**면 그것은 규칙이 아니라 그 시대의 금값 이야기다.')
     print('    네 블록 전부에서 이긴다면 반대로 「시대 산물」 설명은 약해진다 — 아래 숫자로 직접 판단한다.')
 
-    print('\n이 측정이 낳은 다음 질문 (§-1 ⑥):')
     # ── 요약 C: 이미 갖고 있는 비선형 보험 ───────────────────────────────────
+    # [2026-09-04 코드리뷰] 여기 「이 측정이 낳은 다음 질문」 머리글이 내용 없이
+    # 한 번 더 찍히고 있었다(진짜 블록은 이 함수 끝에 있다). §-1 ⑥ 이 요구하는
+    # 필수 출력이라, 빈 머리글을 먼저 본 사람은 그 절이 비었다고 읽는다.
     print('\n' + L); print('요약 C — 「수익은 오르는데 변동성은 준다」를 실제로 만든 것은 무엇인가'); print(L)
     static = np.cumprod(1 + np.nan_to_num(qldr))
     ms = met(static, idx); mb = ALL['금'][1.0]['m']
@@ -190,8 +189,15 @@ def main():
     print('  같은 자산으로도 곡선 밖으로 나간다 — 정적 분산이 살 수 없는 것을 사는 유일한 축이 이것이다.')
     best = max(((nm, w, ALL[nm][w]['m']) for nm in cand for w in WS[1:]),
                key=lambda t: t[2]['cagr'] - float(np.interp(t[2]['vol'], xs, ys)))
+    # [2026-09-04 코드리뷰] 「1/7」이 박혀 있었다 — 두 항은 실행마다 계산되는데
+    # 비율만 상수라, 자료가 갱신되거나 best 가 바뀌면 같은 문장 안에서 숫자와
+    # 비율이 어긋난다. 비율도 계산한다.
+    bonus_best = best[2]['cagr'] - float(np.interp(best[2]['vol'], xs, ys))
+    switch_gain = mb['cagr'] - ms['cagr']
+    ratio = switch_gain / bonus_best if bonus_best > 0 else float('nan')
     print(f"\n  참고 — 정적 분산의 최대 보너스는 {best[0]} {best[1]*100:.0f}% 의 "
-          f"**+{best[2]['cagr'] - float(np.interp(best[2]['vol'], xs, ys)):.2f}%p** 였다. 전환이 만든 +{mb['cagr']-ms['cagr']:.2f}%p 의 1/7 이다.")
+          f"**{bonus_best:+.2f}%p** 였다. 전환이 만든 {switch_gain:+.2f}%p 의 "
+          + (f'1/{ratio:.0f} 이다.' if np.isfinite(ratio) else '반대 방향이다.'))
 
     print('\n이 측정이 낳은 다음 질문 (§-1 ⑥):')
     print('  Q-a 분산 보너스가 있어도 관문 ①을 못 넘으면 그것은 「보너스가 작다」는 뜻이다 — 크기를 보고 말할 것.')

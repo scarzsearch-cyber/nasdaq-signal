@@ -62,16 +62,10 @@ def exec_path(target, mode):
     return w
 
 
-def mix_exec(x, mode, cost):
-    """혼합의 3다리 목표를 공격비중 기준으로 집행 근사.
-    mix/T-bill 다리는 공격 잔여를 B·T4 규약 비율로 배분(wB 는 0/1 이라
-    mix 다리 = x·(1−wB) 는 이벤트성 — 그대로 두고 공격측만 근사한다)."""
-    tq = x * wB + (1 - x) * wT4
-    wq = exec_path(tq, mode)
-    wm = x * (1 - wB)
-    wt = np.clip(1 - wq - wm, 0, 1)
-    wm = 1 - wq - wt
-    return X.three_way(wq, wm, wt, cost=cost)
+# [2026-09-04 코드리뷰] 여기 있던 mix_exec() 를 지웠다 — 어디서도 안 불렸고
+# main() 이 같은 계산을 105~110행에 그대로 펼쳐 갖고 있었다. 두 벌은 이미 갈라져
+# 있었다(죽은 쪽은 wm 을 만들었다가 곧바로 잔여로 덮어썼다). 집행 규약을 고치려는
+# 사람이 이름 있는 함수를 고치면 출력은 안 바뀐다 — 찍히는 값은 main() 쪽이다.
 
 
 def mix_q25(x, cost):

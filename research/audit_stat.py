@@ -42,8 +42,18 @@ wT4 = R.t4_w(G.r_eq1)
 
 cB = X.three_way(X.wB, 1 - X.wB, np.zeros(n))
 cT = X.three_way(wT4, np.zeros(n), 1 - wT4)
-rB = np.diff(cB.values, prepend=1.0) / np.concatenate(([1.0], cB.values[:-1]))
-rT = np.diff(cT.values, prepend=1.0) / np.concatenate(([1.0], cT.values[:-1]))
+
+
+def rets(curve):
+    """곡선 -> 일수익. 곡선은 1.0 에서 시작한다는 규약이라 첫 수익은 a[0]-1 이다.
+    [2026-09-04 코드리뷰] 같은 식이 이 파일에 3벌 · audit_pbo.rets() 에 1벌
+    있었다. 곡선 규약이 바뀌면 놓친 사본이 첫 수익만 조용히 틀린다."""
+    a = np.asarray(curve.values if hasattr(curve, 'values') else curve, float)
+    return np.diff(a, prepend=1.0) / np.concatenate(([1.0], a[:-1]))
+
+
+rB = rets(cB)
+rT = rets(cT)
 
 
 def curve_of(r):
@@ -132,8 +142,14 @@ def main():
               ('코로나 20', '2020-02-19', '2020-03-23'),
               ('2022 베어', '2022-01-03', '2022-10-12')]
     m40 = pd.Series(curve_of(mixr(0.40)), index=idx)
+    dts = pd.Series(idx)
     for nm, s, e in crises:
-        sl = slice(*pd.Series(idx).searchsorted([pd.Timestamp(s), pd.Timestamp(e)]))
+        # [2026-09-04 코드리뷰] 종전엔 두 경계 모두 side='left' 라 슬라이스가
+        # **종료일을 뺐다.** 실측: 코로나 구간이 2020-03-23 이 아니라 03-20 에서,
+        # GFC 가 2009-03-09 가 아니라 03-06 에서 끝났다 — 하필 그 날짜들이 각
+        # 위기의 실제 바닥이라 일곱 행 전부 바닥을 못 본 값이었다.
+        sl = slice(int(dts.searchsorted(pd.Timestamp(s))),
+                   int(dts.searchsorted(pd.Timestamp(e), side='right')))
         vb = cB.values[sl][-1] / cB.values[sl][0]
         vt = cT.values[sl][-1] / cT.values[sl][0]
         vm = m40.values[sl][-1] / m40.values[sl][0]
@@ -180,7 +196,11 @@ def main():
                     pos[:, t] = np.where(cont[:, t], nxt, starts[:, t])
             else:
                 nblk = n // L + 1
-                st = rng.integers(0, n - L, size=(m, nblk))
+                # [2026-09-04 코드리뷰] 종전 `n - L` 은 상한 배타라 시작점이
+                # 최대 n-L-1 이었고 **마지막 관측 rB[n-1] 이 어떤 재표집에도
+                # 못 들어갔다.** stationary 쪽은 순환이라 그 구멍이 없어 두
+                # 방식이 서로 다른 모집단을 뽑고 있었다.
+                st = rng.integers(0, n - L + 1, size=(m, nblk))
                 pos = (st[:, :, None] + np.arange(L)[None, None, :]).reshape(m, -1)[:, :n]
             RB, RT = rB[pos], rT[pos]
             AB = np.cumprod(1 + RB, axis=1)
@@ -217,16 +237,18 @@ def main():
             k40 = int(round((0.40 - 0.05) / 0.05))
             cnt['plat40'] += int(np.sum(passmat[k40]))
         dcs = np.asarray(dcs)
-        return cnt, float(np.median(dcs)), float(np.quantile(dcs, 0.05))
+        # [코드리뷰] 실제 반복수를 같이 돌려준다 — 종전엔 호출부가 500 을 박아
+        # 나눠서 nrep 을 바꾸면 백분율이 조용히 틀렸다.
+        return cnt, float(np.median(dcs)), float(np.quantile(dcs, 0.05)), nrep
 
     print(f"  {'방식':<10} {'L':>4} {'H1 ΔCal>0':>9} {'H2 Δp05>0':>9} {'동시':>6} "
           f"{'고원≥6칸':>8} {'x=.40통과':>9} {'ΔCal중앙':>8} {'5%분위':>7}")
     for stat_, Ls in ((False, (20, 60, 120, 252)), (True, (60, 252))):
         for L in Ls:
-            c, med, q5 = one_config(L, stat_)
+            c, med, q5, N = one_config(L, stat_)
             nm = 'stationary' if stat_ else 'moving'
-            print(f"  {nm:<10} {L:>4} {c['h1']/500:>9.1%} {c['h2']/500:>9.1%} "
-                  f"{c['both']/500:>6.1%} {c['plateau6']/500:>8.1%} {c['plat40']/500:>9.1%} "
+            print(f"  {nm:<10} {L:>4} {c['h1']/N:>9.1%} {c['h2']/N:>9.1%} "
+                  f"{c['both']/N:>6.1%} {c['plateau6']/N:>8.1%} {c['plat40']/N:>9.1%} "
                   f"{med:>8.3f} {q5:>7.3f}")
 
     # ---- 4. ESS -----------------------------------------------------------
@@ -234,8 +256,11 @@ def main():
     aB_ = cB.values
     mults = aB_[5040:] / aB_[:-5040]
     N = len(mults)
-    print(f'  창 수 {N} · 비중첩: 20년 {n/5040:.1f}개 · 10년 {n/2520:.1f}개 · 5년 {n/1260:.1f}개')
-    dm = np.diff(np.log(mults))
+    nonlap20 = n / 5040
+    print(f'  창 수 {N} · 비중첩: 20년 {nonlap20:.1f}개 · 10년 {n/2520:.1f}개 · 5년 {n/1260:.1f}개')
+    # [2026-09-04 코드리뷰] 여기 있던 `dm = np.diff(np.log(mults))` 는 계산만 하고
+    # 아무 데서도 안 쓰였다. 아래 자기상관은 로그차분이 아니라 **수준(mults)** 으로
+    # 잰다 — 읽는 사람이 둘 중 어느 쪽이 의도인지 알 수 없어서 죽은 줄을 지웠다.
     x_ = mults - mults.mean()
     ac = np.correlate(x_, x_, 'full')[N - 1:] / (x_ @ x_)
     k = 1
@@ -250,7 +275,10 @@ def main():
     gaps = ends.diff().dt.days.fillna(9999)
     print(f'  p05 이하 창 {int(lo5.sum())}개의 종료일 군집(1년 격리): '
           f'{int((gaps > 365).sum())}개 사건 — 종료 시기 {ends.dt.year.min()}~{ends.dt.year.max()}')
-    print('  → Neff 범위 [비중첩 2.7, 사건 군집 수] — p05 는 사실상 소수 사건 통계다')
+    # [2026-09-04 코드리뷰] 종전엔 여기에 「비중첩 2.7」이 **박혀** 있었다. 바로 위
+    # 줄이 같은 값을 자료에서 계산해 2.8 로 찍는데 여기만 2.7 이라, 한 출력 안에서
+    # 같은 통계가 두 값으로 나왔다(§-1 ④). 계산한 값을 그대로 쓴다.
+    print(f'  → Neff 범위 [비중첩 {nonlap20:.1f}, 사건 군집 수] — p05 는 사실상 소수 사건 통계다')
 
     # ---- 5. Deflated Sharpe (스프레드 mix40−B) ------------------------------
     print('\n[5] Deflated Sharpe — 개선분(스프레드)의 SR 을 탐색 벌점으로 깎으면')
@@ -270,8 +298,7 @@ def main():
               X.three_way(X.wB * v60, 1 - X.wB, X.wB * (1 - v60)),
               X.three_way(X.wB * v60, 1 - X.wB * v60, np.zeros(n))]
     for c in others:
-        rr = np.diff(c.values, prepend=1.0) / np.concatenate(([1.0], c.values[:-1]))
-        s2 = rr - rB
+        s2 = rets(c) - rB                                  # [코드리뷰] 공용 rets() 경유
         trials.append(np.mean(s2) / np.std(s2, ddof=1))
     vtr = float(np.var(trials, ddof=1))
     from math import erf, sqrt
