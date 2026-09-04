@@ -30,6 +30,10 @@ def build_krw(defkind='chain'):
     lev2 = 2 * ((1 + rq) * (1 + fr) - 1) - c                 # 환노출 2배 레버리지
     lev1 = (1 + (2 * rq - c)) * (1 + fr) - 1                 # 환노출 1배(비교용)
     dfk = (1 + D['schdr']) * (1 + fr) - 1                    # 배당 1배 환노출
+    # [코드리뷰 2026-09-04] rq(QQQ 대리 일간수익)를 D 에 얹어 둔다 — 종전에는
+    # 내보내지 않아 __main__ 과 axis_defmix.krw 가 같은 식을 각자 다시 썼다.
+    # 반환 튜플의 길이는 바꾸지 않는다(호출부 23곳이 6개로 언패킹한다).
+    D['rq'] = rq
     return D, idx, lev2, lev1, dfk, fr
 
 
@@ -58,7 +62,7 @@ if __name__ == '__main__':
                          m['cagr'] * 100, m['mdd'] * 100, m['calmar']))
         lo = idx.searchsorted(pd.Timestamp(ST))
         for nm, r in [('TIGER레버리지 계속보유(원화 2배환노출)', lev2[lo:]),
-                      ('TIGER나스닥100 계속보유(원화)', ((1 + np.nan_to_num(D['px'].pct_change().values)) * (1 + fr) - 1)[lo:])]:
+                      ('TIGER나스닥100 계속보유(원화)', ((1 + D['rq']) * (1 + fr) - 1)[lo:])]:
             cc = pd.Series(np.cumprod(1 + r), index=idx[lo:]); m = met(cc)
             print('%-40s %-11s %12s %6.2f%% %7.2f%% %7.2f'
                   % (nm, '-', f"{m['final']:,.1f}", m['cagr'] * 100, m['mdd'] * 100, m['calmar']))

@@ -81,6 +81,14 @@ def kr_tr_open(code):
     o = d['Open'].astype(float)
     if 'AdjClose' in d.columns:
         o = o * (d['AdjClose'].astype(float) / d['Close'].astype(float))
+    elif 'Raw' in d.columns:
+        # [코드리뷰 2026-09-04] AdjClose 가 없는 파일(hist_fetch 계열)은 Close 가
+        # 조정본이고 Raw 가 미조정 종가다. 그런데 **Open 은 Raw 스케일**이라
+        # 종전처럼 그대로 돌려주면 분배금이 통째로 빠진다 —
+        # 305080 실측: Close/Raw 가 2018-08-30 에 0.995189(= 분배금 0.48%)인데
+        # 같은 행 Open/Raw = 1.0020, Open/Close = 1.0068 로 Open 이 Raw 쪽에 붙어 있다.
+        # 그래서 종가 조정비(Close/Raw)를 시가에도 똑같이 먹인다.
+        o = o * (d['Close'].astype(float) / d['Raw'].astype(float))
     return o.dropna()
 
 

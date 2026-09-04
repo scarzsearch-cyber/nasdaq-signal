@@ -4,21 +4,47 @@
   상장 이전 기간에 현재 상품을 소급하지 않는다(제미나이2.md §148 준수).
   각 상품은 '실제 상장일 이후'만 사용한다.
 """
+import functools
+
 import numpy as np, pandas as pd
 import hist_data as H, hist_korea as K
 from reentry_lib import met
 
+
+@functools.lru_cache(maxsize=None)
 def load(path):
     d = pd.read_csv(path, parse_dates=['Date']).set_index('Date').sort_index()
     f = (d['AdjClose'] / d['Close'])              # 분배금 조정계수
     return pd.DataFrame({'open': d['Open'] * f, 'close': d['AdjClose'], 'raw_close': d['Close'],
                          'raw_open': d['Open']})
 
-T = {k: load(v[1]) for k, v in K.TIGER.items()}
-US = {'nasdaq100': H._stooq('qqq_us_d.csv'), 'lev': H._stooq('qld_us_d.csv'),
-      'div': H._stooq('schd_us_d.csv')}
+
+# [코드리뷰 2026-09-04] 종전에는 T/US 가 모듈 최상위에 있어 **임포트만 해도**
+# 국내 3종 + 미국 3종 CSV 를 전부 읽었다. hist_krreal 이 이 모듈을 임포트하므로
+# 그 비용을 항상 물었고, 여섯 파일 중 **하나만 없어도 임포트 자체가 실패**해
+# 그 파일이 필요 없는 경로까지 같이 죽었다. 지연 + 캐시로 바꾼다.
+# 모듈 속성(hist_tiger.T 등)으로 접근하던 코드는 __getattr__ 이 그대로 받는다.
+@functools.lru_cache(maxsize=None)
+def _T():
+    return {k: load(v[1]) for k, v in K.TIGER.items()}
+
+
+@functools.lru_cache(maxsize=None)
+def _US():
+    return {'nasdaq100': H._stooq('qqq_us_d.csv'), 'lev': H._stooq('qld_us_d.csv'),
+            'div': H._stooq('schd_us_d.csv')}
+
+
 NAME = {k: v[2] for k, v in K.TIGER.items()}
 TICK = {k: v[0] for k, v in K.TIGER.items()}
+
+
+def __getattr__(name):
+    if name == 'T':
+        return _T()
+    if name == 'US':
+        return _US()
+    raise AttributeError(name)
 
 
 def fx_series():
@@ -29,7 +55,7 @@ def fx_series():
 if __name__ == '__main__':
     fxr = fx_series()
     print('== TIGER 3종 실물 데이터 범위 ==')
-    for k, d in T.items():
+    for k, d in _T().items():
         print('%-12s %-34s %s ~ %s  (%d일, %.1f년)'
               % (TICK[k], NAME[k], d.index[0].date(), d.index[-1].date(), len(d),
                  (d.index[-1] - d.index[0]).days / 365.25))
@@ -38,8 +64,8 @@ if __name__ == '__main__':
     print('\n== 추적오차: TIGER 실물 vs [미국ETF x 원달러] (상장 이후 전 구간) ==')
     print('%-34s %6s %9s %9s %9s %8s %9s' %
           ('상품', 'n', 'TIGER연', '이론연', '연차이', '추적오차', '누적차이'))
-    for k, d in T.items():
-        u = US[k]
+    for k, d in _T().items():
+        u = _US()[k]
         lvl = (u.pct_change().fillna(0) + 1).cumprod()
         # 미국 종가 t 는 한국 t+1 에 반영 -> 한국 달력으로 shift
         th = (lvl * fxr.reindex(lvl.index).ffill())
@@ -60,7 +86,7 @@ if __name__ == '__main__':
     # ---------- 시초가 갭 = 이 전략이 실제로 내는 체결 마찰
     print('\n== 시초가 체결 마찰: 한국 개장 시초가 vs 직전 종가 (전량매매 시 실제 슬리피지) ==')
     print('%-34s %8s %9s %9s %9s %9s' % ('상품', '중앙값', '평균', '표준편차', '95퍼센타일', '최악'))
-    for k, d in T.items():
+    for k, d in _T().items():
         gap = (d['raw_open'] / d['raw_close'].shift(1) - 1).dropna()
         print('%-34s %+7.3f%% %+8.3f%% %8.3f%% %8.2f%% %8.2f%%'
               % (NAME[k], gap.median() * 100, gap.mean() * 100, gap.std() * 100,
@@ -70,7 +96,7 @@ if __name__ == '__main__':
 
     # ---------- 일중 변동폭(스프레드 상한 대용)
     print('\n== 참고: 일간 시가-종가 변동폭 (급변장 체결 리스크 대용치) ==')
-    for k, d in T.items():
+    for k, d in _T().items():
         oc = (d['raw_close'] / d['raw_open'] - 1).abs()
         print('%-34s 중앙 %5.2f%%  95%% %5.2f%%  최대 %6.2f%%'
               % (NAME[k], oc.median() * 100, oc.quantile(0.95) * 100, oc.max() * 100))

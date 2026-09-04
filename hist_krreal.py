@@ -60,9 +60,13 @@ def run_real(exit_, start='2023-06-20', slip=SLIP, cost=COST, defmix=False):
     w, dd = signals(exit_)
     kr, rl, rd = legs_real(start, defmix)
     pos, cur = [], 1.0
+    # [코드리뷰 2026-09-04] 날마다 전체 시리즈를 라벨 슬라이스하던 것을 정렬
+    # 인덱스의 searchsorted 로 바꿨다(O(n^2) -> O(n log n)). 뜻과 값은 같다 —
+    # 'd 개장 전에 확정된 마지막 신호'.
+    wv_, wi_ = w.values, w.index
     for d in kr:
-        s = w.loc[:d - pd.Timedelta(days=1)]         # d 개장 전에 확정된 마지막 신호
-        if len(s): cur = float(s.iloc[-1])
+        k = int(wi_.searchsorted(d - pd.Timedelta(days=1), side='right'))
+        if k: cur = float(wv_[k - 1])
         pos.append(cur)
     hold = pd.Series(pos, index=kr)            # hold[d] = 그날 시가에 잡아 보유하는 비중
     eff = hold.shift(1).fillna(1.0)            # 수익 귀속: open(d-1)->open(d) 구간은 hold[d-1]
@@ -83,8 +87,11 @@ if __name__ == '__main__':
             print('        %s 시가 체결  ->  %s' % (d.date(), 'TIGER레버리지' if v > 0.5 else 'TIGER배당다우존스'))
     kr = TT.T['lev']['open'].index.intersection(TT.T['div']['open'].index)
     kr = kr[kr >= '2023-06-20']
-    for nm, s in [('TIGER레버리지 계속보유', TT.T['lev']['close']), ('TIGER배당 계속보유', TT.T['div']['close']),
-                  ('TIGER나스닥100 계속보유', TT.T['nasdaq100']['close'])]:
+    # [코드리뷰 2026-09-04] 벤치마크도 전략과 **같은 가격 기준**(시가)으로 잰다.
+    # 종전엔 전략은 시가->시가인데 벤치마크만 종가->종가라 한 표 안에서 기준이
+    # 갈렸고, 구간 첫날·마지막날의 시가/종가 차이가 그대로 배수 차이로 남았다.
+    for nm, s in [('TIGER레버리지 계속보유', TT.T['lev']['open']), ('TIGER배당 계속보유', TT.T['div']['open']),
+                  ('TIGER나스닥100 계속보유', TT.T['nasdaq100']['open'])]:
         v = s.reindex(kr).ffill(); r = v.pct_change().fillna(0)
         m = met(pd.Series(np.cumprod(1 + r), index=kr))
         print('%-24s 최종 %6.3f배  CAGR %6.2f%%  MDD %7.2f%%' % (nm, m['final'], m['cagr']*100, m['mdd']*100))

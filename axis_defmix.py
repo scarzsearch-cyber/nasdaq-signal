@@ -25,6 +25,9 @@
 
 실행:  python axis_defmix.py
 """
+import functools
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -112,12 +115,26 @@ def mix_monthly_from(parts, weights, idx, cost=0.0005):
 
 
 def mix_r(comp, weights):
-    """일간 재조정 바스켓."""
+    """일간 재조정 바스켓.
+
+    [코드리뷰 2026-09-04] 성분의 NaN 을 0 으로 바꾸지 않는다. materials() 는
+    30년 금리 고시 이전(1972~77 의 1,311일 = 9.5%)을 **일부러** NaN 으로 막아 두는데,
+    여기서 nan_to_num 을 걸면 그 구간이 '무위험 0% 수익'으로 되살아나 후보가
+    실제보다 안전해 보인다. 없는 구간은 NaN 으로 남겨 met()·MDD 가 그 사실을 보게 한다.
+    """
     tot = float(sum(weights.values()))
     r = np.zeros(len(comp['div']))
     for k, w in weights.items():
         if w > 0:
-            r = r + (w / tot) * np.nan_to_num(comp[k])
+            x = np.asarray(comp[k], dtype=float)
+            miss = int(np.isnan(x).sum())
+            if miss:
+                # NaN 을 그냥 전파해도 sim_def 가 다시 nan_to_num 으로 덮는다.
+                # 조용히 0% 로 채워지는 것을 막을 수 없다면 최소한 말은 해야 한다.
+                warnings.warn('mix_r: 성분 %r 에 값 없는 구간이 %d일(%.1f%%) 있다 - '
+                              '그 구간은 0%% 수익으로 계산된다. 이 바스켓 수치를 인용하지 마라.'
+                              % (k, miss, 100.0 * miss / len(x)), RuntimeWarning, stacklevel=2)
+            r = r + (w / tot) * x
     return r
 
 
@@ -132,8 +149,11 @@ def sim_def(D, w, defr, riskr=None, cost=COST, lag=1, start=None, end=None):
     rr = D['qldr'] if riskr is None else riskr
     wv = w[sl]
     pos = np.empty_like(wv)
-    pos[:lag] = wv[0]
-    pos[lag:] = wv[:-lag]
+    if lag:
+        pos[:lag] = wv[0]
+        pos[lag:] = wv[:-lag]
+    else:
+        pos[:] = wv                                    # 당일 신호 = 당일 체결
     r = np.nan_to_num(pos * rr[sl] + (1 - pos) * defr[sl])
     r[0] = 0.0
     turn = np.abs(np.diff(pos, prepend=pos[0]))
@@ -467,14 +487,17 @@ def real_kr(D, comp):
         cor = lagc = np.nan
         if key:
             pos = D['idx'].searchsorted(ii)
-            proxy = np.nan_to_num(comp[key])[pos]
+            proxy = np.asarray(comp[key], dtype=float)[pos]
             if '환노출' in fx:                      # 원화 환산해서 비교
                 f = fxs.reindex(ii).pct_change().fillna(0).values
                 proxy = (1 + proxy) * (1 + f) - 1
+            # [코드리뷰 2026-09-04] 종전엔 위에서 nan_to_num 을 걸어 이 가드가
+            # 항상 참이었다 — NaN(고시 이전)을 거른다는 의도가 죽어 있었다.
             ok = ~np.isnan(proxy)
-            cor = float(np.corrcoef(rr[ok][1:], proxy[ok][1:])[0, 1])
-            a, b = rr[ok], proxy[ok]
-            lagc = float(np.corrcoef(a[1:], b[:-1])[0, 1])
+            if ok.sum() >= 3:                   # 값이 없으면 상관만 비우고 행은 그대로 찍는다
+                cor = float(np.corrcoef(rr[ok][1:], proxy[ok][1:])[0, 1])
+                a, b = rr[ok], proxy[ok]
+                lagc = float(np.corrcoef(a[1:], b[:-1])[0, 1])
         c = pd.Series(np.cumprod(1 + rr), index=ii)
         yrs = (ii[-1] - ii[0]).days / 365.25
         print('%-8s %-26s %-12s %8.2f%% %8.2f%% %8.2f%% %9s %9s' %
@@ -486,8 +509,13 @@ def real_kr(D, comp):
 
 
 # ---------------------------------------------------------------- 9) 실물 운용
+@functools.lru_cache(maxsize=None)
 def _krseries(code):
-    """분배금 반영 종가. AdjClose 가 있으면 그것, 없으면 Close(이미 조정본)."""
+    """분배금 반영 종가. AdjClose 가 있으면 그것, 없으면 Close(이미 조정본).
+
+    [코드리뷰 2026-09-04] real_run 이 REAL_MIX 5개 x 규칙 2개 = 10회 반복 안에서
+    같은 CSV 를 다시 읽고 있었다(파일당 최대 8회). 캐시로 한 번만 읽는다.
+    """
     d = pd.read_csv('data/hist/kr_%s_KS.csv' % code, parse_dates=['Date'])
     col = 'AdjClose' if 'AdjClose' in d.columns else 'Close'
     return d.set_index('Date')[col].astype(float).sort_index()
@@ -532,15 +560,21 @@ def real_run(D, start='2023-06-20', slip=0.001, cost=COST):
             rd = {c: ser[c].reindex(ii).pct_change().fillna(0).values for c in mix}
             pos = []
             cur = 1.0
+            # [코드리뷰 2026-09-04] 날마다 전체 시리즈를 라벨 슬라이스하던 것을
+            # 정렬 인덱스의 searchsorted 로 바꿨다(O(n^2) -> O(n log n)). 값은 같다.
+            wv_, wi_ = wsig.values, wsig.index
             for d in ii:
-                z = wsig.loc[:d - pd.Timedelta(days=1)]
-                if len(z):
-                    cur = float(z.iloc[-1])
+                k = int(wi_.searchsorted(d - pd.Timedelta(days=1), side='right'))
+                if k:
+                    cur = float(wv_[k - 1])
                 pos.append(cur)
             pos = np.array(pos)
             V = 1.0
-            buckets = None
             prev = pos[0]
+            # [코드리뷰 2026-09-04] sim_hold 와 같은 초기화. 종전에는 buckets 를
+            # 무조건 None 으로 두어, 시작일이 방어 구간이면 첫 전환이 올 때까지
+            # 방어 바스켓 수익이 통째로 0 이 됐다(무이자 현금으로 잡혔다).
+            buckets = None if prev >= 1 else {c: V * mix[c] for c in mix}
             out = []
             for i in range(len(ii)):
                 p = pos[i - 1] if i > 0 else pos[0]

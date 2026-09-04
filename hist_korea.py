@@ -17,6 +17,8 @@
   (2) 원달러: TIGER 3종 모두 환노출(Unhedged) → 원화 수익률 = (1+자산)(1+환율)-1
   (3) 시초가 갭 + 스프레드: 제미나이.md 규약대로 편도 0.1% 슬리피지 강제 주입
 """
+import warnings
+
 import numpy as np, pandas as pd
 import hist_data as H, hist_defensive as DF
 from reentry_lib import met
@@ -35,9 +37,23 @@ def _kr(path):
 
 
 def fx(idx):
-    """USD/KRW 일간 (원/달러). idx 위로 ffill."""
+    """USD/KRW 일간 (원/달러). idx 위로 ffill.
+
+    [코드리뷰 2026-09-04] 원자료(DEXKOUS)는 1981-04 부터다. 그 이전은 ffill 로도
+    채울 수 없어 NaN 으로 남고, 쓰는 쪽이 pct_change().fillna(0.0) 을 걸면
+    '환율이 하루도 안 움직인 세계'가 되어 환노출 2배 모형의 전제가 조용히 무력화된다.
+    지금 호출부는 전부 1997 이후 또는 lo=FXS 로 잘라 쓰지만, 그 안전이 호출부
+    규율에만 걸려 있으므로 함수가 직접 말하게 한다. (값·동작은 종전과 같다.)
+    """
     f = H._fred(FX, 'DEXKOUS')
-    return f.reindex(idx.union(f.index)).ffill().reindex(idx)
+    out = f.reindex(idx.union(f.index)).ffill().reindex(idx)
+    miss = int(out.isna().sum())
+    if miss:
+        warnings.warn('hist_korea.fx: 환율 원자료가 %s 부터라 그 이전 %d일(%.1f%%)은 값이 없다 - '
+                      '그 구간을 포함해 원화 수치를 내지 마라(환변동 0%% 으로 계산된다).'
+                      % (str(f.index[0].date()), miss, 100.0 * miss / len(out)),
+                      RuntimeWarning, stacklevel=2)
+    return out
 
 
 def kr_caldays():

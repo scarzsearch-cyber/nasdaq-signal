@@ -60,8 +60,11 @@ def sim(qldr, defr, w, cost=COST, lag=1, lo=0, hi=None):
     sl = slice(lo, n)
     wv = w[sl]
     pos = np.empty_like(wv)
-    pos[:lag] = wv[0]
-    pos[lag:] = wv[:-lag]
+    if lag:
+        pos[:lag] = wv[0]
+        pos[lag:] = wv[:-lag]
+    else:
+        pos[:] = wv                                    # 당일 신호 = 당일 체결
     r = np.nan_to_num(pos * qldr[sl] + (1 - pos) * defr[sl])
     r[0] = 0.0
     t = np.abs(np.diff(pos, prepend=pos[0]))
@@ -165,8 +168,15 @@ def main():
     bv, bm = 0, 0
     for _ in range(500):
         rm = np.zeros(N, dtype=bool)
+        # [코드리뷰 2026-09-04] 종전엔 블록을 독립 배치해 서로 겹칠 수 있었고,
+        # 겹친 만큼 가짜 마스크의 발동일이 실제 trig 보다 적어져 귀무분포가
+        # '발동을 덜 하는' 쪽으로 치우쳤다. 겹치면 자리를 다시 뽑아 발동일 수를
+        # 실제와 맞춘다(제한 횟수 안에 못 찾으면 그 블록은 그대로 둔다).
         for ln in seg:
-            s0 = rng.integers(0, N - ln)
+            for _try in range(50):
+                s0 = int(rng.integers(0, N - ln))
+                if not rm[s0:s0 + ln].any():
+                    break
             rm[s0:s0 + ln] = True
         c = sim(D['qldr'], defr, guard_w(ddq, rm, -0.16, -0.11))
         v, _, m, _ = st(c, N)
@@ -302,7 +312,10 @@ def main():
         v = np.array(vals)
         v = v[v > 0]
         if paid <= 0 or len(v) < 2:
-            return 0, 0, 0
+            # [코드리뷰 2026-09-04] 종전엔 (0,0,0) 을 돌려줬는데 호출부가 v_/p_ 로
+            # 나눠 ZeroDivisionError 가 났다. 납입이 없으면 배수 자체가 정의되지 않으므로
+            # NaN 으로 돌려주고 호출부가 그대로 집계에서 걸러지게 한다.
+            return np.nan, np.nan, np.nan
         return paid, v[-1], float((v / np.maximum.accumulate(v) - 1).min())
 
     FIX2 = {'(14,p90,-2%)': (14, 0.90, -0.02), '(10,p92.5,-3%)': (10, 0.925, -0.03)}
