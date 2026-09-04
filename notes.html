@@ -123,8 +123,21 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v207</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v208</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v208</span><span class="tag fix">수정</span>
+        <span class="ttl">비중이 비어 있는데 계산을 계속하던 부분 보완</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>일부 적립·세금 계산이 잘못된 비중 입력을 걸러내지 못했습니다.
+          비중에 숫자가 빠졌거나 계산할 수 없는 값이면, 결과를 내기 전에 오류를 알리도록 고쳤습니다.</dd>
+        <dt>왜</dt><dd>자료에 문제가 있는데도 그럴듯한 숫자가 나오면 계획의 근거로 잘못 쓰일 수 있습니다.
+          잘못된 입력을 실제로 넣어 차단을 확인하고, 정상 자료의 결과도 수정 전후 대조했습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>현행 B의 네 과거 시나리오 결과와 매매 규칙·실제 장부는 그대로입니다.</b>
+          실제 B 계좌에서 잘못된 계산이 발생했다는 뜻은 아닙니다. 이번 보완만으로 전체 감사가 끝난 것은 아닙니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix">
       <div class="head"><span class="v">v207</span><span class="tag fix">수정</span>

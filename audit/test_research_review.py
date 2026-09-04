@@ -196,6 +196,32 @@ class PartialWeightAccounting(unittest.TestCase):
         self.assertAlmostEqual(values[-1], 2.25)
 
 
+class BinaryWeightValidity(unittest.TestCase):
+    def test_nonfinite_weights_rejected_by_cash_and_tax_engines(self):
+        import axis_lib as axis
+        idx = pd.date_range('2020-01-30', periods=6)
+        D = dict(idx=idx, px=pd.Series(np.ones(6), index=idx), qldr=np.zeros(6),
+                 schdr=np.zeros(6), ddv=np.zeros(6), c_daily=0.)
+        for bad in (np.nan, np.inf, -np.inf):
+            w = np.array([1., 1., bad, 0., 0., 1.])
+            actions = {
+                'accumulate': lambda: axis.accumulate(D, 2., w, 0, 6),
+                'tax_per_switch': lambda: axis.after_tax(D, 2., w, .154, True),
+                'tax_annual': lambda: axis.after_tax_annual(D, 2., w),
+            }
+            for name, action in actions.items():
+                with self.subTest(value=str(bad), engine=name):
+                    with self.assertRaises(ValueError):
+                        action()
+
+    def test_binary_guard_retains_rounding_tolerance_and_window_scope(self):
+        import axis_lib as axis
+        w = np.array([np.nan, 0., 1., 1e-12, 1 - 1e-12, np.nan])
+        axis._need_binary(w, 1, 5, 'valid test slice')
+        with self.assertRaises(ValueError):
+            axis._need_binary(np.array([0., .5, 1.]), 0, 3, 'fractional test')
+
+
 class MultiAssetRebalance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

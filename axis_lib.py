@@ -84,15 +84,17 @@ def _months(idx):
 
 
 def _need_binary(w, lo, hi, who):
-    """accumulate 계열은 0/1 전용 — 분수 비중을 조용히 이진화하지 않는다."""
+    """accumulate 계열은 유한한 0/1 전용 — 결측·분수 비중을 조용히 이진화하지 않는다."""
     seg = np.asarray(w[lo:hi], dtype=float)
-    bad = (np.abs(seg) > _WTOL) & (np.abs(seg - 1.0) > _WTOL)
+    # NaN과의 크기 비교는 모두 False다. 거리 비교만으로는 결측이 통과한다.
+    bad = ~np.isfinite(seg) | ((np.abs(seg) > _WTOL) & (np.abs(seg - 1.0) > _WTOL))
     if bad.any():
         i = int(np.argmax(bad))
         raise ValueError(
-            '%s 는 0/1 비중만 받는다 (위험/현금 두 통을 통째로 옮기는 모형이라 '
+            '%s 는 유한한 0/1 비중만 받는다 (위험/현금 두 통을 통째로 옮기는 모형이라 '
             '부분 비중이 정의되지 않는다). w[%d] = %r. '
-            '분수 비중(앙상블)은 sim() 또는 after_tax(per_switch=False) 를 써라.'
+            '결측·무한값은 입력을 먼저 고쳐라. '
+            '유한한 분수 비중(앙상블)은 sim() 또는 after_tax(per_switch=False) 를 써라.'
             % (who, lo + i, float(seg[i])))
 
 
