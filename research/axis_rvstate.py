@@ -138,16 +138,30 @@ def main():
         print("  %-10.2f%9.1f%9.1f%9.1f%10.1f%8.1f%%%8d%8s%s"
               % (T, r['m'], r['p20'], r['p5'], r['pm'], r['mdd'] * 100, r['sw'],
                  'O' if win else 'X', note))
-    ridge = [T for T in W if W[T]['m'] > B['m'] and W[T]['p20'] > B['p20']
+    grid = sorted(W)
+    ridge = [T for T in grid if W[T]['m'] > B['m'] and W[T]['p20'] > B['p20']
              and W[T]['p5'] > B['p5']]
+    # [코드리뷰 2026-09-04] 종전에는 len(ridge) 를 「연속 N개」로 인쇄하고 관문에도 그대로
+    #   썼다. ridge 는 순서 없는 멤버십 목록이라 흩어진 섬 3개도 진짜 고원과 똑같이 통과한다.
+    #   실제 인접성을 격자 위에서 잰다.
+    run = best_run = 0
+    for T in grid:
+        run = run + 1 if T in ridge else 0
+        best_run = max(best_run, run)
     print()
-    print("  3지표 전부 우세: %s  (연속 %d개)"
-          % (', '.join('%.2f' % t for t in sorted(ridge)) if ridge else '없음', len(ridge)))
+    print("  3지표 전부 우세: %s  (총 %d개 · 격자에서 연속 최장 %d개)"
+          % (', '.join('%.2f' % t for t in ridge) if ridge else '없음', len(ridge), best_run))
     if not ridge:
-        print("\n  -> 후보 없음. 종료.")
+        # [코드리뷰 2026-09-04] 종전에는 여기서 그냥 return 이라 verdict() 가 아예 안 불렸다.
+        #   즉 이 파일이 낼 수 있는 판정은 채택 하나뿐이었다. 계산값에서 기각을 낸다.
+        print()
+        print(verdict('실현변동성 상태변수를 채택할 수 있는가', [
+            ('3지표를 동시에 개선하는 문턱이 존재한다', False,
+             '문턱 %d개 전수에서 0개' % len(W)),
+        ])['text'])
         return
-    T0 = sorted(ridge)[len(ridge) // 2]
-    print("  대표값 T = %.2f 로 이하 검증한다 (능선 중앙)" % T0)
+    T0 = ridge[len(ridge) // 2]
+    print("  대표값 T = %.2f 로 이하 검증한다 (우세 집합의 중앙값 — 능선 중심이 아니다)" % T0)
     print()
 
     R = ev(rule(ddv, rvz, T0))
@@ -232,22 +246,36 @@ def main():
 
     # ---------------------------------------------------- 판정
     print("=" * 100)
+    # [코드리뷰 2026-09-04] ★ G1~G3 은 관문이 아니라 **선택 조건**이다.
+    #   ridge 를 거른 세 조건이 G1/G2/G3 과 글자 그대로 같고, T0 in ridge 이며 ev() 는
+    #   결정론적이라 R == W[T0] — 즉 셋은 구성상 항상 참이고 실패할 입력이 없다.
+    #   (반대편도 없었다: ridge 가 비면 return 이라 verdict() 가 아예 안 불렸다.)
+    #   그래서 셋은 근거로 인쇄하되 **adopt_if 에서 빼고**, 채택 여부는 T0 선택에
+    #   쓰이지 않은 독립 관문 7개로만 판정한다. 셋의 이름도 사실대로 바꾼다.
+    indep = ['G4 영구형 중앙 개선', 'G5 4블록 3/4 이상', 'G6 MDD 비악화',
+             '파라미터 이웃이 격자에서 3칸 이상 연속 우세', '비용 5배까지 우위 유지',
+             '창 간격을 바꿔도 유지', '연대별 3/4 이상에서 세 지표 양수']
     print(verdict('실현변동성 상태변수(T=%.2f)를 채택할 수 있는가' % T0, [
-        ('G1 ISA 중앙 개선', R['m'] > B['m'], '%.1f vs %.1f (%+.0f%%)'
+        ('[선택조건·관문아님] ISA 중앙 개선', R['m'] > B['m'], '%.1f vs %.1f (%+.0f%%)'
          % (R['m'], B['m'], (R['m'] / B['m'] - 1) * 100)),
-        ('G2 ISA P20 개선', R['p20'] > B['p20'], '%.1f vs %.1f (%+.0f%%)'
+        ('[선택조건·관문아님] ISA P20 개선', R['p20'] > B['p20'], '%.1f vs %.1f (%+.0f%%)'
          % (R['p20'], B['p20'], (R['p20'] / B['p20'] - 1) * 100)),
-        ('G3 ISA P5 개선', R['p5'] > B['p5'], '%.1f vs %.1f (%+.0f%%)'
+        ('[선택조건·관문아님] ISA P5 개선', R['p5'] > B['p5'], '%.1f vs %.1f (%+.0f%%)'
          % (R['p5'], B['p5'], (R['p5'] / B['p5'] - 1) * 100)),
         ('G4 영구형 중앙 개선', R['pm'] > B['pm'], '%.1f vs %.1f' % (R['pm'], B['pm'])),
         ('G5 4블록 3/4 이상', wins >= 3, '%d/4' % wins),
         ('G6 MDD 비악화', R['mdd'] >= B['mdd'],
          '%.1f%% vs %.1f%%' % (R['mdd'] * 100, B['mdd'] * 100)),
-        ('파라미터 이웃 3개 이상 연속 우세', len(ridge) >= 3, '%d개' % len(ridge)),
+        ('파라미터 이웃이 격자에서 3칸 이상 연속 우세', best_run >= 3,
+         '연속 최장 %d칸 (우세 총 %d개)' % (best_run, len(ridge))),
         ('비용 5배까지 우위 유지', cost_ok, '0.5% 포함 전부'),
         ('창 간격을 바꿔도 유지', step_ok, '21/63/126/252일 전부'),
         ('연대별 3/4 이상에서 세 지표 양수', okp >= 3, '%d/4' % okp),
-    ])['text'])
+    ], adopt_if=indep)['text'])
+    # [코드리뷰 2026-09-04] 이 「채택」을 살아있는 채택 후보로 읽지 마라. v53 은 이 집계
+    #   관문들을 전부 통과한 뒤 **집중도(G11)에서 기각**됐다 — 갈린 구간 32개 중 2000년
+    #   두 개가 우위의 87% 였고 상위 3개를 빼면 P5 가 뒤집혔다(research_kit.concentration
+    #   docstring · 04 5-7). 그 검사는 이 파일이 아니라 research/axis_gate11.py 가 건다.
 
 
 if __name__ == '__main__':

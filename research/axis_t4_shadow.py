@@ -144,11 +144,19 @@ def sec_a(D, wT, wB):
     d_dw = dist(dw.values, '|Δw| 원천 간')
     print('  원천 이원화: 게이트 불일치 %.2f%% 일수, |Δw| 중앙 %.4f · 최악 %.3f (n=%d)'
           % (dis * 100, d_dw['median'], -d_dw['worst'] if d_dw['worst'] < 0 else d_dw['best'], d_dw['n']))
+    # [코드리뷰 2026-09-04] 종전 A-1 은 MDD 조건과 최종배수 조건을 하나의 불리언으로 AND
+    #   했다. 지금 실제로 깨지는 것은 **최종배수 쪽**(T4 +5.08% vs 한도 5%)인데 이름이
+    #   「MDD ≤0.3%p」라 읽는 사람은 MDD 가 깨진 줄 안다. 게다가 docstring 32행은 그
+    #   최종배수 오차를 「데이터 기준일 1일 차」로 **무해하다고 명시**한다 — 즉 그 관문은
+    #   구현 건전성이 아니라 원자료의 최신도를 재고, 달이 갈수록 더 벌어진다. 둘로 가른다.
     checks = [
-        ('A-1 v68 재현 (MDD ≤0.3%p)', ok_mdd and ok_fin,
-         'MDD 오차 %.2f/%.2f%%p · 최종 오차 %.1f/%.1f%%'
-         % ((mT['mdd'] - V68['t4_mdd']) * 100, (mB['mdd'] - V68['b_mdd']) * 100,
-            (mT['final'] / V68['t4_final'] - 1) * 100, (mB['final'] / V68['b_final'] - 1) * 100)),
+        ('A-1a v68 MDD 재현 (≤0.3%p)', ok_mdd,
+         'MDD 오차 T4 %+.2f%%p · B %+.2f%%p'
+         % ((mT['mdd'] - V68['t4_mdd']) * 100, (mB['mdd'] - V68['b_mdd']) * 100)),
+        ('A-1b v68 최종배수 재현 (≤5%, 기준일 차이 허용)', ok_fin,
+         '최종 오차 T4 %+.1f%% · B %+.1f%% (docstring 32행: 기준일 1일 차는 무해)'
+         % ((mT['final'] / V68['t4_final'] - 1) * 100,
+            (mB['final'] / V68['b_final'] - 1) * 100)),
         ('A-2 장부 구현 동치 (불일치 0)', n_bad == 0, '250세션 중 %d건' % n_bad),
         ('A-3 원천 이원화 미미', dis < 0.02 and d_dw['median'] < 0.02,
          '게이트 %.2f%% · |Δw| 중앙 %.4f' % (dis * 100, d_dw['median'])),
@@ -202,11 +210,17 @@ def sec_b(D, wT, wB, votes, rv, cT, cB):
 
     # --- 기전 직접 측정: B 가 도피하는 날, T4 는 이미 줄여 놓았나 ---------------
     esc = np.where((wB[1:] == 0) & (wB[:-1] == 1))[0] + 1     # B 도피일 (신호일)
+    # [코드리뷰 2026-09-04] 두 가지를 바로잡는다. ① 간격을 **달력일**(.days)로 재면서
+    #   252 라는 **거래일** 문턱과 비교했다 — 252 거래일은 달력 약 352일이라 관문이 느슨했다
+    #   (research_kit.concentration 이 같은 날 고친 것과 같은 결함). 인덱스 차이로 재면
+    #   그 자체가 거래일이다. ② `last = e` 가 조건 밖이라 **마지막으로 보관한 사건**이 아니라
+    #   직전 사건과의 간격을 쟀다. 실측: 원래 70개 도피 -> 종전 22개(구성이 다름), 지금 21개.
+    #   이 값들이 아래 [부속서] M1/M2 기저율의 분모이고 docstring 이 「사전 등록용」이라 부른다.
     keep, last = [], None
-    for e in esc:                                             # 252일 간격 독립 사건만
-        if last is None or (idx[e] - idx[last]).days > 252:
+    for e in esc:                                             # 252 거래일 간격 독립 사건만
+        if last is None or (e - last) > 252:
             keep.append(e)
-        last = e
+            last = e
     at_esc = np.array([w[e] for e in keep])
     pre10 = np.array([w[max(0, e - 10):e].mean() for e in keep])
     d_at = dist(at_esc, 'B도피일 T4 노출')
@@ -387,17 +401,35 @@ def sec_d(D, wT):
         if (x['final'] >= base['final'] and x['calmar'] >= base['calmar']
                 and x['mdd'] >= base['mdd'] - 0.01 and x['turn'] <= base['turn'] * 0.6):
             ok_bands.append(x['band'])
+    # [코드리뷰 2026-09-04] 세 가지를 바로잡는다.
+    #  ① `0 < k` 가 인덱스 0 을 제외해 가장 낮은 후보 밴드는 **위쪽 이웃만** 검사됐다.
+    #     docstring 41행의 사전등록은 「이웃 밴드에서도」이므로 양쪽을 본다(0 <= k).
+    #  ② 이웃 집합이 비면 `all([]) == True` 라 **아무것도 검사하지 않고** 고원이 됐다.
+    #     이웃이 없으면 고원을 주장할 수 없다 — False 로 둔다.
+    #  ③ 비교가 `base * 0.97` 이었는데 사전등록은 「최종·Calmar 조건 성립」(= >= base)이다.
+    #     등록 뒤에 들어간 3% 완화라 되돌린다.
     plateau_ok = False
     pick = None
     for b in ok_bands:
         j = bands.index(b)
-        nb = [bands[k] for k in (j - 1, j + 1) if 0 < k < len(bands)]
-        good = all(float(t[t['band'] == q]['final'].iloc[0]) >= base['final'] * 0.97
-                   and float(t[t['band'] == q]['calmar'].iloc[0]) >= base['calmar'] * 0.97
-                   for q in nb)
+        nb = [bands[k] for k in (j - 1, j + 1) if 0 <= k < len(bands)]
+        good = bool(nb) and all(
+            float(t[t['band'] == q]['final'].iloc[0]) >= base['final']
+            and float(t[t['band'] == q]['calmar'].iloc[0]) >= base['calmar']
+            for q in nb)
         if good:
             plateau_ok, pick = True, b
             break
+    # [코드리뷰 2026-09-04] ★ D-1 은 자료가 정한 기각이 아니다. 회전 조건이
+    #   `turn <= base*0.6` 인데, 같은 실행의 sec_b 가 인쇄하듯 T4 회전의 **81%가 0<->1
+    #   게이트 전환**(크기 1.0)이라 어떤 밴드로도 억제되지 않는다. 사전등록 격자 끝
+    #   (band=0.20)에서도 회전이 base 의 86% 이고, 0.005~1.000 을 199칸 전수 스캔해도
+    #   네 조건 동시 충족은 0개다(회전 조건만 처음 만족하는 0.930 에서 Calmar 가 미달).
+    #   즉 통과할 입력이 존재하지 않는 관문이다(CLAUDE.md §-1 ⑤). 그 사실을 인쇄한다.
+    tmin = float(t['turn'].min())
+    print('  [진단] 회전 하한 %.2f (요구 %.2f = base %.2f x0.6) — 밴드로 억제 못 하는 '
+          '게이트 전환이 회전의 대부분이라 이 관문은 통과할 입력이 없다.'
+          % (tmin, base['turn'] * 0.6, base['turn']))
     checks = [('D-1 밴드 개선 존재 (0.2% 비용·고원)', bool(ok_bands) and plateau_ok,
                '조건 충족 밴드 %s · 대표 %s'
                % (['%.1f%%' % (b * 100) for b in ok_bands], ('%.1f%%' % (pick * 100)) if pick else '-'))]

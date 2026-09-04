@@ -25,8 +25,13 @@
   H Dispersion  **종목 단위 데이터 없음 -> 건너뛴다**(§10 조건 미충족)
   I Overnight   OHLC 가 1999-03~ 뿐 -> **1.5블록. 참고로만**
 
-[관문] G1~G6 + G7 파라미터 + G8 비용 + G9 시작일 + G10 미래참조 + **G11 집중도**
-       G11 은 research_kit.concentration / leave_one_crisis_out 으로 강제한다.
+[관문] **이 파일이 실제로 돌리는 것은 G1~G6 뿐이다.**
+  [코드리뷰 2026-09-04] 종전 docstring 은 「G7 파라미터 + G8 비용 + G9 시작일 +
+  G10 미래참조 + G11 집중도 … G11 은 research_kit.concentration /
+  leave_one_crisis_out 으로 강제한다」고 적었으나, 호출 카운터로 재니 두 함수 모두
+  **0회**였고 G7~G10 도 구현이 없다. 선언 11개 중 6개만 돌았다. 사실대로 적는다.
+  G1~G6 를 통과한 후보가 나오면 research/axis_gate11.py 로 **따로** 집중도를 건다
+  (그 파일은 dates= 를 넘긴다). 그때까지 이 파일의 결론은 「1차 선별」이다.
 """
 # --- 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------------
 import os as _os, sys as _sys
@@ -39,7 +44,8 @@ import pandas as pd
 import hist_defensive as DF
 from axis_lib import rule_w, lev_r, COST
 from axis_defmix import materials, mix_monthly_from
-from research_kit import verdict, concentration, leave_one_crisis_out
+from research_kit import verdict          # concentration/leave_one_crisis_out 는
+                                          # 이 파일에서 안 쓴다(위 관문 주석 참조)
 
 try:
     _sys.stdout.reconfigure(encoding='utf-8')
@@ -94,7 +100,12 @@ def state_latch(ddv, enter_z, release=None, T=0.0, hold=0):
         if ddv[i] <= ENTER:
             if cur >= 1.0:
                 line = ENTER if np.nan_to_num(enter_z[i], nan=9.0) > T else LATE
-                since = 0
+            # [코드리뷰 2026-09-04] since 는 새 도피에서만 0 이 됐다. 그래서 도피 중
+            #   -16% 를 다시 밑돌아도 앞선 회복 시도에서 쌓은 날이 그대로 이월돼,
+            #   hold(최소 유지일)가 다음 시도의 둘째 날에 풀리는 일이 생겼다.
+            #   실측 차이: B5(hold=10) 64일 · C2 11일 · A3(hold=20) 8일 · A3(hold=5) 6일.
+            #   -16% 아래로 다시 내려가면 그 시점부터 다시 센다.
+            since = 0
             cur = 0.0
         elif cur < 1.0:
             since += 1
@@ -193,7 +204,13 @@ def main():
     nya_dd = nya / pd.Series(nya).rolling(252, min_periods=60).max().values - 1
     b20 = chg(np.nan_to_num(nya_dd, nan=0.), 20)
     # 진입 시 '시장 전체도 무너졌나' 를 읽는다
-    bz = zsc(np.nan_to_num(nya_dd, nan=0.))
+    # [코드리뷰 2026-09-04] 부호 정정. nya_dd 는 낙폭이라 항상 <= 0 이고 깊을수록 작다.
+    #   그대로 zsc 하면 **클수록 시장이 멀쩡하다**는 뜻이 되는데, state_latch 의 규약은
+    #   「> T 면 스트레스」다(85행) — 정확히 반대로 읽혔다. 실측: 1987-10-19 에 NYA 가
+    #   252일 고점 대비 -31.6% 인데 bz=-11.27 이라 「조용함」으로, 2000-04-11 은 -0.3%
+    #   인데 bz=+0.91 이라 「스트레스」로 분류됐다. 부호를 뒤집어 「클수록 스트레스」로.
+    #   이 계열은 이 파일에서 유일하게 4/4 블록을 검증할 수 있는 것이다(docstring 15 표).
+    bz = -zsc(np.nan_to_num(nya_dd, nan=0.))
     for T in (-0.5, 0.0, 0.5):
         cd['B 시장전체 낙폭z>%.1f 상태' % T] = (state_latch(ddv, bz, None, T), 1972)
     rel_b = np.nan_to_num(b20, nan=-1.) > 0.02          # 시장 전체가 회복 중
@@ -201,6 +218,10 @@ def main():
         state_latch(ddv, bz, rel_b, 0.0, 10), 1972)
 
     # ---- C. VIX + Breadth (1990~) -----------------------------------------
+    # [코드리뷰 2026-09-04] bz 부호 정정 전에는 vz(클수록 스트레스)와 bz(클수록 조용함)를
+    #   더해 스트레스가 상쇄됐다 — 실측 corr(vz,bz)=-0.706, 합의 표준편차가 독립일 때의
+    #   0.98/1.80 로 46% 가 사라졌다. 2008-01-16 은 vz=+2.31·bz=-3.69 로 둘 다 스트레스를
+    #   가리키는데 합이 -1.38 이라 반대로 분류됐다. 부호를 맞춘 지금은 같은 방향으로 더해진다.
     both = np.where(np.isfinite(vz) & np.isfinite(bz), vz + bz, np.nan)
     for T in (0.0, 0.5):
         cd['C VIX+시장 합산z>%.1f' % T] = (state_latch(ddv, both, None, T), 1990)
@@ -273,37 +294,53 @@ def main():
     print("=" * 116)
     print("2. G1~G6 (완화 없음)")
     print("=" * 116)
-    surv = []
+    surv, undet = [], []
     for nm in cd:
         if nm.startswith('현행'):
             continue
         r, b = R[nm], BASE[R[nm]['y0']]
+        # [코드리뷰 2026-09-04] 종전 g[4] 는 「4블록 자료가 없다」와 「4블록에서 졌다」를
+        #   같은 False 로 접었다. 그래서 VIX 계열 8개는 1990 부터라는 이유만으로 구조적으로
+        #   탈락했고(예: A3 는 g=OOOOXO 로 유일한 X 가 자료 시작일이었다) 판정문은 그것을
+        #   「0개 / 후보 26개」 안에 넣어 **미검증을 탈락으로 보고**했다. 둘을 가른다.
+        nblk = int(np.isfinite(r['blk']).sum())
         g = [r['median'] > b['median'], r['p20'] > b['p20'], r['p5'] > b['p5'],
              r['pm'] > b['pm'],
-             int(np.isfinite(r['blk']).sum()) == 4
-             and int(np.nansum(r['blk'] > b['blk'])) >= 3,
+             int(np.nansum(r['blk'] > b['blk'])) >= max(3, nblk - 1),
              r['mdd'] >= b['mdd']]
+        full = (nblk == 4)
         if sum(g) >= 4:
             print("  %-28s %d/6  %s%s" % (nm, sum(g), ''.join('O' if x else 'X' for x in g),
-                  '' if int(np.isfinite(r['blk']).sum()) == 4 else '   (4블록 불가)'))
+                  '' if full else '   (자료 %d블록 — 4블록 검증 불가)' % nblk))
         if all(g):
-            surv.append(nm)
+            (surv if full else undet).append(nm)
     print()
-    print("  **G1~G6 전부 통과: %s**" % (', '.join(surv) if surv else '없음'))
+    print("  **G1~G6 전부 통과 (4블록 검증 가능): %s**" % (', '.join(surv) if surv else '없음'))
+    print("  **G1~G6 통과하나 자료가 4블록에 못 미쳐 판정 불가: %s**"
+          % (', '.join(undet) if undet else '없음'))
     print()
-    return R, BASE, cd, surv, idx, N, rk, dfr, mstart, ev
+    return R, BASE, cd, surv, undet, idx, N, rk, dfr, mstart, ev
 
 
 if __name__ == '__main__':
     out = main()
-    R, BASE, cd, surv, idx, N, rk, dfr, mstart, ev = out
+    R, BASE, cd, surv, undet, idx, N, rk, dfr, mstart, ev = out
     print("=" * 116)
-    if not surv:
-        print(verdict('외부정보 2차 — 현행을 대체하는 후보가 있는가', [
-            ('G1~G6 를 전부 통과한 후보가 있다', False, '0개 / 후보 %d개' % (len(cd) - 1)),
-        ])['text'])
+    # [코드리뷰 2026-09-04] 종전에는 verdict() 가 **기각 가지에만** 있었고 그 유일한
+    #   검사가 리터럴 False 였다. 후보가 살아남으면 판정문이 아예 안 나왔다(실측:
+    #   surv=[] 이면 '판정:' 포함 True, surv=['A3 …'] 이면 False). 계산값에서 만든
+    #   판정문을 양쪽 가지에서 낸다 — research_kit.verdict 의 존재 이유가 그것이다.
+    print(verdict('외부정보 2차 — 현행을 대체하는 후보가 있는가', [
+        ('G1~G6 를 전부 통과하고 4블록까지 검증된 후보가 있다', bool(surv),
+         ', '.join(surv) if surv else '0개 / 후보 %d개' % (len(cd) - 1)),
+    ])['text'])
+    if undet:
         print()
-        print("  -> G11(집중도)까지 갈 후보가 없다. **현행 -16/-16 유지.**")
+        print("  ※ 판정 불가(자료가 4블록에 못 미침): %s" % ', '.join(undet))
+        print("     미검증은 탈락이 아니다. 자료가 쌓이면 다시 재야 한다.")
+    if surv:
+        print()
+        print("  -> G11 집중도는 이 파일이 돌리지 않는다. research/axis_gate11.py 로 개별 검증할 것.")
     else:
-        print("  G11 집중도 검사로 넘어갈 후보: %s" % ', '.join(surv))
-        print("  (research/axis_gate11.py 와 같은 방식으로 개별 검증 필요)")
+        print()
+        print("  -> 4블록까지 검증된 후보가 없다. **현행 -16/-16 유지.**")
