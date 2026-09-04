@@ -72,7 +72,8 @@ def read_csv(path):
     return pd.read_csv(path, parse_dates=['Date'])
 
 
-def append_rows(path, new_df, cols, price_cols=('Close',), prev=None, allow_move=()):
+def append_rows(path, new_df, cols, price_cols=('Close',), prev=None, allow_move=(),
+                prev_date=None):
     """new_df 를 검증 게이트에 통과시킨 뒤에만 파일 끝에 붙인다. 붙일 게 없으면 0.
     [v73] 검증 실패 시: 쓰지 않고(기존 데이터 유지) FAILURES 에 기록 — main 이
     종료코드 1 로 끝나 workflow 가 build_stats 를 돌리지 않는다 (downstream 보호)."""
@@ -80,7 +81,8 @@ def append_rows(path, new_df, cols, price_cols=('Close',), prev=None, allow_move
         print(f'  {os.path.basename(path):22s} 추가 0행 (이미 최신)')
         return 0
     probs = validate_frame(new_df, os.path.basename(path), list(price_cols),
-                           prev_close=prev, allow_move_cols=allow_move)
+                           prev_close=prev, allow_move_cols=allow_move,
+                           prev_date=prev_date)   # [코드리뷰 2026-09-04] 이음새 공백까지
     if probs:
         for msg in probs:
             print(f'  [검증실패] {msg}', file=sys.stderr)
@@ -113,7 +115,7 @@ def splice_us(path, symbol):
                         'Low': new['low'] * f, 'Close': new['adj'] * k,
                         'Volume': new['volume'].fillna(0).astype('int64')})
     return append_rows(path, out, ['Date', 'Open', 'High', 'Low', 'Close', 'Volume'],
-                       price_cols=('Close', 'Open'), prev=last_c)
+                       price_cols=('Close', 'Open'), prev=last_c, prev_date=last_d)
 
 
 def splice_kr(path, symbol):
@@ -153,7 +155,7 @@ def splice_kr(path, symbol):
                             'Volume': new['volume'].fillna(0), 'Raw': new['close']})
         cols = ['Date', 'Open', 'Close', 'Volume', 'Raw']
         pcols = ('Close', 'Open')
-    return append_rows(path, out, cols, price_cols=pcols, prev=last_a)
+    return append_rows(path, out, cols, price_cols=pcols, prev=last_a, prev_date=last_d)
 
 
 def splice_tnx(path):
@@ -165,7 +167,8 @@ def splice_tnx(path):
     out = pd.DataFrame({'Date': new.index, 'Open': new['open'], 'Close': new['close']})
     # 금리는 수준이라 ±30% 검사 제외 (2020-03 처럼 하루 -40% 가 실제로 있다)
     return append_rows(path, out, ['Date', 'Open', 'Close'],
-                       price_cols=('Close', 'Open'), allow_move=('Close', 'Open'))
+                       price_cols=('Close', 'Open'), allow_move=('Close', 'Open'),
+                       prev_date=last_d)   # [코드리뷰 2026-09-04] 이음날 가드가 없는 유일한 splicer
 
 
 def splice_gold(path):
@@ -180,7 +183,8 @@ def splice_gold(path):
     k = last_c / float(df.loc[last_d, 'adj'])
     new = df[df.index > last_d]
     out = pd.DataFrame({'Date': new.index, 'Close': new['adj'] * k})
-    return append_rows(path, out, ['Date', 'Close'], price_cols=('Close',), prev=last_c)
+    return append_rows(path, out, ['Date', 'Close'], price_cols=('Close',), prev=last_c,
+                       prev_date=last_d)
 
 
 def refresh_fx(path):

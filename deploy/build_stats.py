@@ -90,9 +90,12 @@ def pack(curve, turn):
         'final': round(float(m['final']), 3),
         'cagr': round(float(m['cagr']) * 100, 2),
         'mdd': round(float(m['mdd']) * 100, 2),
-        'calmar': round(float(m['calmar']), 3),
+        # [코드리뷰 2026-09-04] met() 는 calmar(mdd>=0) 와 sharpe(vol==0) 에서도 NaN 을 낸다.
+        #   종전엔 sortino 만 막아서, 단조 벤치마크 하나면 json.dump 가 맨 NaN 토큰을 쓰고
+        #   그 페이로드가 data/signal.json 에 통째로 박혀 화면이 판정 카드까지 잃는다.
+        'calmar': round(float(m['calmar']), 3) if np.isfinite(m['calmar']) else None,
         'sortino': round(float(m['sortino']), 3) if np.isfinite(m['sortino']) else None,
-        'sharpe': round(float(m['sharpe']), 3),
+        'sharpe': round(float(m['sharpe']), 3) if np.isfinite(m['sharpe']) else None,
         'years': round(float(m['years']), 1),
         # [v60] MDD 는 최악의 한 점이라 '얼마나 오래 물속이었나'를 못 잰다.
         'ulcer': round(float(ui), 2),
@@ -155,21 +158,29 @@ def sc_us_1972(kind):
     return out, bm
 
 
+def kr_basket(idx, dfk, fr, kind):
+    """원화 기준 방어 다리. [코드리뷰 2026-09-04] sc_kr_1997 과 hedge_kr_1997 에 글자
+    그대로 복제돼 있던 레시피를 한 곳으로 모았다 — 한쪽만 고치면 같은 표의 두 열이
+    말없이 갈라진다(두 함수가 kr_1997 행의 strategies 와 strategies_hedge 를 만든다).
+
+    채택안 3종은 전부 환노출이다 - axis_krspec.py 의 실측(b2=0.8~1.0).
+      TIGER 미국배당다우존스 / TIGER 미국채10년선물(실효 5년) / ACE KRX금현물
+    [v36] ust5 는 **선물형**이다(305080). 현물 총수익에서 단기금리·보수를 뺀다.
+    """
+    if kind == 'div':
+        return np.asarray(dfk, dtype=float)
+    raw = {'div': np.asarray(dfk, dtype=float),
+           'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
+           'gold': DA.gold_r(idx)}
+    parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
+             for k in DA.MIX_V23}
+    return DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
+
+
 def sc_kr_1997(kind):
     D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     krd = K.kr_caldays()
-    if kind == 'div':
-        sr = dfk
-    else:
-        # 채택안 3종은 전부 환노출이다 — axis_krspec.py 의 실측(b2≈0.8~1.0).
-        #   TIGER 미국배당다우존스 / TIGER 미국채10년선물(실효 5년) / ACE KRX금현물
-        # [v36] ust5 는 **선물형**이다(305080). 현물 총수익에서 단기금리·보수를 뺀다.
-        raw = {'div': np.asarray(dfk, dtype=float),
-               'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
-               'gold': DA.gold_r(idx)}
-        parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
-                 for k in DA.MIX_V23}
-        sr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
+    sr = kr_basket(idx, dfk, fr, kind)
     Dx = dict(D); Dx['qldr'] = lev2; Dx['schdr'] = sr
     out, bm = {}, None
     for k, S in STRATS.items():
@@ -227,15 +238,7 @@ def hedge_kr_1997(defkind='mix'):
     D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     att = DA.mix_monthly_parts(idx, HEDGE_W,
                                {'lev': np.asarray(lev2), 'div': np.asarray(dfk)})
-    if defkind == 'div':
-        dr = np.asarray(dfk, dtype=float)
-    else:
-        raw = {'div': np.asarray(dfk, dtype=float),
-               'ust5': DA.ust_tr(idx, 5, 'TNX', futures=True, fee=DA.UST_FEE),
-               'gold': DA.gold_r(idx)}
-        parts = {k: (raw[k] if k == 'div' else (1 + raw[k]) * (1 + fr) - 1)
-                 for k in DA.MIX_V23}
-        dr = DA.mix_monthly_parts(idx, DA.MIX_V23, parts)
+    dr = kr_basket(idx, dfk, fr, defkind)
     Dx = dict(D); Dx['qldr'] = np.asarray(att, float); Dx['schdr'] = np.asarray(dr, float)
     c, w, t = K.run_kr(Dx, STRATS['B'], cost=0.001, slip=0.001, start=KF.ST,
                        krdays=K.kr_caldays())
@@ -284,14 +287,17 @@ def sync_doc(payload, path='01_Strategy_Logic.md'):
     head_end = txt.index('-->', i) + 3
     rows = ['| 기준 | 구간 | 최종배수 | CAGR | MDD | 회복기간 | 전환 |',
             '|---|---|---:|---:|---:|---:|---:|']
+    # [코드리뷰 2026-09-04] 종전엔 머리글에 scenarios[0] 의 끝 날짜 하나를 찍고 네 행 전부에
+    #   그것을 씌웠다. 그런데 미국 달력과 한국 달력은 같은 날 끝나지 않는다 (실측:
+    #   us_* / kr_1997 은 2026-08-28, kr_real 은 2026-09-01). 마지막 거래일은 **행마다** 적는다.
     for s in payload['scenarios']:
         m = s['strategies']['B']
         uw = f"{m['uw_months']/12:.1f}년" if m['uw_months'] >= 12 else f"{m['uw_months']:.0f}개월"
-        rows.append(f"| {s['label']} | {m['start'][:7]}~ ({m['years']}년) "
+        rows.append(f"| {s['label']} | {m['start'][:7]}~{m['end']} ({m['years']}년) "
                     f"| **{m['final']:,.1f}배** | {m['cagr']:.2f}% | −{abs(m['mdd']):.1f}% "
                     f"| {uw}{'+' if m['uw_open'] else ''} | {m['switches']} |")
-    end_date = payload['scenarios'][0]['strategies']['B']['end']
-    block = (f"\n{end_date} 종가 기준 · {payload['generated_at']} 생성 (월간 자동 갱신)\n\n"
+    block = (f"\n{payload['generated_at']} 생성 (월간 자동 갱신). "
+             f"기준마다 시장 달력이 달라 마지막 거래일이 다르다 - 구간 열에 적었다.\n\n"
              + '\n'.join(rows) + '\n')
     out = txt[:head_end] + block + txt[j:]
     if out != txt:
@@ -333,7 +339,10 @@ def main():
     if os.path.exists(sig):
         with open(sig, encoding='utf-8') as f:
             j = json.load(f)
-        if j.get('stats', {}).get('generated_at') != payload['generated_at']:
+        # [코드리뷰 2026-09-04] update_signal.load_stats() 는 원본이 없으면 None 을 쓴다.
+        #   그때 j.get('stats', {}) 는 {} 가 아니라 None 이라 AttributeError 로 죽었고,
+        #   OUT 은 이미 쓰인 뒤라 signal.json 사본과 01 문서만 옛 판으로 남았다.
+        if (j.get('stats') or {}).get('generated_at') != payload['generated_at']:
             j['stats'] = payload
             with open(sig, 'w', encoding='utf-8') as f:
                 json.dump(j, f, ensure_ascii=False, indent=1)

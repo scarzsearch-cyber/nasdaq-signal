@@ -34,6 +34,11 @@ import math
 import os
 import sys
 
+try:                       # [코드리뷰 2026-09-04] 이 모듈은 콘솔에 표를 찍는다.
+    sys.stdout.reconfigure(encoding='utf-8')   # cp949 콘솔에서 죽지 않게 (deploy/* 공통 규약)
+except Exception:
+    pass
+
 RAD = math.pi / 180.0
 
 # 알고리즘으로는 못 맞히는 것들 — 임시공휴일·선거일 (관보/KRX 공지 기준)
@@ -55,7 +60,9 @@ SPECIAL = {
 # Yahoo 시계열의 결측 의심일 — 어떤 공휴일에도 해당하지 않고 국내 5개 시계열 전부에서 빠져 있다.
 # (2011-10-04 는 ^KS11 만 빠지고 132030·133690 에는 있어 결측이 확인됐다)
 KNOWN_GAPS = {'2007-03-02', '2011-10-04', '2017-09-22', '2017-12-20',
-              '2022-01-03', '2022-05-09'}
+              '2022-01-03', '2022-05-09',
+              # [코드리뷰 2026-09-04] ^KS11 에만 없고 418660·458730·305080·411060 에는 있다.
+              '2026-08-28'}
 
 # 제도 이력이 있는 고정 공휴일 — 연도 범위 밖이면 휴일이 아니다. 구간을 여러 개 둘 수 있다.
 #   제헌절: 1949~2007 공휴일 -> 2008~2025 제외 -> **2026 복원**(공휴일법 개정, 2026-01-29 본회의)
@@ -345,6 +352,9 @@ def verify(y0=2005, y1=2026):
         if y == hi.year:
             calc = {d for d in calc if d <= hi}
             real = {d for d in real if d <= hi}
+        if y == lo.year:      # [코드리뷰 2026-09-04] hi 쪽에만 있던 클램프를 lo 에도.
+            calc = {d for d in calc if d >= lo}   # 시세가 시작되기 전의 휴일은
+            real = {d for d in real if d >= lo}   # 거짓양성이 아니라 잴 수 없는 날이다.
         fp = sorted(calc - real)
         fn = sorted(d for d in (real - calc) if d.isoformat() not in KNOWN_GAPS)
         gaps = sorted(d for d in (real - calc) if d.isoformat() in KNOWN_GAPS)
@@ -359,26 +369,42 @@ def verify(y0=2005, y1=2026):
         print('%-6d %6d %6d %8d %8d   %s' % (y, len(calc), len(real), len(fp), len(fn), msg))
     print('\n합계  거짓양성 %d  거짓음성 %d' % (tot_fp, tot_fn))
     print('  + 는 "쉰다고 했는데 실제로는 열었다", - 는 "열린다고 했는데 실제로는 쉬었다"')
-    print('  (결측의심) 은 Yahoo 국내 시계열 전부에서 빠진 날 — 어떤 공휴일에도 해당하지 않는다')
+    print('  (결측의심) 은 Yahoo 국내 시계열 전부에서 빠진 날 - 어떤 공휴일에도 해당하지 않는다')
     return tot_fp, tot_fn
 
 
+MIN_DAYS_PER_YEAR = 6      # 1990~2040 실측 최소는 8일(2009). 그 아래면 산출이 깨진 것이다.
+
+
 def emit(y0=None, y1=None, path='data/kr_holidays.json'):
-    y0 = y0 or dt.date.today().year
-    y1 = y1 or (y0 + 6)
+    # [코드리뷰 2026-09-04] 창을 **한 해 앞에서** 시작한다. 종전 today.year 는 해가 바뀌는
+    #   순간 지난해를 통째로 버렸고, 표를 **뒤로 걸어가며** 읽는 소비자
+    #   (nav_collect.trading_as_of)가 지난해 연말 휴장을 못 보고 휴장일을 거래일로
+    #   돌려줬다 (예: 2029-01-02 -> 2028-12-29 연말휴장, 정답은 2028-12-28).
+    y0 = (dt.date.today().year - 1) if y0 is None else y0
+    y1 = (y0 + 7) if y1 is None else y1
     out = {}
     for y in range(y0, y1 + 1):
         for d, why in holidays(y).items():
             out[d.isoformat()] = why
-    # [v195] 파수꾼이 매주 부르므로 **내용이 같으면 쓰지 않는다** — generated_at 만 바뀐 파일을
+    # [코드리뷰 2026-09-04] 사후 점검 — 이 파일은 파수꾼이 자동으로 덮어쓰고 바로 커밋한다.
+    #   산출이 깨져 빈 표가 나가면 화면 시계·실행일·재알림이 전부 그것을 따른다.
+    thin = [y for y in range(y0, y1 + 1)
+            if sum(1 for k in out if k[:4] == '%d' % y) < MIN_DAYS_PER_YEAR]
+    if thin:
+        raise SystemExit('[중단] 휴장일 산출이 비었다 - %s 년이 %d일 미만. %s 를 쓰지 않았다.'
+                         % (thin, MIN_DAYS_PER_YEAR, path))
+    # [v195] 파수꾼이 매주 부르므로 **내용이 같으면 쓰지 않는다** - generated_at 만 바뀐 파일을
     #   매주 커밋하면 v176 이 없앤 이력 소음이 되살아난다. 해가 바뀌어 범위가 밀릴 때만 바뀐다.
+    # [코드리뷰 2026-09-04] 비교와 출력은 try **밖**이다. 종전에는 안에 있어서
+    #   cp949 콘솔의 UnicodeEncodeError 를 except 가 삼키고 그대로 덮어썼다.
     try:
-        old = json.load(open(path, encoding='utf-8'))
-        if old.get('holidays') == out and old.get('range') == [y0, y1]:
-            print(f'변경 없음 — {path} ({len(out)}일, {y0}~{y1})')
-            return
+        prev = json.load(open(path, encoding='utf-8'))
     except Exception:
-        pass
+        prev = None
+    if prev is not None and prev.get('holidays') == out and prev.get('range') == [y0, y1]:
+        print('변경 없음 - %s (%d일, %d~%d)' % (path, len(out), y0, y1))
+        return
     payload = dict(
         generated_at=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
         range=[y0, y1],
@@ -395,4 +421,6 @@ if __name__ == '__main__':
     if '--emit' in sys.argv:
         emit()
     else:
-        verify()
+        # [코드리뷰 2026-09-04] 종전엔 verify() 의 반환을 버려 불일치가 있어도 종료코드가 0 이었다.
+        fp, fn = verify()
+        sys.exit(1 if (fp or fn) else 0)

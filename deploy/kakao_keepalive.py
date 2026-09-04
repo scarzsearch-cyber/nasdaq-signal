@@ -39,7 +39,7 @@ def main():
         with urllib.request.urlopen(req, timeout=30) as r:
             tok = json.loads(r.read())
     except Exception as e:
-        print(f'[경고] 카카오 토큰 갱신 실패({e}) — 만료됐다면 deploy/kakao_setup.py 재실행 필요',
+        print(f'[경고] 카카오 토큰 갱신 실패({e}) - 만료됐다면 deploy/kakao_setup.py 재실행 필요',
               file=sys.stderr)
         return
     at = tok.get('access_token')
@@ -52,12 +52,21 @@ def main():
     repo = os.environ.get('GITHUB_REPOSITORY', '').strip()
     if pat and repo:
         env = dict(os.environ, GH_TOKEN=pat)
-        p = subprocess.run(['gh', 'secret', 'set', 'KAKAO_REFRESH_TOKEN', '--repo', repo],
-                           input=new_rt.encode(), env=env)
-        if p.returncode == 0:
+        # [코드리뷰 2026-09-04] gh 가 PATH 에 없으면 subprocess.run 이 **returncode 를 내기 전에**
+        #   FileNotFoundError 를 던진다. 종전에는 그것이 main() 밖으로 튀어 아래 카톡 경고를
+        #   건너뛰었고, daily-signal.yml 의 continue-on-error 가 초록불로 덮었다.
+        #   그 시점엔 카카오가 이미 새 토큰을 발급해 옛 토큰을 죽인 뒤라 복구 수단이 없다.
+        try:
+            p = subprocess.run(['gh', 'secret', 'set', 'KAKAO_REFRESH_TOKEN', '--repo', repo],
+                               input=new_rt.encode(), env=env)
+            rc = p.returncode
+        except OSError as e:
+            print(f'[경고] gh 실행 자체가 실패({e}) - 아래 수동 경고로 전환', file=sys.stderr)
+            rc = -1
+        if rc == 0:
             print('KAKAO_REFRESH_TOKEN secret 자동 교체 완료')
             return
-        print('[경고] secret 자동 교체 실패 — 아래 수동 경고로 전환', file=sys.stderr)
+        print('[경고] secret 자동 교체 실패 - 아래 수동 경고로 전환', file=sys.stderr)
     # PAT 없음/실패 — 본인에게 카카오로 경고 (지금 access 토큰은 살아 있다)
     try:
         tpl = json.dumps({'object_type': 'text',

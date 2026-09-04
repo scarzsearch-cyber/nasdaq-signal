@@ -589,7 +589,11 @@ def g_watchdog():
     ok('파수꾼: 휴장일 표가 매주 자동 연장된다 (같으면 안 씀)',
        'kr_holidays.py --emit' in wy
        and 'git add data/ops_check.json data/kr_holidays.json' in wy
-       and "old.get('holidays') == out" in kh,
+       and "prev.get('holidays') == out" in kh
+       # [코드리뷰 2026-09-04] 비교가 try **밖**인지까지 본다. 안에 있으면 cp949 콘솔의
+       #   UnicodeEncodeError 를 except 가 삼키고 매주 덮어썼다 (v195 가 막으려던 그 소음).
+       and ('except Exception:' + chr(10) + '        prev = None') in kh
+       and 'MIN_DAYS_PER_YEAR' in kh,
        '2032 에 조용히 끝나는 파일 — 재생성은 주간, 커밋은 해가 바뀔 때만 (v195)')
 
 
