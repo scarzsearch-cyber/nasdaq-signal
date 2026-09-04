@@ -43,7 +43,8 @@ print(hdr)
 for nm, s0, s1 in CR:
     row = '%-16s' % nm
     for n, v in ser.items():
-        seg = v.loc[s0:s1]
+        # s0 종가에서 s1 종가까지의 수익이므로 s0 당일 수익(전일→s0)은 제외한다.
+        seg = v.loc[s0:s1].iloc[1:]
         row += '%12.1f%%' % ((np.prod(1 + seg) - 1) * 100)
     print(row)
 

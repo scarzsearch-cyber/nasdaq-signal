@@ -139,10 +139,17 @@ def x23():
     r_cash = np.zeros(N)                               # 절반은 현금(0 수익) — 보수적
     r_mix = MIX
     # 2분할 시뮬은 w·QLDR + (1−w)·MIX 라 절반 현금을 못 표현 → 3자산 손으로
-    pos = np.r_[w[0], w[:-1]]; posB = np.r_[wB[0], wB[:-1]]
-    r = pos * QLDR + (posB - pos) * r_cash + (1 - posB) * r_mix
-    turn = np.abs(np.diff(pos, prepend=pos[0])) + np.abs(np.diff(posB, prepend=posB[0]))
-    c = np.cumprod((1 + r) * (1 - EC.COST * turn))[lo:] / 1.0
+    pos = np.r_[w[0], w[:-1]][lo:]; posB = np.r_[wB[0], wB[:-1]][lo:]
+    cash = posB - pos; mix = 1 - posB
+    r = pos * QLDR[lo:] + cash * r_cash[lo:] + mix * r_mix[lo:]
+    r[0] = 0.0
+    # 세 자산의 편도 회전율. 종전 abs(Δpos)+abs(ΔposB)는 공격↔방어 전환을
+    # 1.5~2배 중복 계산했고, 전체 곡선을 자른 뒤 재정규화하지 않아 CAGR도 부풀렸다.
+    dpos = np.diff(pos, prepend=pos[0])
+    dcash = np.diff(cash, prepend=cash[0])
+    dmix = np.diff(mix, prepend=mix[0])
+    turn = 0.5 * (np.abs(dpos) + np.abs(dcash) + np.abs(dmix))
+    c = np.cumprod((1 + r) * (1 - EC.COST * turn))
     m = met(c, ix); g, wins = gate(m, mB, blocks(c, ix), bB); show('X2 계절 노출 (5~10월 1배)', m, mB, g, wins); out['X2'] = g
     # X3: 21일 이동평균의 252일 고점
     sm = PX.rolling(21).mean()

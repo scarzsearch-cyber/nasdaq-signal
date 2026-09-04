@@ -8,9 +8,10 @@
   "Path-Dependence of Leveraged ETF Returns", SIAM J. Financial Math 1, 586–603:
   배율 β 누적수익에 (β−β²)/2 · 실현분산 항. β=2 면 계수 −1 → **드래그 ≈ σ²**.
 
-실험: 드래그 **총량은 고정**하고 **시점 분포만** σ² 비례로 바꾼다(κ·σ²_t, 표본평균이
-  기존 상수와 일치하도록 κ 보정). 총량을 고정하므로 「수준」이 아니라 **「타이밍」**만
-  본다 — 고변동일에 드래그를 몰아주면 B 평가가 달라지는가?
+실험: 합성 백필 구간의 드래그 **총량은 고정**하고 **시점 분포만** σ² 비례로 바꾼다
+  (κ·σ²_t, 실제로 상수가 쓰인 합성일 평균이 기존 상수와 일치하도록 κ 보정).
+  총량을 고정하므로 「수준」이 아니라 **「타이밍」**만 본다 — 고변동일에 드래그를
+  몰아주면 B 평가가 달라지는가?
 
 평가 전용 · 전략 무변경 · 동결 규칙 무접촉. 실행: python research/drag_sigma.py
 """
@@ -75,10 +76,11 @@ def main():
     # ---- [2] 시변 드래그 구성 (총량 고정) -----------------------------------
     v20 = pd.Series(R1).rolling(20, min_periods=5).std().values
     s2 = np.nan_to_num(v20 ** 2, nan=float(np.nanmean(v20 ** 2)))
-    kappa = CD / float(np.mean(s2))                     # 표본평균을 상수와 일치시킴
+    kappa = CD / float(np.mean(s2[SYN]))                # 실제 상수가 쓰인 합성구간 총량 고정
     c_t = kappa * s2
-    print(f'\n[2] 시변 드래그 c_t = κ·σ²_t  (κ={kappa:.3f}, 표본평균 일치 '
-          f'{np.mean(c_t)*252:.2%} ≡ {CD*252:.2%})')
+    assert np.isclose(np.mean(c_t[SYN]), CD), '합성구간 드래그 총량 보정 실패'
+    print(f'\n[2] 시변 드래그 c_t = κ·σ²_t  (κ={kappa:.3f}, 합성구간 평균 일치 '
+          f'{np.mean(c_t[SYN])*252:.2%} ≡ {CD*252:.2%})')
     print(f'  분위별 연율 드래그: 최저20% {np.quantile(c_t,0.1)*252:.2%} · '
           f'중앙 {np.median(c_t)*252:.2%} · 최고10% {np.quantile(c_t,0.9)*252:.2%} · '
           f'최대 {c_t.max()*252:.1%}')

@@ -231,10 +231,10 @@ def battery(title, cells, ref, ix, groups_fn=None, holdout=True, pbo=True):
         ('① MDD 가 R 보다 2%p 넘게 나쁘지 않음', r['dmdd'] >= -0.02),
         ('② 4블록 ≥ 3/4', r['blocks'] >= 3),
     ]
-    if holdout:
-        checks.append(('④ 홀드아웃 부호 유지', hold_ok))
-    if pbo:
-        checks.append(('⑤ PBO ≤ 0.5', pbo_v <= 0.5))
+    checks.append(('④ 홀드아웃 부호 유지' if holdout else '④ 홀드아웃 없음',
+                   bool(hold_ok) if holdout else False))
+    checks.append(('⑤ PBO ≤ 0.5' if pbo else '⑤ PBO 없음',
+                   bool(pbo_v <= 0.5) if pbo else False))
     if conc is not None:
         checks.append(('⑥ 상위3 ≤ 100% ∧ 상위1 제외 부호 유지', (not np.isnan(conc[0])) and conc[0] <= 1.0 and conc[1]))
     ok_all = all(v for _, v in checks)

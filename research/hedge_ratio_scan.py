@@ -271,7 +271,11 @@ def main():
         p = f'{sym}_us_d.csv' if root else f'data/hist/yahoo_{sym}.csv'
         d = pd.read_csv(p); c = 'Date' if 'Date' in d.columns else d.columns[0]
         d[c] = pd.to_datetime(d[c])
-        return d.set_index(c)['Close'].astype(float).sort_index()
+        price_col = 'AdjClose' if 'AdjClose' in d.columns else (
+            'Close' if 'Close' in d.columns else None)
+        if price_col is None:
+            raise ValueError(f'{p}: Close/AdjClose 열이 없다')
+        return d.set_index(c)[price_col].astype(float).sort_index()
     qqq, schd, dvy = px('QQQ'), px('SCHD'), px('DVY')
     per = [('닷컴 이후 2002-10 ~ 2007-10', '2002-10-09', '2007-10-31'),
            ('금융위기 2007-10 ~ 2009-03', '2007-10-31', '2009-03-09'),

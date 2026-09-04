@@ -68,13 +68,14 @@ def main():
         print(f'  {nm:<16} p05={v:>6.1f}  {"통과" if v >= b5 else "탈락"}')
 
     # ---- B4. p05 규약이라면 — 혼합 전선 전체 재주사 (고원/첨탑 판정) ----
-    print(f'\n[검증B4] 혼합 x 전선을 p05 로 재주사 (관문① Calmar>{G.report("", cand["B"])["calmar"]*1.102:.3f} · 관문② p05≥{b5:.1f})')
+    b4_calmar = G.report('', cand['B'])['calmar'] * 1.102
+    print(f'\n[검증B4] 혼합 x 전선을 p05 로 재주사 (관문① Calmar>{b4_calmar:.3f} · 관문② p05≥{b5:.1f})')
     print(f"{'x(B비중)':>8} {'Calmar':>7} {'p05':>6} {'p04':>6} {'p06':>6} {'동시':>4}")
     for x in np.arange(0.30, 0.7501, 0.05):
         c = X.blend(float(x))
         r = G.report('', c)
         p5, p4, p6 = qq(c, 0.05), qq(c, 0.04), qq(c, 0.06)
-        ok = r['calmar'] > 0.460 and p5 >= b5
+        ok = r['calmar'] > b4_calmar and p5 >= b5
         print(f"{x:>8.2f} {r['calmar']:>7.3f} {p5:>6.1f} {p4:>6.1f} {p6:>6.1f} "
               f"{'★' if ok else '·':>4}")
 

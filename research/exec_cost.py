@@ -61,7 +61,7 @@ def dev_stats():
     """괴리율 실측 — nav_collect 가 매일 쌓는다."""
     p = os.path.join('data', 'nav_history.csv')
     if not os.path.exists(p):
-        return {}
+        return {}, []
     with open(p, encoding='utf-8') as f:
         rows = list(csv.DictReader(f))
     out = {}

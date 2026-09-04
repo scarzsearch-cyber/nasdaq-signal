@@ -18,6 +18,7 @@ _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 _sys.path.insert(0, _os.path.join(_ROOT, 'research'))
 # ---------------------------------------------------------------------------
+import json
 import numpy as np
 import pandas as pd
 
@@ -71,14 +72,16 @@ def fullmet(a, r_tb=None, idx=None):
     neg = np.minimum(r, 0.0)
     dside = float(np.sqrt(np.mean(neg ** 2)) * np.sqrt(252))
     ex = r - (np.nan_to_num(r_tb) if r_tb is not None else 0.0)
-    sharpe = float(np.mean(ex) / np.std(r, ddof=1) * np.sqrt(252))
+    ex_sd = float(np.std(ex, ddof=1))
+    sharpe = float(np.mean(ex) / ex_sd * np.sqrt(252)) if ex_sd > 0 else np.inf
     # 최장 회복일 (고점→회복)
     rec, cur = 0, 0
     for v in ddser:
         cur = cur + 1 if v < 0 else 0
         rec = max(rec, cur)
+    calmar = cagr / abs(mdd) if mdd < 0 else (np.inf if cagr > 0 else np.nan)
     return dict(final=float(a[-1]), cagr=cagr * 100, mdd=mdd * 100,
-                calmar=cagr / abs(mdd), sortino=cagr / dside if dside > 0 else np.inf,
+                calmar=calmar, sortino=cagr / dside if dside > 0 else np.inf,
                 sharpe=sharpe, rec=rec)
 
 
@@ -116,7 +119,11 @@ def selfcheck():
     ref = X.three_way(np.asarray(w), 1 - np.asarray(w), np.zeros(n)).values
     err_c = float(np.max(np.abs(a / ref - 1)))
     m = fullmet(a, idx=G.idx)
-    ok_pub = abs(m['final'] - 217110.075) < 0.5 and abs(m['calmar'] - 0.418) < 0.001
+    with open(_os.path.join(_ROOT, 'data', 'strategy_stats.json'), encoding='utf-8') as f:
+        stats = json.load(f)
+    pub = next(s for s in stats['scenarios'] if s['key'] == 'us_1972')['strategies']['B']
+    ok_pub = (abs(m['final'] - float(pub['final'])) < 0.5 and
+              abs(m['calmar'] - float(pub['calmar'])) < 0.001)
     assert err_w == 0.0, f'rule_dd 검산 실패 {err_w}'
     assert err_c < 1e-12, f'sim2 검산 실패 {err_c}'
     assert ok_pub, f'B 공표 재현 실패 {m}'

@@ -31,7 +31,8 @@ def path(exitline, lo, hi, w0=1.0, cost=COST):
             cur = 0.0 if d <= ENTER else (1.0 if d > exitline else cur)
         w[j] = cur
     pos = np.empty_like(w); pos[0] = w0; pos[1:] = w[:-1]
-    r = np.nan_to_num(pos * qldr[lo:hi] + (1 - pos) * schdr[lo:hi]); r[0] = 0.0
+    # w0 는 구간 첫날 장 시작 전에 이미 보유한 상태이므로 첫날 수익도 포함한다.
+    r = np.nan_to_num(pos * qldr[lo:hi] + (1 - pos) * schdr[lo:hi])
     turn = np.abs(np.diff(pos, prepend=w0))
     return np.cumprod((1 + r) * (1 - cost * turn)), cur
 

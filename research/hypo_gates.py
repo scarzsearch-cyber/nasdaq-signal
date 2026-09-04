@@ -78,7 +78,7 @@ def sig_vol(r):
     return v.shift(1).values
 
 
-def sim_multi(legs, cost=COST, cap=True):
+def sim_multi(legs, cost=COST, cap=True, _fixed_w=None):
     """월초 리밸런스 멀티자산 엔진.
     legs: (기초수익 r_u, 실행상품수익 r_x, 압축배수 k) — 노출 e 에 현금 e/k 소요.
     노출 e_i = TARGET/(√n_leg · vol_i) × trend_i, 현금합>1 이면 비례 축소.
@@ -89,12 +89,15 @@ def sim_multi(legs, cost=COST, cap=True):
     vv = [sig_vol(l[0]) for l in legs]
     rx = [np.nan_to_num(l[1]) for l in legs]
     ks = [l[2] for l in legs]
-    cash_w = np.zeros(m)                       # 현재 현금배분 (상품 단위)
+    cash_w = (np.asarray(_fixed_w, float).copy() if _fixed_w is not None
+              else np.zeros(m))                # 현재 현금배분 (상품 단위)
+    if cash_w.shape != (m,):
+        raise ValueError(f'_fixed_w 길이 {cash_w.shape} != 다리 수 {(m,)}')
     vals = np.empty(n)
     v = 1.0
     warm = max(max(LOOKS), VOLW) + 1
     for i in range(n):
-        if i >= warm and (mstart[i] or i == warm):
+        if _fixed_w is None and i >= warm and (mstart[i] or i == warm):
             e = np.zeros(m)
             for j in range(m):
                 vol_j = vv[j][i]
@@ -117,17 +120,9 @@ def sim_multi(legs, cost=COST, cap=True):
 # ---- 방법론 self-check: 퇴화 케이스 = 고정 100% 주식2배, 비용 0 → 단순 누적과 오차 0 ----
 def _check():
     one = [(r_eq2, r_eq2, 1.0)]
-    tr0 = sig_trend(r_eq2)                     # noqa: F841 (신호 무시하고 고정 보유로 검산)
-    vals = np.empty(n); v = 1.0
-    for i in range(n):
-        v *= (1 + r_eq2[i])
-        vals[i] = v
-    ref = vals
-    # 엔진을 고정 보유 모드로: legs 하나, trend/vol 무시하고 cash_w=1 고정과 동치인지
-    cash = 1.0; v2 = 1.0; out = np.empty(n)
-    for i in range(n):
-        v2 *= (1 + cash * r_eq2[i] + (1 - cash) * tb[i])
-        out[i] = v2
+    ref = np.cumprod(1 + r_eq2)
+    # 실제 엔진을 고정 보유 모드로 실행해 단순 누적과 직접 대조한다.
+    out = sim_multi(one, cost=0.0, _fixed_w=[1.0]).values
     err = np.max(np.abs(out / ref - 1))
     assert err < 1e-12, f'퇴화 검산 실패 {err}'
     print(f'[검산] 퇴화 케이스(고정 100% 2배) 오차 {err:.2e}  OK')

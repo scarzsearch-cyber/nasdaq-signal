@@ -71,6 +71,17 @@ def main():
     pred = a + b * x
     r2 = 1 - np.var(y - pred) / np.var(y)
     sd = float(np.std(y - pred, ddof=2))
+    # 기관 전망은 명목 수익률이므로 비교용 명목 회귀를 따로 만든다. 실질 회귀의
+    # 구간에 명목 3%·6.7%를 바로 넣으면 물가만큼 단위가 어긋난다.
+    fwd_nom = (TRn.shift(-120) / TRn) ** (1 / 10) - 1
+    df_nom = pd.concat([CAPE.rename('cape'), fwd_nom.rename('fwd')], axis=1).dropna()
+    xn = np.log(df_nom.cape.values); yn = df_nom.fwd.values * 100
+    bn, an = np.polyfit(xn, yn, 1)
+    pred_nom = an + bn * xn
+    sd_nom = float(np.std(yn - pred_nom, ddof=2))
+    p38_nom = an + bn * np.log(38)
+    nom_lo, nom_hi = p38_nom - 1.96 * sd_nom, p38_nom + 1.96 * sd_nom
+    nom_width = nom_hi - nom_lo
     n_nonover = len(df) / 120
     print(f'  회귀: 이후 10년 실질 CAGR(%) = {a:.1f} {b:+.1f}×ln(CAPE) · 시작월 {len(df)}개 (비중첩 {n_nonover:.1f}개)')
     print(f'  **R² = {r2:.2f}** · 잔차 표준편차 **{sd:.1f}%p** — 즉 CAPE 를 알아도 10년 실질 수익의 {1-r2:.0%} 는 설명되지 않는다.')
@@ -86,8 +97,10 @@ def main():
         blocks = 1 + sum(1 for p, q in zip(yrs, yrs[1:]) if q - p > 1)
         print(f'    CAPE {lo}~{hi}: n={len(s):>4}개월 · 실질 10년 CAGR **최소 {s.fwd.min()*100:+.1f}% ~ 최대 {s.fwd.max()*100:+.1f}%** · '
               f'중앙 {s.fwd.median()*100:+.1f}% · **독립 국면 {blocks}개** ({yrs[0]}~{yrs[-1]})')
-    print('\n  → 골드만 3%(명목)와 JP모건 6.7%(명목)의 차이는 3.7%p 다. 위 예측구간 폭보다 훨씬 좁다 —')
-    print('    **두 예측은 이 데이터로는 구별되지 않는다.** 어느 쪽이 맞아도 CAPE 모형과 모순되지 않는다.')
+    print(f'\n  명목 전망끼리 맞춘 별도 회귀: CAPE 38 중심 {p38_nom:.1f}% · '
+          f'95% 예측구간 **{nom_lo:.1f}% ~ {nom_hi:.1f}%** (폭 {nom_width:.1f}%p)')
+    print('  → 골드만 3%(명목)와 JP모건 6.7%(명목)의 차이는 3.7%p 다. 명목 예측구간 폭보다 훨씬 좁다 —')
+    print('    **두 예측은 이 데이터로는 구별되지 않는다.** 어느 쪽이 맞아도 명목 CAPE 모형과 모순되지 않는다.')
 
     # ── B. 저수익 10년이 실제로 왔을 때 B 는 ─────────────────────────────────
     print('\n' + L); print('B. 「S&P 10년 연 3% 이하」가 실제로 왔을 때 B 는 어땠나 (엔진 표본 1972~)'); print(L)
@@ -136,10 +149,10 @@ def main():
 
     print('\n판정 (사전 등록 규약대로):')
     print(f'  P1 R² {r2:.2f} (예측 0.2~0.45) → {"맞음" if 0.20 <= r2 <= 0.45 else "틀림"}')
-    print(f'  P2 예측구간 폭 {2*1.96*sd:.1f}%p (예측 10%p+) → {"맞음" if 2*1.96*sd >= 10 else "틀림"} — 골드만 3% 와 JP모건 6.7% 는 구별 불가')
+    print(f'  P2 명목 예측구간 폭 {nom_width:.1f}%p (예측 10%p+) → {"맞음" if nom_width >= 10 else "틀림"} — 골드만 3% 와 JP모건 6.7% 는 구별 불가')
     print(f'  P3 S&P 10년 ≤3% 창 비율 {(t.sp <= 0.03).mean():.0%} (예측 <15%) → {"맞음" if (t.sp <= 0.03).mean() < 0.15 else "틀림"}')
-    s3 = t[t.sp <= 0.05]
-    print(f'  P4 저수익(≤5%) 창에서 B 중앙 {s3.B.median()*100:.1f}% vs S&P {s3.sp.median()*100:.1f}% → '
+    s3 = t[t.sp <= 0.03]
+    print(f'  P4 저수익(≤3%) 창에서 B 중앙 {s3.B.median()*100:.1f}% vs S&P {s3.sp.median()*100:.1f}% → '
           f'{"맞음" if len(s3) and s3.B.median() > s3.sp.median() else "틀림"}')
 
     print('\n이 측정이 낳은 다음 질문 (§-1 ⑥):')
