@@ -196,5 +196,104 @@ class PartialWeightAccounting(unittest.TestCase):
         self.assertAlmostEqual(values[-1], 2.25)
 
 
+class MultiAssetRebalance(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Extract the pure accounting function: no reports, cache writes or feeds.
+        tree = ast.parse((ROOT / 'research/liquid_design.py').read_text(encoding='utf-8-sig'))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'sim_multi')
+        ns = dict(np=np, COST=.001)
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'liquid_design.py', 'exec'), ns)
+        cls.sim = staticmethod(ns['sim_multi'])
+
+    @staticmethod
+    def reference(W, R, rebalance, cost):
+        # Independent currency accounts, not the vectorized target-return formula.
+        held = [float(w) for w in W[0]]
+        cash = 1.0 - sum(held)
+        out = [1.0]
+        for i in range(1, len(W)):
+            total = sum(held) + cash
+            if rebalance[i - 1]:
+                wanted = [total * float(w) for w in W[i - 1]]
+                wanted_cash = total - sum(wanted)
+                traded = (sum(abs(a - b) for a, b in zip(wanted, held))
+                          + abs(wanted_cash - cash)) / 2
+                remaining = total - cost * traded
+                held = [remaining * float(w) for w in W[i - 1]]
+                cash = remaining - sum(held)
+            held = [h * (1 + float(r)) for h, r in zip(held, R[i])]
+            out.append(sum(held) + cash)
+        return out
+
+    def test_monthly_hold_does_not_reset_weights_each_day(self):
+        W = np.full((3, 2), .5)
+        R = np.array([[0., 0.], [1., 0.], [-.5, 0.]])
+        # One asset round trips within the month; no intermediate sale occurs.
+        actual = self.sim(W, R, cost=.001, rebalance=[True, False, False])
+        np.testing.assert_allclose(actual, [1., 1.5, 1.], rtol=0, atol=1e-12)
+
+    def test_daily_rebalance_charges_actual_drift(self):
+        W = np.full((3, 2), .5)
+        R = np.array([[0., 0.], [1., 0.], [-.5, 0.]])
+        # Before the final day, weights are 2/3 and 1/3; trade 1/6 of wealth.
+        actual = self.sim(W, R, cost=.001)
+        self.assertAlmostEqual(actual[-1], 1.5 * (1 - .001 / 6) * .75)
+
+    def test_close_signal_is_executed_only_next_day(self):
+        W = np.array([[1., 0.], [0., 1.], [0., 1.]])
+        R = np.array([[0., 0.], [.1, .9], [.2, .3]])
+        np.testing.assert_allclose(self.sim(W, R, cost=.001),
+                                   [1., 1.1, 1.1 * .999 * 1.3], rtol=0, atol=1e-12)
+
+    def test_binary_B_reduces_to_original_two_asset_engine(self):
+        rng = np.random.default_rng(20260905)
+        w = rng.integers(0, 2, 200).astype(float)
+        R = rng.uniform(-.1, .1, size=(len(w), 2))
+        pos = np.r_[w[0], w[:-1]]
+        returns = pos * R[:, 0] + (1 - pos) * R[:, 1]
+        returns[0] = 0
+        for cost in (0., .001, .003):
+            expected = np.cumprod((1 + returns) * (1 - cost * np.abs(np.diff(pos, prepend=pos[0]))))
+            actual = self.sim(np.column_stack([w, 1 - w]), R, cost=cost)
+            np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_random_cash_portfolios_match_independent_accounts(self):
+        rng = np.random.default_rng(37)
+        for cost in (0., .001, .02):
+            for scheduled in ('never', 'daily', 'irregular'):
+                with self.subTest(cost=cost, schedule=scheduled):
+                    weights = rng.dirichlet(np.ones(4), size=100)
+                    W = weights[:, :3]  # The fourth weight is cash.
+                    R = rng.uniform(-.1, .1, size=W.shape)
+                    mask = (np.zeros(100, bool) if scheduled == 'never' else
+                            np.ones(100, bool) if scheduled == 'daily' else rng.random(100) < .15)
+                    expected = self.reference(W, R, mask, cost)
+                    actual = self.sim(W, R, cost=cost, rebalance=mask)
+                    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_invalid_accounting_inputs_are_rejected(self):
+        W = np.full((3, 2), .5)
+        R = np.zeros_like(W)
+        for weights in (np.empty((0, 2)), np.ones(3), -W, W * 1.1,
+                        np.array([[np.inf, 0.], [1., 0.], [1., 0.]])):
+            with self.subTest(weights=str(weights)):
+                with self.assertRaises(ValueError):
+                    self.sim(weights, R)
+        with self.assertRaises(ValueError):
+            self.sim(W, R, rebalance=[True])
+        with self.assertRaises(ValueError):
+            self.sim(W, R, cost=-.01)
+
+    def test_schedule_keeps_month_end_even_with_unchanged_targets(self):
+        tree = ast.parse((ROOT / 'research/liquid_design.py').read_text(encoding='utf-8-sig'))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'rebalance_events')
+        ns = dict(np=np)
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'liquid_design.py', 'exec'), ns)
+        W = np.array([[.5, .5], [.5, .5], [.5, .5], [.7, .3], [.7, .3]])
+        mask = ns['rebalance_events'](W, [False, False, True, False, False])
+        np.testing.assert_array_equal(mask, [True, False, True, True, False])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

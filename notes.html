@@ -103,7 +103,7 @@ details.more[open] summary{margin-bottom:6px}
 
   <div class="hero">
     <div class="big">매매 규칙은 한 번도 바뀌지 않았습니다.</div>
-    <div class="sub">아래 모든 업데이트는 <b>화면·안내·자동화</b>에 대한 것입니다.
+    <div class="sub">아래 업데이트는 <b>화면·안내·자동화·연구 계산</b>에 대한 것입니다.
       −16% 문턱도, 252일 룩백도, 40/40/20 비중도 동결 이후 <b>변경 0회</b>입니다 —
       그것이 이 시스템의 설계입니다(설명서 ⑦).</div>
     <div class="facts">
@@ -123,8 +123,23 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v206</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v207</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix">
+      <div class="head"><span class="v">v207</span><span class="tag fix">수정</span>
+        <span class="ttl">연구 후보의 비중 조정·거래비용 수정</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>월 1회 비중을 조정한다고 설명한 일부 연구 후보가 계산에서는 매일 비중을
+          되돌리고 있었습니다. 가격이 움직여 비중이 어긋난 뒤 되돌리는 거래의 비용도 빠져 있었습니다.
+          실제 보유금액을 이어 계산하고, 정해진 날의 거래와 비용을 반영하도록 고쳤습니다.</dd>
+        <dt>왜</dt><dd>이미 검토한 코드에서도 추가 오류가 발견됐습니다. 같은 자료로 다시 계산하니
+          일부 후보의 수익률과 낙폭이 달라졌습니다. 이번에 다시 확인한 후보 중 기존 기준을 새로
+          통과한 것은 없었습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>현행 B의 네 과거 시나리오 결과와 매매 규칙·실제 장부는 그대로입니다.</b>
+          이번 확인은 연구 코드 세 파일의 후속 점검입니다. 폴더 전체의 재검토 완료나 미래 수익 보장을 뜻하지 않습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix">
       <div class="head"><span class="v">v206</span><span class="tag fix">수정</span>

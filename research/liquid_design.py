@@ -146,14 +146,58 @@ def month_ends():
 ME = month_ends()
 
 
-def sim_multi(W, RM, cost=COST):
-    """W: N×K 목표 비중(그날 마감 판정) → 다음 날 적용. 비용은 현금까지 포함한 편도 회전율."""
-    pos = np.vstack([W[:1], W[:-1]])
-    r = np.nansum(pos * np.nan_to_num(RM), axis=1)
-    r[0] = 0.0
-    dw = np.diff(pos, axis=0, prepend=pos[:1])
-    turn = (np.abs(dw).sum(axis=1) + np.abs(dw.sum(axis=1))) / 2.0
-    return np.cumprod((1.0 + r) * (1.0 - cost * turn))
+def sim_multi(W, RM, cost=COST, rebalance=None):
+    """실제 보유 평가액을 굴린다. W[t]는 마감 목표, 집행은 t+1 수익 전.
+
+    rebalance[t]가 참일 때만 다음 날 목표비중으로 거래하며, 그 외에는
+    평가비중이 표류한다. 생략하면 매일 재조정한다. 월별 호출자는 월말과
+    신호 변경일을 명시한다. 비용은 실제 보유 대비 편도 회전율(현금 포함).
+    첫 행은 공통 시작자산 1이며 초기 진입비용·첫 행 수익은 기준 sim2처럼 0.
+    """
+    W, RM = np.asarray(W, float), np.asarray(RM, float)
+    if W.ndim != 2 or not len(W) or W.shape[1] == 0 or RM.shape != W.shape:
+        raise ValueError('W와 RM은 같은 크기의 비어 있지 않은 N×K 배열이어야 한다')
+    sums = W.sum(axis=1)
+    if not np.isfinite(W).all() or (W < 0).any() or (sums > 1 + 1e-12).any():
+        raise ValueError('목표비중은 유한·음수 없음·합계 1 이하여야 한다')
+    if not np.isfinite(cost) or not 0 <= cost < 1:
+        raise ValueError('비용은 0 이상 1 미만이어야 한다')
+    if np.isinf(RM).any() or (RM < -1).any():
+        raise ValueError('수익률은 무한대가 아니며 -100% 이상이어야 한다')
+    # 합계 1 부근의 부동소수점 오차만 정규화한다. 레버리지 비중은 허용하지 않는다.
+    W = W / np.maximum(sums, 1.)[:, None]
+    R = np.nan_to_num(RM, nan=0.)
+    scheduled = np.ones(len(W), bool) if rebalance is None else np.asarray(rebalance, bool)
+    if scheduled.shape != (len(W),):
+        raise ValueError('재조정 마스크는 W와 같은 길이의 1차원 배열이어야 한다')
+    held = W[0].copy()
+    cash = 1.0 - held.sum()
+    out = np.ones(len(W))
+    for i in range(1, len(W)):
+        total = held.sum() + cash
+        if total <= 0:
+            out[i:] = 0.
+            break
+        if scheduled[i - 1]:
+            target = W[i - 1]
+            target_cash = 1.0 - target.sum()
+            turn = (np.abs(target - held / total).sum() + abs(target_cash - cash / total)) / 2.
+            total *= 1.0 - cost * turn
+            held = total * target
+            cash = total * target_cash
+        held *= 1.0 + R[i]
+        out[i] = held.sum() + cash
+    if not np.isfinite(out).all():
+        raise ValueError('계산 자산이 유한하지 않다')
+    return out
+
+
+def rebalance_events(W, periodic=None):
+    """마감 기준 정기 재조정 + 목표 구성 변경. 마스크의 지연은 sim_multi가 맡는다."""
+    W = np.asarray(W, float)
+    changed = np.r_[True, np.any(W[1:] != W[:-1], axis=1)]
+    scheduled = np.zeros(len(W), bool) if periodic is None else np.broadcast_to(periodic, (len(W),))
+    return changed | scheduled
 
 
 def mix_weight_rows(w_mix):
@@ -194,14 +238,15 @@ def build(lo):
                         Wmix[t] += share
         return W, Wmix
 
-    def curve_from(W, Wmix, lev):
+    def curve_from(W, Wmix, lev, daily=False):
         RM = R.copy()
         if lev == 2:
             for k in engs:
                 RM[:, col[k]] = lev2(R[:, col[k]])
         # MIX 를 K+1 번째 자산으로 붙인다
         W2 = np.column_stack([W, Wmix]); RM2 = np.column_stack([RM, MIX])
-        c = sim_multi(W2[lo:], RM2[lo:])
+        rebalance = rebalance_events(W2, True if daily else ME)
+        c = sim_multi(W2[lo:], RM2[lo:], rebalance=rebalance[lo:])
         return c, W2[lo:]
 
     for lb in ('3', '6', '12'):
@@ -237,7 +282,7 @@ def build(lo):
         sig = [ndx_ma[t], (M6['NDX'][t] or 0) > 0, (M12['NDX'][t] or 0) > 0, (ndx_dd[t] if not np.isnan(ndx_dd[t]) else 0) > -0.16]
         e = sum(bool(x) for x in sig) / 4.0
         W[t, col['NDX']] = e; Wmix[t] = 1.0 - e
-    c, W2 = curve_from(W, Wmix, 2); out['F4 단계 노출 (0·¼·½·¾·1 × 나스닥 2배)'] = c; info['F4'] = W2
+    c, W2 = curve_from(W, Wmix, 2, daily=True); out['F4 단계 노출 (0·¼·½·¾·1 × 나스닥 2배)'] = c; info['F4'] = W2
 
     # F5 전천후 모멘텀 1배 — 10자산 한 통, 상위 3, 양수 아니면 T-bill
     for lb in ('3', '6', '12'):
@@ -251,7 +296,7 @@ def build(lo):
                 cur = [(k if sc[k] > 0 else 'TBILL') for k in rank]
             for k in cur:
                 W[t, col[k]] += 1.0 / 3
-        c = sim_multi(W[lo:], R[lo:]); out[f'F5 전천후 모멘텀 1배 (lb{lb})'] = c
+        c = sim_multi(W[lo:], R[lo:], rebalance=rebalance_events(W, ME)[lo:]); out[f'F5 전천후 모멘텀 1배 (lb{lb})'] = c
         if lb == '6':
             info['F5'] = np.column_stack([W[lo:], np.zeros(N - lo)])
 
@@ -273,7 +318,7 @@ def build(lo):
                 for k in cur:
                     W[t, col[k]] += 0.5
         RM = R.copy(); RM[:, col['NDX']] = lev2(R[:, col['NDX']])
-        c = sim_multi(W[lo:], RM[lo:]); out[f'F6 방어 유동 B (lb{lb})'] = c
+        c = sim_multi(W[lo:], RM[lo:], rebalance=rebalance_events(W, ME)[lo:]); out[f'F6 방어 유동 B (lb{lb})'] = c
         if lb == '6':
             info['F6'] = np.column_stack([W[lo:], np.zeros(N - lo)])
 
@@ -339,7 +384,7 @@ def run_window(lo, label):
         cr = crisis(c, ix)
         print(f"  {nm:<44}" + ''.join(f"{cr[k]:>7.1f}%" if not np.isnan(cr[k]) else f"{'—':>8}" for k in ('닷컴', '2008', '2020', '2022')))
     # 시간 점유 (lb6)
-    print('\n  자산별 시간 점유 (lb6 · 비중 평균)')
+    print('\n  자산별 목표비중의 기간 평균 (lb6 · 실제 평가비중은 월중 표류)')
     for key in ('F1', 'F2', 'F3', 'F4', 'F5', 'F6'):
         W2 = info.get(key)
         if W2 is None:

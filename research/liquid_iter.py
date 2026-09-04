@@ -2,7 +2,8 @@
 """
 [자유 설계 · 가상] 「흐르는 전략」 개량 라운드 — 소유자 「그걸 개선해서 개량을 거듭해봐」 (2026-09-03)
 
-EXPLORATION.md §A 의 6형태는 전부 B 에 졌다. 이 파일은 그 진 이유(진단)에서 출발해 형태를 고치고, 고친 것을 다시 고친다.
+EXPLORATION.md §A의 당시 진단에서 출발한 개량 실험이다. 아래 D1~D4는 수정 전 탐색 동기이지
+현재 확정된 원인 설명이 아니다. v204·v207 회계 교정 뒤 수치와 판정은 실행 출력 및 CODE_REVIEW_2026-09-05.md를 따른다.
 ★ 「결과를 본 뒤 고치기」를 거듭하면 반드시 이기는 곡선이 하나 나온다(CLAUDE.md §-1). 그래서 걸음을 이렇게 묶는다:
   · 설계 창 D = 1994-05 ~ 2010-12 (닷컴·2008 포함)에서만 **고른다** · 보류 창 H = 2011-01 ~ 2026-08 에서 **판정**한다.
   · 역방향(H 에서 고르고 D 에서 판정)도 같이 — 한 방향에서만 이기면 맞춤이다.
@@ -111,11 +112,11 @@ def thermo_engine(engs, lb=126, risk_adj=False, need_ma=False, vol_scale=False, 
     for k in engs:
         RM[:, col[k]] = LD.lev2(R[:, col[k]])
     W2 = np.column_stack([W, Wm]); RM2 = np.column_stack([RM, MIX])
-    return W2, RM2
+    return W2, RM2, LD.rebalance_events(W2, True if vol_scale else MS)
 
 
 def defense_once(lb=252):
-    """R1e: B 인데 방어 진입 시점에 한 번만 방어 상위 2 를 고른다."""
+    """R1e: 방어 진입 때만 상위 2를 선택한다. 선택은 유지하고 비중만 월 재조정한다."""
     W = np.zeros((N, K)); cur = None; s = 1
     for t in range(N):
         ps = s; s = switch_state(t, s)
@@ -128,7 +129,8 @@ def defense_once(lb=252):
             for k in cur:
                 W[t, col[k]] += 1.0 / len(cur)
     RM = R.copy(); RM[:, col['NDX']] = LD.lev2(R[:, col['NDX']])
-    return np.column_stack([W, np.zeros(N)]), np.column_stack([RM, MIX])
+    W2 = np.column_stack([W, np.zeros(N)])
+    return W2, np.column_stack([RM, MIX]), LD.rebalance_events(W2, MS)
 
 
 def allweather(top=3, ma=False, lev_eq=1.0, lb=126, ensemble=False):
@@ -151,7 +153,8 @@ def allweather(top=3, ma=False, lev_eq=1.0, lb=126, ensemble=False):
     if lev_eq != 1.0:
         for k in ENGS:
             RM[:, col[k]] = lev_eq * np.nan_to_num(R[:, col[k]]) - (lev_eq - 1.0) * LD.CD
-    return np.column_stack([W, np.zeros(N)]), np.column_stack([RM, MIX])
+    W2 = np.column_stack([W, np.zeros(N)])
+    return W2, np.column_stack([RM, MIX]), LD.rebalance_events(W2, MS)
 
 
 def curve_B():
@@ -160,9 +163,11 @@ def curve_B():
     return wB, QLDR
 
 
-def run(W2, RM2, a, b):
+def run(spec, a, b):
+    """목표·수익·마감 재조정 일정을 같은 구간으로 잘라 실행한다."""
+    W2, RM2, rebalance = spec
     lo, hi = IDX.searchsorted(a), IDX.searchsorted(b, side='right')
-    c = LD.sim_multi(W2[lo:hi], RM2[lo:hi])
+    c = LD.sim_multi(W2[lo:hi], RM2[lo:hi], rebalance=rebalance[lo:hi])
     return c, IDX[lo:hi]
 
 
@@ -242,11 +247,11 @@ def main():
         mBd, mBh = met(Bd, ixd), met(Bh, ixh)
         # 라운드 1 — 설계 창
         r1 = {}
-        for nm, (W2, RM2) in cands.items():
-            cd, _ = run(W2, RM2, a, b); r1[nm] = met(cd, ixd)
+        for nm, spec in cands.items():
+            cd, _ = run(spec, a, b); r1[nm] = met(cd, ixd)
         # R1i 하이브리드 (B 80 + F5 20)
-        f5W, f5R = allweather(3)
-        f5d, _ = run(f5W, f5R, a, b); r1['R1i B 80% + 전천후 20% 혼합'] = met(blend(Bd, f5d, 0.8, ixd), ixd)
+        f5 = allweather(3)
+        f5d, _ = run(f5, a, b); r1['R1i B 80% + 전천후 20% 혼합'] = met(blend(Bd, f5d, 0.8, ixd), ixd)
         table(f'라운드 1 · 설계 창 (B: 최종 {mBd["final"]:,.1f} · Calmar {mBd["calmar"]:.3f} · 10y p05 {mBd["p05_10"]:.2f})',
               sorted(r1.items(), key=lambda kv: -kv[1]['calmar']), mBd)
         top2 = [nm for nm, _ in sorted(r1.items(), key=lambda kv: -kv[1]['calmar'])[:2]]
@@ -255,44 +260,43 @@ def main():
         r2 = {}
         for nm in top2:
             if nm.startswith('R1i'):
-                f5W2, f5R2 = allweather(3, ma=True, ensemble=True)
-                f5d2, _ = run(f5W2, f5R2, a, b)
-                r2[f'R2 [{nm[:3]}] +200일선 필터·앙상블'] = ('blend', f5W2, f5R2, 0.8)
-                r2[f'R2 [{nm[:3]}] 혼합 70/30'] = ('blend', f5W, f5R, 0.7)
+                f5_filtered = allweather(3, ma=True, ensemble=True)
+                r2[f'R2 [{nm[:3]}] +200일선 필터·앙상블'] = ('blend', f5_filtered, 0.8)
+                r2[f'R2 [{nm[:3]}] 혼합 70/30'] = ('blend', f5, 0.7)
             elif nm.startswith('R1e'):
-                r2[f'R2 [{nm[:3]}] +6개월 모멘텀'] = ('wr',) + defense_once(126)
-                r2[f'R2 [{nm[:3]}] +위험조정 온도계 엔진 결합'] = ('wr',) + thermo_engine(E4, risk_adj=True, vol_scale=True)
+                r2[f'R2 [{nm[:3]}] +6개월 모멘텀'] = ('wr', defense_once(126))
+                r2[f'R2 [{nm[:3]}] +위험조정 온도계 엔진 결합'] = ('wr', thermo_engine(E4, risk_adj=True, vol_scale=True))
             elif nm.startswith(('R1f', 'R1g', 'R1h')):
-                r2[f'R2 [{nm[:3]}] +200일선·상위2·1.5배 결합'] = ('wr',) + allweather(2, ma=True, lev_eq=1.5)
-                r2[f'R2 [{nm[:3]}] +룩백 앙상블'] = ('wr',) + allweather(3, ma=True, ensemble=True)
+                r2[f'R2 [{nm[:3]}] +200일선·상위2·1.5배 결합'] = ('wr', allweather(2, ma=True, lev_eq=1.5))
+                r2[f'R2 [{nm[:3]}] +룩백 앙상블'] = ('wr', allweather(3, ma=True, ensemble=True))
             else:   # R1a~d 온도계 계열
-                r2[f'R2 [{nm[:3]}] +SOX 제외·위험조정·변동성 역가중 결합'] = ('wr',) + thermo_engine(E4, risk_adj=True, vol_scale=True, need_ma=True)
-                r2[f'R2 [{nm[:3]}] +룩백 앙상블'] = ('wr',) + thermo_engine(E4, ensemble=True, vol_scale=True)
+                r2[f'R2 [{nm[:3]}] +SOX 제외·위험조정·변동성 역가중 결합'] = ('wr', thermo_engine(E4, risk_adj=True, vol_scale=True, need_ma=True))
+                r2[f'R2 [{nm[:3]}] +룩백 앙상블'] = ('wr', thermo_engine(E4, ensemble=True, vol_scale=True))
         rows_d, rows_h = [], []
         for nm, spec in r2.items():
             if spec[0] == 'blend':
-                _, W2, RM2, w1 = spec
-                cd, _ = run(W2, RM2, a, b); ch, _ = run(W2, RM2, c0, c1)
+                _, legs, w1 = spec
+                cd, _ = run(legs, a, b); ch, _ = run(legs, c0, c1)
                 rows_d.append((nm, met(blend(Bd, cd, w1, ixd), ixd))); rows_h.append((nm, met(blend(Bh, ch, w1, ixh), ixh)))
             else:
-                _, W2, RM2 = spec
-                cd, _ = run(W2, RM2, a, b); ch, _ = run(W2, RM2, c0, c1)
+                _, legs = spec
+                cd, _ = run(legs, a, b); ch, _ = run(legs, c0, c1)
                 rows_d.append((nm, met(cd, ixd))); rows_h.append((nm, met(ch, ixh)))
         table('라운드 2 · 설계 창', rows_d, mBd)
         # 판정 — 보류 창: 라운드 2 후보 + 그 부모(라운드 1 상위 2)
         rows_hold = []
         for nm in top2:
             if nm.startswith('R1i'):
-                ch, _ = run(f5W, f5R, c0, c1); rows_hold.append((nm, met(blend(Bh, ch, 0.8, ixh), ixh)))
+                ch, _ = run(f5, c0, c1); rows_hold.append((nm, met(blend(Bh, ch, 0.8, ixh), ixh)))
             else:
-                W2, RM2 = cands[nm]; ch, _ = run(W2, RM2, c0, c1); rows_hold.append((nm, met(ch, ixh)))
+                ch, _ = run(cands[nm], c0, c1); rows_hold.append((nm, met(ch, ixh)))
         rows_hold += rows_h
         table(f'★ 판정 · 보류 창 (B: 최종 {mBh["final"]:,.1f} · Calmar {mBh["calmar"]:.3f} · 10y p05 {mBh["p05_10"]:.2f})', rows_hold, mBh)
         # 투명성: 라운드 1 전부의 보류 창 (사후 — 선택엔 안 씀)
         rows_all = []
-        for nm, (W2, RM2) in cands.items():
-            ch, _ = run(W2, RM2, c0, c1); rows_all.append((nm, met(ch, ixh)))
-        ch, _ = run(f5W, f5R, c0, c1); rows_all.append(('R1i B 80% + 전천후 20% 혼합', met(blend(Bh, ch, 0.8, ixh), ixh)))
+        for nm, spec in cands.items():
+            ch, _ = run(spec, c0, c1); rows_all.append((nm, met(ch, ixh)))
+        ch, _ = run(f5, c0, c1); rows_all.append(('R1i B 80% + 전천후 20% 혼합', met(blend(Bh, ch, 0.8, ixh), ixh)))
         table('참고 · 라운드 1 전부의 보류 창 (선택에 안 쓴 사후 표)', sorted(rows_all, key=lambda kv: -kv[1]['calmar']), mBh)
         best_d = max(r1.values(), key=lambda m: m['calmar'])
         passed = [nm for nm, m in rows_hold if m['calmar'] > mBh['calmar'] * 1.102 and not np.isnan(m['p05_10']) and m['p05_10'] >= mBh['p05_10']]
