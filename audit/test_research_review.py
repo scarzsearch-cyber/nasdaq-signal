@@ -22,6 +22,45 @@ import hist_fetch as fetch
 import exec_cost
 
 
+class ReviewContext(unittest.TestCase):
+    @staticmethod
+    def sources():
+        paths = ('AGENTS.md', 'CLAUDE.md', 'guide.html', 'signal.html',
+                 'research/tax_us_direct.py')
+        return {p: (ROOT / p).read_text(encoding='utf-8') for p in paths}
+
+    def test_current_context_contracts(self):
+        from verify_all import _review_context_checks
+        checks = _review_context_checks(self.sources())
+        self.assertTrue(all(checks.values()), [name for name, passed in checks.items() if not passed])
+
+    def test_removed_context_is_detected_without_changing_real_files(self):
+        from verify_all import _review_context_checks
+        original = self.sources()
+        self.assertTrue(all(_review_context_checks(original).values()))
+        mutations = (
+            ('AGENTS.md', lambda _: '# AGENTS.md\n' + '옛 규칙 사본\n' * 200),
+            ('CLAUDE.md', lambda _: ''),
+            ('guide.html', lambda s: s.replace('보장은 없습니다', '항상 유리합니다')),
+            ('guide.html', lambda s: s + '<p>54년 성과는 약 15배</p>'),
+            ('signal.html', lambda s: s.replace('5년 납입 · 20년 결과', '20년 결과')),
+            ('research/tax_us_direct.py', lambda s: s + '\n# 146.1 대 146.6 동률\n'),
+        )
+        for path, mutate in mutations:
+            with self.subTest(file=path):
+                changed = dict(original)
+                changed[path] = mutate(changed[path])
+                self.assertFalse(all(_review_context_checks(changed).values()))
+
+    def test_html_comment_does_not_replace_visible_warning(self):
+        from verify_all import _review_context_checks
+        changed = self.sources()
+        self.assertTrue(all(_review_context_checks(changed).values()))
+        changed['guide.html'] = changed['guide.html'].replace(
+            '보장은 없습니다', '<!-- 보장은 없습니다 -->')
+        self.assertFalse(all(_review_context_checks(changed).values()))
+
+
 class TaxAccounting(unittest.TestCase):
     def test_tax_funding_sale_carries_gain_to_next_year(self):
         # Deposit 100 at t=21, rise to 200, switch, then rise to 300.

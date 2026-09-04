@@ -57,6 +57,7 @@
   g_deploy          Pages 복사 목록          g_watchdog     파수꾼 모드·스텝
   g_signal_coupling 판정 경로가 표시 자료를 안 읽는가
   g_freeze_seal     freeze.json 내용 봉인 (FREEZE_SEAL)
+  g_review_context  최신 지침 연결 · 화면 수치의 조건 · 철회 주석
 
 ⚠ [2026-09-04] §2 는 「verify_all 의 전략 검사(I1~I14)는 읽기만」이라고 정한다.
   위생 관문(g_*)은 그 경계 **밖**이다 — 종전에는 전부 i5_decisions 안에 있어서
@@ -236,6 +237,56 @@ def _need(name, p):
         return True
     ok(name, False, '%s 없음 — 이 관문이 이번 실행에서 돌지 않았다' % p, warn=True)
     return False
+
+
+def _review_context_checks(sources):
+    """v205 문서 회귀 계약. 계산의 정답이 아니라 출처/한정/철회 표시를 검사한다.
+
+    통과: 필요한 표시가 남아 있다. 실패: 표시가 없어 재인용 위험이 생겼다.
+    표시를 갖췄다는 이유로 해당 연구 결론의 타당성을 인증하지는 않는다.
+    """
+    def visible(raw):
+        raw = re.sub(r'<!--.*?-->|<(script|style)\b[^>]*>.*?</\1>', '', raw,
+                     flags=re.S | re.I)
+        return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', raw)).strip()
+
+    def paragraph(raw, anchor):
+        raw = re.sub(r'<!--.*?-->', '', raw, flags=re.S)
+        match = re.search(r'<p\b[^>]*\bid=[\"\']' + re.escape(anchor)
+                          + r'[\"\'][^>]*>(.*?)</p>', raw, re.S | re.I)
+        return visible(match.group(1)) if match else ''
+
+    agents = sources.get('AGENTS.md', '').strip()
+    claude = sources.get('CLAUDE.md', '')
+    guide = sources.get('guide.html', '')
+    comparison = paragraph(guide, 'leverage-comparison')
+    signal = visible(sources.get('signal.html', ''))
+    tax = sources.get('research/tax_us_direct.py', '')
+    retired = [line for line in tax.splitlines()
+               if any(term in line for term in ('146.1', '146.6', '버블 의존'))]
+    return {
+        '지침: AGENTS는 최신 CLAUDE 전문을 읽게 하는 짧은 진입점': (
+            0 < len(agents.encode('utf-8')) <= 1024
+            and all(term in agents for term in ('CLAUDE.md', '작업 전에', '전문', '복사'))
+            and claude.startswith('# CLAUDE.md') and 'HANDOFF.md' in claude),
+        '설명서: 배율 비교 바로 옆에 기간·한 구간·비보장 표시': (
+            bool(re.search(r'\d{4}-\d{2}-\d{2}\s*~\s*\d{4}-\d{2}-\d{2}', comparison))
+            and all(term in comparison for term in ('한 구간', '1.8배', '보장은 없습니다'))),
+        '설명서: 54년 약 15배 성과 문구를 다시 올리지 않는다': (
+            bool(guide) and not re.search(r'(?<!\d)15배', visible(guide))),
+        '화면: ISA 수치가 5년 납입형임을 명시한다': (
+            '5년 납입 · 20년 결과' in signal
+            and all(term in signal for term in ('납입액 1억 대비 세후 평가액', '거치식 비교와는 다른 계산'))),
+        '연구 주석: 옛 동률·버블 주장은 같은 줄에 철회 표시': (
+            bool(tax) and all(line.lstrip().startswith(('# [철회]', '# [정정]'))
+                              for line in retired)),
+    }
+
+
+def g_review_context():
+    paths = ('AGENTS.md', 'CLAUDE.md', 'guide.html', 'signal.html', 'research/tax_us_direct.py')
+    for name, passed in _review_context_checks({p: _read(p) or '' for p in paths}).items():
+        ok(name, passed, 'v205 후속 정정 — 수치의 옳고 그름을 대신 판정하는 검사는 아님')
 
 
 def g_repo_map():
@@ -1562,7 +1613,7 @@ def main():
     step(i8_deps)
     # 저장소 위생 관문 — 전략 불변식과 갈라 둔다(§2 경계). 빠른 모드에서도 전부 돈다:
     # 실측 전체 5.3초 · fast 1.8초라 비용이 없고, v168 회귀는 fast 만 돌려서 놓쳤다.
-    for g in (g_repo_map, g_toc, g_isolation, g_notes_lag,
+    for g in (g_review_context, g_repo_map, g_toc, g_isolation, g_notes_lag,
               g_deploy, g_signal_coupling, g_watchdog):
         step(g)
     head(f"결과  ({time.time()-T0:.0f}초)")
