@@ -95,7 +95,10 @@ def main():
         say('  ' + out1.strip().splitlines()[-1] if out1.strip() else '')
         todo.append('전제 감시 스크립트가 실패했다 — AI에게 원문을 보여줄 것')
         R['ok'] = False
-        R['level'] = -1
+        # [코드리뷰 2026-09-04] 종전엔 -1 이었다. 파수꾼은 `lv1 > lv0` 로 악화를 보므로
+        #   -1 은 정상(0)보다 **낮게** 정렬돼, 실패가 이어지는 둘째 주부터는 악화로 안 잡혔다.
+        #   실패는 「모른다」이지 「정상」이 아니므로 가장 높은 단계로 올린다.
+        R['level'] = 3
         R['level_msg'] = '점검 실패 — 계산이 돌지 않았다'
     else:
         # SURVIVAL_MONITOR §F 의 감시 밴드 — 실측 분위에서 나온 값(임의 임계 아님).
@@ -109,13 +112,14 @@ def main():
             m = re.match(r'\s{2}(\S.*?)\s{2,}([+-]?[\d.]+)%', ln)
             if m:
                 cur.setdefault(m.group(1).strip(), float(m.group(2)))
-        warn, out_of_range = [], []
+        warn, out_of_range, unread = [], [], []
         say('  · 느린 변수 4종 (전략이 서 있는 땅이 흔들리는가)')
         for nm, w, x, d in BANDS:
             v = cur.get(nm)
             if v is None:
                 say(f'    {nm:<14} 값을 못 읽음')
                 R['vars'].append({'name': nm, 'value': None, 'state': '못 읽음'})
+                unread.append(nm)          # [코드리뷰 2026-09-04] 아래에서 판정에 반영
                 continue
             bad_w = (v < w) if d == 'lo' else (v > w)
             bad_x = (v < x) if d == 'lo' else (v > x)
@@ -126,7 +130,16 @@ def main():
                 warn.append(nm)
             say(f'    {nm:<14} {v:>+7.1f}%   [{st}]  (주의선 {w:+.1f}%)')
             R['vars'].append({'name': nm, 'value': v, 'state': st, 'warn_at': w})
+        # [코드리뷰 2026-09-04] 못 읽은 변수는 **정상이 아니다.** 종전에는 None 이
+        #   warn/out_of_range 어느 쪽에도 안 들어가 Level 0 「정상 — 유지」로 발행됐고,
+        #   surv_map.py 의 출력 서식이 한 칸만 바뀌어도 화면이 초록불이 된 채 아무것도
+        #   측정되지 않았다(정규식 실패와 건강한 실행의 JSON 이 완전히 같았다).
         lvl = 3 if out_of_range else (2 if len(warn) >= 2 else (1 if warn else 0))
+        if unread:
+            lvl = max(lvl, 2)
+            todo.append('전제 감시에서 %d개 변수를 못 읽었다(%s) — surv_map.py 출력 서식이 '
+                        '바뀌었는지 확인. 값을 못 읽은 것은 정상이 아니다.'
+                        % (len(unread), ', '.join(unread)))
         MSG = {0: '정상 — 유지', 1: '주의 — 다음에 다시 확인',
                2: '경고 — 재검토 연구 개시(전략 변경 아님)',
                3: '역사 범위 밖 — 유지 여부 재검증'}
@@ -145,6 +158,17 @@ def main():
                 R['aum'].append({'code': m.group(1), 'name': m.group(2).strip(),
                                  'eok': int(m.group(3).replace(',', '')),
                                  'state': m.group(4)})
+        # [코드리뷰 2026-09-04] 다리 수를 확인한다. pick() 은 상태 태그가 붙은 줄만 남기는데,
+        #   surv_map.py 는 수집분이 없는 다리에 태그 없이 「수집분 없음」을 찍는다. 그러면
+        #   R['aum'] 이 짧아지고 아래 종목별 경보 루프가 아무것도 안 돌아, 「감시가 이상을
+        #   못 찾았다」와 「감시가 아무것도 못 봤다」가 같은 JSON 이 된다.
+        if len(R['aum']) != len(SUBSTITUTE):
+            got = {a['code'] for a in R['aum']}
+            miss = [c for c in SUBSTITUTE if c not in got]
+            todo.append('4다리 중 %d개만 읽혔다 — 못 읽은 종목: %s. 상장폐지 감시가 그만큼 '
+                        '꺼져 있다(수집분 없음이면 nav_collect.py 확인).'
+                        % (len(R['aum']), ', '.join(miss) if miss else '알 수 없음'))
+
         # 경보·주의는 **종목별로** 낸다 — 어느 다리가 위태로운지가 곧 대응이다.
         # 대체 상품을 문구에 같이 실어 화면·카톡만 보고도 움직일 수 있게 한다.
         for a in R['aum']:

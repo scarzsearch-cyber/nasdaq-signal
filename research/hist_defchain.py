@@ -47,9 +47,17 @@ def table(start, end, label, cost=0.001):
 if __name__ == '__main__':
     import hist_divetf as DE
     ch = DE.defensive_chain()
-    print('방어자산 체인 CAGR 1972-2026 = %.2f%%   MDD = %.2f%%'
-          % (((1 + ch).prod() ** (252 / len(ch)) - 1) * 100,
-             ((1 + ch).cumprod() / (1 + ch).cumprod().cummax() - 1).min() * 100))
+    # [코드리뷰 2026-09-04] 종전에는 라벨만 '1972-2026' 이고 실제로는 체인 전 구간
+    #   (1926-07-01~)을 재서, 인쇄된 MDD -88.51% 의 저점이 **1932-06-01** 이었다.
+    #   defensive() 는 이 체인을 idx(1972+)로 잘라 쓰므로 전략이 보는 구간과도 달랐다.
+    #   연율 분모도 252/len 이라 달력 100.2년을 104.4년으로 셌다. 둘 다 바로잡는다.
+    ch = ch[ch.index >= pd.Timestamp('1972-02-01')]
+    yrs = (ch.index[-1] - ch.index[0]).days / 365.25
+    lv = (1 + ch).cumprod()
+    print('방어자산 체인 CAGR %s~%s = %.2f%%   MDD = %.2f%%'
+          % (ch.index[0].date(), ch.index[-1].date(),
+             ((1 + ch).prod() ** (1 / yrs) - 1) * 100,
+             (lv / lv.cummax() - 1).min() * 100))
     table(None, None, '전구간 1972-02 ~ 2026-08')
     table('2000-01-03', None, '기준구간 2000-01 ~ 2026-08')
     table('2003-11-10', None, '방어자산 100% 실물 구간 2003-11 ~ 2026-08')

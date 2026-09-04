@@ -49,7 +49,12 @@ def usd_table(kind, label, start=None, end=None, cost=0.001):
     idx = D['idx']
     lo = 0 if start is None else idx.searchsorted(pd.Timestamp(start))
     hi = len(idx) if end is None else idx.searchsorted(pd.Timestamp(end), side='right')
-    qld = pd.Series(np.cumprod(1 + D['qldr'][lo:hi]), index=idx[lo:hi])
+    # [코드리뷰 2026-09-04] run() 은 r[0]=0 으로 눌러 곡선을 1.0 에서 시작시킨다.
+    #   여기서 안 누르면 구간 첫날 수익이 벤치마크에만 한 번 더 곱해진다 —
+    #   start=2000-01-03 에서 final 5.4322 vs 규약대로 5.0582 (첫날 qldr +7.39%).
+    #   hyst_core 에서 2026-09-04 에 고친 것과 같은 결함이 여기 남아 있었다.
+    br = np.asarray(D['qldr'][lo:hi], float).copy(); br[0] = 0.0
+    qld = pd.Series(np.cumprod(1 + br), index=idx[lo:hi])
     out = {}
     for S in ALL:
         c, w, t = run(D, S['ladder'], enter=S['enter'], cost=cost, start=start, end=end)
@@ -99,7 +104,8 @@ if __name__ == '__main__':
     krd = K.kr_caldays()
     Dk, idxk, lev2, lev1, dfk, fr = KF.build_krw('chain')
     lo = idxk.searchsorted(pd.Timestamp(KF.ST))
-    bench = pd.Series(np.cumprod(1 + lev2[lo:]), index=idxk[lo:])
+    _b = np.asarray(lev2[lo:], float).copy(); _b[0] = 0.0   # [코드리뷰] run() 규약과 동일
+    bench = pd.Series(np.cumprod(1 + _b), index=idxk[lo:])
     print('%-9s %13s %7s %8s %7s %6s %7s %8s' %
           ('전략', '최종배수', 'CAGR', 'MDD', 'Calmar', '전환', '5Y승률', '10Y승률'))
     for S in ALL:
@@ -138,10 +144,14 @@ if __name__ == '__main__':
         kelly(r, '%-38s n=%5d' % (lab, len(r)))
     m = (gray & ~armed)[:-1]
     r = nxt[:-1][m]
+    # [코드리뷰 2026-09-04] 방어자산도 **다음날**로 맞춘다. 종전에는 QQQ 만 np.roll 로
+    #   한 칸 밀고 방어자산은 당일치를 썼다. 마스크가 561일에 걸쳐 70개의 비연속 블록이라
+    #   하루 밀림이 상쇄되지 않고 140일이 통째로 바뀌었다 — 인쇄값 +48.5% vs 맞춘 값 +12.9%.
+    nxt_s = np.roll(np.asarray(D['schdr'], float), -1)
     print('   ★ 구간 누적: QQQ %+.1f%%  /  2배환산 %+.1f%%  /  같은일수 방어자산 %+.1f%%'
           % ((np.prod(1 + r) - 1) * 100,
              (np.prod(1 + 2 * r - D['c_daily']) - 1) * 100,
-             (np.prod(1 + D['schdr'][:-1][m]) - 1) * 100))
+             (np.prod(1 + nxt_s[:-1][m]) - 1) * 100))
     print('   => 이 구간이 B 의 초과수익 전부의 출처다. f* 와 누적수익이 이를 정당화하는지 보라.')
 
     # ---------------------------------------------------------------- 6. WFA / OOS
@@ -164,12 +174,19 @@ if __name__ == '__main__':
                 if len(c) < 2: continue
                 state = float(w.iloc[-1]); picks.append(best['name'])
                 oos *= float(c.iloc[-1]); wins.append(c.iloc[-1] > 1)
+            # [코드리뷰 2026-09-04] 고정 대조군은 **OOS 와 같은 창**에서 재야 한다.
+            #   OOS 루프는 yrs[5:] 라 라벨이 '2000-2026' 이어도 실제로는 2005~ 를 덮는데,
+            #   종전 대조군은 늘 start='2000-01-03' 이었다 — 적응형의 패배가 40~147% 부풀었다
+            #   (2000-2026 행: OOS 71.04 vs 고정 165.35 로 2.3배 패배처럼 보였으나
+            #    같은 창(2005~)의 고정은 89.29 라 실제 격차는 1.26배).
+            ostart = f'{yrs[5]}-01-01'
+            for S in ALL:
+                c, w, t = run(Dw, S['ladder'], enter=S['enter'], start=ostart)
+                print('  %-16s %-10s 고정(%s~) %12s'
+                      % ('', S['name'], ostart[:4], f"{met(c)['final']:,.2f}"))
             print('  %-16s %-10s OOS 누적 %12s  승 %2d/%2d  선택분포 %s'
-                  % (lab, plab, f'{oos:,.2f}', sum(wins), len(wins),
+                  % (lab, '%s-%s' % (yrs[5], yrs[-1]), f'{oos:,.2f}', sum(wins), len(wins),
                      {p: picks.count(p) for p in sorted(set(picks))}))
-        for S in ALL:
-            c, w, t = run(Dw, S['ladder'], enter=S['enter'], start='2000-01-03')
-            print('  %-16s %-10s 고정      %12s' % ('', S['name'], f"{met(c)['final']:,.2f}"))
 
     # ---------------------------------------------------------------- 7. 톱니 에피소드
     print('\n===== 7. 톱니 에피소드별 3자 (v20 hyst_episodes 정의: -16% 진입 ~ -11% 회복) =====')

@@ -89,31 +89,71 @@ def fetch_lbma():
     return df.drop_duplicates('Date', keep='last').sort_values('Date')
 
 
+def save_guarded(path, df, label):
+    """[코드리뷰 2026-09-04] 기존 캐시보다 **짧아지거나 뒤로 가면 쓰지 않는다.**
+
+    종전에는 --force 경로에 아무 하한이 없어서, 200 OK 지만 잘린 응답이 오면
+    수만 행짜리 원자료를 몇 행으로 덮어쓰고 「저장」이라고 찍었다(실측: yahoo_TNX.csv
+    16,151행 1962-01-02~ -> 3행 2025-01-01~, 예외 없음, 종료코드 0).
+    yahoo_TNX 는 DA.ust_tr 을 통해 방어 바스켓의 국채 40% 다리를 놓는 유일한 원자료다.
+    deploy/refresh_hist.py 는 같은 위험에 「짧아지면 유지」 가드를 갖고 있고 여기만 없었다.
+    """
+    if df is None or df.empty:
+        print('거부  %-22s 받은 행이 0' % label)
+        return False
+    if os.path.exists(path):
+        try:
+            old = pd.read_csv(path, parse_dates=['Date'])
+        except Exception as e:
+            print('거부  %-22s 기존 파일을 못 읽어 비교 불가 (%s)' % (label, type(e).__name__))
+            return False
+        if len(df) < len(old) * 0.9:
+            print('거부  %-22s 행이 %d -> %d 로 줄어든다 (10%% 여유 밖)'
+                  % (label, len(old), len(df)))
+            return False
+        if df['Date'].iloc[-1] < old['Date'].iloc[-1]:
+            print('거부  %-22s 마지막 날짜가 %s -> %s 로 뒤로 간다'
+                  % (label, old['Date'].iloc[-1].date(), df['Date'].iloc[-1].date()))
+            return False
+    df.to_csv(path, index=False)
+    print('저장  %-22s n=%-6d %s ~ %s' % (label, len(df), df['Date'].iloc[0].date(),
+                                         df['Date'].iloc[-1].date()))
+    return True
+
+
 def main(force=False):
     os.makedirs(DIR, exist_ok=True)
+    failed = []
     for sym, fn in YAHOO:
         p = os.path.join(DIR, fn)
         if os.path.exists(p) and not force:
             print('skip  %-22s (이미 있음)' % fn)
             continue
         try:
-            df = fetch_yahoo(sym)
-            df.to_csv(p, index=False)
-            print('저장  %-22s n=%-6d %s ~ %s' % (fn, len(df), df['Date'].iloc[0].date(),
-                                                 df['Date'].iloc[-1].date()))
+            if not save_guarded(p, fetch_yahoo(sym), fn):
+                failed.append(fn)
         except Exception as e:
             print('실패  %-22s %s %s' % (fn, type(e).__name__, str(e)[:50]))
+            failed.append(fn)
         time.sleep(0.4)
 
     p = os.path.join(DIR, LBMA[1])
     if os.path.exists(p) and not force:
         print('skip  %-22s (이미 있음)' % LBMA[1])
     else:
-        df = fetch_lbma()
-        df.to_csv(p, index=False)
-        print('저장  %-22s n=%-6d %s ~ %s' % (LBMA[1], len(df), df['Date'].iloc[0].date(),
-                                             df['Date'].iloc[-1].date()))
+        # [코드리뷰 2026-09-04] 종전엔 여기만 try 밖이라 LBMA 실패가 스크립트를 죽였다
+        #   (Yahoo 실패는 12개 전부 실패해도 종료코드 0). 두 경로를 같게 맞춘다.
+        try:
+            if not save_guarded(p, fetch_lbma(), LBMA[1]):
+                failed.append(LBMA[1])
+        except Exception as e:
+            print('실패  %-22s %s %s' % (LBMA[1], type(e).__name__, str(e)[:50]))
+            failed.append(LBMA[1])
+
+    if failed:
+        print('\n[경고] %d개 파일을 갱신하지 못했다: %s' % (len(failed), ', '.join(failed)))
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main(force='--force' in sys.argv)
+    sys.exit(main(force='--force' in sys.argv))

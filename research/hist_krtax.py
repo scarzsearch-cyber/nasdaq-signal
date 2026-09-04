@@ -29,6 +29,11 @@
 import os as _os, sys as _sys
 _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
+
+try:                       # [코드리뷰 2026-09-04] 전략 라벨이 U+2212(MINUS SIGN)라
+    _sys.stdout.reconfigure(encoding='utf-8')   # cp949 콘솔에서 표 전체가 안 찍히고 죽었다.
+except Exception:          #   그 문자는 print 리터럴이 아니라 **데이터 리터럴**에 있어
+    pass                   #   앞선 가드 작업(bd8181f)의 print 스캔이 놓쳤다.
 # ---------------------------------------------------------------------------
 
 import numpy as np, pandas as pd
@@ -74,9 +79,11 @@ def run_tax(D, idx, qr, sr, S, krdays, rate=RATE, div_yield=0.0,
     out = np.empty(len(p)); tax_paid = 0.0; n_sell = 0
     dtax = div_yield * rate / 252.0
     for i in range(len(p)):
-        v *= (1 + r[i])
-        if p[i] < 0.5:                       # 방어자산 보유 중 분배금 과세 (일할)
-            v *= (1 - dtax)
+        # [코드리뷰 2026-09-04] 전환을 **그날 수익 앞**에 둔다. 종전에는 v *= (1+r[i]) 가
+        #   먼저 와서, r[i] 가 이미 **새** 비중 p[i] 로 계산된 수익인데도 그 하루치가
+        #   옛 포지션의 실현차익(gain = v - basis)에 섞여 과세됐고 basis 도 부풀려 잡혔다.
+        #   매도는 그날 시가에 끝났으므로 차익은 v_{i-1}*(1-c) - basis 여야 한다.
+        #   검산: rate=0 이면 이 순서 변경이 곡선을 안 바꾼다(KF.sim 과 4e-15 일치).
         if i > 0 and p[i] != p[i - 1]:       # 전환 = 전량 매도 후 재매수
             v *= (1 - (COST + SLIP))
             gain = v - basis
@@ -88,6 +95,9 @@ def run_tax(D, idx, qr, sr, S, krdays, rate=RATE, div_yield=0.0,
                 gain = max(0.0, gain)
             t = gain * rate
             v -= t; tax_paid += t; basis = v; n_sell += 1
+        v *= (1 + r[i])
+        if p[i] < 0.5:                       # 방어자산 보유 중 분배금 과세 (일할)
+            v *= (1 - dtax)
         out[i] = v
     return pd.Series(out, index=idx[lo:]), tax_paid, n_sell
 
@@ -96,6 +106,20 @@ def table():
     D, idx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     krd = K.kr_caldays()
     from hyst_core import A, B
+
+    # [코드리뷰 2026-09-04] 축퇴 검산 — 세금을 끄면 세전 곡선(KF.sim)이 그대로 나와야 한다.
+    #   CLAUDE.md 5-38 이 요구하는 검사다. 비용 적용 지점·체결 지연·ffill 경계가 틀어지면 잡힌다.
+    #   ⚠ **이 검산은 전환 순서 오류를 못 잡는다.** rate=0 이면 남는 것이 곱셈뿐이라
+    #   `v*=(1-c)` 와 `v*=(1+r)` 의 순서가 교환법칙을 만족하기 때문이다. 실제로 그 오류가
+    #   여기 있었고(B 1117.2 로 인쇄 → 정정 1177.2) 축퇴로는 안 보였다. 순서는 눈으로 확인하라:
+    #   매도는 그날 시가에 끝나므로 **전환 블록이 `v *= (1 + r[i])` 보다 위**에 있어야 한다.
+    for S in (A, B):
+        c0, tax0, _ = run_tax(D, idx, lev2, dfk, S, krd, rate=0.0, div_yield=0.0)
+        ref = KF.sim(D, idx, lev2, dfk, S, krd)[0]
+        rel = float(np.max(np.abs(c0.values / ref.values - 1)))
+        assert rel < 1e-9 and tax0 == 0.0, (
+            '세율 0 인데 세전 곡선과 다르다 (%s): 최대 상대차 %.2e, 세액 %.6f' % (S['name'], rel, tax0))
+
     rows = []
     cases = [
         ('과세이연 (연금저축·IRP·ISA)', 0.0, 0.0, False),
