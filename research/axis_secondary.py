@@ -59,8 +59,8 @@ def run_kr(Dx, krd, S, slip):
     c, w, t = K.run_kr(Dx, S, cost=0.001, slip=slip, start=KF.ST, krdays=krd)
     # 신호 변화가 아니라 한국 거래일 매핑 뒤 실제 체결을 센다. 휴장 사이에
     # 신호가 왕복하면 한 번도 체결되지 않을 수 있다.
-    n = int(np.count_nonzero(np.asarray(t, dtype=float)))
-    return float(c.iloc[-1]), n, c
+    events = np.flatnonzero(np.asarray(t, dtype=float) > 1e-12)
+    return float(c.iloc[-1]), events, c
 
 
 def flip_text(flip, tested_max=0.03):
@@ -87,24 +87,33 @@ def s1_slip(Dx, krd):
             if flip is None:
                 flip = s
         print(f"  {s*100:>9.1f}%{'':<6}{vb:>13,.1f}{va:>13,.1f}{vb/va:>9.2f}{mk}")
-    vb, tb, _ = run_kr(Dx, krd, SB, 0.001)
-    va, ta, _ = run_kr(Dx, krd, SA, 0.001)
+    vb, eb, _ = run_kr(Dx, krd, SB, 0.001)
+    va, ea, _ = run_kr(Dx, krd, SA, 0.001)
+    tb, ta = len(eb), len(ea)
     print(f"\n  전환 B {tb}회 / A {ta}회")
     print(f"  실제 가정(0.1%)에서 B/A = {vb/va:.2f}")
     extra = (' (실제 가정의 %.0f배)' % (flip / 0.001)) if flip is not None else ''
     print(f"  역전 지점 = {flip_text(flip)}{extra}")
-    return vb, va, tb, ta, flip
+    return vb, va, eb, ea, flip
 
 
-def s2_gap(cb, ca, tb, ta, n=2000):
+def s2_gap(cb, ca, eb, ea, n=2000):
     print("\n" + "=" * 78)
     print("2. 갭 분산 몬테카를로 — v21 이 실측한 2.58% 를 전환마다 물린다")
     print("=" * 78)
     print("  v21: '표준편차 2.58% 는 비용 0.1% 의 26배' -> 단위가 다르다.")
     print("       방향 없는 분산의 실제 비용은 sigma^2/2 다.")
     rng = np.random.default_rng(7)
-    rb = np.array([cb * np.prod(1 + rng.normal(0, GAP_SD, tb)) for _ in range(n)])
-    ra = np.array([ca * np.prod(1 + rng.normal(0, GAP_SD, ta)) for _ in range(n)])
+    # 같은 한국 거래일의 갭은 두 전략에 공통인 시장 충격이다. 종전처럼 B와 A를
+    # 독립 추첨하면 공통 체결일의 충격까지 서로 달라져 비교 분산을 부풀린다.
+    union = np.union1d(eb, ea)
+    where = {int(v): i for i, v in enumerate(union)}
+    ib = np.asarray([where[int(v)] for v in eb], int)
+    ia = np.asarray([where[int(v)] for v in ea], int)
+    shock = rng.normal(0, GAP_SD, size=(n, len(union)))
+    rb = cb * np.prod(1 + shock[:, ib], axis=1)
+    ra = ca * np.prod(1 + shock[:, ia], axis=1)
+    tb, ta = len(eb), len(ea)
     print(f"\n  {'':<6}{'중앙':>11}{'5분위':>11}{'95분위':>11}")
     print(f"  {'B':<6}{np.median(rb):>11,.0f}{np.percentile(rb,5):>11,.0f}{np.percentile(rb,95):>11,.0f}")
     print(f"  {'A':<6}{np.median(ra):>11,.0f}{np.percentile(ra,5):>11,.0f}{np.percentile(ra,95):>11,.0f}")
@@ -178,8 +187,8 @@ def s3_secondary():
 
 def main():
     Dx, ki, krd = krw_setup()
-    vb, va, tb, ta, flip = s1_slip(Dx, krd)
-    winrate, ratio = s2_gap(vb, va, tb, ta)
+    vb, va, eb, ea, flip = s1_slip(Dx, krd)
+    winrate, ratio = s2_gap(vb, va, eb, ea)
     stats = s3_secondary()
     low = [(nm, d) for nm, d in stats.items() if d['corr'] < 0.9]
     viable = [(nm, d) for nm, d in low if d['recent_win'] > 0.3]

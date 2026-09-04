@@ -147,7 +147,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | 파일 | 역할 |
 |---|---|
 | `hyst_signal.py` | 9개 후보 3구간 비교, QLD 진입선 Plateau 검증 |
-| `hyst_sigwfa.py` | 신호 계열별 WFA — QQQ 122.74배 vs QLD 41.04배 |
+| `hyst_sigwfa.py` | 신호 계열별 Calmar WFA — 실물 구간 QQQ 121.31배 vs QLD 52.42배, 동일 구간 고정 B 122.36배 (2026-09-05 교정) |
 
 ### 2-4. −16/−16 vs −16/−15 vs −16/−11 (v21 §11)
 
@@ -460,7 +460,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/mdd_target.py` | **[조건부 설계] MDD 상한 50% 를 만족하는 경로별 가격표** (2026-09-03, 04 §5-35) — 배합 5종·배율·문턱·상시방어·조합 · 판정 기준(20년 p05) 결과 전 등록 | 공격 다리 20% 를 빼는 것이 가장 싸다 · 배율·문턱 조정이 가장 비싸다 |
 | `research/plan30_withdraw.py` | **[조건부 설계] 소유자 계획(30년·7년차 인출 시작)으로 후보 재평가** (2026-09-03, 04 §5-36) — 비율/정액 인출 · 총 인출·최악 연 인출·소진·말잔액 | 현행 B 가 전 열 1위 · 비율 인출은 시퀀스 리스크를 없앤다 · 소득 흔들림만 B 가 열위 |
 | `research/complement_sleeve.py` | **[사실 확인] QQQ 를 보완하는 주식 슬리브 17종** (2026-09-03, 04 §5-37) — 섹터 겹침·폭락일 상관·자체 수익 삼각형 · 위기 4구간 · 공통창 비교 | 필수소비가 삼각형 최적 · SCHD 는 폭락일 상관 최상위권 · 금광주는 자체 수익에서 탈락 |
-| `research/tax_general_account.py` | **[사실 확인] 일반계좌 세후 — 배당 다리를 안 팔면 얼마나 아끼나** (2026-09-03, 04 §5-38) — 원가 추적 · 손실 상계 없음 · 전환/월재조정 과세 · 검산 내장 | 세금이 격차를 **벌린다**(세전 6.83 → 세후 8.56배) · 재조정 과세가 이점을 삼킨다 |
+| `research/tax_general_account.py` | **[사실 확인] 일반계좌 세후 — 배당 다리를 안 팔면 얼마나 아끼나** (2026-09-03, 04 §5-38) — 원가 추적 · 손실 상계 없음 · 전환/월재조정 과세 · 검산 내장 | 세금이 격차를 **줄인다**(세전 6.84 → 세후 5.37배) · 그래도 B 우위는 유지 |
 | `research/c3_placebo.py` | **[반증 2 · 플라시보] C3 관문 통과가 우연인가** — B 무작위 변형 200 · 상수 드리프트 · **뒤섞은 T-bill 200** · 반대 부호 | research/EXPLORATION.md §B-2 · 뒤섞은 T-bill 의 13% 가 C3 만큼 · 27% 가 ①② 동시 → Calmar 이득은 시점 무관 효과 · **C3 닫음** |
 
 ### 9-3. 엔진 교체 (성장 엔진을 나스닥 아닌 것으로)
@@ -480,8 +480,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/lev_5y.py` | 「5년 투자자에게 합리적인 배율」 — CE(γ) 한계 분석 | γ→k\* 지도 |
 | `research/lev_th.py` | 배율이 오르면 문턱도 바뀌어야 하나 · T4 를 고배율에 얹으면? | **−16 이 모든 k 에서 봉우리** |
 | `research/lev_signal_source.py` | 신호를 기초지수 vs 레버리지 상품 자체 낙폭으로 (2026-09-03) | **단위 변환일 뿐 · 경로 의존 유입** |
-| `research/tax_us_direct.py` | 전략 B ISA vs TQQQ B 직투 **세후**(원화·실물 3배 보정 · 2026-09-03) | **21세기 1.39배 · 45년 비중첩 창은 3배가 더 자주 짐** |
-| `research/t4_lev_post.py` | T4 배율 2.0~3.0 × 닷컴 이후 | 후반엔 B@2 에 패배 |
+| `research/tax_us_direct.py` | 전략 B ISA vs TQQQ B 직투 **세후**(원화·실물 3배 보정 · 세금 엔진 정정) | **21세기 1.76배 3배 우위 · MDD 8.1%p 악화** · 지평별 우위는 비단조 |
+| `research/t4_lev_post.py` | T4 배율 2.0~3.0 × 닷컴 이후 · 끝점 고정 모든 시작일 반증 | **기각 유지** — Calmar·지연 관문 미달, 단 2010 단일창 관문은 철회 |
 | `research/horizon_study.py` | 지평 3~20년 전수 — 「내 수명은 유한하다」 | **손실 0 문턱 7년** |
 | `research/post_dotcom.py` | 「닷컴 뒤로 T4·라오어와 비교하면?」 | — |
 | `research/slice_scan.py` | 다지평 슬라이스 스캔 — 「CT 찍듯 여러 두께로」 | 시작일 분포 판정 도구 |
@@ -491,6 +491,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 무엇을 쟀나 | 판정 |
 |---|---|---|
+| `audit/test_research_review.py` | 적립식 세금 납부의 2차 실현손익·거치식 환원·현금흐름·캐시 교체 실패 | 오프라인 회귀 검사 |
 | `research/horizon_ess.py` | 「손실 0 문턱 7년」의 **유효표본** | 비중첩 **7.9개**, 견고한 0 은 15년 |
 | `research/dsr_b.py` | Deflated Sharpe 를 **B 본체**에 | DSR 1.000 — 단 변별력 없음 |
 | `research/isa_pension.py` | ISA 만기 → 연금계좌 이체 (조특법 91조의18 ④) | **기각** (레버리지 IRP 매매 불가) |
@@ -503,7 +504,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | 파일 | 무엇을 쟀나 | 산출 |
 |---|---|---|
 | `research/ops_risk.py` | 운영 위험 6축 — 전환 놓침·종가 오입력·연속 손실 등 | 운영 규칙 3개 (04 §5-8) |
-| `research/exec_cost.py` | 체결비용 실측 하네스 — 0.2% 가정 검증(판정 규약 사전 고정) | 진행 중 (전환 20회 필요) |
+| `research/exec_cost.py` | 체결비용 실측 하네스 — 방향을 반영한 체결가÷NAV 비용 · 같은 날 체결 묶음 · NAV 없는 날 제외 | 진행 중 (**NAV 일치 실제 체결일 20일** 필요, 백업 없으면 0/20) |
 | `research/def_bond.py` | 방어 국채 다리 — 헤지 상관·만기 최적 (소유자 질문) | **기각** (04 §5-16) |
 | `research/def_equity.py` | 방어에 배당(주식)이 왜 있나 — 거치 후 적립 | 현행 유지 (04 §5-17) |
 | `research/takeprofit.py` | 익절 규칙 — 「수익률 n%마다 전량 매도하면?」 | **기각** (04 §5-9) |
@@ -513,6 +514,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/surv_alert.py` | 생존성 ② — 선행 경보 검증 (임계 사후 최적화 금지) | **선행경보 없음** |
 
 ### 9-7. 옛 축 — §6 이 누락했던 것 (v40~v44)
+
+후속 전수리뷰 및 교정 장부: `research/CODE_REVIEW_2026-09-05.md` — 원대상 137개 파일, 발견 61건 처리표, 실행 여부와 남은 한계.
 
 | 파일 | 무엇을 쟀나 | 판정 |
 |---|---|---|

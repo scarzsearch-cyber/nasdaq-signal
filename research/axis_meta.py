@@ -103,6 +103,8 @@ def main():
 
     def mdd_of(c, lo, hi):
         cc = np.exp(np.cumsum(LG[c][lo:hi]))
+        # lo 직전의 1.0 앵커가 없으면 구간 첫날 손실이 MDD 에서 사라진다.
+        cc = np.r_[1.0, cc]
         return float((cc / np.maximum.accumulate(cc) - 1).min())
 
     def p20_of(c, lo, hi):
@@ -164,9 +166,16 @@ def main():
 
     def sc_F(lo, hi, i):
         """지금 국면(변동성 z, 낙폭)과 닮은 과거 날들에서 잘한 후보."""
-        z = np.nan_to_num(rv[i], nan=0.0)
+        z = rv[i]
+        dnow = ddv[i]
         seg_rv = rv[lo:hi]
-        m = np.isfinite(seg_rv) & (np.abs(seg_rv - z) <= 0.5 * np.nanstd(seg_rv))
+        seg_dd = ddv[lo:hi]
+        rv_sd = np.nanstd(seg_rv)
+        dd_sd = np.nanstd(seg_dd)
+        m = (np.isfinite(seg_rv) & np.isfinite(seg_dd) & np.isfinite(z)
+             & np.isfinite(dnow)
+             & (np.abs(seg_rv - z) <= 0.5 * rv_sd)
+             & (np.abs(seg_dd - dnow) <= 0.5 * dd_sd))
         if m.sum() < 252:
             return {c: mult(c, lo, hi) for c in POOL}
         return {c: float(np.nansum(np.where(m, LG[c][lo:hi], 0.0))) for c in POOL}
@@ -236,7 +245,8 @@ def main():
         st = [s for s in range(lo0, N - L, 63)]
         isa = np.array([dca(c, s, s + L, 60) for s in st])
         per = np.array([dca(c, s, s + L) for s in st])
-        seg = c[lo0:]
+        anchor = c[lo0 - 1] if lo0 > 0 else 1.0
+        seg = np.r_[anchor, c[lo0:]]
         R[nm] = dict(c=c, isa=isa, per=per, chosen=ch,
                      mdd=float((seg / np.maximum.accumulate(seg) - 1).min()),
                      sw=int((np.abs(np.diff(pos[lo0:])) > 1e-9).sum()),

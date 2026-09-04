@@ -231,9 +231,9 @@ def main():
     # ---- D. Treasury flight-to-safety (1962~) — 4블록 전부 -----------------
     # 도피 진입 시 국채가 오르고 있으면(=수익률 하락) 전형적 안전자산 도피
     ty20 = chg(tnx, 20)                                  # +면 금리 상승 = 국채 하락
-    tsz = zsc(np.nan_to_num(ty20, nan=0.))
+    tsz = -zsc(np.nan_to_num(ty20, nan=0.))              # +면 금리 하락 = 국채 상승/도피
     for T in (-0.5, 0.0, 0.5):
-        cd['D 금리20일변화z>%.1f' % T] = (state_latch(ddv, tsz, None, T), 1972)
+        cd['D 국채상승(금리하락)z>%.1f' % T] = (state_latch(ddv, tsz, None, T), 1972)
     # 장단기차 (10년 - 3개월)
     curve_s = tnx - tb3
     cz = zsc(curve_s)
@@ -246,7 +246,7 @@ def main():
     # ---- F. Cross-asset (금 + 국채 + VIX, SPY 없음) ------------------------
     g20 = pd.Series(gold).pct_change(20).values
     gz = zsc(np.nan_to_num(g20, nan=0.))
-    stress = np.where(np.isfinite(gz) & np.isfinite(tsz), gz - tsz, np.nan)
+    stress = np.where(np.isfinite(gz) & np.isfinite(tsz), gz + tsz, np.nan)
     for T in (0.0, 0.5):
         cd['F 금-금리 스트레스z>%.1f' % T] = (state_latch(ddv, stress, None, T), 1972)
 

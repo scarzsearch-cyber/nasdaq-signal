@@ -61,7 +61,8 @@ SLIP = 0.001                         # 슬리피지
 FX_START = pd.Timestamp('1981-04-13')
 
 
-def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP, months=None):
+def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP, months=None,
+              dates=None):
     """월 정액 적립 + 세금. 반환 (총납입, 정산직전평가, 세후평가, 낸세금, 전환횟수).
 
     mode: 'pre' 세전 / 'gen' 일반계좌 / 'defer' 이연만 / 'defer99' 이연+9.9%
@@ -73,7 +74,12 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP, months=None):
     nsw = 0
     mi = 0                                                 # 월 카운터 (납입 5년 제한용)
     settled = 0.0                                          # isa3: 직전 정산 시점 평가액
-    nextset = lo + 3 * 252                                 # isa3: 3년마다 정산
+    date_idx = None if dates is None else pd.DatetimeIndex(dates)
+    if mode == 'isa3' and date_idx is None:
+        raise ValueError('isa3 정산에는 실제 거래일 dates 가 필요하다')
+    # 세법의 3년은 756거래일이 아니라 달력 3년이다. 휴일 수에 따라 매번 며칠씩
+    # 앞당겨지던 종전 3*252 근사를 없앤다.
+    nextset = (date_idx[lo] + pd.DateOffset(years=3)) if mode == 'isa3' else None
     prev = w[lo]
     month_ids = MONTH if months is None else np.asarray(months)
     for i in range(lo, hi):
@@ -122,7 +128,7 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP, months=None):
                 else:
                     C += a
 
-        if mode == 'isa3' and i >= nextset:                 # 3년마다 해지 -> 정산
+        if mode == 'isa3' and date_idx[i] >= nextset:       # 달력 3년마다 해지 -> 정산
             v = R + C
             g = max(0.0, v - paid - settled)
             t = max(0.0, g - EXEMPT) * ISA_RATE
@@ -133,7 +139,7 @@ def accum_tax(rr, dfr, w, lo, hi, mode, cost=COST + SLIP, months=None):
                 R, C = v, 0.0
             else:
                 R, C = 0.0, v
-            nextset = i + 3 * 252
+            nextset = date_idx[i] + pd.DateOffset(years=3)
 
     v = R + C
     pre = v
@@ -195,13 +201,14 @@ def rolling(rr, dfr, w, years, step=126):
     # 중간 세금이 이미 빠진 값이라 서로 다른 분모로 실효세율을 비교했다.
     pretax = {}
     for lo in starts:
-        paid, _, post, _, _ = accum_tax(rr, dfr, w, lo, lo + span, 'pre')
+        paid, _, post, _, _ = accum_tax(rr, dfr, w, lo, lo + span, 'pre', dates=IDX)
         pretax[lo] = (paid, post)
     out = {}
     for key, lab in MODES:
         vals, taxes = [], []
         for lo in starts:
-            paid, _, post, tax, nsw = accum_tax(rr, dfr, w, lo, lo + span, key)
+            paid, _, post, tax, nsw = accum_tax(
+                rr, dfr, w, lo, lo + span, key, dates=IDX)
             if paid > 0:
                 vals.append(post)
                 pre_paid, pre_value = pretax[lo]

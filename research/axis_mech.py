@@ -327,7 +327,9 @@ def build(D, rv21, rv126, rk):
         for i in range(n):
             want = 0.0 if ddv[i] <= ENTER else (1.0 if ddv[i] > ENTER else cur)
             if want != cur and held >= N:
-                cur = want; held = 0
+                # 전환일 자체가 보유 1일째다. 0으로 시작하면 N일 잠금이 실제로는
+                # N+1일이 되어 이름과 경로가 어긋난다.
+                cur = want; held = 1
             else:
                 held += 1
             w[i] = cur

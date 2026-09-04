@@ -164,12 +164,19 @@ def main():
     print(f'  20년창 최종배수 자체: B p05 {np.quantile(rb,.05):.1f} 중앙 {np.median(rb):.1f} / C3 p05 {np.quantile(rc,.05):.1f} 중앙 {np.median(rc):.1f}')
 
     # F5 금리 국면
-    print('\n[F5] 금리 국면 — T-bill 중앙값 위/아래 날들의 초과 일수익(C3 − B)')
+    print('\n[F5] 금리 국면 — T-bill 중앙값 위/아래의 Calmar와 초과 일수익')
     rB = np.diff(cB, prepend=1) / np.r_[1, cB[:-1]]; rC = np.diff(cC, prepend=1) / np.r_[1, cC[:-1]]
     tbl = TB[LO:] * 252; med = np.median(tbl)
     for nm, m in (('고금리(중앙값 위)', tbl > med), ('저금리(중앙값 아래)', tbl <= med)):
         ex = (rC - rB)[m]
-        print(f'  {nm:<12} 일수 {m.sum():,} · 평균 T-bill {tbl[m].mean()*100:.1f}% · C3−B 연환산 {ex.mean()*252*100:+.2f}%p · 갈린 날 {int((wB[LO:]!=wC[LO:])[m].sum())}')
+        # 반대 국면은 0%로 두어 달력 시간과 MDD 경로를 보존한다. 종전에는
+        # 평균수익 차이만 내고 이를 docstring의 「초과 Calmar」라고 불렀다.
+        a_br = np.cumprod(1 + np.where(m, rB, 0.0))
+        a_cr = np.cumprod(1 + np.where(m, rC, 0.0))
+        mb = EC.fullmet(a_br, idx=IDX[LO:]); mc = EC.fullmet(a_cr, idx=IDX[LO:])
+        print(f'  {nm:<12} 일수 {m.sum():,} · 평균 T-bill {tbl[m].mean()*100:.1f}% · '
+              f'Calmar {mb["calmar"]:.3f}→{mc["calmar"]:.3f} (Δ {mc["calmar"]-mb["calmar"]:+.3f}) · '
+              f'C3−B 연환산 {ex.mean()*252*100:+.2f}%p · 갈린 날 {int((wB[LO:]!=wC[LO:])[m].sum())}')
 
     # F6 타 시장
     print('\n[F6] 타 시장 — 같은 신호(÷T-bill) vs 가격 낙폭, 2배 합성 · 같은 방어')

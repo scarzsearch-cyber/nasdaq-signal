@@ -3,8 +3,8 @@
 [연구 Q2] 대체품이 환헤지(H)면 방어가 얼마나 약해지나 — 04 §7 Q2 (2026-09-02, 소유자 「연구만, 반영 금지」)
 
 배경: 공격 자산 418660(TIGER 미국나스닥100레버리지 합성)은 **환노출 2배**다. 상장폐지 등으로 갈아탈 때의
-      후보 409820(KODEX 미국나스닥100레버리지 합성 H)은 **환헤지**다. §5-5 는 전략 전체의 원화 MDD 차이
-      10.9%p 만 쟀고 「공격 다리만 헤지했을 때」는 안 쟀다(04 Q2). 그 빈칸을 잰다.
+      후보 409820(KODEX 미국나스닥100레버리지 합성 H)은 **환헤지**다. §5-5 는 전략 전체의 원화·달러 MDD를
+      서로 다른 시작창으로 비교해 10.9%p를 환 효과처럼 적었다. 「공격 다리만 헤지했을 때」의 같은 창 차이로 그 오류를 바로잡는다.
 
 방법: hist_krfinal.build_krw 의 원화 1997~ 시나리오(채택 방어 배당40/국채40/금20 · 한국 거래일 체결 ·
       슬리피지 0.1%)를 그대로 쓰되 **공격 다리만** 둘로 만든다.
@@ -53,9 +53,13 @@ KR3M = _os.path.join('data', 'hist', 'kr_3m_rate.csv')      # 정규화 캐시: 
 SRC_FRED = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TIB01KRM156N'
 SRC_OECD = ('https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,4.0/'
             'KOR.M.IR3TIB.PA.....?format=csvfilewithlabels&startPeriod=1991-01')
-WINDOWS = [('닷컴 2000', '2000-03-01', '2002-12-31'), ('금융위기 2008', '2007-10-01', '2009-06-30'),
-           ('코로나 2020', '2020-02-01', '2020-06-30'), ('금리 2022', '2021-11-01', '2022-12-31'),
-           ('IMF 1997', '1997-06-01', '1998-12-31')]
+CRISIS_WINDOWS = [('닷컴 2000', '2000-03-01', '2002-12-31'),
+                  ('금융위기 2008', '2007-10-01', '2009-06-30'),
+                  ('코로나 2020', '2020-02-01', '2020-06-30'),
+                  ('금리 2022', '2021-11-01', '2022-12-31')]
+# IMF는 환율 체제가 크게 흔들린 참고창이다. 사전 등록한 「4개 위기 중 3개」의
+# 분모에 몰래 더하면 3/4 관문을 3/5로 바꾸는 셈이라 별도로만 출력한다.
+CONTEXT_WINDOWS = [('IMF 1997 (참고)', '1997-06-01', '1998-12-31')]
 
 
 def _fetch(url, timeout):
@@ -176,11 +180,12 @@ def main():
 
     print('\n  위기 창별 (전략 곡선 · 창 안 MDD / 창 수익)          환노출        환헤지        Δ MDD')
     worse = 0; n_w = 0
-    for wn, a, b in WINDOWS:
+    for wn, a, b in CRISIS_WINDOWS + CONTEXT_WINDOWS:
         m0, r0 = window_stats(rows[0][1], a, b); m1, r1 = window_stats(rows[1][1], a, b)
         if np.isnan(m0) or np.isnan(m1):
             continue
-        n_w += 1; worse += (m1 < m0 - 0.5)
+        if (wn, a, b) in CRISIS_WINDOWS:
+            n_w += 1; worse += (m1 < m0 - 0.5)
         print(f'  {wn:<14} {a}~{b}   {m0:>6.1f}% / {r0:>+6.1f}%   {m1:>6.1f}% / {r1:>+6.1f}%   {m1-m0:>+6.1f}%p')
     # 맨몸 보유(전환 없음)에서의 환 완충 — 전략을 빼고 본 순수 환 효과
     hold0 = pd.Series(np.cumprod(1 + lev2[lo:]), index=idx[lo:])
@@ -191,7 +196,8 @@ def main():
     print('\n사전 등록 대조:')
     print(f"  P1 (헤지형 MDD 더 깊다, 5~15%p): {'맞음' if h['mdd'] < base['mdd'] else '틀림'} — Δ {h['mdd']-base['mdd']:+.1f}%p")
     print(f"  P2 (최종배수·CAGR 낮다): {'맞음' if h['final'] < base['final'] else '틀림'} — {h['final']/base['final']:.2f}배")
-    print(f"  P3 (위기창 3/4+ 에서 더 깊다): {'맞음' if worse >= 3 else '틀림'} — {worse}/{n_w}")
+    print(f"  P3 (사전 지정 4개 위기창 중 3개+에서 더 깊다): {'맞음' if worse >= 3 else '틀림'} — {worse}/{n_w}")
+    print('     IMF 1997은 참고창이며 위 4개 분모에는 넣지 않았다.')
     print('\n이 측정이 낳은 다음 질문 (§-1 절대멈춤 6):')
     print('  · 갈아탈 날이 오면 「환헤지 2배」와 「환노출 1배(133690 같은 비레버리지)+…」 중 무엇이 덜 나쁜가는 안 쟀다 — 그날의 질문.')
     print('  · carry 는 한국 3개월 금리로 근사했다(실제 헤지는 1개월 롤·스왑 비용) — 상품 실측 괴리로 보정할 자료가 없다.')

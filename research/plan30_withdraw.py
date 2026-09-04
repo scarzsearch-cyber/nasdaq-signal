@@ -118,13 +118,13 @@ def main():
         '현금 20% (QLD 80)': runB(blend(0.8, tb)),
         '금 20% (QLD 80)': runB(blend(0.8, gold)),
         '헤지6/4 (배당 40%)': runB(blend(0.6, divr)),
-        '배율 1.55배': runB(1.55 * rq - 0.775 * cday),
+        '배율 1.55배': runB(1.55 * rq - 0.55 * cday),
     }
     monthly = {k: pd.Series(v, index=idx).resample('MS').last().values for k, v in CANDS.items()}
     mlen = len(next(iter(monthly.values())))
     W = H * 12
-    starts = list(range(0, mlen - W))
-    print(f'  30년 창: 시작 {len(starts)}개월 (비중첩 {len(starts)/W:.1f}개) · 인출률 연 {RATE*100:.0f}% · 월 1회 비례 매도')
+    starts = list(range(0, mlen - W + 1))
+    print(f'  30년 창: 시작 {len(starts)}개월 (비중첩 {mlen/W:.1f}개) · 인출률 연 {RATE*100:.0f}% · 월 1회 비례 매도')
 
     for mode, lab in (('pct', '평가액 비율 인출 (그해 잔액의 4%/년 — 「양의 복리면 뺀다」에 가깝다)'),
                       ('fix', '정액 인출 (초기 자산의 4%/년 고정 · 물가 미반영)')):

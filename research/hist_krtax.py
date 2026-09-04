@@ -77,7 +77,7 @@ def run_tax(D, idx, qr, sr, S, krdays, rate=RATE, div_yield=0.0,
 
     v = 1.0; basis = 1.0; carry = 0.0
     out = np.empty(len(p)); tax_paid = 0.0; n_sell = 0
-    dtax = div_yield * rate / 252.0
+    ddist = div_yield / 252.0
     for i in range(len(p)):
         # [코드리뷰 2026-09-04] 전환을 **그날 수익 앞**에 둔다. 종전에는 v *= (1+r[i]) 가
         #   먼저 와서, r[i] 가 이미 **새** 비중 p[i] 로 계산된 수익인데도 그 하루치가
@@ -97,7 +97,11 @@ def run_tax(D, idx, qr, sr, S, krdays, rate=RATE, div_yield=0.0,
             v -= t; tax_paid += t; basis = v; n_sell += 1
         v *= (1 + r[i])
         if p[i] < 0.5:                       # 방어자산 보유 중 분배금 과세 (일할)
-            v *= (1 - dtax)
+            gross_dist = v * ddist
+            dist_tax = gross_dist * rate
+            v -= dist_tax
+            basis += gross_dist - dist_tax
+            tax_paid += dist_tax
         out[i] = v
     return pd.Series(out, index=idx[lo:]), tax_paid, n_sell
 

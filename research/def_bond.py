@@ -136,7 +136,12 @@ def main():
     print(' [1] 헤지 상관 — 국채가 정말 QQQ 를 헤지하는가 (판정 아님, 사실)')
     print('=' * 74)
     worst = np.argsort(qr)[:int(n * 0.05)]               # QQQ 최악 5% 날
-    defmask = wB < 0.5                                   # 실제로 방어를 들고 있던 날
+    # rule_dd 는 종가 신호이고 sim2 는 다음 거래일에 집행한다. 상관표도 실제
+    # 보유일을 써야 하므로 신호를 한 칸 민 집행 포지션으로 마스크한다.
+    posB = np.empty_like(wB)
+    posB[0] = wB[0]
+    posB[1:] = wB[:-1]
+    defmask = posB < 0.5
     print(f'  표본: 전체 {n:,}일 · QQQ 최악5% {len(worst):,}일 · 방어 보유 {int(defmask.sum()):,}일')
     print(f"\n  {'자산':<12}{'전체상관':>9}{'최악5%상관':>11}{'방어중상관':>11}"
           f"{'최악5%일평균':>13}{'연CAGR':>9}")
@@ -164,16 +169,17 @@ def main():
     # 엔진 원화 수치를 나란히 놓을 수 없다.
     print(f'\n  ── 원화 기준 (환노출: (1+달러수익)(1+환변화)−1, {str(fx0.date())}~) ──')
     kb = idx >= fx0
+    qkr = (1 + qr) * (1 + fx) - 1                       # QQQ 도 같은 원화 기준
     print(f"  {'자산':<12}{'전체상관':>9}{'최악5%상관':>11}{'최악5%일평균':>13}")
-    kworst = np.argsort(np.where(kb, qr, np.inf))[:int(kb.sum() * 0.05)]
+    kworst = np.argsort(np.where(kb, qkr, np.inf))[:int(kb.sum() * 0.05)]
     for k in ['div', 'gold'] + [f'ust{m}' for m in (5, 10, 30)]:
         r = (1 + np.nan_to_num(parts[k], nan=np.nan)) * (1 + fx) - 1     # 환노출(곱셈)
         ok = (~np.isnan(r)) & kb
         if ok.sum() < 252:
             continue
-        c_all = float(np.corrcoef(r[ok][1:], qr[ok][1:])[0, 1])
+        c_all = float(np.corrcoef(r[ok][1:], qkr[ok][1:])[0, 1])
         w_ = kworst[ok[kworst]]
-        c_w = float(np.corrcoef(r[w_], qr[w_])[0, 1])
+        c_w = float(np.corrcoef(r[w_], qkr[w_])[0, 1])
         print(f'  {k:<12}{c_all:>9.3f}{c_w:>11.3f}{r[w_].mean()*100:>12.2f}%')
 
     # 위기별 실제 수익
@@ -348,9 +354,9 @@ def main():
     print('  · [답함 §5-6 ] 헤지력은 만기에 단조인데 성과는 아님 → 금리 국면을 알 수 있나')
     print('  · [★미결 Q1] 선물형 1.30% vs 현물형 6.21% — **살 수 없는 물건**을 쟀다.')
     print('               환노출 현물형 미국채 ETF 가 국내 상장되면 재개')
-    print('  · [★미결 Q2] 대체품 409820 은 환헤지 — 갈아타면 방어가 얼마나 약해지나')
-    print('               (원화에서 국채 상관이 −0.044→−0.100 으로 더 음이 된다)')
-    print('  (미결은 「하지 마라」가 아니다. 조건이 오면 사전 등록부터 다시 한다.)')
+    print('  · [답함 §7-4] 대체품 409820 환헤지 — 공격 다리만 바꾸면 전체 MDD 는 2.0%p 얕지만')
+    print('                 금융위기형 방어는 10.4%p 약해지고 최종배수는 0.82배다(양면 효과).')
+    print('  (남은 미결은 「하지 마라」가 아니다. 조건이 오면 사전 등록부터 다시 한다.)')
 
 
 

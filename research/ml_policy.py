@@ -101,11 +101,11 @@ def logistic_p(w, mu, sd, Xb):
     Z = np.column_stack([np.ones(len(Xb)), (Xb - mu) / sd]); return 1 / (1 + np.exp(-Z @ w))
 
 
-GOV = np.searchsorted(DEC, np.arange(N), side='left') - 1     # 날 t 를 지배하는 결정(직전 결정일)의 DEC 색인, 없으면 −1
+GOV = np.searchsorted(DEC, np.arange(N), side='right') - 1    # 날 t 의 종가 신호. sim2 가 다음 거래일에 집행한다.
 
 
 def weights_from(dec_vec):
-    """dec_vec: DEC 길이의 방어 여부(bool) → 일별 w (결정일 다음 날부터 그 달 유지). 벡터화."""
+    """dec_vec: DEC 길이의 방어 여부(bool) → 일별 종가 신호. 집행 lag=1 은 sim2 가 한 번만 건다."""
     w = np.ones(N)
     m = GOV >= 0
     w[m] = np.where(dec_vec[GOV[m]], 0.0, 1.0)
@@ -144,6 +144,7 @@ def main():
     wB = np.asarray(EC.rule_dd(PX, -0.16, -0.16), float)
 
     dec_m1, dec_m2, dec_m3, picks = {}, {}, {}, []
+    purged = 0
     valid = ~np.isnan(X).any(axis=1) & ~np.isnan(Y)
     years = sorted(set(YR[DEC]))
     for yr in years:
@@ -151,6 +152,11 @@ def main():
             continue
         tr = DEC[(YR[DEC] < yr) & valid[DEC] & (IDX[DEC] <= pd.Timestamp(f'{yr-1}-12-31'))]
         tr = tr[fwd63[tr] == fwd63[tr]]                  # 목표가 있는 달만 (마지막 63일 제외)
+        # 연초 재학습 시점에 아직 끝나지 않은 63거래일 미래수익은 정답을 알 수 없다.
+        # 해당 연도로 넘어가는 라벨을 purge 하지 않으면 매년 마지막 약 3개 월말이 미래를 본다.
+        known = YR[tr + 63] < yr
+        purged += int((~known).sum())
+        tr = tr[known]
         te = DEC[YR[DEC] == yr]
         if len(tr) < 100:
             continue
@@ -176,6 +182,8 @@ def main():
         for t in te:
             dec_m3[t] = (sign * X[t, FN.index(f)] <= sign * thr) if not np.isnan(X[t, FN.index(f)]) else False
 
+    print(f'  [검산] 연초 재학습에서 아직 미완성인 63일 라벨 제외: {purged}개')
+    assert purged == 136, f'라벨 purge 수가 데이터 기준값과 다르다: {purged}'
     rows = []
     for nm, dec in (('M1 학습 정책 (문턱 = 기저율)', dec_m1), ('M2 학습 정책 (문턱 = 기저율×2)', dec_m2), ('M3 규칙 재발견 (매년 최고 한 조건)', dec_m3)):
         c, w = policy_curve(dec, lo)

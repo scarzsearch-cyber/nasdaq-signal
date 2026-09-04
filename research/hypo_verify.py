@@ -50,6 +50,7 @@ def main():
     # ---- B3. 만약 하위 5퍼센타일이 규약이라면 — 주요 후보 관문② 재판정 ----
     import hypo_hex as X
     import hypo_t4_real as R
+    import hypo_t4wide as W
     QLDR = np.nan_to_num(np.asarray(G.D['qldr'], float))
     wT4 = R.t4_w(G.r_eq1)
     n = len(G.idx)
@@ -104,6 +105,20 @@ def main():
         r = G.report('', E.brake(d, 0.40))
         print(f"{th*100:>5.1f} {r['final']:>10.1f} {r['calmar']:>7.3f} {r['q20']:>6.1f} "
               f"{int(d.sum()):>7} {r['h1']:>6.3f} {r['h2']:>6.3f}")
+
+    # ---- D. 문서에 선언만 있고 실제로 빠져 있던 T4 공표값 대조 ----
+    t4 = R.sim_def(R.D, R.t4_w(G.r_eq1), R.tb)
+    rd = W.row('T4 정본', t4)
+    target = dict(final=155279.0, cagr=24.50, mdd=-53.4, calmar=0.459)
+    print('\n[검증D] T4 정본 vs v68 공표 — 방향뿐 아니라 잔차를 수치로 남긴다')
+    for k, lab in (('final', '최종배수'), ('cagr', 'CAGR%'),
+                   ('mdd', 'MDD%'), ('calmar', 'Calmar')):
+        diff = rd[k] - target[k]
+        rel = diff / abs(target[k]) if target[k] else np.nan
+        print(f'  {lab:<8} 재현 {rd[k]:>12,.3f} · 공표 {target[k]:>12,.3f} · '
+              f'차이 {diff:>+10,.3f} ({rel:+.2%})')
+    print('  ※ 완전일치 검산이 아니다. 창·집행 규약 잔차를 숨기지 않고 기록하며, '
+          '정본 신호 일치는 hypo_t4_real 검산①②가 별도로 보증한다.')
 
 
 if __name__ == '__main__':

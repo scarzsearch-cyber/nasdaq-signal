@@ -14,6 +14,10 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 
 import numpy as np, pandas as pd
 import hist_data as H
+try:
+    _sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 D = H.build_ext()
 IDX, ddv, qldr, schdr = D['idx'], D['ddv'], D['qldr'], D['schdr']
@@ -21,7 +25,7 @@ N = len(IDX); ENTER, COST, EMBARGO = -0.16, 0.001, 20
 GRID = [round(-0.16 + 0.01 * i, 3) for i in range(11)]      # -16% ~ -6%
 
 
-def path(exitline, lo, hi, w0=1.0, cost=COST):
+def path(exitline, lo, hi, w0=1.0, cost=COST, prev_pos=None, return_position=False):
     w = np.empty(hi - lo); cur = w0
     for j, i in enumerate(range(lo, hi)):
         d = ddv[i]
@@ -33,24 +37,51 @@ def path(exitline, lo, hi, w0=1.0, cost=COST):
     pos = np.empty_like(w); pos[0] = w0; pos[1:] = w[:-1]
     # w0 는 구간 첫날 장 시작 전에 이미 보유한 상태이므로 첫날 수익도 포함한다.
     r = np.nan_to_num(pos * qldr[lo:hi] + (1 - pos) * schdr[lo:hi])
-    turn = np.abs(np.diff(pos, prepend=w0))
-    return np.cumprod((1 + r) * (1 - cost * turn)), cur
+    # w0는 오늘 집행할 전일 신호이고 prev_pos는 전 구간 마지막 실제 보유다.
+    # 둘을 같다고 두면 구간 경계에서 발생한 전환 비용이 사라진다.
+    turn = np.abs(np.diff(pos, prepend=w0 if prev_pos is None else prev_pos))
+    result = (np.cumprod((1 + r) * (1 - cost * turn)), cur)
+    return (*result, pos[-1]) if return_position else result
+
+
+def state_before(exitline, lo):
+    """lo 첫날 장 시작 때의 실제 상태. 학습창 경계에서 상태를 1로 리셋하지 않는다."""
+    cur = 1.0
+    for d in ddv[:lo]:
+        if cur >= 1.0:
+            if d <= ENTER:
+                cur = 0.0
+        else:
+            cur = 0.0 if d <= ENTER else (1.0 if d > exitline else cur)
+    return cur
+
+
+def calmar(c):
+    c = np.asarray(c, float)
+    years = len(c) / 252.0
+    cagr = c[-1] ** (1 / years) - 1
+    path_with_initial = np.r_[1.0, c]
+    mdd = float(np.min(path_with_initial / np.maximum.accumulate(path_with_initial) - 1))
+    return cagr / abs(mdd) if mdd < -1e-12 else float('inf')
 
 
 def wfa(train_y=5, test_y=1):
     tr, te = train_y * 252, test_y * 252
     s = tr; rows = []
     w0 = {'wfa': 1.0, 'A': 1.0, 'B': 1.0}
+    held = dict(w0)
     eq = {'wfa': 1.0, 'A': 1.0, 'B': 1.0}
     while s + te <= N:
         lo, hi = max(0, s - tr), s - EMBARGO
-        best, bp = -1, None
+        best, bp = -np.inf, None
         for p in GRID:
-            c, _ = path(p, lo, hi)
-            if c[-1] > best: best, bp = c[-1], p
+            c, _ = path(p, lo, hi, w0=state_before(p, lo),
+                        prev_pos=state_before(p, max(lo - 1, 0)))
+            score = calmar(c)
+            if score > best: best, bp = score, p
         row = dict(test시작=str(IDX[s].date()), test종료=str(IDX[s + te - 1].date()), 선택복귀선=bp * 100)
         for k, p in [('wfa', bp), ('A', -0.11), ('B', -0.16)]:
-            c, wn = path(p, s, s + te, w0=w0[k])
+            c, wn, held[k] = path(p, s, s + te, w0=w0[k], prev_pos=held[k], return_position=True)
             eq[k] *= c[-1]; w0[k] = wn
             row[k + '수익'] = (c[-1] - 1) * 100
         rows.append(row); s += te

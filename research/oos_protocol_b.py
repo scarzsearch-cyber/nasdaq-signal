@@ -259,6 +259,8 @@ def evaluate_oos(D):
     if drift:
         print('  ⚠ 역사 기저율이 등록값과 다르다 — 원자료 갱신(수정주가 재조정 등) 때문일 수 있다. '
               '판정 전에 원인을 적고 지문을 의도적으로 갱신하라.')
+        print('  → **판정 중단.** 등록 당시 저울이 달라졌으므로 OOS 정상/주의/역사 밖 판정을 내리지 않는다.')
+        return 2
 
     # 동결 이후 사건
     oos = E[pd.to_datetime(E.date) >= start]

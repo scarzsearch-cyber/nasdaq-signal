@@ -125,7 +125,7 @@ def main():
 
     # ② 배율 낮추기
     def mk_lev(k):
-        return runB(k * rq - (k / 2.0) * cday)
+        return runB(k * rq - (k - 1.0) * cday)
     scan('배율 낮추기', mk_lev, [round(2.0 - 0.05 * i, 2) for i in range(0, 21)], lambda g: f'{g:.2f}배')
 
     # ③ 문턱 얕게
@@ -141,7 +141,7 @@ def main():
 
     # ⑤ 조합 — 배율 1.7배 + 배당 배합
     def mk_combo(w):
-        lev = 1.7 * rq - 0.85 * cday
+        lev = 1.7 * rq - 0.70 * cday
         att = DA.mix_monthly_parts(idx, {'a': w, 'b': 1 - w}, {'a': lev, 'b': divr})
         return runB(att)
     scan('조합 1.7배 + 배당', mk_combo, grid_w, lambda g: f'레버 {g*100:.0f}%')

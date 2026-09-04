@@ -68,15 +68,26 @@ def main():
     edges = [-0.24, -0.22, -0.20, -0.18, -0.16, -0.14, -0.12, -0.10, -0.08]
     print(f'\n[B] 기전 — 낙폭 수준별 전방 {FWD}일 2배 수익 (중앙값)')
     print(f"  {'낙폭 구간':>16} {'일수':>7} {'전방 중앙':>11}")
+    buckets = []
     for lo, hi in zip(edges[:-1], edges[1:]):
         m = (dd > lo) & (dd <= hi) & ~np.isnan(f63)
         if m.sum() < 40:
             continue
         star = ' ←현행' if abs(hi + 0.16) < 1e-9 else ''
-        print(f'  {lo:>7.0%} ~ {hi:>5.0%} {m.sum():>7} '
-              f'{np.median(f63[m])*100:>10.2f}%{star}')
-    print('  → 깊어질수록 단조 악화 = **기전은 실재**. 다만 기울기가 매끄러워')
-    print('     −16 이 특별한 절벽은 아니다(−14 부근 낙차가 더 크다).')
+        med = float(np.median(f63[m]))
+        buckets.append((lo, hi, med))
+        print(f'  {lo:>7.0%} ~ {hi:>5.0%} {m.sum():>7} {med*100:>10.2f}%{star}')
+    vals = np.array([x[2] for x in buckets])
+    reversals = np.where(np.diff(vals) < 0)[0]
+    if len(reversals) == 0:
+        print('  → 이 표에서는 깊은 구간에서 얕은 구간으로 갈수록 전방 중앙값이 단조 개선된다.')
+    else:
+        labs = [f'{buckets[i][1]:.0%}→{buckets[i+1][1]:.0%}' for i in reversals]
+        print(f'  → 전반적인 깊이 효과는 보이지만 **단조는 아니다** — 역전 {len(reversals)}곳 ({", ".join(labs)}).')
+    if len(vals) > 1:
+        j = int(np.argmax(np.abs(np.diff(vals))))
+        print(f'     가장 큰 인접 변화는 {buckets[j][1]:.0%}와 {buckets[j+1][1]:.0%} 사이 '
+              f'({(vals[j+1]-vals[j])*100:+.2f}%p)다. −16이 특별한 절벽인지는 이 값으로 판단한다.')
 
     h = n // 2
     print('\n[C] 시대 안정성 — 전·후반 분리')

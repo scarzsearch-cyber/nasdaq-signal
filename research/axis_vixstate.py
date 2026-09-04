@@ -78,18 +78,19 @@ def state_rule(ddv, vix, vz, mode, dd20=None, drop=0.30, panic_z=1.5):
     panic = False           # 이번 도피의 상태 (진입 시 확정, 안 바뀐다)
     v_at = np.nan
     for i in range(n):
-        if ddv[i] <= ENTER:
-            if cur >= 1.0:                       # **새 도피 시작 — 여기서만 읽는다**
-                panic = bool(np.nan_to_num(vz[i], nan=0.0) > panic_z)
-                v_at = vix[i]
+        just_entered = False
+        if ddv[i] <= ENTER and cur >= 1.0:
+            # **새 도피 시작 — 여기서만 읽는다**
+            panic = bool(np.nan_to_num(vz[i], nan=0.0) > panic_z)
+            v_at = vix[i]
             cur = 0.0
-            w[i] = cur
-            continue
+            just_entered = True
         if cur < 1.0:
             back = False
             if mode == 'S1':
                 # 패닉이면 조기복귀 허용, 평온이면 현행
-                back = (ddv[i] > ENTER) or (panic and dd20 is not None and dd20[i] > 0.03)
+                back = ((ddv[i] > ENTER) or
+                        (not just_entered and panic and dd20 is not None and dd20[i] > 0.03))
             elif mode == 'S2':
                 # 반증용 — 패닉이면 **늦게**(-11%), 평온이면 현행(-16%)
                 back = (ddv[i] > -0.11) if panic else (ddv[i] > ENTER)
@@ -106,7 +107,18 @@ def state_rule(ddv, vix, vz, mode, dd20=None, drop=0.30, panic_z=1.5):
     return w
 
 
+def selfcheck_state_rule():
+    """S1 조기복귀가 −16% 아래에서도 실제 발동하고, 평온형은 발동하지 않는다."""
+    d = np.array([-0.10, -0.17, -0.18, -0.15])
+    v = np.array([20., 40., 30., 25.])
+    rec = np.array([0., 0., 0.04, 0.04])
+    panic = state_rule(d, v, np.array([0., 2., 2., 2.]), 'S1', rec)
+    calm = state_rule(d, v, np.zeros(4), 'S1', rec)
+    assert panic[1] == 0 and panic[2] == 1 and calm[2] == 0
+
+
 def main():
+    selfcheck_state_rule()
     D = DF.build('chain')
     idx, N = D['idx'], len(D['idx'])
     comp = materials(D)
@@ -207,11 +219,11 @@ def main():
                 and np.median(r['per']) > np.median(b['per'])
                 and r['mdd'] >= b['mdd']):
             win.append(nm)
-    print(verdict('VIX 를 상태변수로 쓰면 현행을 이기는가', [
+    print(verdict('VIX 상태변수를 전략 후보로 승격할 수 있는가', [
         ('중앙·P20·P5·영구중앙·MDD 를 모두 이긴 후보가 있다', len(win) > 0,
          ', '.join(win) if win else '없음'),
         ('4블록 검증이 가능하다', False, 'VIX 가 1990~ 이라 1972-85 블록 없음'),
-    ], adopt_if=['중앙·P20·P5·영구중앙·MDD 를 모두 이긴 후보가 있다'])['text'])
+    ])['text'])
 
 
 if __name__ == '__main__':

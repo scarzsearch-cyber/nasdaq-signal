@@ -19,7 +19,7 @@ RSI 와 이동평균선은 **한 번도 안 해봤다.**
 [규약 — 어기면 결과가 거짓이 된다]
   · 모든 지표는 **전일까지의 데이터**로 계산해 당일 체결한다(pos = w.shift(1)).
     RSI·이평선은 shift(1) 을 명시적으로 건다. 안 걸면 미래참조다.
-  · 비용 편도 0.1%, 회전율 |Δpos| 비례.
+  · 비용 편도 0.1%, 실제 재조정 금액 비례. 부분 목표비중은 매일 맞춘다.
   · 적립: 월초 1단위 x 60개월(ISA 5년) 납입 후 창 끝까지 보유.
   · 판정: 20년 창 분포의 **중앙 · 5분위 · 최악**을 함께 본다(research_kit.dist).
 
@@ -88,15 +88,20 @@ def dca(D, rk, dfr, wpath, lo, hi, pay=PAY_MONTHS, cost=COST,
     px = np.cumprod(1 + np.nan_to_num(rk))      # 위험자산 가격지수
     for i in range(lo, hi):
         pos = wpath[i]
-        if pos != prev:                                  # 비중 변경
-            if pos > prev:                               # 방어 -> 공격
-                mv = C * (pos - prev) / max(1 - prev, 1e-12)
+        if pos != prev or 0 < pos < 1:                    # 부분비중은 드리프트도 재조정
+            # 이전 목표비중(prev)이 아니라 **현재 평가액**을 기준으로 새 목표를
+            # 맞춘다. 수익률로 50/50이 67/33으로 흘렀는데 prev=0.5라고 가정하면
+            # 부분비중 후보만 체계적으로 덜 팔거나 덜 사게 된다.
+            target_r = pos * (R + C)
+            if target_r > R:                             # 방어 -> 공격
+                # 비용을 낸 뒤에도 목표비중이 정확히 맞도록 풀어 낸 매수대금.
+                mv = min(C, (target_r - R) / (1 - cost * (1 - pos)))
                 C -= mv; R += mv * (1 - cost)
                 # 전환은 그날 수익 전에 일어난다. px[i] 는 이미 그날 종가 수익을 포함하므로
                 # 전일 종가로 구좌수를 잡아야 R 과 units*px 가 같은 경로를 탄다.
                 units += mv * (1 - cost) / px[i - 1]; cost_basis += mv * (1 - cost)
             else:                                        # 공격 -> 방어
-                mv = R * (prev - pos) / max(prev, 1e-12)
+                mv = min(R, (R - target_r) / (1 - cost * pos))
                 R -= mv; C += mv * (1 - cost)
                 if units > 0:
                     f = mv / max(R + mv, 1e-12)
@@ -151,12 +156,19 @@ def selfcheck(D, rk, dfr, months):
     _, _, avg = dca({}, np.array([0.0, 0.0, 0.1]), np.zeros(3),
                     np.array([0.0, 0.0, 1.0]), 0, 3, pay=1, cost=0,
                     months=pd.PeriodIndex(['2000-01', '2000-02', '2000-02'], freq='M').values)
+    # 50/50 납입 뒤 위험자산이 두 배가 되어 실제 67/33으로 흐른 상태에서 목표를
+    # 25%로 낮춘다. 현재 평가액 1.5의 25%=0.375만 남겨야 마지막 값은 1.875다.
+    _, drift_v, _ = dca({}, np.array([0.0, 0.0, 1.0, 1.0]), np.zeros(4),
+                        np.array([0.5, 0.5, 0.5, 0.25]), 0, 4, pay=1, cost=0,
+                        months=pd.PeriodIndex(
+                            ['2000-01', '2000-02', '2000-02', '2000-02'], freq='M').values)
     edge_ok = (abs(v[-1] - 1.5) < 1e-12 and abs(avg[-1] - 1.0) < 1e-12
+               and abs(drift_v[-1] - 1.875) < 1e-12
                and rsi([1, 2, 3])[-1] == 100.0
                and np.array_equal(sma_cross([1, 2, 3], 3), [1.0, 1.0, 1.0]))
     if not edge_ok:
         raise SystemExit('  검산 실패 — 부분비중·평단가·지표 경계값이 어긋난다.')
-    print("         부분비중·평단가 시점·RSI/이평 경계값도 정상이다.\n")
+    print("         부분비중·드리프트 재조정·평단가 시점·RSI/이평 경계값도 정상이다.\n")
 
 
 # ================================================================= 후보

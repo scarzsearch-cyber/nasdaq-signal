@@ -38,6 +38,7 @@ import datetime
 import json
 import os
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -115,7 +116,23 @@ def save_guarded(path, df, label):
             print('거부  %-22s 마지막 날짜가 %s -> %s 로 뒤로 간다'
                   % (label, old['Date'].iloc[-1].date(), df['Date'].iloc[-1].date()))
             return False
-    df.to_csv(path, index=False)
+    # 같은 디렉터리에 완성본을 먼저 쓴 뒤 원자적으로 교체한다. 종전 직접 쓰기는
+    # 프로세스 중단·디스크 오류 때 정상 캐시를 반쪽 CSV로 만들 수 있었다.
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', newline='',
+                                         dir=os.path.dirname(path) or '.',
+                                         prefix=os.path.basename(path) + '.',
+                                         suffix='.tmp', delete=False) as f:
+            tmp = f.name
+            df.to_csv(f, index=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        tmp = None
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.remove(tmp)
     print('저장  %-22s n=%-6d %s ~ %s' % (label, len(df), df['Date'].iloc[0].date(),
                                          df['Date'].iloc[-1].date()))
     return True

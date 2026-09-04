@@ -142,7 +142,8 @@ def swings(s, T=0.20):
         rb = float(np.min(tail / np.maximum.accumulate(tail) - 1)) if len(tail) > 1 else 0.0
         out.append(dict(peak=ix[pi], trough=ix[ti], end=end, recovered=recovered, depth=depth * 100,
                         fall_d=(ix[ti] - ix[pi]).days, rec_d=(end - ix[ti]).days, rebound_dd=rb * 100,
-                        era=era_of(ix[pi]), era_trough=era_of(ix[ti]), trough_px=float(v[ti])))
+                        era=era_of(ix[pi]), era_trough=era_of(ix[ti]),
+                        peak_px=float(v[pi]), trough_px=float(v[ti])))
     return pd.DataFrame(out)
 
 
@@ -164,13 +165,15 @@ def cluster(df):
                 out.append(cur)
             cur = dict(peak=r.peak, trough=r.trough, end=r.end, recovered=r.recovered, depth=r.depth,
                        fall_d=r.fall_d, rec_d=r.rec_d, rebound_dd=r.rebound_dd, era=r.era, era_trough=r.era_trough,
-                       trough_lo=r.trough_px, n=1)
+                       peak_px=r.peak_px, trough_lo=r.trough_px, n=1)
         else:
             cur['n'] += 1
             if r.trough_px < cur['trough_lo']:
                 cur['trough_lo'] = r.trough_px
-            if r.depth < cur['depth']:
-                cur['depth'] = r.depth; cur['trough'] = r.trough
+                cur['trough'] = r.trough
+            # 묶음 깊이는 각 국지 고점 대비 낙폭의 최솟값이 아니라, 묶음의 첫
+            # 고점 대비 절대 최저가다. 닷컴처럼 고점이 단계적으로 낮아질 때 차이가 크다.
+            cur['depth'] = (cur['trough_lo'] / cur['peak_px'] - 1) * 100
             if r.end > cur['end']:
                 cur['end'] = r.end; cur['recovered'] = r.recovered
             cur['fall_d'] = (cur['trough'] - cur['peak']).days
@@ -254,13 +257,20 @@ def main():
     print('\n' + L); print('[F2] 깊이 통제 — 「최근 하락이 얕아서」가 아닌가 (§-1 ⑧: 시대와 깊이를 같이 바꾸면 인과를 말할 수 없다)'); print(L)
     bins = [(-100, -40, '≤−40%'), (-40, -30, '−40~−30%'), (-30, -20, '−30~−20%'), (-20, -10, '−20~−10%')]
     print(f"    {'깊이대':<12}" + ''.join(f'{nm:>12}' for _, _, nm in ERAS))
+    depth_trends = []
     for lo, hi, bn in bins:
         d = CL[(CL.depth > lo) & (CL.depth <= hi) & CL.recovered]
         row = f'    {bn:<12}'
+        ordered = []
         for _, _, nm in ERAS:
             x = d[d.era == nm]
             row += f'{(f"{x.rec_d.median():.0f}일(n{len(x)})" if len(x) else "—"):>12}'
+            if len(x):
+                ordered.append(float(x.rec_d.median()))
         print(row)
+        if len(ordered) >= 2:
+            depth_trends.append(all(a >= b for a, b in zip(ordered, ordered[1:])))
+    depth_ok = bool(depth_trends) and all(depth_trends)
     r20 = E20[E20.recovered]
     cl_r = CL[CL.recovered]
     cc = np.corrcoef(cl_r.depth.values, cl_r.rec_d.values)[0, 1]
@@ -272,6 +282,7 @@ def main():
     print(f'  2020년대 독립 사건 전부({len(r2020)}건): ' + ' · '.join(f'{r.peak.date()} {r.depth:.1f}% 회복 {r.rec_d}일' for r in r2020.itertuples()))
     nc = r2020[(r2020.depth <= -20) & (r2020.trough.dt.year != 2020)]
     print(f'  코로나(2020 저점) 제외 · ≥−20%: **{len(nc)}건** — ' + (' · '.join(f'{r.peak.date()} {r.depth:.1f}% 회복 {r.rec_d}일' for r in nc.itertuples()) if len(nc) else '없음'))
+    covid_ok = len(nc) >= 3
 
     # ── F4 표본 수 ────────────────────────────────────────────────────────────
     print('\n' + L); print('[F4] 표본 수 — 「시대 경향」을 말할 재료가 있나'); print(L)
@@ -376,7 +387,10 @@ def main():
     thin2 = min(m2[nm][1] for _, _, nm in ERAS if m2[nm][1] > 0) < 3
     print(f'  단조 감소? D1 {"예" if mono else "아니오"} · D2 {"예" if mono2 else "아니오"} | 순열 p D1 {p_one:.3f} · D2 {p_d2:.3f} | '
           f'시대당 3건 미만 존재? D1 {"예" if thin else "아니오"} · D2 {"예" if thin2 else "아니오"} | F1 절단 {len(inv)}건')
-    ok_true = mono2 and p_d2 < 0.05 and not thin2
+    print(f'  추가 사전관문: 깊이대별 단조 감소 {"예" if depth_ok else "아니오"} · '
+          f'코로나 제외 후 시대 표본 유지 {"예" if covid_ok else "아니오"} · '
+          f'F1 절단으로 설명 불가 {"예" if len(inv) == 0 else "아니오"}')
+    ok_true = depth_ok and mono2 and p_d2 < 0.05 and not thin2 and covid_ok and len(inv) == 0
     verdict = '참' if ok_true else ('거짓' if (len(v2) > 1 and v2[-1] > v2[0]) else '판단 불가')
     print(f'  → **판정: {verdict}** (판정은 D3 독립 사건 — D1 은 2008 을 삼키고 D2 는 긴 약세장을 여러 건으로 센다)')
     print('  예측 대조: P1 ' + ('맞음' if (not np.isnan(m2["2020~"][0]) and not np.isnan(m2["2000~09"][0]) and m2["2020~"][0] < m2["2000~09"][0]) else '틀림')

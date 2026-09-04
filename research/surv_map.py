@@ -59,7 +59,9 @@ def vol(i, w):
 
 
 def wmdd(a, i, w):
-    seg = a[i + 1 - w:i + 1]
+    lo = i + 1 - w
+    anchor = a[lo - 1] if lo > 0 else 1.0
+    seg = np.r_[anchor, a[lo:i + 1]]
     peak = np.maximum.accumulate(seg)
     return abs(float(np.min(seg / peak - 1)))
 
@@ -196,7 +198,10 @@ def main():
             if r is None:
                 print(f'  {code} {lab:<12} 수집분 없음 — nav_collect.py 확인')
                 continue
-            eok = float(r['mktcap_eok'] or 0)
+            eok = pd.to_numeric(r.get('mktcap_eok'), errors='coerce')
+            if not np.isfinite(eok):
+                print(f'  {code} {lab:<12} 시총 자료 오류  [판정 불가]  ({r["as_of"]} 기준)')
+                continue
             st = ('★경보' if eok < BAND_ALERT else
                   '주의' if eok < BAND_WARN else '정상')
             print(f'  {code} {lab:<12} 시총 {eok:>8,.0f}억  [{st}]  ({r["as_of"]} 기준)')

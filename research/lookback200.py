@@ -358,10 +358,10 @@ def sec4():
         r = m2 / m5
         out[h] = (float(np.mean(r > 1)), float(np.median(r)), float(np.quantile(r, 0.05)))
         print('  %-5d년 %8d %7.0f%% %8.3f %8.3f %10.1f %8.1f'
-              % (h, len(r), out[h][0] * 100, out[h][1], out[h][2], len(r) / w, ar_ess(r)))
+              % (h, len(r), out[h][0] * 100, out[h][1], out[h][2], len(C[CAND]) / w, ar_ess(r)))
     print('  문서(§5-14 D) 「20년 창 승률 100%% · 중앙 1.21배」 → 재현 %s (승률 %.0f%% · 중앙 %.2f)'
           % ('일치' if out[20][0] >= 0.99 and abs(out[20][1] - 1.21) < 0.03 else '★어긋남', out[20][0] * 100, out[20][1]))
-    print('  ⚠ 20년 창의 비중첩 수는 %.1f개 — 「100%%」는 독립 관측 100건이 아니라 같은 몸을 여러 각도로 본 것.' % ((n - W20) / W20))
+    print('  ⚠ 20년 창의 비중첩 수는 %.1f개 — 「100%%」는 독립 관측 100건이 아니라 같은 몸을 여러 각도로 본 것.' % (n / W20))
     return out
 
 

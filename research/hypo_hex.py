@@ -130,33 +130,36 @@ def main():
     b = rows[0]
     print(f"\n[1972-02~ 전창 54년 · 세전 · 달러 · 거치식 · 판정 아님(v80)]")
     print(f"{'후보':<20} {'최종배수':>10} {'CAGR%':>7} {'MDD%':>7} {'Calmar':>7} "
-          f"{'20년창5분위':>10} {'전반C':>6} {'후반C':>6}")
+          f"{'20년p05':>9} {'20년p20':>9} {'전반C':>6} {'후반C':>6}")
     for r in rows:
         print(f"{r['name']:<20} {r['final']:>10.1f} {r['cagr']:>7.2f} {r['mdd']:>7.2f} "
-              f"{r['calmar']:>7.3f} {r['q20']:>10.1f} {r['h1']:>6.3f} {r['h2']:>6.3f}")
-    c1, c2 = b['calmar'] * 1.102, b['q20']
-    print(f"\n관문① Calmar > {c1:.3f} · 관문② 20년창 5분위 ≥ {c2:.1f}")
+              f"{r['calmar']:>7.3f} {r['q05']:>9.1f} {r['q20']:>9.1f} {r['h1']:>6.3f} {r['h2']:>6.3f}")
+    c1, c205, c220 = b['calmar'] * 1.102, b['q05'], b['q20']
+    print(f"\n관문① Calmar > {c1:.3f} · 관문② 정의 미확정: p05 ≥ {c205:.1f} / p20 ≥ {c220:.1f}")
     both = []
     for r in rows[1:]:
-        g1, g2 = r['calmar'] > c1, r['q20'] is not None and r['q20'] >= c2
-        mark = '★ 육각형' if g1 and g2 else ('① 만' if g1 else ('② 만' if g2 else '전패'))
+        g1 = r['calmar'] > c1
+        g205, g220 = r['q05'] >= c205, r['q20'] >= c220
+        unambiguous = g205 == g220
+        mark = ('★ 두 정의 모두 통과' if g1 and g205 and g220 else
+                ('② 정의에 따라 갈림' if not unambiguous else '동시 통과 아님'))
         print(f"  {r['name']}: ① {'통과' if g1 else '탈락'} ({r['calmar']:.3f}) · "
-              f"② {'통과' if g2 else '탈락'} ({r['q20']:.1f})  → {mark}")
-        if g1 and g2:
+              f"② p05 {'O' if g205 else 'X'}({r['q05']:.1f}) / p20 {'O' if g220 else 'X'}({r['q20']:.1f})  → {mark}")
+        if g1 and g205 and g220:
             both.append(r['name'])
     print(f"\n사전 지정 후보 8개 중 육각형 후보: "
           f"{both if both else '없음 — 연속 혼합 x 탐색은 아래 부록에서 따로 본다'}")
 
     # ---- 부록: 혼합 x 전선 지도 — 문턱 근처 한 점 쇼핑(과적합)을 피하려고
     #      전 구간을 훑는다. 이웃한 여러 x 가 같이 넘으면 고원, 한 점이면 첨탑. ----
-    print(f"\n[부록] 혼합 x 전선 (관문① Calmar>{c1:.3f} · 관문② q20≥{c2:.1f})")
-    print(f"{'x(B비중)':>8} {'Calmar':>7} {'q20':>6} {'①':>3} {'②':>3}")
+    print(f"\n[부록] 혼합 x 전선 (관문① Calmar>{c1:.3f} · 관문② p05/p20 둘 다 병기)")
+    print(f"{'x(B비중)':>8} {'Calmar':>7} {'p05':>6} {'p20':>6} {'①':>3} {'②05':>4} {'②20':>4}")
     for x in np.arange(0.30, 1.0001, 0.05):
         r = G.report('', blend(float(x)))
-        m1, m2 = r['calmar'] > c1, r['q20'] >= c2
-        print(f"{x:>8.2f} {r['calmar']:>7.3f} {r['q20']:>6.1f} "
-              f"{'O' if m1 else '·':>3} {'O' if m2 else '·':>3}"
-              + ('   ★ 동시 통과' if m1 and m2 else ''))
+        m1, m05, m20 = r['calmar'] > c1, r['q05'] >= c205, r['q20'] >= c220
+        print(f"{x:>8.2f} {r['calmar']:>7.3f} {r['q05']:>6.1f} {r['q20']:>6.1f} "
+              f"{'O' if m1 else '·':>3} {'O' if m05 else '·':>4} {'O' if m20 else '·':>4}"
+              + ('   ★ 두 정의 동시 통과' if m1 and m05 and m20 else ''))
 
 
 if __name__ == '__main__':

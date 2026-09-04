@@ -1,0 +1,301 @@
+# research 전수 코드리뷰 후속 교정 — v204 (2026-09-05)
+
+## 범위와 읽는 법
+
+원검토 기준 커밋: `d9606ed4f7a6d533e212c259c3114651803b6521`.
+원검토에서 **Python 129개 + 문서 8개 = 독립 파일 137개**를 전체 판독했다.
+교정 시점 실제 파일 목록과 대조한 결과 추가·누락 0개다. 이 보고서 자체는 이후 추가한 138번째 파일이다.
+원검토의 생성 캐시 130개는 헤더·소스 연결·marshal 구조를 확인했으며, 독립 연구 코드 수로 세지 않는다.
+
+원발견 **P0 0 / P1 9 / P2 31 / P3 21 = 61건**을 아래 원래 ID로 추적한다.
+추가 검산에서 발견한 적립식 세금 납부용 매도의 차년도 손익, WFA 경계 비용/첫날 낙폭,
+신호 WFA 목적함수, 불완전 NAV 표본, 보정 캐시 열 문제도 관련 항목에 합쳐 교정했다.
+수정한 코드의 실행 성공과 연구 가설이 참이라는 판정은 별개다.
+
+**유지한 경계**: 전략 B의 252일·−16/−16·방어 40/40/20 및
+`data/freeze.json`·`data/oos_log.csv`·`data/nav_history.csv`는 수정하지 않는다.
+잘못된 연구 결론을 보존하는 제약은 두지 않았다. 규칙 채택·새 최적화는 하지 않는다.
+
+## 실제로 달라진 결과와 철회
+
+- **신호 WFA**: Calmar 학습·연속 상태·경계 비용·같은 종료점으로 교정.
+  1976-12-06~2026-08-25 QQQ/QLD 학습계열 102,449.69/102,182.54배, 고정 B 111,166.27배.
+  실물 2006-06-22~2026-07-13은 121.31/52.42배, 고정 B 122.36배.
+  옛 QQQ 122.74/QLD 41.04와 구형 A 기준의 우세 설명을 현재 근거로 쓰지 않는다.
+- **복귀선 WFA**: 5년 학습·1년 평가 50구간의 선택형 47,724.3배, 고정 A 54,966.2배,
+  고정 B 111,166.3배. 추적 산출물 `hyst_wfa.csv`도 재생성했다.
+  긴 누적배수는 진단용이며 미래 수익 예측이 아니다.
+- **해외 계좌 세금**: 21세기 동일 창의 모형상 3배 B 직투/전략 B ISA 비율은 1.76배,
+  최대낙폭은 −61.3%/−53.2%. 설명서의 옛 1.4배를 약1.8배로 정정.
+  여러 회계·환율·비용 보정이 합쳐진 결과를 하나의 원인에 귀속하지 않는다.
+- **적립식**: 5/10/20/30년의 3배 직투 대 B ISA 중앙잔액 비율은 1.092/1.322/1.452/1.725.
+  옛 「5·10년 최악5%에서는 B가 더 낫다」는 현재 출력과 달라 철회한다.
+  이를 모든 시작일의 승리 또는 투자 권고로 바꾸지 않는다.
+- **일반계좌 슬리브 비교**: 거래비용 0으로 동일 조건의 세전/실현세 반영 잔액을 비교.
+  B 249,754→57,578배, 배당 계속보유·월 재조정 비교형 36,528→10,719배.
+  끝날 청산 전이며 비교형 방어 비중은 표류한다. 현행 40/40/20 B와 동일 구현이라고 주장하지 않는다.
+  별도 거치식 계좌 비교의 20년 중앙은 ISA104.2/일반65.1배(−37.5%).
+- **연금 이체**: 3,000만원 이체의 추가 국세 공제는 36만/45만원(12%/15% 적용, 지방소득세 제외).
+  300만원은 환급액이 아니라 공제대상 한도다. 인출세를 양쪽에 계산하지 않았으므로
+  「모든 지평·조건에서 ISA 연장 우세」 확정 문구를 철회했다.
+- **T4 고배율**: 단일 2010 시작일을 핵심 관문으로 사용하던 코드와 「2008 한 사건의 산물」 주장을 철회.
+  모든 시작일 스캔과 별도 Calmar/지연 관문을 병기한다. 관문 미달과 반증된 옛 설명을 혼동하지 않는다.
+- **체결비용**: 실제 체결일 0/20, 네 다리가 완전한 NAV 수집 8/60일(전체 날짜는9개).
+  자료가 모자라 판정 불가다. 신호 전환횟수나 부분 NAV 기록을 실측 완료로 세지 않는다.
+- **적립식 부분비중(M25)**: 실제 평가액 기준의 전환액 수정만으로는 충분하지 않았다.
+  일정 비중 유지일의 재조정도 고친 뒤 현금20%/30% 후보의 20년 중앙은 56.8/48.3→54.9/47.2,
+  최악5%는 17.2/13.8→16.2/12.7로 바뀌었다. 현행 B 중앙75.7/최악5%25.6은 불변이며
+  전체 후보 관문 통과0이다. 손계산 2.50→정답2.25의 실패→통과를 회귀 검사로 남겼다.
+
+## 남은 한계
+
+1. **p05/p20 정의**: 기존 T4 관문②의 정의 논쟁은 임의 결정하지 않는다.
+   두 값과 판정 차이를 출력하고 확정 채택 근거 사용을 차단했다.
+2. **잘못된 해외 세후 재표집 구간**: 원래 스위치를 뒤섞인 수익 경로에 그대로 얹은 옛 불확실성 구간은 철회했다.
+   유효한 대체 신뢰구간을 만들었다고 주장하지 않는다. 비중첩 실제 구간 결과는 별도로 재계산했다.
+3. **개인별 세제**: 금융소득종합과세·건보료·인출조건을 모두 모델링한 개인별 세후 결과가 아니다.
+4. **실측 체결 자료 부재**: 사용자 거래 기록은 기기 localStorage 안에 있다. 서버는 이를 알 수 없으므로
+   자동 진행률은0이다. 새로운 수동 정기 의무나 데이터 업로드를 만들지 않았다.
+5. **외부 자료 갱신**: 저장된 원자료 기준이다. 다운로더를 실서버에 강제 갱신해 역사 자료를 덮어쓰지 않았다.
+6. **과거 보관 문서/외부 반출물**: `docs/history/`의 당시 기록과 저장소 밖 반출 아티팩트를 소급 재작성하지 않는다.
+   현재 근거는 본 보고서와 수정된 research 문서가 우선한다.
+
+## P1 — 핵심 결과/결론 (9건)
+
+| ID | 파일 (research/) | 처리 |
+|---|---|---|
+| H01 | `def_bond.py` | 원화 표의 지수·방어자산을 같은 통화로 통일하고 실제 방어 보유일로 측정. |
+| H02 | `ml_policy.py` | 재학습일 이전에 미래 63일 라벨이 모두 확정된 표본만 사용. |
+| H03 | `tax_general_account.py` | 매도→과세→새 자산 수익 순서. 세전·세후 동일 비용 0 슬리브 모형으로 비교하며 비중 표류·청산 전 잔액을 명시. 거치식 계좌 비교는 검산된 매도비용 회계 재사용. |
+| H04 | `axis_vrhybrid.py` | 목표액과 QLD 보유평가액을 비교. 현금 Pool을 목표 판독에서 제외. |
+| H05 | `recovery_speed.py` | 병합 사건의 최초 고점 기준 최저가격·낙폭·회복기간을 다시 계산. |
+| H06 | `hyst_sigwfa.py` | 동일 평가 시작·종료의 현행 B와 대조. Calmar 학습·상태 연속·경계 비용까지 교정. |
+| H07 | `tax_us_direct.py` | 보정 build2 경로를 기본/emit/c21 CLI에 연결하고 옛 행 키 제거. |
+| H08 | `tax_us_direct.py` | 연간 정산·집행일 과세·세금 납부용 매도의 원가/차년도 실현손익·비용 순서 교정. |
+| H09 | `isa_pension.py`, `MEASUREMENT_AUDIT.md` | 추가 공제대상 한도와 실제 세액공제 분리. 국세 기준 명시. 미계산 인출세를 포함한 최종 우열은 미판정으로 정정. |
+
+## P2 — 계산/판정 (31건)
+
+| ID | 파일 (research/) | 처리 |
+|---|---|---|
+| M01 | `mdd_target.py`, `plan30_withdraw.py` | 부분 레버리지 비용을 k−1 계약으로 교정. |
+| M02 | `new_paths.py` | 252일 고점 준비 전 NaN을 미회복 경과일에서 제외. |
+| M03 | `new_paths.py`, `liquid_design.py` | 편도 회전율을 절반 합산으로 통일하고 초기 진입을 대칭 처리. |
+| M04 | `axis_t4_synthcrash.py` | 곰랠리를 포함해도 요청한 하락장 길이가 보존되도록 생성. |
+| M05 | `ml_policy.py` | 월말 정책의 이중 지연 제거. |
+| M06 | `audit_stat.py` | 상대 로그기여를 log(1+rT)−log(1+rB)로 교정. |
+| M07 | `hyst_wfa.py` | Calmar 선택·학습창 이전 상태·시작 자산·경계일 비용 보존. |
+| M08 | `lookback200.py`, `free_design.py`, `plan30_withdraw.py` | 전체 기간을 창 길이로 나눠 비중첩 정보량 표기. |
+| M09 | `hypo_verify.py` | 공표 T4를 재현하는 감사 D 추가. p05/p20 정의 논쟁은 별도 미결로 유지. |
+| M10 | `recovery_speed.py` | 깊이 통제·코로나 제외·절단 반증을 최종 판정에 연결. |
+| M11 | `axis_ext2.py` | 국채 상승/금리 하락의 설명과 부호 일치. |
+| M12 | `axis_wide.py` | 방어 문턱 아래에서도 등록한 조기복귀 조건을 평가. |
+| M13 | `t4_lev_post.py` | 철회된 단일 2010 시작일 관문 제거. 끝점 고정 모든 시작일을 측정하고 낡은 인과 주장 철회. |
+| M14 | `exec_cost.py` | 매매 방향·같은 날짜/종목 NAV를 합산. 날짜별 가중 집계, 부분 체결/주말/불완전 NAV 제외. 입력 없는 자동 점검은 체결 0건. |
+| M15 | `oos_protocol_b.py` | 사전등록 기저율 불일치 시 정상 판정을 중단. |
+| M16 | `hist_krtax.py` | 재투자 분배금을 취득원가에 더해 중복 과세 방지. |
+| M17 | `withdraw.py` | 과거 최고소득 대비 지표의 열 제목을 실제 정의와 일치. |
+| M18 | `liquid_design.py` | 상장 전/준비기간 결측을 자산 선택 가능 이력으로 오인하지 않게 처리. |
+| M19 | `liquid_design.py` | 월말 정보로 다음 거래일에 집행. |
+| M20 | `axis_macro3.py` | 21일 보유수익을 단순합 대신 복리로 계산. |
+| M21 | `valuation_regime.py` | 배수비와 수익률 차이 단위를 분리. |
+| M22 | `hypo_hex.py`, `hypo_t4_real.py` | p05와 p20을 병기하고 정의 미확정 관문의 채택/기각 확정 사용 중단. |
+| M23 | `tax_us_direct.py` | 기본/emit의 옛 행 키 조회 KeyError 제거. |
+| M24 | `hypo_gates.py`, `liquid_iter.py` | 월별 재조정 사이 실제 비중 표류를 반영. |
+| M25 | `axis_dca.py` | 목표비중 유지일도 실제 비중을 재조정해 목표와 보유를 일치. |
+| M26 | `MEASUREMENT_AUDIT.md`, `ENGINE_RESEARCH.md` | 통화와 시작일이 동시에 다른 비교의 환율 인과 주장 철회. 같은 창 기준으로 정정. |
+| M27 | `hist_fetch.py` | 완성 임시파일+원자 교체. 저장 실패·짧은 응답에서 기존 캐시 보존. |
+| M28 | `axis_mech.py` | N일 시간잠금의 하루 초과 제거. |
+| M29 | `q1_physical_bond.py` | 원화·인접 만기 포함 네 관문 연결 및 모든 만기의 원화 지표 계산. |
+| M30 | `surv_map.py` | AUM 비유한/결측을 정상 상태로 분류하지 않음. |
+| M31 | `axis_meta.py` | 변동성 z뿐 아니라 선언한 낙폭 조건도 국면법 F에 반영. |
+
+## P3 — 표시/경계/방법 설명 (21건)
+
+| ID | 파일 (research/) | 처리 |
+|---|---|---|
+| L01 | `axis_isa.py` | 3년 만기를 실제 달력으로 계산. |
+| L02 | `def_bond.py`, `q1_physical_bond.py` | 전일 신호가 아니라 실제 보유일로 방어 측정. |
+| L03 | `free_design.py` | 음의 총 기여가 집중도 관문을 자동 통과하지 않게 차단. |
+| L04 | `axis_t4_synthcrash.py` | 두 승률 차이의 표준오차로 비교. |
+| L05 | `surv_alert.py`, `surv_map.py`, `axis_meta.py` | 창 직전 자산을 포함해 첫날 손실 보존. |
+| L06 | `axis_secondary.py` | 같은 날짜에는 A/B에 같은 갭 충격을 적용. |
+| L07 | `what_we_know.py` | 단조성 주장을 실제 표에서 판정. |
+| L08 | `axis_rvstate.py` | 후속 G11 기각과 충돌하는 채택 문구 제거. |
+| L09 | `axis_vixstate.py` | S1 사장 분기 교정 및 필수 4블록 관문을 최종 판정에 포함. |
+| L10 | `hist_three.py` | 미국 신호 횟수가 아닌 한국 집행 횟수 출력. |
+| L11 | `hedge_ratio_scan.py` | 비용 0 비교에 명시적 cost=0 전달. |
+| L12 | `attack_diversify.py` | 실제 비중대로 QLD70/금30 이름 교정. |
+| L13 | `valuation_regime.py` | MDD 차이 열의 피감수/감수 순서 명시. |
+| L14 | `c3_falsify.py` | 등록한 국면별 Calmar를 측정. |
+| L15 | `horizon_study.py`, `FINAL_AUDIT.md` | 겹치는 창의 손실 비율과 독립 정보량을 구분; 미래 확률로 단정하지 않음. |
+| L16 | `FINAL_AUDIT.md` | 이미 해소된 수정주가 문제를 현행 잔여 위험에서 제거. |
+| L17 | `goal_feasibility.py` | 필요 적립액 0을 분포에 유지하고 전부 0인 경계 처리. |
+| L18 | `pbo_thresh.py` | 실제 재현 파일 wfa_thresh.py로 안내. |
+| L19 | `q2_hedged_attack.py` | 등록 네 위기와 사후 추가 IMF를 별도 집계. |
+| L20 | `schd_qqq_overlap.py` | 공분산·분산 ddof 통일. 실제 Yahoo 캐시 열/값 검증도 보완. |
+| L21 | `takeprofit.py` | 첨탑·최대 개선·기각 문구를 측정값에서 생성. |
+
+## 검증 기록
+
+- 원검토 137개 파일 목록 ↔ 교정 시점 목록: 추가0·누락0.
+- 수정 후 직접 실행 확인한 연구 파일은 아래 목록에서 구분한다. 미실행 파일을 실행 완료로 표시하지 않는다.
+- 새 자동 회귀검사 `audit/test_research_review.py` **10개 통과**: 손계산 세금, 무세율 납입 항등식,
+  거치/단일납입 동치, 캐시 실패 보존, WFA 구간연결/첫날 손실, 불완전 체결/NAV 표본.
+  세금/일정 비중 손계산은 실제 **수정 전 실패→수정 후 통과**를 확인했다.
+- 412px Chrome: 변경한 설명서·업데이트 노트의 가로 넘침0·콘솔 오류0.
+  신호 화면도 가로 넘침0·JavaScript 실행 예외0. 로컬의 404 두 건은 별도 브랜치에서 배포 때
+  가져오는 `data/price.json`과 브라우저의 기본 `favicon.ico` 요청임을 확인했다.
+- `research_kit.py`: 설계 가드 양방향 검사 통과.
+- `verify_all.py`: 전체 검사 통과(문서/화면/운영 셀프테스트 포함). 마지막 수정 뒤 재실행 결과와
+  UI 점검·배포 상태는 최종 인수인계에서 확인한다.
+- 자동 점검의 사람용/JSON 경로를 따로 확인. 결과의 `ok`·`health_errors`도 검사하며 종료코드만 보지 않는다.
+- 네트워크 갱신·주문·실측 장부 수정 없음.
+
+## 검토한 독립 파일 목록 (원대상 137개)
+
+| 파일 | 검토/후속 확인 |
+|---|---|
+| `research/ENGINE_RESEARCH.md` | 본문 검토 · 수정 |
+| `research/EXPLORATION.md` | 본문 검토 · 수정 전 탐색 이력의 정량 근거 사용 금지 표시 |
+| `research/EXT_INFINITE.md` | 본문 검토 |
+| `research/FINAL_AUDIT.md` | 본문 검토 · 수정 |
+| `research/LEVERAGE_US.md` | 본문 검토 · 수정 |
+| `research/MEASUREMENT_AUDIT.md` | 본문 검토 · 수정 |
+| `research/NEW_STRATEGY_RESEARCH.md` | 본문 검토 |
+| `research/SURVIVAL_MONITOR.md` | 본문 검토 · 수정 |
+| `research/attack_diversify.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/audit_exec.py` | 전체 판독 · 기존 검증 대조 |
+| `research/audit_pbo.py` | 전체 판독 · 기존 검증 대조 |
+| `research/audit_stat.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_accum.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_accum2.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_b_inspect.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_dca.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_dca_grid.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_defsel.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_dipbuy.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_ens.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_ext2.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_ext2_probe.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_external.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_finalverify.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_forward.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_gate11.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_hedge_cost.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_horizon.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_isa.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_krreal_decomp.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_krspec.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_krspread.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_lev.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_macro.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_macro2.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_macro3.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_macro4.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_mech.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_meta.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_meta_crisis.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_minimax.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_momentum.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_newrule.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_nextgen.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_objective.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_regime.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_rvstate.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_secondary.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_selbias.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_selbias_disjoint.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_sigsrc.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_t4_krcost.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_t4_shadow.py` | 전체 판독 · 기존 검증 대조 |
+| `research/axis_t4_synthcrash.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_vixstate.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_vrhybrid.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_wide.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/axis_wide_probe.py` | 전체 판독 · 기존 검증 대조 |
+| `research/b_adversarial.py` | 전체 판독 · 기존 검증 대조 |
+| `research/b_gate_noise.py` | 전체 판독 · 기존 검증 대조 |
+| `research/build_crisis_paths.py` | 전체 판독 · 기존 검증 대조 |
+| `research/c3_falsify.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/c3_placebo.py` | 전체 판독 · 기존 검증 대조 |
+| `research/cand_general.py` | 전체 판독 · 기존 검증 대조 |
+| `research/complement_sleeve.py` | 전체 판독 · 기존 검증 대조 |
+| `research/def_bond.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/def_equity.py` | 전체 판독 · 기존 검증 대조 |
+| `research/drag_sigma.py` | 전체 판독 · 기존 검증 대조 |
+| `research/dsr_b.py` | 전체 판독 · 기존 검증 대조 |
+| `research/emit_dd_distribution.py` | 전체 판독 · 기존 검증 대조 |
+| `research/eng_common.py` | 전체 판독 · 기존 검증 대조 |
+| `research/eng_kospi.py` | 검토 · 수정 후 실행 |
+| `research/eng_sp500.py` | 전체 판독 · 기존 검증 대조 |
+| `research/era_start.py` | 전체 판독 · 기존 검증 대조 |
+| `research/exec_cost.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/ext_ibs.py` | 전체 판독 · 기존 검증 대조 |
+| `research/ext_vr.py` | 전체 판독 · 기존 검증 대조 |
+| `research/factcheck_qld_talk.py` | 전체 판독 · 기존 검증 대조 |
+| `research/forecast_check.py` | 전체 판독 · 기존 검증 대조 |
+| `research/free_design.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/frontier2.py` | 전체 판독 · 기존 검증 대조 |
+| `research/goal_feasibility.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hedge_ratio_scan.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hist_defchain.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hist_defdiag.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hist_defrun.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hist_fetch.py` | 검토 · 오프라인 원자저장 회귀검사 · 수정 |
+| `research/hist_krtax.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hist_three.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/horizon_ess.py` | 전체 판독 · 기존 검증 대조 |
+| `research/horizon_study.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hypo_escape.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hypo_external2.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hypo_gates.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hypo_hex.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hypo_t4_real.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hypo_t4wide.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hypo_verify.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hyst_signal.py` | 전체 판독 · 기존 검증 대조 |
+| `research/hyst_sigwfa.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/hyst_wfa.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/isa_pension.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/japan_stress.py` | 전체 판독 · 기존 검증 대조 |
+| `research/lev_5y.py` | 전체 판독 · 기존 검증 대조 |
+| `research/lev_opt.py` | 전체 판독 · 기존 검증 대조 |
+| `research/lev_signal_source.py` | 전체 판독 · 기존 검증 대조 |
+| `research/lev_th.py` | 전체 판독 · 기존 검증 대조 |
+| `research/liquid_design.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/liquid_iter.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/lookback200.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/mdd_target.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/ml_policy.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/near_zone.py` | 전체 판독 · 기존 검증 대조 |
+| `research/new_paths.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/oos_protocol_b.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/ops_risk.py` | 전체 판독 · 기존 검증 대조 |
+| `research/pbo_thresh.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/plan30_withdraw.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/post_dotcom.py` | 전체 판독 · 기존 검증 대조 |
+| `research/q1_physical_bond.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/q2_hedged_attack.py` | 검토 · 저장된 자료로 실행(네트워크 차단) · 수정 |
+| `research/q5_near_presell.py` | 전체 판독 · 기존 검증 대조 |
+| `research/recovery_speed.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/schd_qqq_overlap.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/slice_scan.py` | 전체 판독 · 기존 검증 대조 |
+| `research/surv_alert.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/surv_map.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/t4_lev_post.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/takeprofit.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/tax_general_account.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/tax_us_direct.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/thresh_window.py` | 전체 판독 · 기존 검증 대조 |
+| `research/tranche.py` | 전체 판독 · 기존 검증 대조 |
+| `research/valuation_regime.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/wfa_thresh.py` | 전체 판독 · 기존 검증 대조 |
+| `research/what_we_know.py` | 검토 · 수정 후 실행 · 수정 |
+| `research/withdraw.py` | 검토 · 수정 후 실행 · 수정 |
+
+## 미검토 파일 목록
+
+원대상 research 독립 파일: **없음**.
+이것은 「알려지지 않은 버그도 0개」 또는 「모든 외부 경로를 실환경에서 실행했다」는 뜻이 아니다.
+생성 캐시는 독립 소스가 아니며 원검토에서 구조 검증했다. 본 보고서와 새 회귀검사도 작성 후 확인한다.

@@ -109,7 +109,7 @@ def wp05(c, W):
     if len(c) <= W + 1:
         return float('nan'), 0.0
     m = c[W:] / c[:-W]
-    return float(np.percentile(m, 5)), (len(c) - W) / W
+    return float(np.percentile(m, 5)), len(c) / W
 
 
 def wins(cC, cR, W):
@@ -160,7 +160,9 @@ def concentration(dlog, groups):
     tot = float(dlog.sum())
     g = pd.Series(dlog[groups >= 0]).groupby(groups[groups >= 0]).sum().sort_values(ascending=False)
     if len(g) == 0 or abs(tot) < 1e-12:
-        return float('nan'), True, 0
+        return float('nan'), False, 0
+    if tot <= 0:
+        return float('nan'), False, len(g)
     top3 = float(g.head(3).sum() / tot) if tot != 0 else float('nan')
     loo_same = np.sign(tot - g.iloc[0]) == np.sign(tot)
     return top3, bool(loo_same), len(g)

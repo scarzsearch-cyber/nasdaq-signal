@@ -59,9 +59,21 @@ CRISES = [('GFC 2007~09', '2007-10-31', '2009-03-09'),
 def load(sym, root=False):
     p = f'{sym}_us_d.csv' if root else f'data/hist/yahoo_{sym}.csv'
     d = pd.read_csv(p)
-    c = 'Date' if 'Date' in d.columns else d.columns[0]
-    d[c] = pd.to_datetime(d[c])
-    return d.set_index(c)['Close'].astype(float).sort_index()
+    date_col = 'Date' if 'Date' in d.columns else d.columns[0]
+    # data/hist 의 Yahoo 캐시는 배당·분할을 반영한 AdjClose 한 열만 가진다.
+    # 루트의 구형 OHLC 파일과 형식이 다르므로 Close 고정은 실행 즉시 깨진다.
+    price_col = next((c for c in ('AdjClose', 'Adj Close', 'Close', 'close') if c in d.columns), None)
+    if price_col is None:
+        raise ValueError(f'{p}: 가격 열이 없다 (열={list(d.columns)})')
+    dates = pd.to_datetime(d[date_col], errors='coerce')
+    prices = pd.to_numeric(d[price_col], errors='coerce')
+    if dates.isna().any() or not np.isfinite(prices).all():
+        raise ValueError(f'{p}: 잘못된 날짜 또는 결측·비유한 가격이 있다')
+    out = pd.Series(prices.values, index=dates, name=sym).sort_index()
+    out = out[~out.index.duplicated(keep='last')]
+    if len(out) < 2 or (out <= 0).any():
+        raise ValueError(f'{p}: 유효한 양수 가격 계열이 아니다')
+    return out
 
 
 def nnls(X, y, iters=200):
@@ -221,7 +233,9 @@ def main():
         if len(ix) < 120:
             print(f'    {lbl:16s} 자료 부족'); continue
         a, b = a[ix], b[ix]
-        beta = float(np.cov(a, b)[0, 1] / np.var(b))
+        # 분자·분모의 자유도를 맞춘다. np.cov 기본(ddof=1)을 np.var 기본(ddof=0)로
+        # 나누면 표본 수 n/(n-1)만큼 베타가 부풀었다.
+        beta = float(np.cov(a, b, ddof=1)[0, 1] / np.var(b, ddof=1))
         print(f'    {lbl:16s} β(XLF) = {beta:.2f} · 상관 {float(np.corrcoef(a,b)[0,1]):+.2f} · n={len(ix)}')
 
     print('\n' + L); print('예측 대조'); print(L)

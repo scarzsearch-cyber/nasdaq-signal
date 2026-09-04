@@ -101,6 +101,7 @@ def main():
     print(f'관문① Calmar > {c0*(1+GATE1):.3f} · 관문② p05 > {p0:.1f} · 관문③ 전·후반 양쪽 우세')
 
     TPS = [0.10, 0.20, 0.30, 0.50, 1.00]
+    tested = []
     for mode, param, lab in [('cool', 21, 'V1 쿨다운 21거래일'),
                              ('dip', 0.05, 'V2 딥매수 −5%')]:
         print(f'\n[{lab}] 익절 후 이렇게 돌아온다')
@@ -110,6 +111,8 @@ def main():
             w = w_takeprofit(tp, mode, param)
             a = EC.sim2(w, QLDR, MIXR)
             f, m, c, p = met(a)
+            tested.append(dict(mode=mode, param=param, tp=tp, a=a,
+                               final=f, mdd=m, calmar=c, p05=p))
             g1 = 'OK' if c >= c0 * (1 + GATE1) else '미달'
             g2 = 'OK' if p >= p0 else '미달'
             print(f'{tp:>6.0%} {f:>13,.1f} {m:>7.1f}% {c:>8.3f} {p:>7.1f}배 '
@@ -117,14 +120,9 @@ def main():
 
     # 최선 후보만 시대 분해 (관문③)
     print('\n[관문③] 위에서 가장 나은 칸의 시대 분해')
-    best = None
-    for mode, param in [('cool', 21), ('dip', 0.05)]:
-        for tp in TPS:
-            a = EC.sim2(w_takeprofit(tp, mode, param), QLDR, MIXR)
-            _, _, c, _ = met(a)
-            if best is None or c > best[0]:
-                best = (c, mode, param, tp, a)
-    c, mode, param, tp, a = best
+    best = max(tested, key=lambda r: r['calmar'])
+    c, mode, param, tp, a = (best['calmar'], best['mode'], best['param'],
+                              best['tp'], best['a'])
     e1, e2, ec1, ec2 = era(a)
     b1, b2, bc1, bc2 = era(aB)
     print(f'  최선: {mode} {param} · 익절 {tp:.0%} (Calmar {c:.3f})')
@@ -137,19 +135,38 @@ def main():
     #   끝점이므로 촘촘히 다시 재서 고원인지 첨탑인지 본다.
     print('\n[관문④] 첨탑 검사 — 익절선을 촘촘히 (V2 딥매수 −5%)')
     print(f"{'익절선':>10} {'최종배수':>14} {'Calmar':>9} {'vs B':>9}")
+    dense = []
     for tp in (0.6, 0.8, 0.9, 1.0, 1.1, 1.2, 1.5, 2.0, 3.0, 5.0):
         a = EC.sim2(w_takeprofit(tp, 'dip', 0.05), QLDR, MIXR)
         _, _, c, _ = met(a)
+        dense.append((tp, c))
         print(f'{tp:>9.0%} {EC.fullmet(a, idx=idx)["final"]:>14,.0f} {c:>9.3f} '
               f'{(c/c0-1)*100:>+8.1f}%')
     print(f'{"익절없음(B)":>10} {f0:>14,.0f} {c0:>9.3f} {0.0:>+8.1f}%')
-    print('  → 100% 에서 +3.5%, 110% 에서 −0.8% 로 뒤집힌다 = **첨탑(노이즈)**.')
-    print('     300% 이상은 발동 자체를 안 해 B 와 정확히 같아진다.')
+    peak_i = int(np.argmax([x[1] for x in dense]))
+    neigh = [dense[j] for j in (peak_i - 1, peak_i + 1) if 0 <= j < len(dense)]
+    plateau = len(neigh) == 2 and all(v >= c0 for _, v in neigh)
+    print(f'  → 촘촘 격자 최고는 {dense[peak_i][0]:.0%} ({dense[peak_i][1]/c0-1:+.1%}); '
+          f'양옆 {[(f"{t:.0%}", round(v/c0-1, 3)) for t, v in neigh]} · '
+          f'{"고원" if plateau else "첨탑/끝점"}.')
 
-    print('\n[판정] **기각**')
-    print('  · 관문① Calmar +10.2%: **10칸 전부 미달** (최고 +3.5%).')
-    print('  · 겉보기 최고점(익절 100%)은 관문④에서 첨탑으로 드러남 — v50 파라미터 첨탑 지문.')
-    print('  · 낮은 익절선은 참혹하다: 10% 마다 익절하면 21만배 → 1.2만배 (**−95%**).')
+    # 관문③도 최선 한 칸만이 아니라 10개 전부에 건다.
+    passed = []
+    for r in tested:
+        _, _, x1, x2 = era(r['a'])
+        r['g1'] = r['calmar'] >= c0 * (1 + GATE1)
+        r['g2'] = r['p05'] >= p0
+        r['g3'] = x1 > bc1 and x2 > bc2
+        if r['g1'] and r['g2'] and r['g3']:
+            passed.append(r)
+    print(f'\n[판정] **{"기각 아님" if passed else "기각"}**')
+    print(f'  · 관문① 통과 {sum(r["g1"] for r in tested)}/{len(tested)} · '
+          f'관문② 통과 {sum(r["g2"] for r in tested)}/{len(tested)} · '
+          f'관문③ 통과 {sum(r["g3"] for r in tested)}/{len(tested)} · 세 관문 동시 {len(passed)}/{len(tested)}.')
+    print(f'  · 촘촘 격자 최고점은 {"고원" if plateau else "이웃에서 유지되지 않는 첨탑"}이다.')
+    low = min((r for r in tested if r['tp'] == 0.10), key=lambda r: r['final'])
+    print(f'  · 낮은 익절선의 최악 경로: 10%마다 익절하면 B 대비 최종 {low["final"]/f0:.2f}배 '
+          f'({(low["final"]/f0-1):+.1%}).')
     print('  · 기전: 수익이 드문 큰 상승에 몰려 있는데(왜도) 익절이 그걸 중간에 끊는다.')
     print('    하락 방어는 −16% 게이트가 이미 하므로 익절이 더해 주는 보호가 없다 = 기전 1.')
 

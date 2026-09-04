@@ -61,7 +61,7 @@ def usd_table(kind, label, start=None, end=None, cost=0.001):
         m = met(c); rs = rolling_stats(c, qld); out[S['name']] = m
         print('%-9s %13s %6.2f%% %7.2f%% %7.2f %7.2f %6d %6.1f%% %6.1f%%'
               % (S['name'], f"{m['final']:,.1f}", m['cagr'] * 100, m['mdd'] * 100,
-                 m['calmar'], m['sharpe'], sw(w),
+                 m['calmar'], m['sharpe'], int(np.count_nonzero(np.asarray(t, float))),
                  rs[5]['win'] if 5 in rs else np.nan, rs[10]['win'] if 10 in rs else np.nan))
     m = met(qld)
     print('%-9s %13s %6.2f%% %7.2f%% %7.2f %7.2f' % ('QLD보유', f"{m['final']:,.1f}",
@@ -113,7 +113,7 @@ if __name__ == '__main__':
         m = met(c); rs = rolling_stats(c, bench)
         print('%-9s %13s %6.2f%% %7.2f%% %7.2f %6d %6.1f%% %7.1f%%'
               % (S['name'], f"{m['final']:,.1f}", m['cagr'] * 100, m['mdd'] * 100,
-                 m['calmar'], sw(w), rs[5]['win'], rs[10]['win']))
+                 m['calmar'], int(np.count_nonzero(np.asarray(t, float))), rs[5]['win'], rs[10]['win']))
     m = met(bench)
     print('%-9s %13s %6.2f%% %7.2f%% %7.2f' % ('TIGER레버', f"{m['final']:,.1f}",
           m['cagr'] * 100, m['mdd'] * 100, m['calmar']))

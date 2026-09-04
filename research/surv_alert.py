@@ -63,7 +63,10 @@ def vol(i, w):
 
 
 def wmdd(a, lo, hi):
-    seg = a[lo:hi]
+    # 구간 첫 수익도 낙폭에 들어가야 한다. 첫 관측값부터 cummax 를 잡으면
+    # 첫날 급락이 새 고점처럼 취급되어 사라진다.
+    anchor = a[lo - 1] if lo > 0 else 1.0
+    seg = np.r_[anchor, a[lo:hi]]
     peak = np.maximum.accumulate(seg)
     return abs(float(np.min(seg / peak - 1)))
 

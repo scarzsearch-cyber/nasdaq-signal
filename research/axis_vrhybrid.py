@@ -61,6 +61,16 @@ import hist_data as H
 COST = 0.001
 
 
+def _vr_rebalance_target(Q, P, Vn, band, pool_cap):
+    """VR 밴드는 총자산이 아니라 위험자산 평가액 Q 를 목표 Vn 과 비교한다."""
+    upper, lower = Vn * (1 + band), Vn * (1 - band)
+    if Q > upper:
+        return Vn
+    if Q < lower:
+        return Q + min(Vn - Q, P * pool_cap)
+    return None
+
+
 # --------------------------------------------------------------- 엔진
 def vr_hybrid(D, G=10, band=0.15, pool_cap=0.5, cycle=10,
               enter=-0.16, exit_=-0.16, cost=COST, start=None, end=None):
@@ -131,13 +141,9 @@ def vr_hybrid(D, G=10, band=0.15, pool_cap=0.5, cycle=10,
             pending = 'to_on'
         elif regime == 'ON' and cyc >= cycle:
             Vn = V + P / G
-            upper, lower = Vn * (1 + band), Vn * (1 - band)
-            if total > upper:
-                pending = ('reb', Vn)
-            elif total < lower:
-                need = Vn - total
-                buy = min(need, P * pool_cap)
-                pending = ('reb', Q + buy)
+            target_Q = _vr_rebalance_target(Q, P, Vn, band, pool_cap)
+            if target_Q is not None:
+                pending = ('reb', target_Q)
             V = Vn
             cyc = 0
 
@@ -165,6 +171,10 @@ def check():
     print('검산  cycle=100000(사실상 리밸런싱 없음)  hybrid=%.6f  baseline=%.6f  오차=%.2e'
           % (h.iloc[-1], b2.iloc[-1], err))
     assert err < 1e-9, '검산 실패 — 거래가 없는 조건에서도 baseline 과 어긋난다'
+    # 총자산(Q+P)이 커도 Q가 목표 안이면 팔면 안 되고, 총자산이 목표와 같아도
+    # Q가 부족하면 Pool에서 사야 한다. 종전 total 비교가 두 경우를 모두 뒤집었다.
+    assert _vr_rebalance_target(1.0, 1.0, 1.0, 0.15, 0.5) is None
+    assert abs(_vr_rebalance_target(0.5, 0.5, 1.0, 0.15, 0.5) - 0.75) < 1e-12
     print('검산 통과\n')
 
 

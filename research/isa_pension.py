@@ -5,12 +5,14 @@
 배경: 화면 taxPanel 은 「연장 vs 3년마다 해지·재가입」만 비교한다
   (v203 회계 교정: 20년 중앙 135.24배 vs 114.38배).
   조세특례제한법 제91조의18 ④ 가 주는 세 번째 선택지 — 만기 60일 이내 연금계좌
-  (IRP·연금저축) 납입 시 **납입액의 10%, 최대 300만원 추가 세액공제** — 가 분석에 없다.
+  (IRP·연금저축) 납입 시 **이체액의 10%(최대 300만원)가 추가 공제대상 납입액**이 된다.
+  국세 기준 세액공제액은 그 대상액에 소득별 공제율 12% 또는 15%를 곱한 금액이다.
+  아래 금액은 지방소득세 효과를 제외한 국세 기준이다.
 
 핵심 제약 (이 계산의 전부):
   **레버리지 ETF 는 퇴직연금(IRP/DC)에서 매매 불가** — 근로자퇴직급여 보장법.
   IRP 는 위험자산 70% 한도도 있다. 즉 연금으로 옮긴 돈으로는 **전략 B 를 못 굴린다.**
-  따라서 이 결정은 「일회성 세액공제 10%」 vs 「B(2배 규칙) − 1배 보유 의 복리 격차」다.
+  따라서 이 결정은 「일회성 실효 세액공제」 vs 「B(2배 규칙) − 1배 보유 의 복리 격차」다.
   격차가 지평에 대해 지수적으로 벌어지므로 손익분기 지평만 찾으면 답이 난다.
 
 판정 아님 · 전략 무변경. 실행: python research/isa_pension.py
@@ -39,8 +41,10 @@ PX = pd.Series(G.D['px'], index=idx)
 QLDR = np.nan_to_num(np.asarray(G.D['qldr'], float))
 MIXR = np.nan_to_num(np.asarray(G.Dm['schdr'], float))
 
-CREDIT = 0.10          # 이체액의 10% 세액공제 (상한 300만원 → 이체 3,000만원에서 포화)
-CAP = 3_000_000
+ELIGIBLE_RATE = 0.10   # 이체액 중 추가 세액공제 대상이 되는 비율
+ELIGIBLE_CAP = 3_000_000
+TAX_CREDIT_RATES = (0.12, 0.15)
+REFERENCE_TRANSFER = 30_000_000
 HS = [(756, '3년'), (1260, '5년'), (1764, '7년'), (2520, '10년'),
       (3780, '15년'), (5040, '20년')]
 
@@ -61,26 +65,32 @@ def main():
         print(f'{lab:>8} {mb:>8.2f}배 {m1:>8.2f}배 {ratio:>12.2f}배 '
               f'{(ratio - 1) * 100:>17.0f}%')
 
-    print('\n[2] 세액공제가 주는 것 — 일회성 10% (상한 300만원)')
+    print('\n[2] 세액공제가 주는 것 — 이체액 10%가 추가 공제대상(대상액 상한 300만원)')
     for amt in (10_000_000, 30_000_000, 50_000_000, 100_000_000):
-        cr = min(amt * CREDIT, CAP)
-        print(f'  이체 {amt/1e8:>4.2f}억원 → 세액공제 {cr:>10,.0f}원 '
-              f'= 이체액의 {cr/amt:>5.2%}')
-    print(f'  ※ 3,000만원 초과분엔 공제가 안 붙는다 — 클수록 효과가 희석된다.')
+        eligible = min(amt * ELIGIBLE_RATE, ELIGIBLE_CAP)
+        credits = [eligible * r for r in TAX_CREDIT_RATES]
+        print(f'  이체 {amt/1e8:>4.2f}억원 → 추가 공제대상 {eligible:>10,.0f}원 → '
+              f'실제 세액공제 {credits[0]:,.0f}원 / {credits[1]:,.0f}원 (12% / 15%)')
+    print('  ※ 3,000만원 이체 시 국세 공제는 300만원이 아니라 36만원 또는 45만원이다(지방소득세 제외).')
+    print('     3,000만원 초과분에는 추가 대상액이 붙지 않아 이체액 대비 효과가 더 작아진다.')
 
-    print('\n[3] 손익분기 — 세액공제 10%(최대)가 복리 격차를 언제까지 이기나')
-    hit = None
-    for w, lab in HS:
-        mb = np.median(aB[w:] / aB[:-w])
-        m1 = np.median(a1[w:] / a1[:-w])
-        gap = mb / m1 - 1
-        win = '연금 우세' if gap < CREDIT else 'B(ISA) 우세'
-        if hit is None and gap >= CREDIT:
-            hit = lab
-        print(f'  {lab:>4}: 복리 격차 {gap:>7.1%} vs 세액공제 {CREDIT:.0%}  → {win}')
-    print(f'\n  손익분기: {hit} 이후로는 세액공제가 복리 격차를 못 따라간다.')
-    print('  (연금 과세이연·연금소득세 3.3~5.5% 는 미반영 — 넣어도 부호는 안 바뀐다:')
-    print('   ISA 도 과세이연이고, 위 격차는 세전 배수비라 양쪽에 같은 방향으로 작용)')
+    print('\n[3] 손익분기 — 3,000만원 이체의 실제 공제가 복리 격차를 언제까지 이기나')
+    eligible = min(REFERENCE_TRANSFER * ELIGIBLE_RATE, ELIGIBLE_CAP)
+    for rate in TAX_CREDIT_RATES:
+        uplift = eligible * rate / REFERENCE_TRANSFER
+        hit = None
+        print(f'  공제율 {rate:.0%}: 실제 {eligible*rate:,.0f}원 = 이체액의 {uplift:.1%}')
+        for w, lab in HS:
+            mb = np.median(aB[w:] / aB[:-w])
+            m1 = np.median(a1[w:] / a1[:-w])
+            gap = mb / m1 - 1
+            win = '연금 우세' if gap < uplift else 'B(ISA) 우세'
+            if hit is None and gap >= uplift:
+                hit = lab
+            print(f'    {lab:>4}: 복리 격차 {gap:>7.1%} vs 실효 공제 {uplift:.1%} → {win}')
+        print(f'    손익분기: {hit} 이후로는 세액공제가 복리 격차를 못 따라간다.')
+    print('  ※ 이 표는 세전 성장과 일회성 국세 공제만 비교한다. 연금 인출세·ISA 만기세를')
+    print('     함께 반영하지 않았으므로 최종 세후 우열이나 정확한 손익분기일로 해석하지 않는다.')
 
     print('\n[4] 이 계산이 다루지 않는 것 (판단에 필요)')
     print('  · 55세 이전 인출 시 기타소득세 16.5% — 유동성이 완전히 묶인다')

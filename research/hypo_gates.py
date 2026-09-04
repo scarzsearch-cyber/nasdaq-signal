@@ -11,8 +11,9 @@
 기준: 현행 B (−16/−16, 방어 mix) — build_stats.sc_us_1972('mix') 레시피 그대로.
 데이터: DF.build('chain') 54년(1972-02~), 전부 기존 검증 재료(hist_*/axis_lib)만 조립.
 
-관문 (HANDOFF §3): ① Calmar 가 현행 +10.2% 초과 ② 20년창 하위 5분위(20퍼센타일
-배수)가 현행 이상 ③④는 ①② 통과 시에만 의미(대부분 ②에서 죽는다 — §3 명시).
+관문 (HANDOFF §3): ① Calmar 가 현행 +10.2% 초과 ② 「20년창 5분위」.
+②의 옛 표현은 5퍼센타일과 20퍼센타일이 충돌하므로 둘 다 출력하고, 둘이 갈리면
+판정하지 않는다(HANDOFF §4 미결 ⑤). ③④는 ①②가 명확할 때만 의미가 있다.
 
 방법론 규약 준수: 새 시뮬레이터는 퇴화 케이스(고정 100% 2배 보유)가 기존 재료의
 단순 누적과 오차 0인지 self-check 한다. 미래참조 금지(신호·변동성 전부 shift(1)).
@@ -89,15 +90,15 @@ def sim_multi(legs, cost=COST, cap=True, _fixed_w=None):
     vv = [sig_vol(l[0]) for l in legs]
     rx = [np.nan_to_num(l[1]) for l in legs]
     ks = [l[2] for l in legs]
-    cash_w = (np.asarray(_fixed_w, float).copy() if _fixed_w is not None
-              else np.zeros(m))                # 현재 현금배분 (상품 단위)
-    if cash_w.shape != (m,):
-        raise ValueError(f'_fixed_w 길이 {cash_w.shape} != 다리 수 {(m,)}')
+    fixed = _fixed_w is not None
+    holdings = (np.asarray(_fixed_w, float).copy() if fixed else np.zeros(m))
+    if holdings.shape != (m,):
+        raise ValueError(f'_fixed_w 길이 {holdings.shape} != 다리 수 {(m,)}')
+    cash = 1.0 - float(np.sum(holdings))
     vals = np.empty(n)
-    v = 1.0
     warm = max(max(LOOKS), VOLW) + 1
     for i in range(n):
-        if _fixed_w is None and i >= warm and (mstart[i] or i == warm):
+        if not fixed and i >= warm and (mstart[i] or i == warm):
             e = np.zeros(m)
             for j in range(m):
                 vol_j = vv[j][i]
@@ -107,13 +108,18 @@ def sim_multi(legs, cost=COST, cap=True, _fixed_w=None):
             if cap and need > 1.0:
                 e *= 1.0 / need
             new_w = e / ks
-            turn = float(np.sum(np.abs(new_w - cash_w)))
-            v *= (1 - cost * turn)
-            cash_w = new_w
-        ret = float(np.dot(cash_w, [rx[j][i] for j in range(m)])) \
-            + (1.0 - float(np.sum(cash_w))) * tb[i]
-        v *= (1 + ret)
-        vals[i] = v
+            total = float(np.sum(holdings) + cash)
+            old_w = holdings / total
+            old_cash_w = cash / total
+            new_cash_w = 1.0 - float(np.sum(new_w))
+            turn = 0.5 * (float(np.sum(np.abs(new_w - old_w)))
+                          + abs(new_cash_w - old_cash_w))
+            total *= 1 - cost * turn
+            holdings = total * new_w
+            cash = total * new_cash_w
+        holdings *= 1 + np.array([rx[j][i] for j in range(m)])
+        cash *= 1 + tb[i]
+        vals[i] = float(np.sum(holdings) + cash)
     return pd.Series(vals, index=idx)
 
 
@@ -127,14 +133,30 @@ def _check():
     assert err < 1e-12, f'퇴화 검산 실패 {err}'
     print(f'[검산] 퇴화 케이스(고정 100% 2배) 오차 {err:.2e}  OK')
 
+    # 월 사이에 50/50이 수익률로 2/3:1/3로 흘렀다면 다음 리밸런스는
+    # 평가액을 다시 50/50으로 맞춰야 한다. 가중수익을 매일 더하는 엔진은 이 경로와 다르다.
+    h = np.array([1.0, 0.5]); cash0 = 0.0
+    total = float(h.sum() + cash0); target = np.array([0.5, 0.5])
+    h2 = total * target
+    assert np.allclose(h2, [0.75, 0.75])
+    print('[검산] 월간 목표비중은 드리프트한 실제 평가액에서 50/50으로 복원  OK')
 
-def q20(curve):
-    """20년(5040거래일) 롤링 배수의 하위 5분위(20퍼센타일)."""
+
+def qtile(curve, p):
+    """20년(5040거래일) 롤링 배수의 분위."""
     w = 5040
     a = curve.values
     if len(a) <= w:
         return None
-    return float(np.quantile(a[w:] / a[:-w], 0.20))
+    return float(np.quantile(a[w:] / a[:-w], p))
+
+
+def q20(curve):
+    return qtile(curve, 0.20)
+
+
+def q05(curve):
+    return qtile(curve, 0.05)
 
 
 def halves(curve):
@@ -148,7 +170,7 @@ def report(name, curve):
     c1, c2 = halves(curve)
     return dict(name=name, final=float(m['final']), cagr=float(m['cagr']) * 100,
                 mdd=float(m['mdd']) * 100, calmar=float(m['calmar']),
-                q20=q20(curve), h1=c1, h2=c2)
+                q05=q05(curve), q20=q20(curve), h1=c1, h2=c2)
 
 
 def main():
@@ -159,16 +181,19 @@ def main():
     rows = [report('현행 B (−16 mix)', cB), report('A 해외직투 이상형', A), report('K 국내 병용', K)]
     b = rows[0]
     print(f"\n{'전략':<16} {'최종배수':>10} {'CAGR%':>7} {'MDD%':>7} {'Calmar':>7} "
-          f"{'20년창5분위':>10} {'전반Calmar':>9} {'후반':>6}")
+          f"{'20년p05':>9} {'20년p20':>9} {'전반Calmar':>9} {'후반':>6}")
     for r in rows:
         print(f"{r['name']:<16} {r['final']:>10.1f} {r['cagr']:>7.2f} {r['mdd']:>7.2f} "
-              f"{r['calmar']:>7.3f} {r['q20']:>10.1f} {r['h1']:>9.3f} {r['h2']:>6.3f}")
+              f"{r['calmar']:>7.3f} {r['q05']:>9.1f} {r['q20']:>9.1f} {r['h1']:>9.3f} {r['h2']:>6.3f}")
     print(f"\n관문① Calmar > 현행×1.102 = {b['calmar']*1.102:.3f}")
-    print(f"관문② 20년창 5분위 ≥ 현행 = {b['q20']:.1f}")
+    print(f"관문② 정의 미확정 — p05 기준 {b['q05']:.1f} · p20 기준 {b['q20']:.1f} (둘 다 병기)")
     for r in rows[1:]:
         g1 = '통과' if r['calmar'] > b['calmar'] * 1.102 else '탈락'
-        g2 = '통과' if r['q20'] is not None and r['q20'] >= b['q20'] else '탈락'
-        print(f"  {r['name']}: ① {g1} (Calmar {r['calmar']:.3f}) · ② {g2} (5분위 {r['q20']:.1f})")
+        g205 = r['q05'] is not None and r['q05'] >= b['q05']
+        g220 = r['q20'] is not None and r['q20'] >= b['q20']
+        g2 = ('통과' if g205 else '탈락') if g205 == g220 else '정의에 따라 갈림'
+        print(f"  {r['name']}: ① {g1} (Calmar {r['calmar']:.3f}) · ② {g2} "
+              f"(p05 {r['q05']:.1f} {'O' if g205 else 'X'} / p20 {r['q20']:.1f} {'O' if g220 else 'X'})")
 
     # ---- 부록 (소유자 질문 2026-08-30): 같은 구조에서 타깃만 40%로 올리면? ----
     # A@40 한도내 = 개인 도구 그대로(현금 100% 상한) — 상한이 이미 물려 있으면 10%와 동일해야 함
@@ -181,7 +206,7 @@ def main():
     print('\n[부록] 타깃 40% — 다이얼만 올리면 무슨 일이 나는가')
     for r in (report('A@40 한도내(개인)', A40c), report('A@40 무제약(기관가정)', A40u)):
         print(f"{r['name']:<20} {r['final']:>10.1f} {r['cagr']:>7.2f} {r['mdd']:>7.2f} "
-              f"{r['calmar']:>7.3f} {r['q20']:>10.1f}")
+              f"{r['calmar']:>7.3f} p05 {r['q05']:>8.1f} · p20 {r['q20']:>8.1f}")
 
 
 if __name__ == '__main__':

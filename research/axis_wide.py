@@ -99,14 +99,16 @@ def stateful(ddv, enter_ok, ret_fn, n):
     w = np.empty(n); cur = 1.0
     trough = 0.0; since = 0; ent_i = -1
     for i in range(n):
+        entered = False
         if enter_ok[i]:
             if cur >= 1.0:
                 trough = ddv[i]; since = 0; ent_i = i
+                entered = True
             cur = 0.0
         if cur < 1.0:
             since += 1
             trough = min(trough, ddv[i])
-            if not enter_ok[i] and ret_fn(i, trough, since, ent_i):
+            if not entered and ret_fn(i, trough, since, ent_i):
                 cur = 1.0
         w[i] = cur
     return w

@@ -124,15 +124,18 @@ def main():
     b = rows[0]
     print(f"\n[공통 창: {EVAL} ~ 끝 · 세전 · 달러 · 거치식 · 창단위 비교는 판정 아님(v80)]")
     print(f"{'전략':<18} {'최종배수':>10} {'CAGR%':>7} {'MDD%':>7} {'Calmar':>7} "
-          f"{'20년창5분위':>10} {'전반C':>6} {'후반C':>6}")
+          f"{'20년p05':>9} {'20년p20':>9} {'전반C':>6} {'후반C':>6}")
     for r in rows:
         print(f"{r['name']:<18} {r['final']:>10.1f} {r['cagr']:>7.2f} {r['mdd']:>7.2f} "
-              f"{r['calmar']:>7.3f} {r['q20']:>10.1f} {r['h1']:>6.3f} {r['h2']:>6.3f}")
-    print(f"\n관문① Calmar > 현행×1.102 = {b['calmar']*1.102:.3f} · 관문② 5분위 ≥ {b['q20']:.1f}")
+              f"{r['calmar']:>7.3f} {r['q05']:>9.1f} {r['q20']:>9.1f} {r['h1']:>6.3f} {r['h2']:>6.3f}")
+    print(f"\n관문① Calmar > 현행×1.102 = {b['calmar']*1.102:.3f} · "
+          f"관문② 정의 미확정: p05 ≥ {b['q05']:.1f} / p20 ≥ {b['q20']:.1f}")
     for r in rows[1:]:
         g1 = '통과' if r['calmar'] > b['calmar'] * 1.102 else '탈락'
-        g2 = '통과' if r['q20'] is not None and r['q20'] >= b['q20'] else '탈락'
-        print(f"  {r['name']}: ① {g1} ({r['calmar']:.3f}) · ② {g2} ({r['q20']:.1f})")
+        g205, g220 = r['q05'] >= b['q05'], r['q20'] >= b['q20']
+        g2 = ('통과' if g205 else '탈락') if g205 == g220 else '정의에 따라 갈림'
+        print(f"  {r['name']}: ① {g1} ({r['calmar']:.3f}) · ② {g2} "
+              f"(p05 {r['q05']:.1f} {'O' if g205 else 'X'} / p20 {r['q20']:.1f} {'O' if g220 else 'X'})")
 
 
 if __name__ == '__main__':

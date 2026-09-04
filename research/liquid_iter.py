@@ -44,7 +44,7 @@ except Exception:
 import liquid_design as LD                               # noqa: E402  (자산·엔진·시뮬 재사용 — 결과는 안 찍는다)
 import eng_common as EC                                  # noqa: E402
 
-IDX, R, NAMES, col, MIX, MS = LD.IDX, LD.R, LD.NAMES, LD.col, LD.MIX, LD.MS
+IDX, R, NAMES, col, MIX, MS = LD.IDX, LD.R, LD.NAMES, LD.col, LD.MIX, LD.ME
 K = len(NAMES)
 N = len(IDX)
 ENGS = ['NDX', 'SPX', 'SOX', 'RUT', 'DIV']
@@ -177,10 +177,30 @@ def hybrid(W2a, RM2a, W2b, RM2b, wa=0.8):
     return None  # 아래 blend() 로 곡선 단위 처리
 
 
-def blend(c1, c2, w1=0.8):
+def blend(c1, c2, w1=0.8, ix=None, cost=LD.COST):
+    """두 슬리브를 월초에만 목표비중으로 되돌린다.
+
+    종전 구현은 매일 `w1*r1+(1-w1)*r2`를 계산해 무비용 일일 재조정을 했다.
+    설명한 월 재조정과 같은 보유 경로가 되도록 실제 슬리브 평가액을 굴린다.
+    """
+    if ix is None or len(ix) != len(c1) or len(c1) != len(c2):
+        raise ValueError('blend에는 두 곡선과 같은 길이의 날짜 ix가 필요하다')
     r1 = np.diff(c1, prepend=1.0) / np.concatenate(([1.0], c1[:-1])); r1[0] = 0
     r2 = np.diff(c2, prepend=1.0) / np.concatenate(([1.0], c2[:-1])); r2[0] = 0
-    return np.cumprod(1 + w1 * r1 + (1 - w1) * r2)
+    months = pd.DatetimeIndex(ix).to_period('M')
+    h1, h2 = float(w1), float(1 - w1)
+    out = np.empty(len(c1))
+    for i in range(len(out)):
+        if i > 0 and months[i] != months[i - 1]:
+            total = h1 + h2
+            target1 = total * w1
+            turn = abs(target1 - h1) / max(total, 1e-300)
+            total *= 1 - cost * turn
+            h1, h2 = total * w1, total * (1 - w1)
+        h1 *= 1 + r1[i]
+        h2 *= 1 + r2[i]
+        out[i] = h1 + h2
+    return out
 
 
 def met(c, ix):
@@ -226,7 +246,7 @@ def main():
             cd, _ = run(W2, RM2, a, b); r1[nm] = met(cd, ixd)
         # R1i 하이브리드 (B 80 + F5 20)
         f5W, f5R = allweather(3)
-        f5d, _ = run(f5W, f5R, a, b); r1['R1i B 80% + 전천후 20% 혼합'] = met(blend(Bd, f5d, 0.8), ixd)
+        f5d, _ = run(f5W, f5R, a, b); r1['R1i B 80% + 전천후 20% 혼합'] = met(blend(Bd, f5d, 0.8, ixd), ixd)
         table(f'라운드 1 · 설계 창 (B: 최종 {mBd["final"]:,.1f} · Calmar {mBd["calmar"]:.3f} · 10y p05 {mBd["p05_10"]:.2f})',
               sorted(r1.items(), key=lambda kv: -kv[1]['calmar']), mBd)
         top2 = [nm for nm, _ in sorted(r1.items(), key=lambda kv: -kv[1]['calmar'])[:2]]
@@ -253,7 +273,7 @@ def main():
             if spec[0] == 'blend':
                 _, W2, RM2, w1 = spec
                 cd, _ = run(W2, RM2, a, b); ch, _ = run(W2, RM2, c0, c1)
-                rows_d.append((nm, met(blend(Bd, cd, w1), ixd))); rows_h.append((nm, met(blend(Bh, ch, w1), ixh)))
+                rows_d.append((nm, met(blend(Bd, cd, w1, ixd), ixd))); rows_h.append((nm, met(blend(Bh, ch, w1, ixh), ixh)))
             else:
                 _, W2, RM2 = spec
                 cd, _ = run(W2, RM2, a, b); ch, _ = run(W2, RM2, c0, c1)
@@ -263,7 +283,7 @@ def main():
         rows_hold = []
         for nm in top2:
             if nm.startswith('R1i'):
-                ch, _ = run(f5W, f5R, c0, c1); rows_hold.append((nm, met(blend(Bh, ch, 0.8), ixh)))
+                ch, _ = run(f5W, f5R, c0, c1); rows_hold.append((nm, met(blend(Bh, ch, 0.8, ixh), ixh)))
             else:
                 W2, RM2 = cands[nm]; ch, _ = run(W2, RM2, c0, c1); rows_hold.append((nm, met(ch, ixh)))
         rows_hold += rows_h
@@ -272,7 +292,7 @@ def main():
         rows_all = []
         for nm, (W2, RM2) in cands.items():
             ch, _ = run(W2, RM2, c0, c1); rows_all.append((nm, met(ch, ixh)))
-        ch, _ = run(f5W, f5R, c0, c1); rows_all.append(('R1i B 80% + 전천후 20% 혼합', met(blend(Bh, ch, 0.8), ixh)))
+        ch, _ = run(f5W, f5R, c0, c1); rows_all.append(('R1i B 80% + 전천후 20% 혼합', met(blend(Bh, ch, 0.8, ixh), ixh)))
         table('참고 · 라운드 1 전부의 보류 창 (선택에 안 쓴 사후 표)', sorted(rows_all, key=lambda kv: -kv[1]['calmar']), mBh)
         best_d = max(r1.values(), key=lambda m: m['calmar'])
         passed = [nm for nm, m in rows_hold if m['calmar'] > mBh['calmar'] * 1.102 and not np.isnan(m['p05_10']) and m['p05_10'] >= mBh['p05_10']]

@@ -178,10 +178,12 @@ def main():
             cc = c[s:s + W + 1]; cc = cc / cc[0]
             A.append(cc[-1])
             Bm.append(1.0 + sum(cc[-1] / cc[t] for t in steps[:-1]))
-        nd = (TGT - P0 * np.array(A)) / np.array(Bm)
-        nd = nd[nd > 0]
-        print('  %-12s 중앙 창 월 %.0f만원 · 나쁜 창(p95) 월 %.0f만원'
-              % (nm, np.median(nd), np.percentile(nd, 95)))
+        raw = (TGT - P0 * np.array(A)) / np.array(Bm)
+        # 초기금만으로 이미 목표를 넘는 창의 필요 적립액은 「관측 제외」가 아니라 0이다.
+        # 종전 nd[nd>0]은 좋은 창을 버려 중앙·p95를 체계적으로 높였다.
+        nd = np.maximum(raw, 0.0)
+        print('  %-12s 중앙 창 월 %.0f만원 · 나쁜 창(p95) 월 %.0f만원 · 0원 창 %d개'
+              % (nm, np.median(nd), np.percentile(nd, 95), int(np.sum(raw <= 0))))
     print()
 
     # §-1 ⑥ — 이 측정이 낳은 다음 질문

@@ -310,7 +310,7 @@ def window_table(name, i0, i1, itr, tag, cape0):
     print(f'    S&P 총수익: {trs}   |   B 실질 {b_real:.2f}배   |   B 전환 {sw}회 · 방어 {ddays}일({ddays / (i1 - i0 + 1) * 100:.0f}%)')
     if ddays:
         print(f'    방어 중 기회비용: 그 {ddays}일에 2배 엔진은 {(eng_d - 1) * 100:+.1f}%, 바스켓은 {(mix_d - 1) * 100:+.1f}%'
-              f' → 방어가 {"피한 손실" if eng_d < mix_d else "놓친 이익"} {abs(mix_d / eng_d - 1) * 100:.1f}%p')
+              f' → 방어가 {"피한 손실" if eng_d < mix_d else "놓친 이익"} {abs(mix_d / eng_d - 1) * 100:.1f}% (누적배수 비율)')
     return out
 
 
@@ -359,7 +359,7 @@ for h in HS:
             gname, d['n'], d['nonov'], d['runs'], d['cagr_b'], d['worst_b'], d['neg'], d['cagr_n'], cn.min(), d['mdd_b'], d['mdd_n'], d['defended'], d['beat']))
     hi, lo = D_res.get((h, '상위 20%')), D_res.get((h, '보통(하위 80%)'))
     if hi and lo:
-        print('           → B−NDX CAGR 격차: 고평가 %+.1f%%p vs 보통 %+.1f%%p · MDD 개선(NDX−B): 고평가 %+.1f%%p vs 보통 %+.1f%%p'
+        print('           → B−NDX CAGR 격차: 고평가 %+.1f%%p vs 보통 %+.1f%%p · MDD 완화폭(B−NDX): 고평가 %+.1f%%p vs 보통 %+.1f%%p'
               ' · 최장물속 중앙 B/NDX: 고평가 %.1f/%.1f년 vs 보통 %.1f/%.1f년 · B vs S&P총수익 중앙(같은 창 %d개): %.1f%% vs %.1f%%' % (
                   hi['cagr_b'] - hi['cagr_n'], lo['cagr_b'] - lo['cagr_n'], hi['mdd_b'] - hi['mdd_n'], lo['mdd_b'] - lo['mdd_n'],
                   hi['rec_b'], hi['rec_n'], lo['rec_b'], lo['rec_n'], hi['n_p'], hi['cagr_b_p'], hi['trn']))

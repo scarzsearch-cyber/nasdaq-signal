@@ -100,9 +100,10 @@ def main():
         base = run_leg('ust5', i0)
         print(f'\n  ── {lab} ──')
         print(f"  {'국채 다리':<12}{'최종배수':>12}{'CAGR':>8}{'MDD':>9}{'Calmar':>8}{'ΔCalmar':>9}{'20년p05':>10}{'Δp05':>8}  관문")
-        verdict = {}
+        verdict, metrics = {}, {}
         for k in keys:
             m = run_leg(k, i0)
+            metrics[k] = m
             d1 = m['calmar'] / base['calmar'] - 1
             d2 = m['p05'] / base['p05'] - 1
             g1 = d1 > GATE1; g2 = m['p05'] >= base['p05'] * GATE2
@@ -112,6 +113,7 @@ def main():
                   f"{d1*100:>8.1f}%{m['p05']:>9.2f}배{d2*100:>7.1f}%{tag}")
         if i0 == lo:
             common = verdict
+            common_metrics = metrics
 
     # 보수 감도 — 0.30% 여도 결론이 같은가
     parts3 = bond_parts(idx, fee=0.0030); parts3['div'] = parts['div']; parts3['gold'] = parts['gold']
@@ -119,8 +121,11 @@ def main():
     print(f"\n  보수 감도(0.30%, 전구간) — 현물 10년: ΔCalmar {m10['calmar']/base['calmar']-1:+.1%} · Δp05 {m10['p05']/base['p05']-1:+.1%}")
 
     # 방어 보유 구간에서만 본 국채 다리 차이 — 「왜 전체 잣대에선 작게 보이나」
-    hold = (wB == 0)
-    for k in ('ust5', 'ust10_cash', 'ust30_cash'):
+    # 신호일이 아니라 실제 보유일(pos=w.shift(1))로 잰다.
+    posB = np.r_[wB[0], wB[:-1]]
+    hold = (posB == 0)
+    kr_keys = ['ust5'] + [f'ust{m}_cash' for m in MATS]
+    for k in kr_keys:
         r = np.nan_to_num(parts[k]); seg = r[hold & ~np.isnan(parts[k])]
         yrs = seg.size / 252
         print(f"  방어 보유일에서만 국채 다리 연수익 — {k:<10} {((np.prod(1+seg))**(1/yrs)-1)*100:+.2f}%/년 (방어일 {seg.size:,}일)")
@@ -130,8 +135,11 @@ def main():
     Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
     krd = K.kr_caldays()
     kparts = bond_parts(kidx)
+    cash_keys = [f'ust{m}_cash' for m in MATS]
     res = {}
-    for k in ('ust5', 'ust10_cash', 'ust30_cash'):
+    # 아래 최종 판정은 모든 현물 만기에 관문 ③을 건다. 일부 만기만 계산하면
+    # 출력 직후 누락 키로 죽거나, 더 나쁘게는 계산하지 않은 관문을 통과한 셈이 된다.
+    for k in ['ust5'] + cash_keys:
         raw = {'div': np.asarray(dfk, float), 'bond': np.nan_to_num(kparts[k]), 'gold': DA.gold_r(kidx)}
         pk = {'div': raw['div'], 'bond': (1 + raw['bond']) * (1 + fr) - 1, 'gold': (1 + raw['gold']) * (1 + fr) - 1}
         sr = DA.mix_monthly_parts(kidx, dict(div=.40, bond=.40, gold=.20), pk)
@@ -144,16 +152,30 @@ def main():
         print(f"  {k:<12} 최종 {m['final']:>9,.1f}  CAGR {m['cagr']:>6.2f}%  MDD {m['mdd']:>6.1f}%  Calmar {m['calmar']:.3f} "
               f"(Δ {m['calmar']/b['calmar']-1:+.1%})  20년p05 {m['p05']:.2f}배 (Δ {m['p05']/b['p05']-1:+.1%})")
 
-    # 판정 — 사전 등록 관문 그대로
+    # 판정 — 선언한 네 관문을 전부 실제로 건다. 종전 any_pass 는 ①②만 봐서
+    # ③·④가 출력에만 있고 결론에는 아무 영향이 없었다.
     print('\n판정 (사전 등록 관문):')
     g10 = common.get('ust10_cash'); g30 = common.get('ust30_cash')
-    print(f"  현물 10년: ① {'통과' if g10[0] else '미달'}({g10[2]:+.1%}) ② {'통과' if g10[1] else '미달'}({g10[3]:+.1%}) "
-          f"③ 원화 ΔCalmar {res['ust10_cash']['calmar']/b['calmar']-1:+.1%}")
-    print(f"  현물 30년: ① {'통과' if g30[0] else '미달'}({g30[2]:+.1%}) ② {'통과' if g30[1] else '미달'}({g30[3]:+.1%}) "
-          f"③ 원화 ΔCalmar {res['ust30_cash']['calmar']/b['calmar']-1:+.1%}")
-    any_pass = any(v[0] and v[1] for k, v in common.items() if k != 'ust5')
-    print('  → ' + ('어느 후보도 ①② 를 동시에 못 넘는다 → 305080 유지 · Q1 닫힘(재개 조건 소진)' if not any_pass
-                   else '통과 후보 있음 → 기록만(동결). 갈아타기는 상품 실측(추적·괴리·AUM) 뒤 소유자 결정'))
+    kr_gate, plateau = {}, {}
+    for k in cash_keys:
+        km = res[k]
+        kr_dcal = km['calmar'] / b['calmar'] - 1
+        kr_dp05 = km['p05'] / b['p05'] - 1
+        kr_gate[k] = kr_dcal > GATE1 and km['p05'] >= b['p05']
+        j = cash_keys.index(k)
+        near = [cash_keys[z] for z in (j - 1, j + 1) if 0 <= z < len(cash_keys)]
+        near_ok = all(common[nk][2] > 0 and common[nk][1] for nk in near)
+        plateau[k] = (near_ok, near)
+        u = common[k]
+        print(f"  {k:<12} ① {'통과' if u[0] else '미달'}({u[2]:+.1%}) "
+              f"② {'통과' if u[1] else '미달'}({u[3]:+.1%}) "
+              f"③ {'통과' if kr_gate[k] else '미달'}(원화 ΔCal {kr_dcal:+.1%} · Δp05 {kr_dp05:+.1%}) "
+              f"④ {'통과' if near_ok else '미달'}(인접 {', '.join(near)})")
+    passed = [k for k in cash_keys
+              if common[k][0] and common[k][1] and kr_gate[k] and plateau[k][0]]
+    any_pass = bool(passed)
+    print('  → ' + ('어느 후보도 ①②③④를 모두 못 넘는다 → 305080 유지 · Q1 닫힘(재개 조건 소진)' if not any_pass
+                   else f'네 관문 통과 후보 {passed} → 기록만(동결). 갈아타기는 상품 실측(추적·괴리·AUM) 뒤 소유자 결정'))
     print('\n사전 등록 대조:')
     print(f"  P1 (10년 현물 Calmar +3~8%, ① 미달): {'맞음' if (0 < g10[2] < GATE1) else '틀림'} — {g10[2]:+.1%}")
     print(f"  P2 (30년 현물 Calmar 현행보다 낮다): {'맞음' if g30[2] < 0 else '틀림'} — {g30[2]:+.1%}")

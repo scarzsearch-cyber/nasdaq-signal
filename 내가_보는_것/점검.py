@@ -8,6 +8,8 @@
 
     python 내가_보는_것/점검.py          ← 사람이 읽는 출력
     python 내가_보는_것/점검.py --json   ← 자동화가 읽는 출력 (파수꾼이 쓴다)
+    python 내가_보는_것/점검.py --exec-backup C:/경로/백업.json
+                                           ← 실제 체결비용까지 직접 확인할 때만
 
 어느 폴더에서 실행해도 된다 — 아래 chdir 이 저장소 루트를 스스로 찾는다.
 
@@ -48,6 +50,13 @@ SUBSTITUTE = {
 }
 
 JSON_MODE = '--json' in sys.argv[1:]
+if '--exec-backup' in sys.argv[1:]:
+    _backup_pos = sys.argv.index('--exec-backup')
+    if _backup_pos + 1 >= len(sys.argv) or sys.argv[_backup_pos + 1].startswith('--'):
+        raise SystemExit('--exec-backup 뒤에 백업 json 경로가 필요합니다.')
+    EXEC_BACKUP = sys.argv[_backup_pos + 1]
+else:
+    EXEC_BACKUP = None
 
 
 def say(*a):
@@ -56,11 +65,11 @@ def say(*a):
         print(*a)
 
 
-def run(script):
+def run(script, *args):
     """하위 스크립트를 돌리고 (성공여부, 출력) 을 준다."""
     env = dict(os.environ, PYTHONIOENCODING='utf-8')
     try:
-        p = subprocess.run([sys.executable, script], capture_output=True,
+        p = subprocess.run([sys.executable, script, *args], capture_output=True,
                            text=True, encoding='utf-8', errors='replace',
                            env=env, timeout=900)
         return p.returncode == 0, (p.stdout or '') + (p.stderr or '')
@@ -202,7 +211,8 @@ def main():
 
     # ---- [2] 체결 비용 -----------------------------------------------------
     say('\n[2/2] 체결 비용 — 0.2% 가정이 실측과 맞나')
-    ok2, out2 = run(os.path.join('research', 'exec_cost.py'))
+    ok2, out2 = run(os.path.join('research', 'exec_cost.py'),
+                     *([EXEC_BACKUP] if EXEC_BACKUP else []))
     if not ok2:
         say('  ★ 실행 실패')
         todo.append('체결비용 스크립트가 실패했다 — AI에게 알릴 것')
@@ -213,12 +223,13 @@ def main():
             say('  ' + ln.strip())
         m = re.search(r'진행률\s+(\d+)/(\d+)', out2)
         if m:
-            R['exec']['switches'] = int(m.group(1))
+            # 진행률은 OOS 전환 수가 아니라 NAV가 맞는 독립 **실제 체결일** 수다.
+            R['exec']['events'] = int(m.group(1))
             R['exec']['need'] = int(m.group(2))
         m = re.search(r'수집\s+(\d+)\s*영업일', out2)
         if m:
             R['exec']['nav_days'] = int(m.group(1))
-        missing_exec = [k for k in ('switches', 'need', 'nav_days') if k not in R['exec']]
+        missing_exec = [k for k in ('events', 'need', 'nav_days') if k not in R['exec']]
         if missing_exec:
             R['health_errors'].extend('exec_parse:' + k for k in missing_exec)
             todo.append('체결비용 결과에서 %s 값을 못 읽었다 — exec_cost.py 출력 서식이 '

@@ -153,6 +153,10 @@ def duration_rule(D, combo=False):
     is_high = (PX >= hi).values
     days = np.zeros(N); c = 0
     for t in range(N):
+        if np.isnan(hi.iloc[t]):
+            c = 0
+            days[t] = 0
+            continue
         c = 0 if is_high[t] else c + 1
         days[t] = c
     dd = dd_series(np.nan_to_num(PX.pct_change().values))

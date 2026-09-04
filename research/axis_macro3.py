@@ -284,7 +284,7 @@ def main():
     print("    -> 성분 3개 중 2개가 순수 가격 모멘텀. 낙폭이 이미 말하는 것의 재탕이다.")
 
     print("\n[B2] 증분정보 — 낙폭 5분위 안에서 매크로 상·하위 절반의 이후 21일 수익차")
-    fwd = pd.Series(px.pct_change().fillna(0).values).rolling(21).sum().shift(-21).values
+    fwd = (px.shift(-21) / px - 1.0).values
     ok = ~np.isnan(fwd)
     qs = pd.qcut(pd.Series(ddq[ok]), 5, labels=False, duplicates='drop').values
     incremental = {}

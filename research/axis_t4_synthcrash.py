@@ -67,10 +67,12 @@ def synth(Tc, lead, A, seed, depth=DEPTH, sigc=SIGC, S=S_SEEDS):
     downs = depth - 2 * A                                   # 랠리만큼 더 내려야 순 목표 깊이
     if A > 0:
         nd = max(1, int(Tc * 0.7 / 3)); nr = max(1, int(Tc * 0.3 / 2))
+        tail = Tc - 2 * nd - 2 * nr
         segs = [(downs / 3, nd), (A, nr), (downs / 3, nd), (A, nr),
-                (downs / 3, Tc - 3 * nd - 2 * nr if Tc - 3 * nd - 2 * nr > 0 else nd)]
+                (downs / 3, tail)]
     else:
         segs = [(downs, Tc)]
+    assert sum(ln for _, ln in segs) == Tc and all(ln > 0 for _, ln in segs)
     for tot, ln in segs:
         mu += [tot / ln] * ln; sg += [sigc] * ln
     for i in range(N_REC):                                  # 회복, σ 복귀
@@ -220,7 +222,11 @@ def sec_trend(D, wT, wB, cT, cB):
     per2 = '%s~%s' % (idx[keep[h]].year, idx[keep[-1]].year)
     print('  전반 %s: %d/%d (%.0f%%) | 후반 %s: %d/%d (%.0f%%)'
           % (per1, sum(wins[:h]), h, w1 * 100, per2, sum(wins[h:]), len(wins) - h, w2 * 100))
-    sig2 = 2 * np.sqrt(0.77 * 0.23 / h)
+    # 전·후반은 서로 다른 두 표본이다. 종전 식은 한 표본의 표준오차만 써서
+    # 허용폭을 sqrt(2)만큼 좁혔고, 성공률도 고정 0.77로 박아 실제 자료를 무시했다.
+    p_pool = float(np.mean(wins))
+    n1, n2 = h, len(wins) - h
+    sig2 = 2 * np.sqrt(p_pool * (1 - p_pool) * (1 / n1 + 1 / n2))
     return [('S2 시간 추세 없음 (차이 ≤ 2σ=%.0f%%p)' % (sig2 * 100),
              abs(w2 - w1) <= sig2, '전반 %.0f%% vs 후반 %.0f%%' % (w1 * 100, w2 * 100))]
 

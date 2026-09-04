@@ -117,9 +117,11 @@ def cum(r):
 
 def mom(r, lb):
     """룩백 lb 일 누적수익 (자료 없으면 NaN)."""
+    rs = pd.Series(r, index=IDX)
     c = pd.Series(cum(r), index=IDX)
     m = c / c.shift(lb) - 1.0
-    m[pd.Series(r, index=IDX).isna()] = np.nan
+    full = rs.notna().rolling(lb, min_periods=lb).sum().eq(lb)
+    m[~full] = np.nan
     return m.values
 
 
@@ -136,11 +138,21 @@ def month_starts():
 MS = month_starts()
 
 
+def month_ends():
+    m = IDX.to_period('M')
+    return np.r_[m[1:] != m[:-1], True]
+
+
+ME = month_ends()
+
+
 def sim_multi(W, RM, cost=COST):
-    """W: N×K 목표 비중(그날 마감 판정) → 다음 날 적용. RM: N×K 일간수익. 비용 = cost × Σ|Δw|."""
-    pos = np.vstack([W[:1] * 0, W[:-1]])
+    """W: N×K 목표 비중(그날 마감 판정) → 다음 날 적용. 비용은 현금까지 포함한 편도 회전율."""
+    pos = np.vstack([W[:1], W[:-1]])
     r = np.nansum(pos * np.nan_to_num(RM), axis=1)
-    turn = np.abs(np.diff(pos, axis=0, prepend=pos[:1] * 0)).sum(axis=1)
+    r[0] = 0.0
+    dw = np.diff(pos, axis=0, prepend=pos[:1])
+    turn = (np.abs(dw).sum(axis=1) + np.abs(dw.sum(axis=1))) / 2.0
     return np.cumprod((1.0 + r) * (1.0 - cost * turn))
 
 
@@ -169,7 +181,7 @@ def build(lo):
         W = np.zeros((N, K)); Wmix = np.zeros(N)
         cur = None
         for t in range(lo, N):
-            if MS[t] or cur is None:
+            if ME[t] or cur is None:
                 sc = {k: Mm[k][t] for k in engs if not np.isnan(Mm[k][t])}
                 rank = sorted(sc, key=lambda k: -sc[k])[:top]
                 cur = [(k, sc[k] > (tb6[t] if not np.isnan(tb6[t]) else 0)) for k in rank]
@@ -208,7 +220,7 @@ def build(lo):
             d = ndx_dd[t]
             if not np.isnan(d):
                 s = 0 if (s == 1 and d <= -0.16) else (1 if (s == 0 and d > -0.16) else s)
-            if MS[t] or cur is None:
+            if ME[t] or cur is None:
                 sc = {k: Mm[k][t] for k in engs if not np.isnan(Mm[k][t])}
                 cur = max(sc, key=sc.get) if sc else 'NDX'
             if s == 1:
@@ -233,7 +245,7 @@ def build(lo):
         W = np.zeros((N, K)); cur = None
         univ = engs + defs
         for t in range(lo, N):
-            if MS[t] or cur is None:
+            if ME[t] or cur is None:
                 sc = {k: Mm[k][t] for k in univ if not np.isnan(Mm[k][t])}
                 rank = sorted(sc, key=lambda k: -sc[k])[:3]
                 cur = [(k if sc[k] > 0 else 'TBILL') for k in rank]
@@ -252,7 +264,7 @@ def build(lo):
             d = ndx_dd[t]
             if not np.isnan(d):
                 s = 0 if (s == 1 and d <= -0.16) else (1 if (s == 0 and d > -0.16) else s)
-            if MS[t] or cur is None:
+            if ME[t] or cur is None:
                 sc = {k: Mm[k][t] for k in pool if not np.isnan(Mm[k][t])}
                 cur = sorted(sc, key=lambda k: -sc[k])[:2]
             if s == 1:

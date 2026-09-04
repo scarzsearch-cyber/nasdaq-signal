@@ -125,10 +125,11 @@ def main():
     st_att = X.wB > 0.5
     hiT = wT4 >= 0.5
     spread = rT - rB
+    rel_log = np.log1p(rT) - np.log1p(rB)
     for nm, m in [('B공격·T4강세', st_att & hiT), ('B공격·T4약세', st_att & ~hiT),
                   ('B방어·T4강세', ~st_att & hiT), ('B방어·T4약세', ~st_att & ~hiT)]:
         d = int(m.sum())
-        contrib = float(np.sum(np.log1p(np.where(m, spread, 0.0)))) * 100
+        contrib = float(rel_log[m].sum()) * 100
         print(f'  {nm}: {d:>5}일 ({d/n*100:4.1f}%) · 스프레드 연율 '
               f'{np.mean(spread[m])*252*100:+6.2f}% · 로그기여 합 {contrib:+7.1f}%')
 
