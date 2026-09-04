@@ -44,6 +44,7 @@ qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
 audit/      (5)  audit_all · audit_full · verify · verify_volguard · test_research_review
             + AUDIT_LEDGER_2026-09-05.md(전체 감사 장부 — 기준 커밋·파일별 검토 상태·발견·처리)
+            + CODE_REVIEW_SWEEP_2026-09-05.md(코드리뷰 전수 순회 지시서+진행 장부 — 15배치 · 이어받는 세션은 이 파일부터)
 research/  (129.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
@@ -518,6 +519,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 ### 9-7. 옛 축 — §6 이 누락했던 것 (v40~v44)
 
 후속 전수리뷰 및 교정 장부: `research/CODE_REVIEW_2026-09-05.md` — 원대상 137개 파일, 발견 61건 처리표, 실행 여부와 남은 한계.
+코드리뷰 전수 순회(2026-09-05 소유자 지시 · 15배치 · 순차 · 인계용 프롬프트+장부): `audit/CODE_REVIEW_SWEEP_2026-09-05.md`.
 전체 감사 장부(2026-09-05 · Claude Fable 5.1 · v206): `audit/AUDIT_LEDGER_2026-09-05.md` — 코드·문서·지침·검증·자동화·데이터 계약 전 층의 기준 커밋·파일별 검토 상태·발견(심각도순)·통합/보관/폐기·실행한 검증·보고.
 
 | 파일 | 무엇을 쟀나 | 판정 |
