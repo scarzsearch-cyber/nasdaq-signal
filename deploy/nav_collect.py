@@ -20,9 +20,12 @@ v21 부터 미결이던 과제다. v24 는 iNAV 를 못 구해 **상한**(이론
 
 [실행 시각 주의]
   daily-signal.yml 슬롯은 04:35~09:17 KST 다(v190 이후). 09:00 전 슬롯에서는 한국장이
-  아직 안 열렸으므로 받는 값이 **직전 거래일 종가 기준 NAV** 이고, 09:17 슬롯에서는
-  **당일 개장 직후 값**이다(그래서 close 열은 당일분에 한해 종가가 아니다 — CLAUDE v179).
-  as_of 는 그 값이 속한 거래일을 trading_as_of() 가 계산한다.
+  아직 안 열렸으므로 받는 값이 **직전 거래일 종가·공식 NAV** 다. 09:17 슬롯은 한국장이
+  열린 뒤(실측 09:3x)라 **개장 직후 값**을 준다 - 그 값을 그날 행으로 적으면 행은 다시
+  고쳐지지 않으므로 close 열이 **영구히** 종가가 아니게 된다(실측 2026-09-01~04 4행:
+  09-04 38,680·거래량 47,392 vs 공식 종가 38,585·178,498 - 2026-09-05 전수 감사).
+  -> [v206] **한국장이 열려 있으면 적립하지 않는다**(kr_market_open). 그날 행은 다음
+  장 밖 슬롯(대개 다음날 04:35)이 「직전 거래일」로 적는다. as_of 는 trading_as_of().
 
 실행:
     python deploy/nav_collect.py            # 1회 수집 -> data/nav_history.csv 에 append
@@ -107,6 +110,21 @@ def universe_stats(lst):
 
 KST = dt.timezone(dt.timedelta(hours=9))
 KR_OPEN = dt.time(9, 0)
+KR_CLOSE = dt.time(15, 30)   # [v206] 정규장 마감 - 장중 적립 금지의 끝
+
+
+def kr_market_open(now=None):
+    """[v206] 한국 정규장이 열려 있는가(거래일 09:00~15:30 KST).
+
+    열려 있으면 collect() 는 적립하지 않는다. 09:17 슬롯이 적던 개장 직후 값은
+    되돌릴 수 없는 영구 행이 됐다(모듈 docstring 실측). 장 밖 슬롯만 적립하면
+    close 열은 항상 직전 거래일의 공식 종가·NAV 다.
+    """
+    now = now or dt.datetime.now(KST)
+    d = now.date()
+    if d.weekday() >= 5 or d.isoformat() in _kr_holidays(d):
+        return False
+    return KR_OPEN <= now.time() < KR_CLOSE
 
 
 def trading_as_of(now=None):
@@ -250,8 +268,13 @@ def _atomic_append_rows(path, rows, replace_func=os.replace):
         if tmp and os.path.exists(tmp):
             os.unlink(tmp)
 
-def collect(as_of=None):
-    as_of = as_of or trading_as_of()      # ★ UTC 날짜가 아니라 「값이 속한 거래일」
+def collect(as_of=None, now=None):
+    now = now or dt.datetime.now(KST)
+    if as_of is None and kr_market_open(now):
+        # [v206] 장중 값은 적립하지 않는다 - 다음 장 밖 슬롯이 종가로 적는다.
+        print(f'{now:%H:%M} KST 한국장 개장 중 - 장중 값은 적립하지 않는다(다음 장 밖 슬롯이 종가로 적는다)')
+        return []
+    as_of = as_of or trading_as_of(now)   # ★ UTC 날짜가 아니라 「값이 속한 거래일」
     as_day = _iso_day(as_of, '새 NAV as_of')
     if as_day > dt.datetime.now(KST).date():
         raise RuntimeError('새 NAV as_of가 KST 현재 날짜보다 미래임')
@@ -338,6 +361,19 @@ def selftest():
                 json.dump(payload, f)
             monday = dt.datetime(2026, 10, 5, 10, 0, tzinfo=KST)
             assert trading_as_of(monday) == '2026-10-02'
+
+            # [v206] 장중 적립 금지 - 개장 중엔 fetch 조차 부르지 않고 빈 손으로 돌아온다.
+            tue_open = dt.datetime(2026, 10, 6, 9, 35, tzinfo=KST)
+            assert kr_market_open(tue_open)
+            assert not kr_market_open(dt.datetime(2026, 10, 6, 4, 40, tzinfo=KST))   # 마감 전 슬롯
+            assert not kr_market_open(dt.datetime(2026, 10, 6, 15, 30, tzinfo=KST))  # 정규장 마감
+            assert not kr_market_open(monday)                                          # 휴장일
+            assert not kr_market_open(dt.datetime(2026, 10, 10, 10, 0, tzinfo=KST))  # 토요일
+
+            def _boom():
+                raise AssertionError('장중 적립 금지인데 fetch 를 불렀다')
+            fetch = _boom
+            assert collect(now=tue_open) == []
 
             os.unlink(HOL)
             try:
@@ -474,7 +510,7 @@ def selftest():
                 assert f.read() == collected
     finally:
         HOL, OUT, fetch = saved_hol, saved_out, saved_fetch
-    print('nav_collect selftest: PASS (휴장일 · 핵심 4종 완전성 · 값/날짜 · 원자 append/no-op)')
+    print('nav_collect selftest: PASS (휴장일 · 장중 적립 금지 · 핵심 4종 완전성 · 값/날짜 · 원자 append/no-op)')
 
 
 def report():

@@ -62,7 +62,8 @@ monthly-stats.yml    매월 1일 07:17 UTC (미·한 장 모두 휴장 시각) �
                      기존 끝 날짜가 없는 응답은 「이미 최신」으로 넘기지 않고 실패한 뒤
                      build_stats.py 재계산, verify_all 통과 시에만 커밋한다. 허용 산출물만
                      스테이징하며 push 경합은 rebase하지 않고 최신 HEAD 재실행에 맡긴다 (v203)
-verify.yml           push 마다 verify_all.py --fast — 실패하면 GitHub 이슈 자동 생성
+verify.yml           push 마다 verify_all.py --fast 와 **전체 모드**(v172 — 화면 문자열 검사는 전체에만 있다)
+                     — 실패하면 GitHub 이슈 자동 생성(배포는 멈추지 않는다 · fail-open, CLAUDE §0)
 watchdog.yml         [v140] 자동 파수꾼 — **「실패」가 아니라 「아예 안 돈 것」을 잡는다**
                      (기존 알림은 전부 if: failure() 라 워크플로가 스킵되면 침묵했다)
   ① watchdog.py stale    평일 08:40 KST — signal.json as_of 가 3영업일 밀리면 카톡

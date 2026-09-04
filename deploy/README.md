@@ -1,176 +1,66 @@
-# 폰에서 보기 + 종가 자동 갱신 (GitHub Pages + Actions)
+# deploy/ — 라이브 파이프라인 (현행 안내 · 2026-09-05 재작성)
 
-완성되면 이렇게 된다:
+> **건드리지 말 것.** 이 폴더는 GitHub Actions 가 매일 돌리는 운영 코드다. 전략 판정값(−16/−16 ·
+> 룩백 252 · 방어 40/40/20)은 `data/freeze.json` 에 동결돼 있고 `verify_all.py` I11 이 매 push 검사한다.
+> 결함(버그·미래참조·조용한 실패)의 수정은 허용된다 — 절차는 `CLAUDE.md` §2(지문 전후 대조 · 셀프테스트 재현).
+> 옛 v18 시절 설치 안내(stooq · 22:30 UTC 단일 슬롯 · 두 전략 선택 · build_stats 수동 커밋)는
+> `docs/history/deploy_README_v18_원본.md` 로 옮겼다 — **현행과 정면으로 다르므로 그쪽을 따라 하지 마라.**
 
-- 매일 한국시간 **07:30경 GitHub 서버가 알아서** QQQ 종가를 받아 신호를 계산하고 커밋
-- 폰에서 URL 하나 열면 **오늘 뭘 들고 있어야 하는지**만 보임 (입력할 것 없음)
-- 무료. 내 PC를 켜둘 필요 없음
+## 한 줄 요약
 
----
+미국 종가가 굳는 순간(05:00 여름 · 06:00 겨울 KST) 5분 안에 `data/signal.json` 이 갱신·배포되고,
+전환일엔 카톡이 온다. 한국장 중엔 5분마다 시세 배지가 갱신된다. 사람이 파이썬을 돌릴 일은 없다.
 
-## 사전 준비
+## 워크플로 6개 (`.github/workflows/`)
 
-1. **GitHub 계정** — 없으면 https://github.com 에서 가입
-2. **GitHub CLI** 설치 후 로그인
-   ```bash
-   # macOS
-   brew install gh
-   # Windows
-   winget install GitHub.cli
-   # Ubuntu/Debian
-   sudo apt install gh
+| 워크플로 | 언제 | 무엇 | 커밋 |
+|---|---|---|---|
+| `daily-signal.yml` 「일일 신호 갱신」 | 평일 **8슬롯**(마감 전 04:35·04:45·05:35·05:45 + 예비 05:17·06:17·07:47·09:17 KST) | `wait_close.py`(마감 대기 → `update_signal.py`) → `signal_alert.py` → `kakao_keepalive.py` → `nav_collect.py` → `oos_log.py` | `data/qqq.csv` `signal.json` `signal_alert_state.json` `nav_history.csv` `oos_log.csv` |
+| `price.yml` 「price」 | 개장 전 슬롯에서 떠서 09:00:20 부터 **5분 경계마다** 12:26 인계 | `price_poll.py`(→ `price_now.py` · `kr_sources.py` 예비 체인) | **main 아님** — `price-data` 브랜치 항상 커밋 1개 (v176) |
+| `pages.yml` 「GitHub Pages 배포」 | push · 위 두 워크플로 완료(`workflow_run`) · 월간 성과 완료 · 폴러의 `gh workflow run` | 세 화면 + `data/*` 복사, 시세는 price-data 브랜치에서 (못 읽으면 **싣지 않는다**) | 없음 |
+| `watchdog.yml` 「자동 파수꾼」 | 평일 08:40 KST · 월요일 주간 | `watchdog.py` stale·rebalance·switchday·near·channel·stats·price / 월요일 check·heartbeat + `kr_holidays.py --emit` | `data/ops_check.json` `kr_holidays.json` (월요일) |
+| `monthly-stats.yml` 「월간 성과 스냅샷 갱신」 | 매월 1일 16:17 KST | `refresh_hist.py`(원자료 연장) → `build_stats.py` → `emit_dd_distribution.py` → `verify_all` | `strategy_stats.json` `signal.json`(stats 사본) `dd_percentile.json` `data/hist/*` 원자료 |
+| `verify.yml` 「검증」 | push · 평일 01:00 UTC | `verify_all.py --fast` + 전체 · 예약엔 `audit/audit_full.py` | 없음 — 실패는 **이슈(메일)** 로만, 배포는 멈추지 않는다(fail-open, `CLAUDE.md` §0) |
 
-   gh auth login          # 브라우저로 로그인, 안내대로 진행
-   ```
+보조: `source-probe.yml`(수동 · 출처 생존 표) · `notify-test.yml`(수동 · 알림 채널 시험).
 
----
+## 실패 규약 (전부 코드에 박혀 있고 `verify_all` 이 검사한다)
 
-## Claude Code에 붙여넣을 프롬프트
+- **판정 경로는 fail-open, 장부는 fail-closed.** 대조 출처가 죽어도 진짜 폭락일 신호는 막지 않는다(v137).
+  NAV·OOS 장부는 부분 기록 대신 실패하고 다음 슬롯이 재시도한다(v203).
+- **push 경합은 rebase 하지 않는다**(v203) — 다음 슬롯이 최신 HEAD 에서 처음부터 재계산한다.
+  [v206] 예약 실행은 큐에 들어갈 때의 커밋을 체크아웃하므로, 체크아웃 뒤 **최신 main 으로 맞추고**
+  push 직전 원격이 이미 같은 종가를 반영했으면 중복 커밋을 조용히 버린다(정상 종료).
+- **NAV 장부는 장 밖 슬롯에서만 적립한다**(v206) — 한국장 개장 중(09:00~15:30)에는 적립하지 않는다.
+  그래서 `nav_history.csv` 의 `close` 는 직전 거래일의 공식 종가·NAV 다.
+- 시세를 못 가져오면 **옛 값을 싣지 않는다** — 배지가 사라지는 것이 실패 표시다(v145·v176).
+- 알림: 전환일 카톡(`signal_alert.py`) → 실패 시 이슈 · 08:40 재알림·근접 알림(`watchdog.py`) ·
+  월 1회 생존 알림(**침묵이 고장 신호**인 유일한 알림, v177).
 
-압축 푼 폴더에서 `claude` 실행 후 아래를 그대로 붙여넣는다.
+## 스크립트 지도
 
-```
-이 폴더를 GitHub 저장소로 만들고 GitHub Pages + Actions로 배포해서,
-폰에서 링크로 신호를 볼 수 있고 매일 종가가 자동 갱신되게 해줘.
+| 파일 | 역할 |
+|---|---|
+| `wait_close.py` | 마감 전 슬롯에서 떠서 20초 간격으로 종가가 굳는 순간을 잡는다 · `--selftest` 9경로 |
+| `update_signal.py` | QQQ 종가(야후 2경로 → 네이버 → 캐시) → 252일 낙폭 → `signal.json`. B 가 판정, A 는 구버전 호환 미러 |
+| `signal_alert.py` · `notify.py` | 전환일 카톡/텔레그램/디스코드 · 상태 파일로 중복 발송 방지 |
+| `kakao_keepalive.py` · `kakao_setup.py` | 카카오 refresh 토큰 연명(새 토큰을 GH_PAT 로 secret 에 저장) · 최초 발급 |
+| `nav_collect.py` | 국내 ETF 종가·NAV·괴리율 한 줄 적립(네이버 ETF 목록) · `--selftest` |
+| `oos_log.py` | 동결(2026-08-27) 이후 하루 한 줄 — 순수 OOS 장부 |
+| `price_now.py` · `price_poll.py` · `kr_sources.py` | 장중 시세 스냅샷 · 5분 폴러 · 예비 출처 6종 |
+| `watchdog.py` | 파수꾼 9모드 · `--selftest` 28경우 |
+| `build_stats.py` · `refresh_hist.py` | 성과지표 4시나리오 · 원자료 append-only 연장 |
+| `stamp_rev.py` · `data_check.py` · `kr_holidays.py` | 화면 「전략 반영 vNN」 도장 · 원자료 무결성 · 휴장일 표 |
 
-준비된 파일:
-- signal.html          : 신호 화면 (data/signal.json 있으면 자동 로드, 없으면 수동 입력)
-- deploy/update_signal.py : stooq에서 QQQ 종가 받아 data/signal.json 갱신
-- deploy/workflows/daily-signal.yml : 매일 22:30 UTC(=KST 07:30) 자동 실행
-- deploy/workflows/pages.yml        : main 푸시시 Pages 배포
-
-해야 할 일:
-1. deploy/workflows/*.yml 을 .github/workflows/ 로 옮겨라
-2. python3 deploy/update_signal.py 를 한 번 실행해 data/signal.json이
-   정상 생성되는지 확인해라 (stooq 접속이 되는지 여기서 판가름난다)
-3. .gitignore를 만들어 불필요한 파일(__pycache__ 등)을 제외해라.
-   단 data/ 폴더는 반드시 커밋 대상에 포함시켜라 (Actions가 여기에 결과를 쓴다)
-4. gh repo create 로 저장소를 만들고 푸시해라.
-   저장소 이름은 nasdaq-signal 로 해라
-5. GitHub Pages를 활성화해라 (Settings > Pages > Source를 GitHub Actions로)
-   gh api 로 처리할 수 있으면 그렇게 하고, 안 되면 내가 눌러야 할 위치를 정확히 알려줘라
-6. Actions 워크플로를 수동으로 한 번 실행(workflow_dispatch)해서 정상 동작을 확인해라
-7. 배포된 URL을 알려줘라
-
-주의:
-- 워크플로에 permissions: contents: write 가 있어야 커밋이 된다. 이미 넣어뒀다
-- Actions가 커밋을 푸시하려면 Settings > Actions > General >
-  Workflow permissions 가 "Read and write permissions" 여야 한다.
-  gh로 설정 가능하면 해주고, 안 되면 위치를 알려줘라
-- 무료 계정은 private 저장소에 Pages를 못 쓴다. public으로 만들되,
-  개인정보는 전혀 없고 공개 주가 데이터와 신호만 들어간다는 점을 확인해줘라
-```
-
----
-
-## 완료 후 — 폰에 앱처럼 추가
-
-배포 URL은 보통 `https://<계정명>.github.io/nasdaq-signal/` 형태다.
-
-- **iPhone (Safari)**: URL 열기 → 공유 버튼 → "홈 화면에 추가"
-- **Android (Chrome)**: URL 열기 → 우상단 ⋮ → "홈 화면에 추가"
-
----
-
-## 동작 방식
-
-```
-매일 22:30 UTC (= 한국 07:30)
-  └ GitHub Actions 실행
-      └ deploy/update_signal.py
-          ├ Yahoo Finance chart API에서 QQQ 전체 일별 종가 다운로드
-          ├ data/qqq.csv 갱신 (기존 데이터와 병합)
-          ├ 252일 낙폭 계산 → 두 상태머신(−16/−16, −16/−11)을 각각 통과
-          ├ data/strategy_stats.json 을 읽어 성과지표를 함께 실음
-          └ data/signal.json 저장 (두 전략 상태 + 최근 12일 + 위기 궤적 + 성과지표)
-      └ 변경분 자동 커밋 & 푸시
-          └ pages.yml이 트리거되어 사이트 재배포
-```
-
-미국장 마감은 20:00(서머타임) 또는 21:00 UTC라 22:30이면 여유가 있고,
-한국장 개장(09:00 KST)보다 1시간 30분 앞선다.
-
-휴장일에는 새 종가가 없어 커밋이 생략된다(정상).
-
----
-
-## 확인 / 문제 해결
+## 확인 명령
 
 ```bash
-# 로컬에서 수동 실행 (Actions 없이 테스트)
-python3 deploy/update_signal.py
-
-# Actions 실행 이력 보기
-gh run list --workflow=daily-signal.yml
-
-# 마지막 실행 로그
-gh run view --log
-
-# 수동으로 지금 한 번 돌리기
-gh workflow run daily-signal.yml
+gh run list --workflow=daily-signal.yml --limit 8     # 새벽 슬롯이 돌았나 (둘째 슬롯은 23초 만에 「이미 최신」이 정상)
+python verify_all.py                                   # 전체 모드 — 셀프테스트(I14)까지 돈다
+python deploy/wait_close.py --selftest
+python deploy/nav_collect.py --selftest
+python deploy/watchdog.py --selftest
 ```
 
-**종가 소스가 막히면** — 원래 stooq를 썼는데 JS 챌린지로 자동화 요청을 막아
-지금은 Yahoo Finance chart API(`SRC`)를 쓴다. 이쪽도 막히면 `SRC`를 바꿔야 한다.
-어느 경우든 `data/qqq.csv` 캐시가 있으면 스크립트는 죽지 않고 캐시로 동작한다
-(`source` 필드가 `cache`로 찍힌다).
-
-**Actions가 커밋을 못 하면** — Settings > Actions > General >
-Workflow permissions 를 "Read and write permissions"로 바꾼다.
-
-**cron이 정시에 안 돌면** — GitHub Actions의 스케줄은 부하에 따라 최대
-수십 분 지연될 수 있다. 07:30은 한국장 개장까지 여유가 있어 문제되지 않는다.
-
----
-
-## 주의
-
-- 배포된 페이지는 **URL을 아는 사람이면 누구나** 볼 수 있다. 개인정보는 없지만
-  전략 문턱값(−16/−16, −16/−11)과 백테스트 성과가 노출된다. 신경 쓰이면 GitHub Pro(유료)로 private
-  저장소를 쓰거나, 다른 정적 호스팅(Vercel/Netlify의 비공개 배포)을 검토한다.
-- 이 화면은 **판정만** 한다. 실제 매매는 직접 해야 한다.
-
----
-
-## 두 전략 선택 (2026-08-26 추가)
-
-진입선은 −16%로 같고 **복귀선만 다른** 두 규칙을 화면에서 골라 쓴다.
-
-| 키 | 규칙 | 성격 |
-|---|---|---|
-| `B` | **−16 / −16** | 낙폭이 −16%를 회복하면 곧바로 QLD. 전략_v21 §11 권고안. 기본값 |
-| `A` | −16 / −11 | 낙폭이 −11%보다 얕아져야 QLD. v18~v20 채택안 |
-
-- `update_signal.py` 는 매일 **두 규칙을 모두** 판정해 `signal.json` 의
-  `strategies.B` / `strategies.A` 에 각각 넣는다. 화면의 선택은 `localStorage`
-  (`qqq_signal_strat`)에 남으므로 한 번 고르면 계속 유지된다.
-- 두 규칙의 판정이 갈리는 날(회색지대 −16%~−11% 회복 중)에는 화면에 그 사실이
-  따로 표시된다. **그때 규칙을 바꾸는 것이 가장 나쁜 수**다.
-- `signal.json` 에는 구버전 화면 호환용으로 `state` / `recent[].s` 등
-  A 기준 필드가 그대로 남아 있다. 캐시된 옛 화면이 깨지지 않게 하려는 것뿐이다.
-
-### 성과지표는 미리 굳혀둔다 — `deploy/build_stats.py`
-
-화면의 Calmar / MDD / Sortino 는 매일 계산하지 않는다. 확장 원자료
-(`data/hist/**`, 16MB)는 Actions 러너에 없기 때문에 **로컬에서 한 번 돌려
-결과 JSON만 커밋**한다.
-
-```bash
-python deploy/build_stats.py      # 반드시 저장소 루트에서
-git add data/strategy_stats.json && git commit -m "stats: 성과지표 갱신"
-```
-
-4개 기준(시나리오)을 계산한다.
-
-| 키 | 기준 | 내용 |
-|---|---|---|
-| `us_2000` | 미국 달러 기준 | QQQ 실물, SCHD 상장 이전은 연 2% 현금. `verify.py` 와 같은 규약 |
-| `us_1972` | 달러 · 54년 확장 | 나스닥 종합/NDX/QQQ 체인 + 배당 실측 방어자산 |
-| `kr_1997` | 원화 · 한국 체결 | 환노출 2배 + 한국 거래일 체결 + 슬리피지 0.1% |
-| `kr_real` | 원화 · 실물 TIGER | TIGER 3종 상장 이후만. 실제 시가 체결 |
-
-`data/strategy_stats.json` 이 없어도 `update_signal.py` 는 경고만 찍고 돈다
-(성과 패널이 숨겨질 뿐 신호 판정에는 영향 없음).
-
-**갱신 주기** — 지표는 표본이 1년쯤 늘어야 유의미하게 변한다. 매일 돌릴 필요 없고,
-데이터를 새로 받았거나 규약을 바꿨을 때만 다시 돌리면 된다.
+로컬에서 `update_signal.py` 를 수동 실행하면 야후에서 전체를 다시 받아 `data/signal.json` 을 다시 쓴다 —
+장부 파일(`oos_log.csv` · `nav_history.csv`)은 건드리지 않는다.

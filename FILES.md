@@ -42,7 +42,8 @@ hist_tiger.py           국내 ETF 원자료
 hyst_core.py            A/B 전략 정의
 qqq/qld/schd_us_d.csv   미국 ETF 원자료
 
-audit/      (4)  audit_all · audit_full · verify · verify_volguard
+audit/      (5)  audit_all · audit_full · verify · verify_volguard · test_research_review
+            + AUDIT_LEDGER_2026-09-05.md(전체 감사 장부 — 기준 커밋·파일별 검토 상태·발견·처리)
 research/  (129.py+8.md) 기각 판정의 재현 코드 + build_crisis_paths.py(v127 화면 데이터 생성 —
             예외적으로 산출물 data/crisis_paths.json 이 배포됨) + hypo_*.py 8편(2026-08-30~31
             소유자 지시 가설 총력전 — 판정·검산은 04 §5-3) + audit_stat/exec/pbo ·
@@ -100,7 +101,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | `deploy/kr_holidays.py` | **한국 증시 휴장일 생성기** (음력 직접 계산 + KOSPI 실측 대조). `--emit` 로 `data/kr_holidays.json` 생성. **[v195] 파수꾼 주간 슬롯이 매주 돌린다** — 내용이 같으면 쓰지 않으므로 해가 바뀔 때만 커밋이 난다. **[v203] 2026-05-01 시행 노동절·제헌절 대체휴일, KST 연경계, 임시공휴일 충돌을 반영**. 임시공휴일·선거일은 SPECIAL 에 손으로 |
 | `data/kr_holidays.json` | 휴장일 표(현재 2025~2032 · 135일). `signal.html` 시계 · `price_poll.py` · 파수꾼 `switchday` 가 읽는다(전부 오늘/미래만). **[v195] 매년 자동 연장** |
 | `manifest.json` · `icon-192/512.png` | [v104] PWA 홈 화면 추가 (standalone). **pages.yml 복사 목록 필수** — verify_all 이 검사한다 |
-| `deploy/README.md` | 배포 구조 설명 |
+| `deploy/README.md` | 배포 파이프라인 **현행** 안내 (2026-09-05 재작성 — 워크플로 6개·실패 규약·스크립트 지도). 옛 v18 설치 안내는 `docs/history/deploy_README_v18_원본.md` |
 | `.github/workflows/daily-signal.yml` | 매일 신호 갱신 자동 실행. **예약 8슬롯**(마감 전 4+예비 4) 중 하나가 확정 종가를 잡는다. 허용한 5개 장부만 스테이징하고 예상 밖 변경은 멈춘다. non-fast-forward에서는 옛 산출물을 rebase하지 않고 실패-폐쇄해 다음 슬롯이 최신 HEAD에서 재계산한다. 알림/장부 이슈 API 실패는 커밋을 막지 않되 커밋 뒤 빨간 실행으로 드러내고 Pages는 결론과 무관하게 최신 main을 배포한다 |
 | `.github/workflows/watchdog.yml` | **[v140] 자동 파수꾼** — 평일 08:40 KST 신선도·채널·**성과 스냅샷**[v171]·**시세 수집**[v176]·**전환 실행일 재알림·근접 진입**[v192] 감시 + 월요일 09:10 KST 자동 점검·**휴장일 표 연장**[v195]. 이상이면 카톡 + 이슈(label `watchdog`) |
 | `.github/workflows/source-probe.yml` | **[2026-09-03] 출처 점검(수동)** — `kr_sources.py --probe` 를 GitHub 러너(미국 IP)에서 돌려 예비 출처가 거기서도 응답하는지 본다. 읽기만(커밋 0·알림 0). 정기 실행 없음 | 러너 IP 차단 여부 확인용 |
@@ -127,7 +128,7 @@ _sys.path.insert(0, _ROOT); _os.chdir(_ROOT)
 | 파일 | 역할 |
 |---|---|
 | `reentry_lib.py` | **공용 엔진.** 데이터 생성·체결(`pos = w.shift(1)`)·비용 규약의 단일 원천 |
-| `verify.py` | 채택안(−16/−11) 기준 재현. 138.2배 검산 |
+| `verify.py` | **구 채택안(v17 규칙 A −16/−11 · 방어 SCHD 단독)** 재현. 138.2배 검산 — 현행 B 의 검산이 아니다(그건 `verify_all.py` I7·I11) |
 | `hist_data.py` | **1972–2026 확장 데이터 빌더.** Composite→NDX→QQQ 3구간 접합 |
 | `hyst_core.py` | A/B 전략 정의 + 요약 테이블 (여러 스크립트가 import) |
 | `qqq_us_d.csv` `qld_us_d.csv` `schd_us_d.csv` | 미국 ETF 수정주가 원자료 |
@@ -313,7 +314,7 @@ PYTHONPATH=. python archive/v20_히스테리시스/hyst_mech.py
 ## 검증
 
 정리 후 루트 16개 스크립트 **전부 재실행 성공**, 아카이브 스크립트도 `PYTHONPATH=.` 로 정상 동작.
-`verify.py` 는 여전히 채택안 곡선을 재현한다.
+`verify.py` 는 여전히 **구 채택안(v17 A)** 곡선을 재현한다(현행 B 아님).
 
 ```bash
 for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $f"; done
@@ -328,7 +329,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `verify_all.py` | **단일 진입점.** 불변식 14종(I1~I14). 약 7초 | 뭔가 고쳤으면 항상 · **I14** 운영·알림·자료 갱신·배포 셀프테스트 16종(전체 모드) |
 | `audit_full.py` | 59파일 AST 전수조사 + **시점별 재계산** | 정기 / CI |
 | `audit_all.py` | 채택 결정 재검증 (달러·원화) | 모형을 바꿨을 때 |
-| `verify.py` | 채택안 단독 검산 (140.0배) | 참조 구현 |
+| `verify.py` | 구 채택안(v17 A −16/−11) 단독 검산 (140.0배) — 현행 B 아님 | 참조 구현 |
 | `verify_volguard.py` | v32/33 관문 6종 | 변동성 가드 관련 |
 | `.github/workflows/verify.yml` | 위를 자동 실행. **실패하면 이슈 자동 생성** | 자동 |
 
@@ -517,6 +518,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 ### 9-7. 옛 축 — §6 이 누락했던 것 (v40~v44)
 
 후속 전수리뷰 및 교정 장부: `research/CODE_REVIEW_2026-09-05.md` — 원대상 137개 파일, 발견 61건 처리표, 실행 여부와 남은 한계.
+전체 감사 장부(2026-09-05 · Claude Fable 5.1 · v206): `audit/AUDIT_LEDGER_2026-09-05.md` — 코드·문서·지침·검증·자동화·데이터 계약 전 층의 기준 커밋·파일별 검토 상태·발견(심각도순)·통합/보관/폐기·실행한 검증·보고.
 
 | 파일 | 무엇을 쟀나 | 판정 |
 |---|---|---|

@@ -670,6 +670,21 @@ def g_deploy():
            'git pull --rebase' not in active_daily
            and 'git pull --rebase' not in watchdog_yml,
            '다음 예약 슬롯이 최신 HEAD에서 처음부터 다시 계산한다 (v203)')
+        # [v206] 예약 실행은 큐에 들어갈 때의 커밋을 체크아웃한다 - 마감 전 슬롯 둘이 같이
+        #   큐에 들어가면 둘째가 첫째 커밋 이전의 main 으로 같은 종가를 다시 계산해 push 에서
+        #   거부됐다(실측 09-03~09-05 매일 04:48 슬롯 실패 + 실패 카톡). 체크아웃 뒤 최신 main 으로
+        #   맞추고, push 직전엔 원격이 이미 같은 종가를 반영했으면 중복 커밋을 조용히 버린다.
+        reset_at = active_daily.find('git reset --hard origin/main')
+        wait_at = active_daily.find('deploy/wait_close.py')
+        ancestor_at = active_daily.find('git merge-base --is-ancestor origin/main HEAD')
+        push_at = active_daily.rfind('git push')
+        ok('배포: 일일 잡은 체크아웃 뒤 최신 main 으로 맞춘 뒤에야 종가를 계산한다',
+           0 <= reset_at < wait_at,
+           '큐에 묶인 둘째 슬롯이 옛 main 으로 같은 종가를 재계산하던 것을 막는다 (v206)')
+        ok('배포: 일일 잡은 push 직전 원격이 이미 같은 종가면 중복 커밋을 버린다(정상 종료)',
+           0 <= ancestor_at < push_at and 'REMOTE_ASOF' in active_daily
+           and 'exit 0' in active_daily[ancestor_at:push_at],
+           '기다리는 사이 원격이 같은 as_of 를 반영했으면 실패 카톡을 만들지 않는다 (v206)')
         ok('배포: 회전한 카카오 토큰이 후속 스텝에 유지된다',
            active_daily.count('KAKAO_REFRESH_TOKEN:') == 1
            and watchdog_yml.count('KAKAO_REFRESH_TOKEN:') == 1
@@ -731,6 +746,11 @@ def g_signal_coupling():
            'CORE_CODES' in nc and '_validate_nav_rows(rows)' in nc
            and '핵심 4종 NAV가 모두 오지 않아' in nc,
            '부분/절단 HTTP 200과 비유한 값은 원자 append 전에 실패-폐쇄 (v203)')
+        # [v206] 09:17 슬롯이 개장 직후 값을 그날 행으로 적고 그 행이 영구히 남았다
+        #   (실측 2026-09-04 행 38,680 vs 공식 종가 38,585). 장중엔 적립하지 않는다.
+        ok('NAV: 한국장 개장 중에는 적립하지 않는다 (close 열 = 직전 거래일 종가 계약)',
+           'def kr_market_open' in nc and 'kr_market_open(now)' in nc and 'KR_CLOSE' in nc,
+           '장 밖 슬롯만 적립 - 개장 직후 값이 영구 행이 되던 것을 막는다 (v206)')
 
 
 def g_watchdog():

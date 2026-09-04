@@ -74,7 +74,7 @@ body{padding:28px 20px 64px;}
 .mstat img{height:15px;vertical-align:-3px;}
 .opill{font-size:11px;font-weight:700;letter-spacing:0;padding:1px 6px;border-radius:9px;
   border:1px solid var(--rule);color:var(--muted);white-space:nowrap;}
-.opill.ok{color:var(--defense);border-color:var(--defense);}
+.opill.ok{color:var(--defend);border-color:var(--defend);}  /* [v206] --defense 는 정의된 적 없는 토큰이었다 */
 .opill.warn{color:#B45309;border-color:#B45309;background:rgba(180,83,9,.08);}
 
 /* ---- 시장 시계 ---- */
@@ -1913,10 +1913,10 @@ function portAssets(){
      화면 39,390 vs 총평가 계산 39,200 (보유 주수 × 190원 차이 — 수백 주면 5만원대).
    ★ 우선순위는 고정 순서가 아니라 **「더 최신인 쪽」**이다. 시세 수집이 죽으면
      nav_history 가 더 새 값일 수 있고 그때는 그쪽을 써야 한다.
-   ※ nav_history 의 `close` 열은 **당일분에 한해 종가가 아니다** — nav_collect 는
-     daily-signal(04:35~09:17 KST — v190 부터 마감 전 슬롯)에 얹혀 돌아 개장 직후 값이 찍힌다
-     (2026-09-01 실측 39,200 · 거래량 42,381 vs 전일 180,055). 그래서 장이 끝난 뒤엔
-     price.json 쪽이 그날의 진짜 종가다.
+   ※ nav_history 의 `close` 열은 [v206 부터] **직전 거래일의 공식 종가**다 — nav_collect 가
+     한국장 개장 중(09:17 슬롯)에는 적립하지 않는다. 종전엔 그 슬롯이 개장 직후 값을 그날 행으로
+     적고 그 행이 다시 고쳐지지 않아 2026-09-01~04 행은 종가가 아니다(09-04 38,680 vs 종가 38,585).
+     장이 끝난 뒤 그날 종가는 price.json 쪽이다.
    ※ 사용자가 현재가를 직접 넣었으면 이 함수는 아예 안 쓰인다(입력이 언제나 우선). */
 function curPx(code){
   const live = priceOf(code), nav = NAVPX[code];

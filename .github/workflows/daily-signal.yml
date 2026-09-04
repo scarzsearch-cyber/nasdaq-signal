@@ -36,6 +36,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # [v206] 예약 실행은 **큐에 들어갈 때의 커밋**(github.sha)을 체크아웃한다. 마감 전 슬롯
+      #   둘(04:35·04:45)이 함께 큐에 들어가면 둘째 슬롯은 첫째가 커밋한 **뒤에** 돌면서도
+      #   첫째 커밋 이전의 main 을 보고 같은 종가를 다시 계산해 push 에서 거부됐다
+      #   (실측 gh run list: 09-03·09-04·09-05 매일 04:48 슬롯 실패 + 실패 카톡 1통).
+      #   최신 main 으로 맞추면 둘째 슬롯은 「이미 최신」으로 23초 만에 끝난다.
+      #   이 시점엔 작업 트리에 변경이 없으므로 reset --hard 가 잃는 것은 없다.
+      - name: 최신 main 으로 맞추기
+        run: |
+          git fetch --no-tags origin main
+          git reset --hard origin/main
+
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -169,6 +180,20 @@ jobs:
             # "8/28 종가"라고 찍혔지만 실제로는 8/27 종가였던 혼동을 막는다.
             ASOF=$(python3 -c "import json; print(json.load(open('data/signal.json'))['as_of'])")
             git commit -m "signal: ${ASOF} 미국 종가 반영 · NAV 적립"
+            # [v206] push 직전에 원격을 다시 본다. 마감을 기다리는 사이(최대 25분) 원격이
+            #   움직였고 그 원격이 **이미 같은(또는 더 새) 종가**를 반영했다면 이 커밋은
+            #   중복이라 버린다 — 정상 종료(실패 카톡을 만들지 않는다).
+            #   다른 이유로 움직였으면(코드 push 등) 아래 v203 규약대로 실패-폐쇄한다.
+            git fetch --no-tags origin main
+            if ! git merge-base --is-ancestor origin/main HEAD; then
+              REMOTE_ASOF=$(git show origin/main:data/signal.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('as_of',''))")
+              if [ -n "$REMOTE_ASOF" ] && [ ! "$REMOTE_ASOF" \< "$ASOF" ]; then
+                echo "원격 main 이 이미 ${REMOTE_ASOF} 종가를 반영했다 — 이 실행의 중복 커밋은 버린다(정상)"
+                exit 0
+              fi
+              echo "::error::기다리는 사이 원격 main 이 움직였다(원격 as_of ${REMOTE_ASOF:-없음} < ${ASOF}) — 다음 슬롯이 최신 HEAD 에서 다시 계산한다"
+              exit 1
+            fi
             # [v203] non-fast-forward면 옛 코드로 만든 signal/NAV/OOS를 새 코드 위에
             # rebase해 밀지 않는다. 실패-폐쇄하면 8개 예비 슬롯 중 다음 슬롯이 새 HEAD로
             # 처음부터 다시 계산한다. 실패 알림도 아래 스텝에서 남는다.
