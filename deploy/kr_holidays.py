@@ -13,9 +13,9 @@ signal.html 의 시장 시계는 지금까지 **한국 공휴일을 반영하지
           중기(태양황경 30° 배수)가 없는 달을 윤달로 넣는다. 전부 KST 기준.
 
 [증시 휴장일]
-  고정   1/1, 3/1, 5/1(근로자의날), 5/5, 6/6, 8/15, 10/3, 10/9, 12/25
+  고정   1/1, 3/1, 5/1(노동절), 5/5, 6/6, 7/17, 8/15, 10/3, 10/9, 12/25
   음력   설 연휴(섣달그믐·1/1·1/2), 부처님오신날(4/8), 추석 연휴(8/14·15·16)
-  대체공휴일  현행 규정(설·추석·어린이날·삼일절·광복절·개천절·한글날·부처님오신날·성탄절)
+  대체공휴일  현행 규정(설·추석·노동절·어린이날·삼일절·제헌절·광복절·개천절·한글날·부처님오신날·성탄절)
   연말   12월 마지막 영업일은 증시 휴장
 
 [알고리즘이 못 맞히는 것] 임시공휴일과 선거일. 예측 불가라 SPECIAL 에 손으로 넣는다.
@@ -33,13 +33,16 @@ import json
 import math
 import os
 import sys
+import tempfile
 
 try:                       # [코드리뷰 2026-09-04] 이 모듈은 콘솔에 표를 찍는다.
     sys.stdout.reconfigure(encoding='utf-8')   # cp949 콘솔에서 죽지 않게 (deploy/* 공통 규약)
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
 RAD = math.pi / 180.0
+KST = dt.timezone(dt.timedelta(hours=9))
 
 # 알고리즘으로는 못 맞히는 것들 — 임시공휴일·선거일 (관보/KRX 공지 기준)
 SPECIAL = {
@@ -65,8 +68,8 @@ KNOWN_GAPS = {'2007-03-02', '2011-10-04', '2017-09-22', '2017-12-20',
               '2026-08-28'}
 
 # 제도 이력이 있는 고정 공휴일 — 연도 범위 밖이면 휴일이 아니다. 구간을 여러 개 둘 수 있다.
-#   제헌절: 1949~2007 공휴일 -> 2008~2025 제외 -> **2026 복원**(공휴일법 개정, 2026-01-29 본회의)
-#           대체공휴일은 2027년부터 적용된다.
+#   제헌절: 1949~2007 공휴일 -> 2008~2025 제외 -> **2026 복원**.
+#   2026-05-01 시행 규정은 노동절·제헌절을 대체공휴일 대상으로도 추가했다.
 ERA = {'한글날': [(2013, 9999)],
        '제헌절': [(1900, 2007), (2026, 9999)],
        '식목일': [(1900, 2005)]}
@@ -78,15 +81,24 @@ def in_era(nm, year):
             return True
     return False
 
+
+def display_name(name, year):
+    """법정 명칭 변경 전후를 나눠 과거 산출 사유도 보존한다."""
+    if name == '근로자의날' and year >= 2026:
+        return '노동절'
+    return name
+
+
 FIXED = [(1, 1, '신정'), (3, 1, '삼일절'), (4, 5, '식목일'), (5, 1, '근로자의날'),
          (5, 5, '어린이날'), (6, 6, '현충일'), (7, 17, '제헌절'), (8, 15, '광복절'),
          (10, 3, '개천절'), (10, 9, '한글날'), (12, 25, '성탄절')]
 
 # 대체공휴일 시행 시점 (제도 변경 이력)
 #   2014 설·추석·어린이날 / 2021 삼일절·광복절·개천절·한글날 / 2023 부처님오신날·성탄절
-SUB_FROM = {'설날': 2014, '추석': 2014, '어린이날': 2014, '삼일절': 2021,
+SUB_FROM = {'설날': 2014, '추석': 2014, '근로자의날': 2026,
+            '어린이날': 2014, '삼일절': 2021,
             '광복절': 2021, '개천절': 2021, '한글날': 2021,
-            '부처님오신날': 2023, '성탄절': 2023, '제헌절': 2027}
+            '부처님오신날': 2023, '성탄절': 2023, '제헌절': 2026}
 
 
 # ---------------------------------------------------------------- 천문
@@ -273,7 +285,7 @@ def holidays(year):
 
     for m, d, nm in FIXED:
         if in_era(nm, year):
-            add(dt.date(year, m, d), nm)
+            add(dt.date(year, m, d), display_name(nm, year))
 
     seol = lunar_to_solar(year, 1, 1)
     if seol:
@@ -285,6 +297,14 @@ def holidays(year):
             add(chu + dt.timedelta(days=off), '추석')
     bud = lunar_to_solar(year, 4, 8)
     add(bud, '부처님오신날')
+
+    # 임시공휴일·선거일도 대체공휴일의 목적지를 고를 때는 이미 막힌 날이어야 한다.
+    # 종전에는 이 블록이 대체공휴일 계산 **뒤**에 있어, 대체일과 SPECIAL 이 겹치면
+    # SPECIAL 이 이유만 덮고 다음 비공휴일로 밀리지 않았다.
+    for k, why in SPECIAL.items():
+        d = dt.date.fromisoformat(k)
+        if d.year == year:
+            H[d] = why
 
     # 대체공휴일 — 주말과 겹칠 때, 그리고 공휴일끼리 겹칠 때
     base = []
@@ -312,13 +332,7 @@ def holidays(year):
         n = d + dt.timedelta(days=1)
         while n in H or n.weekday() >= 5:
             n += dt.timedelta(days=1)
-        H[n] = why + ' 대체'
-
-    # 임시공휴일·선거일
-    for k, why in SPECIAL.items():
-        d = dt.date.fromisoformat(k)
-        if d.year == year:
-            H[d] = why
+        H[n] = display_name(why, year) + ' 대체'
 
     # 연말 증시 휴장 (12월 마지막 영업일)
     d = dt.date(year, 12, 31)
@@ -369,20 +383,49 @@ def verify(y0=2005, y1=2026):
         print('%-6d %6d %6d %8d %8d   %s' % (y, len(calc), len(real), len(fp), len(fn), msg))
     print('\n합계  거짓양성 %d  거짓음성 %d' % (tot_fp, tot_fn))
     print('  + 는 "쉰다고 했는데 실제로는 열었다", - 는 "열린다고 했는데 실제로는 쉬었다"')
-    print('  (결측의심) 은 Yahoo 국내 시계열 전부에서 빠진 날 - 어떤 공휴일에도 해당하지 않는다')
+    print('  (결측의심) 은 Yahoo 기준 시계열의 결측으로 확인된 날 - 어떤 공휴일에도 해당하지 않는다')
     return tot_fp, tot_fn
 
 
 MIN_DAYS_PER_YEAR = 6      # 1990~2040 실측 최소는 8일(2009). 그 아래면 산출이 깨진 것이다.
 
 
-def emit(y0=None, y1=None, path='data/kr_holidays.json'):
+def kst_today(now=None):
+    """러너의 UTC 로컬 날짜가 아니라 한국 날짜를 반환한다."""
+    if isinstance(now, dt.date) and not isinstance(now, dt.datetime):
+        return now
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=dt.timezone.utc)
+    return now.astimezone(KST).date()
+
+
+def atomic_write(path, text):
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(path) + '.',
+                               suffix='.tmp', dir=parent, text=True)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def emit(y0=None, y1=None, path='data/kr_holidays.json', today=None):
     # [코드리뷰 2026-09-04] 창을 **한 해 앞에서** 시작한다. 종전 today.year 는 해가 바뀌는
     #   순간 지난해를 통째로 버렸고, 표를 **뒤로 걸어가며** 읽는 소비자
     #   (nav_collect.trading_as_of)가 지난해 연말 휴장을 못 보고 휴장일을 거래일로
     #   돌려줬다 (예: 2029-01-02 -> 2028-12-29 연말휴장, 정답은 2028-12-28).
-    y0 = (dt.date.today().year - 1) if y0 is None else y0
+    y0 = (kst_today(today).year - 1) if y0 is None else y0
     y1 = (y0 + 7) if y1 is None else y1
+    if not isinstance(y0, int) or not isinstance(y1, int) or y0 > y1:
+        raise ValueError('휴장일 생성 연도 범위가 잘못됐다')
     out = {}
     for y in range(y0, y1 + 1):
         for d, why in holidays(y).items():
@@ -399,10 +442,12 @@ def emit(y0=None, y1=None, path='data/kr_holidays.json'):
     # [코드리뷰 2026-09-04] 비교와 출력은 try **밖**이다. 종전에는 안에 있어서
     #   cp949 콘솔의 UnicodeEncodeError 를 except 가 삼키고 그대로 덮어썼다.
     try:
-        prev = json.load(open(path, encoding='utf-8'))
+        with open(path, encoding='utf-8') as f:
+            prev = json.load(f)
     except Exception:
         prev = None
-    if prev is not None and prev.get('holidays') == out and prev.get('range') == [y0, y1]:
+    if (isinstance(prev, dict) and prev.get('holidays') == out
+            and prev.get('range') == [y0, y1]):
         print('변경 없음 - %s (%d일, %d~%d)' % (path, len(out), y0, y1))
         return
     payload = dict(
@@ -410,15 +455,57 @@ def emit(y0=None, y1=None, path='data/kr_holidays.json'):
         range=[y0, y1],
         note='deploy/kr_holidays.py 산출물. 임시공휴일·선거일은 SPECIAL 에 손으로 넣는다.',
         holidays=out)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, ensure_ascii=False, indent=1)
+    atomic_write(path, json.dumps(payload, ensure_ascii=False, indent=1,
+                                  allow_nan=False))
     print('→ %s  (%d일, %d~%d)' % (path, len(out), y0, y1))
     return payload
 
 
+def selftest():
+    # 2026-05-01 시행 현행 규정: 노동절·제헌절도 대체 대상이다.
+    h27 = holidays(2027)
+    assert holidays(2025).get(dt.date(2025, 5, 1)) == '근로자의날'
+    assert holidays(2026).get(dt.date(2026, 5, 1)) == '노동절'
+    assert h27.get(dt.date(2027, 5, 3)) == '노동절 대체'
+    assert h27.get(dt.date(2027, 7, 19)) == '제헌절 대체'
+
+    # 대체 목적지가 임시공휴일이면 그 다음 비공휴일까지 건너뛴다.
+    key = '2027-05-03'
+    old = SPECIAL.get(key)
+    SPECIAL[key] = '합성 임시공휴일'
+    try:
+        shifted = holidays(2027)
+        assert shifted.get(dt.date(2027, 5, 4)) == '노동절 대체'
+    finally:
+        if old is None:
+            del SPECIAL[key]
+        else:
+            SPECIAL[key] = old
+
+    edge = dt.datetime(2026, 12, 31, 15, 1, tzinfo=dt.timezone.utc)
+    assert kst_today(edge) == dt.date(2027, 1, 1)
+    try:
+        emit(2028, 2027, path=os.devnull)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('거꾸로 된 생성 연도 범위가 통과했다')
+
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, 'holidays.json')
+        assert emit(2027, 2027, path=path) is not None
+        with open(path, 'rb') as f:
+            before = f.read()
+        assert emit(2027, 2027, path=path) is None
+        with open(path, 'rb') as f:
+            assert f.read() == before
+    print('kr_holidays selftest: PASS (현행 대체휴일 · KST 연경계 · 멱등 emit)')
+
+
 if __name__ == '__main__':
-    if '--emit' in sys.argv:
+    if '--selftest' in sys.argv:
+        selftest()
+    elif '--emit' in sys.argv:
         emit()
     else:
         # [코드리뷰 2026-09-04] 종전엔 verify() 의 반환을 버려 불일치가 있어도 종료코드가 0 이었다.

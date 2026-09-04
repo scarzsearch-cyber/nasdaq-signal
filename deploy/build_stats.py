@@ -23,12 +23,14 @@ import io
 import json
 import os
 import sys
+import tempfile
 
 import numpy as np
 import pandas as pd
 
 try:                       # [v60] cp949 콘솔에서 '−'(U+2212) 로 죽지 않게
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
@@ -64,6 +66,49 @@ STRATS = {
 }
 
 
+def json_text(value):
+    """브라우저의 JSON.parse 도 읽을 수 있는 엄격한 JSON만 만든다.
+
+    Python json 의 기본값은 NaN/Infinity 를 그대로 써 버린다. 이 파일은 결과를
+    signal.json 에도 복사하므로, 비표준 숫자는 성과 카드 전체를 깨뜨린다.
+    """
+    return json.dumps(value, ensure_ascii=False, indent=1, allow_nan=False)
+
+
+def atomic_write(path, text):
+    """같은 디렉터리의 임시 파일을 완성한 뒤 교체한다."""
+    parent = os.path.dirname(os.path.abspath(path))
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix='.' + os.path.basename(path) + '.',
+                               suffix='.tmp', dir=parent, text=True)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def metric_text(value, spec='.3f'):
+    """정의되지 않은 선택 지표는 표에서 대시로 표시한다."""
+    return '—' if value is None else format(value, spec)
+
+
+def signal_stats_text(signal, payload):
+    """사본이 다를 때만 갱신할 엄격 JSON을 반환한다."""
+    if not isinstance(signal, dict):
+        raise ValueError('signal.json 최상위 값이 객체가 아니다')
+    if signal.get('stats') == payload:
+        return None
+    updated = dict(signal)
+    updated['stats'] = payload
+    return json_text(updated)
+
+
 def horizons(curve, years=(5, 10, 15, 20)):
     """[v63] **끝 날짜를 맞춘** 최근 N년 배수.
 
@@ -84,6 +129,17 @@ def horizons(curve, years=(5, 10, 15, 20)):
 
 
 def pack(curve, turn):
+    values = np.asarray(curve, dtype=float)
+    turns = np.asarray(turn, dtype=float)
+    if not len(values) or len(turns) != len(values):
+        raise ValueError('성과 곡선과 전환 배열의 길이가 다르거나 비어 있다')
+    if not np.all(np.isfinite(values)) or np.any(values <= 0):
+        raise ValueError('성과 곡선에 비유한 값 또는 0 이하 값이 있다')
+    if not np.all(np.isfinite(turns)):
+        raise ValueError('전환 배열에 비유한 값이 있다')
+    if hasattr(curve, 'index') and (not curve.index.is_monotonic_increasing
+                                    or curve.index.has_duplicates):
+        raise ValueError('성과 곡선 날짜가 정렬되지 않았거나 중복됐다')
     m = met(curve)
     ui, uwd, uwo, dmean = ulcer_uw(curve)
     return {
@@ -102,7 +158,7 @@ def pack(curve, turn):
         'dd_mean': round(float(dmean), 2),   # [v62] '평균 몇 % 물속' 체감값
         'uw_months': round(uwd / 30.4375, 1),
         'uw_open': bool(uwo),
-        'switches': int(np.sum(np.asarray(turn) > 1e-9)),
+        'switches': int(np.sum(turns > 1e-9)),
         'horizons': horizons(curve),         # [v63] 끝을 맞춘 최근 5/10/15/20년 배수
         'start': curve.index[0].strftime('%Y-%m-%d'),
         'end': curve.index[-1].strftime('%Y-%m-%d'),
@@ -111,8 +167,13 @@ def pack(curve, turn):
 
 def seg_of(D, curve):
     """전략 곡선이 차지하는 구간을 D 의 전체 인덱스 위에서 찾는다."""
-    lo = D['idx'].searchsorted(curve.index[0])
-    return slice(lo, lo + len(curve))
+    source = pd.Index(D['idx'])
+    target = pd.Index(curve.index)
+    lo = int(source.searchsorted(target[0]))
+    segment = source[lo:lo + len(target)]
+    if not segment.equals(target):
+        raise ValueError('전략 곡선과 벤치마크 원재료의 날짜가 정확히 맞지 않는다')
+    return slice(lo, lo + len(target))
 
 
 def bench_pack(curve, rlev, rdef):
@@ -126,7 +187,9 @@ def bench_pack(curve, rlev, rdef):
     z = np.zeros(len(curve))
     out = {}
     for key, r in (('lev', rlev), ('def', rdef)):
-        rr = np.nan_to_num(np.asarray(r, dtype=float)).copy()
+        rr = np.asarray(r, dtype=float).copy()
+        if len(rr) != len(curve) or not np.all(np.isfinite(rr)):
+            raise ValueError(f'{key} 벤치마크 수익률이 비었거나 날짜/유한성 계약을 어겼다')
         rr[0] = 0.0
         out[key] = pack(pd.Series(np.cumprod(1 + rr), index=curve.index), z)
     return out
@@ -249,11 +312,17 @@ def hedge_kr_real(defkind='mix'):
     defmix = (defkind == 'mix')
     kr, rl, rd_def = KR.legs_real(defmix=defmix)
     kr0, _, rd_div = KR.legs_real(defmix=False)
+    if not kr0.equals(kr):
+        raise ValueError('실물 헤지의 배당 공격다리와 전략 달력이 다르다')
+    rd_div = rd_div.reindex(kr)
+    if rd_div.isna().any() or rd_def.reindex(kr).isna().any():
+        raise ValueError('실물 헤지의 방어/배당 수익률 정렬에 빈 날이 있다')
     att = pd.Series(DA.mix_monthly_parts(kr, HEDGE_W,
                                          {'lev': rl.values,
-                                          'div': rd_div.reindex(kr).fillna(0).values}), index=kr)
+                                          'div': rd_div.values}), index=kr)
     _, hold, _ = KR.run_real(STRATS['B']['exit'], defmix=defmix)
-    hold = hold.reindex(kr).ffill().fillna(1.0)
+    if not hold.index.equals(kr) or hold.isna().any():
+        raise ValueError('실물 헤지의 보유 신호와 수익률 달력이 다르다')
     eff = hold.shift(1).fillna(1.0)
     r = eff * att + (1 - eff) * rd_def.reindex(kr).fillna(0)
     turn = eff.diff().abs().fillna(0)
@@ -273,18 +342,25 @@ SCENARIOS = [
 ]
 
 
-def sync_doc(payload, path='01_Strategy_Logic.md'):
-    """[v73] 최신 성과를 문서의 AUTO-STATS 블록에만 반영한다.
-    마커 밖의 사람 글은 절대 건드리지 않는다. 마커가 없으면 아무것도 안 한다."""
+def doc_parts(path='01_Strategy_Logic.md'):
+    """AUTO-STATS 표식과 원문을 검증해 치환 경계를 반환한다."""
     S, E = '<!-- AUTO-STATS:START', '<!-- AUTO-STATS:END -->'
     if not os.path.exists(path):
-        return
-    txt = io.open(path, encoding='utf-8').read()
+        raise FileNotFoundError(f'{path} 가 없다 — AUTO-STATS 동기화를 보장할 수 없다')
+    with io.open(path, encoding='utf-8') as f:
+        txt = f.read()
     i, j = txt.find(S), txt.find(E)
-    if i < 0 or j < 0 or j < i:
-        print(f'[경고] {path} 에 AUTO-STATS 마커가 없다 — 문서 동기화 건너뜀', file=sys.stderr)
-        return
-    head_end = txt.index('-->', i) + 3
+    head_end = txt.find('-->', i, j) + 3 if 0 <= i < j else -1
+    if (txt.count(S) != 1 or txt.count(E) != 1 or i < 0 or j < 0
+            or j < i or head_end < 3):
+        raise ValueError(f'{path} 의 AUTO-STATS 마커가 없거나 잘못됐다')
+    return txt, head_end, j
+
+
+def sync_doc(payload, path='01_Strategy_Logic.md'):
+    """[v73] 최신 성과를 문서의 AUTO-STATS 블록에만 반영한다.
+    마커 밖의 사람 글은 절대 건드리지 않으며, 계약 파손은 실패-폐쇄한다."""
+    txt, head_end, j = doc_parts(path)
     rows = ['| 기준 | 구간 | 최종배수 | CAGR | MDD | 회복기간 | 전환 |',
             '|---|---|---:|---:|---:|---:|---:|']
     # [코드리뷰 2026-09-04] 종전엔 머리글에 scenarios[0] 의 끝 날짜 하나를 찍고 네 행 전부에
@@ -301,7 +377,7 @@ def sync_doc(payload, path='01_Strategy_Logic.md'):
              + '\n'.join(rows) + '\n')
     out = txt[:head_end] + block + txt[j:]
     if out != txt:
-        io.open(path, 'w', encoding='utf-8', newline='\n').write(out)
+        atomic_write(path, out)
         print('→', path, '(AUTO-STATS 블록 갱신)')
 
 
@@ -328,25 +404,36 @@ def main():
         defensive_legs=DA.MIX_LEGS,
         scenarios=scen,
     )
-    with open(OUT, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, ensure_ascii=False, indent=1)
+    # json.dumps 기본값은 NaN/Infinity 를 허용한다. 브라우저는 그것을 JSON 으로
+    # 인정하지 않으므로 쓰기 **전에** 전체 페이로드를 엄격하게 직렬화한다.
+    payload_text = json_text(payload)
 
     # [v45·v60] signal.json 은 이 파일의 **사본**을 안에 들고 있고, 화면은 그 사본을
     # 우선한다(signal.html: if(AUTO && AUTO.stats) STATS = AUTO.stats).
     # 그래서 여기서 새로 굳히면 사본도 같이 갱신해야 한다. 안 하면 다음 일일
     # 실행 때까지 라이브가 옛 수치를 보여준다 — v36 정정 때 실제로 그랬다.
     sig = os.path.join('data', 'signal.json')
+    signal_text = None
     if os.path.exists(sig):
         with open(sig, encoding='utf-8') as f:
             j = json.load(f)
         # [코드리뷰 2026-09-04] update_signal.load_stats() 는 원본이 없으면 None 을 쓴다.
         #   그때 j.get('stats', {}) 는 {} 가 아니라 None 이라 AttributeError 로 죽었고,
         #   OUT 은 이미 쓰인 뒤라 signal.json 사본과 01 문서만 옛 판으로 남았다.
-        if (j.get('stats') or {}).get('generated_at') != payload['generated_at']:
-            j['stats'] = payload
-            with open(sig, 'w', encoding='utf-8') as f:
-                json.dump(j, f, ensure_ascii=False, indent=1)
-            print('→', sig, '(내장 사본 갱신)')
+        # generated_at 은 분 단위다. 같은 분 안에 원자료/코드가 달라져 재실행되면
+        # 시각은 같아도 내용은 달라질 수 있으므로 페이로드 전체를 비교한다.
+        signal_text = signal_stats_text(j, payload)
+
+    # 출력 파일을 건드리기 전에 문서 계약도 먼저 검사한다. 표식 파손을 경고로만
+    # 넘기면 새 JSON 과 옛 문서가 섞인 채 다음 단계로 진행될 수 있다.
+    doc_parts()
+
+    # 두 JSON 모두 완성·검증된 뒤에만 첫 파일을 건드린다. 파일별 쓰기도 원자적으로
+    # 교체해 중간 종료가 반쪽 JSON 을 남기지 않게 한다.
+    atomic_write(OUT, payload_text)
+    if signal_text is not None:
+        atomic_write(sig, signal_text)
+        print('→', sig, '(내장 사본 갱신)')
     sync_doc(payload)          # [v73] 01 문서 AUTO-STATS 블록
     # [v60] 사본 갱신은 아래 요약 출력보다 **먼저** 한다 — 출력이 죽어도
     #       사본이 옛 판으로 남지 않도록.
@@ -361,25 +448,62 @@ def main():
             o = s['strategies_div'][k]
             def uw(x):
                 return '%.1f개월%s' % (x['uw_months'], '+' if x['uw_open'] else '')
-            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %9s %7.2f %6d' % (
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8s %8s %9s %7.2f %6d' % (
                 s['label'] if k == 'B' else '', STRATS[k]['name'], f"{m['final']:,.1f}",
-                m['cagr'], m['mdd'], m['calmar'],
+                m['cagr'], m['mdd'], metric_text(m['calmar']),
                 '—' if m['sortino'] is None else f"{m['sortino']:.3f}",
                 uw(m), m['ulcer'], m['switches']))
-            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %9s %7.2f %6d   <- 배당100' % (
-                '', '', f"{o['final']:,.1f}", o['cagr'], o['mdd'], o['calmar'],
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8s %8s %9s %7.2f %6d   <- 배당100' % (
+                '', '', f"{o['final']:,.1f}", o['cagr'], o['mdd'], metric_text(o['calmar']),
                 '—' if o['sortino'] is None else f"{o['sortino']:.3f}",
                 uw(o), o['ulcer'], o['switches']))
         for bk, blab in (('lev', '2배 보유'), ('def', '방어 단독')):
             b = s['benchmarks'][bk]
-            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8.3f %8s %9s %7.2f %6s   <- 벤치' % (
-                '', blab, f"{b['final']:,.1f}", b['cagr'], b['mdd'], b['calmar'],
+            print('%-16s %-9s %10s %6.2f%% %7.2f%% %8s %8s %9s %7.2f %6s   <- 벤치' % (
+                '', blab, f"{b['final']:,.1f}", b['cagr'], b['mdd'], metric_text(b['calmar']),
                 '—' if b['sortino'] is None else f"{b['sortino']:.3f}",
                 '%.1f개월%s' % (b['uw_months'], '+' if b['uw_open'] else ''),
                 b['ulcer'], '-'))
     print('\n→', OUT)
 
 
+def selftest():
+    assert metric_text(None) == '—'
+    assert metric_text(1.23456) == '1.235'
+    assert json.loads(json_text({'stats': None})) == {'stats': None}
+    try:
+        json_text({'bad': float('nan')})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('NaN 이 엄격한 JSON 검사를 통과했다')
+    old = {'generated_at': 'same', 'value': 1}
+    new = {'generated_at': 'same', 'value': 2}
+    assert json.loads(signal_stats_text({'stats': old}, new))['stats'] == new
+    assert signal_stats_text({'stats': new}, new) is None
+    idx = pd.date_range('2026-01-01', periods=3)
+    assert seg_of({'idx': idx}, pd.Series([1.0, 1.1], index=idx[1:])) == slice(1, 3)
+    try:
+        seg_of({'idx': idx}, pd.Series([1.0, 1.1], index=[idx[0], idx[2]]))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('날짜가 건너뛴 벤치마크 정렬이 통과했다')
+    with tempfile.TemporaryDirectory() as td:
+        bad_doc = os.path.join(td, 'bad.md')
+        atomic_write(bad_doc, '<!-- AUTO-STATS:START -->\n끝 표식 없음')
+        try:
+            sync_doc({}, bad_doc)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('깨진 AUTO-STATS 표식이 통과했다')
+    print('build_stats selftest: PASS (엄격 JSON · 선택 지표 · 달력 정렬)')
+
+
 
 if __name__ == '__main__':
-    main()
+    if '--selftest' in sys.argv:
+        selftest()
+    else:
+        main()
