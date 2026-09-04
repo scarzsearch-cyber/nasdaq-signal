@@ -28,7 +28,6 @@ import ast
 import io
 import os
 import sys
-import glob
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -41,7 +40,13 @@ findings = []
 
 
 def rec(sev, f, line, kind, msg):
-    findings.append((sev, f, line, kind, msg))
+    # [2026-09-04 코드리뷰] 같은 자리를 두 번 세지 않는다. `a > b and c > d` 는
+    # ast.walk 가 Compare 를 피연산자 쌍마다 하나씩 방문하므로 종전에는 한 줄이
+    # 2~3번 찍혔다(실측: axis_ext2_probe.py:53 이 3회). 건수가 부풀면 남은
+    # 검사 면적을 셀 수 없고 진짜 새 발견이 반복 사이에 묻힌다.
+    row = (sev, f, line, kind, msg)
+    if row not in findings:
+        findings.append(row)
 
 
 def src_of(node, lines):
@@ -61,7 +66,7 @@ def has_call(node, names):
     return False
 
 
-def check_loop_alignment(fn, tree, lines, f):
+def check_loop_alignment(tree, lines, f):
     """① 백테스트 루프: 수익 적용이 포지션 결정보다 먼저 오는가 (2버킷형)"""
     for node in ast.walk(tree):
         if not isinstance(node, ast.For):
@@ -87,7 +92,7 @@ def check_loop_alignment(fn, tree, lines, f):
                 '수익 적용이 포지션 결정보다 먼저 (v33 유형)')
 
 
-def check_cost_denom(fn, tree, lines, f):
+def check_cost_denom(tree, lines, f):
     """② 재조정 비용 분모: 비용 곱한 뒤 분모를 잡는가 (v27 유형)"""
     for node in ast.walk(tree):
         if not isinstance(node, ast.For):
@@ -105,33 +110,63 @@ def check_cost_denom(fn, tree, lines, f):
                 '비용 차감 뒤에 분모를 잡음 (v27 유형)')
 
 
-def check_lookahead(fn, tree, lines, f):
-    """③ 전표본 통계를 문턱으로 쓰는가 (v30 유형)"""
+def check_lookahead(tree, lines, f):
+    """③ 전표본 통계를 문턱으로 쓰는가 (v30 유형)
+
+    [2026-09-04 코드리뷰] 두 가지를 고쳤다.
+      ⓐ 종전엔 `src_of` 로 **줄 전체**를 봤다. Compare 노드가 걸친 줄에 우연히
+         'np.percentile' 이라는 글자가 있기만 하면 걸렸고, 그래서 스캐너가
+         **자기 소스를 매칭**했다(이 함수의 `any(k in s for k in (...))` 줄).
+         docs/history/전략_v35.md:87 이 위양성으로 이미 기록해 둔 자리다.
+         이제 `ast.unparse(node)` 로 **그 비교식만** 본다.
+      ⓑ 주석만 있고 구현이 없던 「결과 분포 출력(f-string 안)이면 제외」를
+         실제로 구현했다 — f-string·print 안의 비교는 신호 문턱이 아니라 표시다.
+    """
+    skip = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Compare):
+        # f-string 안 / print(...) 안의 비교는 문턱이 아니라 출력이다
+        if isinstance(node, ast.JoinedStr) or (
+                isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == 'print'):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Compare):
+                    skip.add(id(sub))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare) or id(node) in skip:
             continue
-        s = src_of(node, lines)
+        try:
+            s = ast.unparse(node)
+        except Exception:
+            s = src_of(node, lines)
         if any(k in s for k in ('nanpercentile', 'np.percentile', '.quantile(')) \
                 and 'expanding' not in s and 'rolling' not in s:
-            # 결과 분포 출력(f-string 안)이면 제외
             rec('CHECK', f, node.lineno, '전표본문턱',
                 s.strip().replace('\n', ' ')[:88])
 
 
-def check_shift(fn, tree, lines, f):
-    """④ rolling/expanding 산출물이 shift 없이 신호로 쓰이는가"""
+def check_shift(tree, lines, f):
+    """④ rolling/expanding 산출물이 shift 없이 신호로 쓰이는가
+
+    [2026-09-04 코드리뷰] 종전엔 함수 **이름이 8개 고정 목록**에 있을 때만 걸렸다.
+    `rv_arr()`·`sigma_state()` 처럼 이름만 다르면 통과하므로 새 신호 헬퍼를 하나도
+    못 잡는다 — CLAUDE.md §-1 ⑤ 의 「양쪽 답이 같으면 그것은 관문이 아니다」에
+    정확히 해당한다. 이름 목록을 없애고 **모든 함수**를 본다.
+    ⚠ 이 검사는 CHECK(사람이 볼 목록)이지 HIGH 가 아니다 — rolling 결과를 그대로
+      반환하는 것이 항상 결함은 아니다(호출부가 shift 할 수도 있다). 결정적 판정은
+      point_in_time_replay() 가 한다. 실제로 zc() 는 여기서 걸리지만 그 재계산에서
+      0/40 으로 깨끗하다.
+    """
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):
             continue
         s = src_of(node, lines)
         if ('rolling(' in s or 'expanding(' in s) and 'return' in s:
-            if 'shift(' not in s and node.name in ('dd_arr', 'ma_arr', 'mom_arr', 'vol_arr',
-                                                   'zc', 'exp_q', 'z'):
+            if 'shift(' not in s:
                 rec('CHECK', f, node.lineno, 'shift누락',
                     f'{node.name}() 가 rolling/expanding 결과를 shift 없이 반환')
 
 
-def check_hardcoded_verdict(fn, tree, lines, f):
+def check_hardcoded_verdict(tree, lines, f):
     """⑤ 하드코딩된 판정 문구 — 계산 결과와 무관하게 결론을 인쇄하는가"""
     VERDICT = ('진다', '이긴다', '기각', '채택', '통과', '실패한다', '우세', '열세')
     for node in ast.walk(tree):
@@ -221,7 +256,13 @@ def main():
         dns[:] = [d for d in dns if d not in SKIP_DIRS]
         for fn in fns:
             if fn.endswith('.py'):
-                files.append(os.path.join(dp, fn).replace('\\', '/').lstrip('./'))
+                # [2026-09-04 코드리뷰] 종전엔 `.lstrip('./')` 였다. lstrip 은
+                # **접두사가 아니라 문자 집합**을 벗기므로 './.github/x.py' 가
+                # 'github/x.py' 로 뭉개져 존재하지 않는 경로가 된다 -> 아래
+                # io.open 이 실패하고 멀쩡한 파일에 '파싱실패' HIGH 가 찍힌다.
+                # SKIP_DIRS 는 .github 를 안 거른다. relpath 가 정확한 형태다.
+                files.append(os.path.relpath(os.path.join(dp, fn), ROOT)
+                             .replace('\\', '/'))
     files.sort()
     print(f"전수조사 대상: 파이썬 {len(files)}개 파일\n")
     point_in_time_replay()
@@ -229,18 +270,19 @@ def main():
     ok = 0
     for f in files:
         try:
-            src = io.open(f, encoding='utf-8').read()
+            with io.open(f, encoding='utf-8') as fh:      # [코드리뷰] 핸들을 닫는다
+                src = fh.read()
             lines = src.split('\n')
             tree = ast.parse(src)
             ok += 1
         except Exception as e:
             rec('HIGH', f, 0, '파싱실패', str(e)[:80])
             continue
-        check_loop_alignment(f, tree, lines, f)
-        check_cost_denom(f, tree, lines, f)
-        check_lookahead(f, tree, lines, f)
-        check_shift(f, tree, lines, f)
-        check_hardcoded_verdict(f, tree, lines, f)
+        check_loop_alignment(tree, lines, f)
+        check_cost_denom(tree, lines, f)
+        check_lookahead(tree, lines, f)
+        check_shift(tree, lines, f)
+        check_hardcoded_verdict(tree, lines, f)
 
     print(f"파싱 성공 {ok}/{len(files)}\n")
     for sev in ('HIGH', 'CHECK'):
@@ -264,6 +306,18 @@ def main():
         mark = f'  <- {n}건' if n else ''
         print(f"  {f}{mark}")
 
+    # [2026-09-04 코드리뷰] 종료코드로 실패를 말한다.
+    # verify.yml 이 이 스크립트를 예약·수동 실행에서 돌리고, 실패하면 이슈를 여는
+    # 스텝이 「verify_all.py 또는 audit_full.py 가 실패했습니다」라고 말한다.
+    # 그런데 종전엔 sys.exit 가 아예 없어 **HIGH 가 나와도 항상 0** 이었다 —
+    # point_in_time_replay 가 미래참조를 잡아도 로그에만 찍히고 초록불이 떴다.
+    # verify_all.py:1428 은 `sys.exit(1 if FAIL else 0)` 로 이미 그렇게 한다.
+    # CHECK 는 사람이 볼 목록이므로 실패로 치지 않는다(HIGH 만).
+    n_high = sum(1 for r in findings if r[0] == 'HIGH')
+    if n_high:
+        print(f"\n** HIGH {n_high}건 — 실패로 종료한다 **")
+    return 1 if n_high else 0
+
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

@@ -148,6 +148,11 @@ for nm in SET:
         m1 = (c1 / np.maximum.accumulate(c1) - 1).min()
         m2_ = (c2_ / np.maximum.accumulate(c2_) - 1).min()
         print(f"    {rule} {nm}: MDD 기준 {m0*100:.2f}% / 가드 {m1*100:.2f}% / 하루지연 {m2_*100:.2f}%")
+        # [2026-09-04 코드리뷰] m1(가드 자신의 MDD)을 계산해 인쇄만 하고 **관문에
+        # 한 번도 안 걸고 있었다.** 이 절이 평가하는 대상은 지연판이 아니라 가드
+        # 본체인데, 가드가 망가져도 지연판만 기준보다 나으면 네 관문이 전부 PASS 였다.
+        gate(f'{rule} {nm} 가드가 기준보다 MDD 개선',
+             abs(m1) < abs(m0), f'{-(abs(m1)-abs(m0))*100:+.2f}p')
         gate(f'{rule} {nm} 하루지연에도 MDD 개선 유지',
              abs(m2_) < abs(m0), f'{-(abs(m2_)-abs(m0))*100:+.2f}p')
 
@@ -214,11 +219,16 @@ print("\n" + "=" * 92)
 print("G5. MDD 정의별 수치 — 어느 것을 인용하느냐로 -23% 도 -75% 도 된다")
 print("=" * 92)
 L = 20 * 252
-print(f"  {'':<22}{'①초기포함(허수)':>16}{'②납입후':>12}{'③원금대비':>12}")
+
+# [2026-09-04 코드리뷰] G5 와 G6 이 **똑같은 (rule, 변형, 시작일) 격자에 대해
+# path() 를 각각 한 번씩** 돌려 312회를 두 벌 계산했다(창 52 x 규칙 2 x 변형 3).
+# 게다가 G6 의 m·pr 은 G5 의 b·c_ 와 글자 그대로 같은 식이다. 한 번만 쓸어서
+# 두 표가 나눠 쓴다 — 약 157만 회의 파이썬 루프가 사라진다.
+SWEEP = {}
 for rule in ('A', 'B'):
     for nm in ['기준'] + list(SET):
         W = BW[rule] if nm == '기준' else GW[nm][rule]
-        a, b, c_ = [], [], []
+        a, b, c_, f_ = [], [], [], []
         for s in range(FXS, len(kidx) - L, 126):
             v, p = path(W, s, s + L)
             vv = v[v > 0]
@@ -228,6 +238,13 @@ for rule in ('A', 'B'):
             b.append(float((w2_ / np.maximum.accumulate(w2_) - 1).min()))
             ok_ = p > 0
             c_.append(float((v[ok_] / p[ok_] - 1).min()))
+            f_.append(v[-1] / p[-1])
+        SWEEP[(rule, nm)] = (np.array(a), np.array(b), np.array(c_), np.array(f_))
+
+print(f"  {'':<22}{'①초기포함(허수)':>16}{'②납입후':>12}{'③원금대비':>12}")
+for rule in ('A', 'B'):
+    for nm in ['기준'] + list(SET):
+        a, b, c_, _f = SWEEP[(rule, nm)]
         lab = f"{rule} {nm}" if nm == '기준' else f"{rule} +{nm}"
         print(f"  {lab:<22}{np.median(a)*100:15.1f}%{np.median(b)*100:11.1f}%{np.median(c_)*100:11.1f}%")
 print("  ※ ①과 ②가 같으면 초기 허수가 중앙값에는 영향이 없다는 뜻(최악값에만 영향)")
@@ -240,19 +257,9 @@ print(f"  적립식 20년 창 · 원화 · 월 정액 60개월 · 편도비용 {
 print(f"  {'':<22}{'중앙':>9}{'차이':>9}{'승률':>8}{'5분위':>8}{'최악':>8}{'납입후MDD':>11}{'원금대비':>10}")
 res = {}
 for rule in ('A', 'B'):
-    store = {}
-    for nm in ['기준'] + list(SET):
-        W = BW[rule] if nm == '기준' else GW[nm][rule]
-        f, m, pr = [], [], []
-        for s in range(FXS, len(kidx) - L, 126):
-            v, p = path(W, s, s + L)
-            f.append(v[-1] / p[-1])
-            k = np.searchsorted(p, 60.0, side='left')
-            vv = v[k:]
-            m.append(float((vv / np.maximum.accumulate(vv) - 1).min()))
-            ok_ = p > 0
-            pr.append(float((v[ok_] / p[ok_] - 1).min()))
-        store[nm] = (np.array(f), np.array(m), np.array(pr))
+    # [코드리뷰] G5 가 이미 쓴 격자를 그대로 쓴다 — m·pr 은 G5 의 b·c_ 와 같은 식이다.
+    store = {nm: (SWEEP[(rule, nm)][3], SWEEP[(rule, nm)][1], SWEEP[(rule, nm)][2])
+             for nm in ['기준'] + list(SET)}
     b = store['기준'][0]
     for nm in ['기준'] + list(SET):
         f, m, pr = store[nm]
@@ -272,3 +279,6 @@ if FAILS:
 else:
     print("모든 관문 통과. 위 표의 수치는 프로젝트 엔진과 정합한다.")
 print("=" * 92)
+# [2026-09-04 코드리뷰] audit_all.py 와 같은 이유로 종료코드를 낸다 —
+# 종전엔 G1~G4 관문이 **FAIL** 을 찍어도 프로세스가 0 이었다.
+sys.exit(1 if FAILS else 0)

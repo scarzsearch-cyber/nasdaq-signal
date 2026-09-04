@@ -71,6 +71,24 @@ cands_pre = {'40/40/20 (채택)': {'div': .4, 'ust5': .4, 'gold': .2},
              '배당60/국채40': {'div': .6, 'ust5': .4},
              '배당50/금50': {'div': .5, 'gold': .5}}
 
+# [2026-09-04 코드리뷰] 원화 자료는 한 번만 만든다.
+# 종전엔 KF.build_krw('chain') 이 네 자리에서 불렸고 그 중 하나가 3회 도는 루프
+# 안이라 **같은 13,863행 자료를 6번** 다시 지었다(실측 0.85s 냉/0.16s 온).
+# 같은 인덱스에 kidx·kidx2·_ki 세 이름이 붙어 있던 것도 여기서 하나로 접는다.
+KDATA = KF.build_krw('chain')
+Dk, kidx, lev2, lev1, dfk, fr = KDATA
+
+
+def kcomp_of(keys=('div', 'ust5', 'gold')):
+    """원화 방어 재료. [코드리뷰] fee 는 DA.UST_FEE 하나만 쓴다 —
+    종전엔 세 곳이 0.0029 를 박아두고 한 곳만 DA.UST_FEE 라, 그 상수가
+    재추정되면 이 파일이 **서로 다른 40/40/20 두 개**를 비교하게 됐다."""
+    src = {'div': lambda: np.asarray(dfk, dtype=float),
+           'ust5': lambda: (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True,
+                                          fee=DA.UST_FEE)) * (1 + fr) - 1,
+           'gold': lambda: (1 + DA.gold_r(kidx)) * (1 + fr) - 1}
+    return {k: src[k]() for k in keys}
+
 print("=" * 96)
 print("A. 엔진 정합성 — 프로젝트 내 모든 검산")
 print("=" * 96)
@@ -119,32 +137,38 @@ gate('배당체인 누적 정합 (실물 대비 +-2%)',
      '%+.2f%%' % (((1 + dv.reindex(ovd)).prod() / (1 + scr.reindex(ovd)).prod() - 1) * 100))
 
 print("\n  * 국채 다리 실물 드리프트 — 모형이 실물보다 좋은가 (v25 2.4 재확인)")
-krb = DA.kr('305080')
-ab = krb.reindex(krb.index.intersection(idx)).pct_change().dropna()
-Dk2, kidx2, _, _, _, fr2 = KF.build_krw('chain')
-# [v36] 선물형 모형으로 대조한다. 현물형(futures=False)은 단기금리만큼 과대계상된다.
-sb = pd.Series((1 + DA.ust_tr(kidx2, 5, 'TNX', futures=True, fee=0.0029)) * (1 + fr2) - 1,
-               index=kidx2).reindex(ab.index).fillna(0)
-yb = len(ab) / 252.0
-drift = ((1 + sb).prod() / (1 + ab).prod()) ** (1 / yb) - 1
-print('    실물 %+.2f%%/년  모형 %+.2f%%/년  드리프트 %+.2f%%/년  (%.1f년 표본)'
-      % (((1 + ab).prod() ** (1 / yb) - 1) * 100, ((1 + sb).prod() ** (1 / yb) - 1) * 100,
-         drift * 100, yb))
-comp_h = dict(comp)
-comp_h['ust5'] = comp['ust5'] - drift / 252.0
-rank = []
-for nm2, ws2 in cands_pre.items():
-    dr2 = mix_monthly_from({k: comp_h[k] for k in ws2}, ws2, idx)
-    rank.append((nm2, met(sim_def(D, WB, dr2))))
-rank.sort(key=lambda r: -r[1][0])
-print('    핸디캡 적용 시 순위:')
-for nm2, mm in rank:
-    print('      %-22s%12s배  MDD %7.2f%%  Calmar %.3f%s'
-          % (nm2, format(mm[0], ',.0f'), mm[2] * 100, mm[3], '  <- 채택' if '채택' in nm2 else ''))
-ad = [r for r in rank if '채택' in r[0]][0]
-cals = sorted([r[1][3] for r in rank], reverse=True)
-gate('핸디캡을 물려도 채택안이 Calmar 1~2위', cals.index(ad[1][3]) <= 1,
-     'Calmar %.3f (%d위/%d)' % (ad[1][3], cals.index(ad[1][3]) + 1, len(cals)), warn=True)
+# [2026-09-04 코드리뷰] 종전엔 DA.kr('305080') 이 맨몸으로 돌아, 이 CSV 하나가
+# 없거나 깨지면 스크립트가 여기서 죽고 **D(★ 채택 결정 재검증)·E 가 아예 안 돌았다.**
+# 같은 실패가 아래 177행 루프 안에서는 [WARN] 한 줄로 끝난다 — 한 파일이 같은
+# 고장을 두 가지로 다뤘다. 여기도 경고로 낮추고 나머지 감사를 살린다.
+try:
+    krb = DA.kr('305080')
+    ab = krb.reindex(krb.index.intersection(idx)).pct_change().dropna()
+    # [v36] 선물형 모형으로 대조한다. 현물형(futures=False)은 단기금리만큼 과대계상된다.
+    sb = pd.Series(kcomp_of(('ust5',))['ust5'],
+                   index=kidx).reindex(ab.index).fillna(0)
+    yb = len(ab) / 252.0
+    drift = ((1 + sb).prod() / (1 + ab).prod()) ** (1 / yb) - 1
+    print('    실물 %+.2f%%/년  모형 %+.2f%%/년  드리프트 %+.2f%%/년  (%.1f년 표본)'
+          % (((1 + ab).prod() ** (1 / yb) - 1) * 100, ((1 + sb).prod() ** (1 / yb) - 1) * 100,
+             drift * 100, yb))
+    comp_h = dict(comp)
+    comp_h['ust5'] = comp['ust5'] - drift / 252.0
+    rank = []
+    for nm2, ws2 in cands_pre.items():
+        dr2 = mix_monthly_from({k: comp_h[k] for k in ws2}, ws2, idx)
+        rank.append((nm2, met(sim_def(D, WB, dr2))))
+    rank.sort(key=lambda r: -r[1][0])
+    print('    핸디캡 적용 시 순위:')
+    for nm2, mm in rank:
+        print('      %-22s%12s배  MDD %7.2f%%  Calmar %.3f%s'
+              % (nm2, format(mm[0], ',.0f'), mm[2] * 100, mm[3], '  <- 채택' if '채택' in nm2 else ''))
+    ad = [r for r in rank if '채택' in r[0]][0]
+    cals = sorted([r[1][3] for r in rank], reverse=True)
+    gate('핸디캡을 물려도 채택안이 Calmar 1~2위', cals.index(ad[1][3]) <= 1,
+         'Calmar %.3f (%d위/%d)' % (ad[1][3], cals.index(ad[1][3]) + 1, len(cals)), warn=True)
+except Exception as e:
+    gate('국채 다리 실물 드리프트 핸디캡', False, f'실패: {e}', warn=True)
 
 print("\n" + "=" * 96)
 print("C. 데이터 무결성")
@@ -176,11 +200,9 @@ for code, key, nm in [('458730', 'div', 'TIGER 미국배당다우존스'),
                       ('411060', 'gold', 'ACE KRX금현물')]:
     try:
         kr = DA.kr(code)
-        Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
-        kc = {'div': np.asarray(dfk, dtype=float),
-              'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True, fee=0.0029)) * (1 + fr) - 1,
-              'gold': (1 + DA.gold_r(kidx)) * (1 + fr) - 1}
-        syn2 = pd.Series(kc[key], index=kidx)
+        # [코드리뷰] build_krw 재호출 제거 + 이 회차가 쓰는 한 다리만 만든다
+        # (종전엔 매 회차 세 다리를 다 계산하고 하나만 썼다).
+        syn2 = pd.Series(kcomp_of((key,))[key], index=kidx)
         # [주의] pct_change 는 **교집합 이후에** 계산해야 한다. 먼저 계산하면
         # 교집합에서 빠지는 날의 수익이 통째로 사라져 드리프트가 부풀려진다
         # (금 +3.06% -> +0.29% 로 바뀐다).
@@ -262,24 +284,23 @@ for yrs in (10, 15, 20):
 # [v36] 실제로 거래하는 통화는 원화다. 달러와 원화가 갈리면 원화가 기준이다.
 print("")
 print("같은 검사 — 원화 기준 (실제 거래 통화")
-_Dk, _ki, _lev2, _, _dfk, _fr = KF.build_krw('chain')
-_kc = {'div': np.asarray(_dfk, dtype=float),
-       'ust5': (1 + DA.ust_tr(_ki, 5, 'TNX', futures=True, fee=DA.UST_FEE)) * (1 + _fr) - 1,
-       'gold': (1 + DA.gold_r(_ki)) * (1 + _fr) - 1}
-_fx = int(_ki.searchsorted(pd.Timestamp('1981-04-13')))
+_kc = kcomp_of()
+_fx = int(kidx.searchsorted(pd.Timestamp('1981-04-13')))
 
 
 def _ksim(dr):
-    wv = WB[_fx:]
-    pos = np.empty_like(wv); pos[0] = wv[0]; pos[1:] = wv[:-1]
-    r_ = np.nan_to_num(pos * _lev2[_fx:] + (1 - pos) * dr[_fx:]); r_[0] = 0
-    t_ = np.abs(np.diff(pos, prepend=pos[0]))
-    return np.cumprod((1 + r_) * (1 - 0.001 * t_))
+    """[2026-09-04 코드리뷰] 종전엔 여기서 시뮬 루프를 **손으로 다시 짰다.**
+    엔진을 안 지나는 사본이라 sim_def 의 lag 규약·회전 정의·nan 처리가 고쳐져도
+    이 절만 옛 방식으로 계산하면서 감사는 계속 PASS 를 찍는다 — 이 파일 88~91행이
+    바로 그 이유로 방금 지운 패턴이다. 비용도 COST 를 안 쓰고 0.001 을 박아뒀었다.
+    엔진으로 바꿔도 출력은 소수점까지 같다(실측 160265.45645156346, 상대오차 0.0)."""
+    return sim_def(dict(idx=kidx, qldr=lev2), WB, dr,
+                   cost=COST, start=kidx[_fx]).values
 
 
 _k1 = _ksim(mix_monthly_from({k: _kc[k] for k in ('div', 'ust5', 'gold')},
-                             {'div': .4, 'ust5': .4, 'gold': .2}, _ki))
-_k2 = _ksim(mix_monthly_from({'div': _kc['div']}, {'div': 1.0}, _ki))
+                             {'div': .4, 'ust5': .4, 'gold': .2}, kidx))
+_k2 = _ksim(mix_monthly_from({'div': _kc['div']}, {'div': 1.0}, kidx))
 for yrs in (10, 15, 20):
     Lw = yrs * 252
     q1 = np.array([_k1[i + Lw] / _k1[i] for i in range(0, len(_k1) - Lw, 63)])
@@ -314,12 +335,8 @@ for e in (-0.20, -0.18, -0.16, -0.14, -0.12):
     print(f"    {e*100:>7.0f}%  " + "".join(f"{r:>10}" for r in row))
 
 print("\n  D5. 신호원 — 미국 QQQ 종가 (v28 채택 근거)")
-Dk, kidx, lev2, lev1, dfk, fr = KF.build_krw('chain')
-fxs = int(kidx.searchsorted(pd.Timestamp('1981-04-13')))
-kdefr = mix_monthly_from({'div': np.asarray(dfk, dtype=float),
-                          'ust5': (1 + DA.ust_tr(kidx, 5, 'TNX', futures=True, fee=0.0029)) * (1 + fr) - 1,
-                          'gold': (1 + DA.gold_r(kidx)) * (1 + fr) - 1},
-                         {'div': .4, 'ust5': .4, 'gold': .2}, kidx)
+fxs = _fx                                    # [코드리뷰] 같은 1981-04-13 자리다
+kdefr = mix_monthly_from(_kc, {'div': .4, 'ust5': .4, 'gold': .2}, kidx)
 fx = pd.Series(fr, index=kidx)
 pxk = D['px'].reindex(kidx).ffill() * (1 + fx).cumprod()
 ddk = (pxk / pxk.rolling(252, min_periods=252).max() - 1).fillna(0).values
@@ -348,3 +365,8 @@ else:
 if WARNS:
     print(f"경고 {len(WARNS)}건: " + ', '.join(WARNS))
 print("=" * 96)
+# [2026-09-04 코드리뷰] 종료코드로 실패를 말한다. 종전엔 sys.exit 가 없어
+# 전략 관문이 **FAIL** 을 찍어도 프로세스는 0 이었다 — 이 스크립트가 셸에서
+# 체이닝되거나 audit_full.py 처럼 워크플로에 들어가는 순간 조용히 초록불이 된다.
+# 경고(WARNS)는 실패가 아니다(현재 '[달러] 20년 창 좌측꼬리' 1건이 정상 상태).
+sys.exit(1 if FAILS else 0)

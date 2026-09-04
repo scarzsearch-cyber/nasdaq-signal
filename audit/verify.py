@@ -22,7 +22,14 @@ COST = 0.001   # 편도 0.1%
 # 문서 수치는 2% 기준. --cash 0 으로 보수적(무이자) 확인 가능.
 CASH_RATE = 0.02
 if '--cash' in sys.argv:
-    CASH_RATE = float(sys.argv[sys.argv.index('--cash')+1])/100
+    # [2026-09-04 코드리뷰] 종전엔 argv[i+1] 을 그대로 float() 에 넣어
+    # `--cash` 가 마지막 인자면 IndexError, `--cash --grid` 면 ValueError 로
+    # 아무 안내 없이 죽었다. 150행이 사용법을 인쇄하는데 강제하는 것이 없었다.
+    _i = sys.argv.index('--cash') + 1
+    try:
+        CASH_RATE = float(sys.argv[_i]) / 100
+    except (IndexError, ValueError):
+        sys.exit('--cash 뒤에는 연 이자율(%)을 숫자로 적어야 합니다. 예: --cash 2')
 
 def load(p):
     df = pd.read_csv(p, parse_dates=['Date']).set_index('Date').sort_index()
@@ -58,7 +65,14 @@ def run(enter=ENTER, exit_=EXIT):
             cur = 'QLD'; events.append((IDX[i], 'QLD'))
         st.append(cur)
     s = pd.Series(st, index=IDX); ex = s.shift(1)
-    sw = (ex != ex.shift(1)).fillna(False)
+    # [2026-09-04 코드리뷰] 종전엔 `sw = (ex != ex.shift(1)).fillna(False)` 였다.
+    # ex[0]·ex.shift(1)[0..1] 이 NaN 인데 **pandas 에서 NaN != NaN 은 True** 라
+    # 전환이 0회인 경로에서도 i=0,1 에 비용이 두 번 붙었다(실측 sw.sum()==2).
+    # object dtype 비교라 결과가 NaN 이 아니므로 .fillna(False) 는 한 번도 안 먹었다.
+    # 엔진 규약(axis_lib.sim)은 np.diff(pos, prepend=pos[0]) 로 첫날 회전을 0 으로
+    # 둔다 — 여기도 같게 맞춘다. 첫 두 칸을 False 로 박으면 전환 횟수(events)와
+    # 비용을 무는 날의 수가 다시 일치한다.
+    sw = (ex != ex.shift(1)) & ex.notna() & ex.shift(1).notna()
     r = np.where(ex.values == 'QLD', qldr.values, schdr.values)
     r = np.nan_to_num(r); r[0] = 0
     g = np.where(sw.values, (1+r)*(1-COST), 1+r)
@@ -141,7 +155,7 @@ if '--lag' in sys.argv:
     print("-"*78)
     for lag in [1,2,3,5]:
         s = states.shift(lag)
-        sw = (s != s.shift(1)).fillna(False)
+        sw = (s != s.shift(1)) & s.notna() & s.shift(1).notna()   # [코드리뷰] run() 과 같은 규약
         r = np.where(s.values=='QLD', qldr.values, schdr.values); r=np.nan_to_num(r); r[0]=0
         g = np.where(sw.values,(1+r)*(1-COST),1+r)
         mm = met(pd.Series(np.cumprod(g),index=IDX))
