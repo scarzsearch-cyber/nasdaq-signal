@@ -55,14 +55,14 @@ def _bar_index(timestamps, meta):
     전날 23:00 UTC 에 시작해 금요일 세션이 목요일 라벨을 받았고, FRED 꼬리(금요일)를 이음날로
     못 찾아 야후 예비 경로가 여름 내내 실패-폐쇄했다(겨울엔 00:00 UTC 시작이라 우연히 맞았다).
     미국(13:30 UTC)·한국(00:00 UTC)·시카고(12:20 UTC) 봉은 어느 쪽으로 잘라도 같은 날이다.
-    시간대 이름을 모르면 UTC(종전 동작)."""
+    시간대 필드가 없으면 UTC(종전 동작); 제공된 이름이 잘못되면 날짜를 추측하지 않는다."""
     idx = pd.to_datetime(timestamps, unit='s', utc=True)
     tz = (meta or {}).get('exchangeTimezoneName')
     if tz:
         try:
             idx = idx.tz_convert(tz)
-        except Exception:
-            pass
+        except Exception as e:
+            raise RuntimeError('Yahoo 거래소 시간대를 해석할 수 없음') from e
     return idx.tz_localize(None).normalize()
 
 
@@ -116,9 +116,10 @@ def chart(symbol, years=3, require_adj=False, now=None):
     with urllib.request.urlopen(req, timeout=60) as r:
         res = json.loads(r.read().decode('utf-8', 'replace'))['chart']['result'][0]
     meta = res.get('meta', {})
+    raw_idx = pd.to_datetime(res['timestamp'], unit='s', utc=True)
+    if raw_idx.hasnans or raw_idx.has_duplicates or not raw_idx.is_monotonic_increasing:
+        raise RuntimeError(f'{symbol}: Yahoo 원본 timestamp가 결측/중복/역순임')
     idx = _bar_index(res['timestamp'], meta)
-    if idx.has_duplicates or not idx.is_monotonic_increasing:
-        raise RuntimeError(f'{symbol}: Yahoo 원본 날짜가 중복되거나 역순임')
     q = res['indicators']['quote'][0]
     for name in ('open', 'high', 'low', 'close', 'volume'):
         values = q.get(name)
@@ -150,6 +151,10 @@ def chart(symbol, years=3, require_adj=False, now=None):
     df = _drop_intraday_bar(df, meta, now=now)
     if df.empty:
         raise RuntimeError(f'{symbol}: 확정된 Yahoo 봉이 없음')
+    # Live FX start/quote timestamps may map to one exchange calendar day.
+    # Remove the unfinished session first; NEVER merge duplicate completed bars.
+    if df.index.has_duplicates or not df.index.is_monotonic_increasing:
+        raise RuntimeError(f'{symbol}: Yahoo 확정 날짜가 중복되거나 역순임')
     numeric = df[value_cols].apply(pd.to_numeric, errors='coerce')
     if require_adj:
         if numeric.loc[numeric['close'].notna(), 'adj'].isna().any():
@@ -524,7 +529,10 @@ def splice_tnx(path, today=None):
     """금리(^TNX)는 수익률이 아니라 **수준**이라 이음 없이 원시 종가를 붙인다."""
     old = read_csv(path)
     last_d = old['Date'].iloc[-1]
-    df = chart('^TNX')
+    try:
+        df = chart('^TNX')
+    except Exception as e:
+        return _abort_update(path, [f'TNX download failed: {type(e).__name__}: {e}'])
     if not _validate_download(path, df, ('open', 'close'), anchor=last_d,
                               max_age_days=MAX_GLOBAL_GAP_DAYS, today=today):
         return 0

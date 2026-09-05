@@ -108,8 +108,19 @@ def decode_naver(raw):
 
 def universe_stats(lst):
     """전 종목 괴리율 분포 — 우리 종목이 정상 범위인지 보는 대조군."""
-    d = sorted((i['nowVal'] / i['nav'] - 1) * 100
-               for i in lst if i.get('nav') and abs(i['nowVal'] / i['nav'] - 1) < 0.2)
+    d = []
+    for item in lst:
+        if not isinstance(item, dict):
+            continue
+        try:
+            close = _number(item, 'nowVal', positive=True)
+            nav = _number(item, 'nav', positive=True)
+        except RuntimeError:
+            continue
+        deviation = (close / nav - 1) * 100
+        if abs(deviation) < 20:
+            d.append(deviation)
+    d.sort()
     n = len(d)
     if n < 10:
         return 0, 0.0, 0.0
@@ -202,6 +213,8 @@ def _iso_day(value, label='날짜'):
 
 
 def _number(row, key, *, positive=False, nonnegative=False):
+    if isinstance(row.get(key), bool):
+        raise RuntimeError(f'NAV 행 {row.get("code", "?")}의 {key}가 불리언임')
     try:
         value = float(row[key])
     except (KeyError, TypeError, ValueError) as e:
@@ -337,24 +350,26 @@ def collect(as_of=None, now=None):
     rows, dropped = [], []
     for code, nm in WATCH.items():
         it = by.get(code)
-        if not it or not it.get('nav'):
+        if not it:
             continue
         if (as_of, code) in have:
             continue
-        row = {'as_of': as_of, 'code': code, 'name': nm,
-               'close': it['nowVal'], 'nav': it['nav'],
-               'dev_pct': round((it['nowVal'] / it['nav'] - 1) * 100, 4),
-               'volume': it.get('quant', ''), 'mktcap_eok': it.get('marketSum', ''),
-               'univ_n': n, 'univ_med_pct': round(med, 4), 'univ_sd_pct': round(sd, 4)}
-        if code not in CORE_CODES:
-            # [2026-09-05 2차 리뷰 R2-07] 비핵심 감시 종목 한 줄의 결측(거래량·시총 등)이 아래
-            # _validate_nav_rows 에서 핵심 4종 장부까지 통째로 막았다. 핵심 밖 행은 건너뛰고
-            # 경고만 남긴다. 핵심 4종은 그대로 엄격하다(아래 missing 검사·전체 검증).
-            try:
-                _validate_nav_rows([row])
-            except RuntimeError as e:
-                dropped.append(f'{code}: {e}')
-                continue
+        try:
+            # Validate before division as well as before append. R2-07 originally
+            # isolated only the final row check, leaving malformed prices outside it.
+            close = _number(it, 'nowVal', positive=True)
+            nav = _number(it, 'nav', positive=True)
+            row = {'as_of': as_of, 'code': code, 'name': nm,
+                   'close': close, 'nav': nav,
+                   'dev_pct': round((close / nav - 1) * 100, 4),
+                   'volume': it.get('quant', ''), 'mktcap_eok': it.get('marketSum', ''),
+                   'univ_n': n, 'univ_med_pct': round(med, 4), 'univ_sd_pct': round(sd, 4)}
+            _validate_nav_rows([row])
+        except RuntimeError as e:
+            if code in CORE_CODES:
+                raise RuntimeError(f'핵심 NAV {code}가 불완전하여 장부를 쓰지 않음: {e}') from e
+            dropped.append(f'{code}: {e}')
+            continue
         rows.append(row)
     if dropped:
         print('[경고] 비핵심 감시 종목의 불완전한 행을 뺐다(핵심 4종 장부는 계속 적는다): '

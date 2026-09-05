@@ -1,9 +1,11 @@
 """2차 심층 코드리뷰(2026-09-05 · 운영·화면 20파일) 회귀 검사.
 
 네트워크 0 · 실측 장부(data/*.csv) 무접촉 · 알림 전송 없음. 모든 입력은 고정 응답과 가짜 시계다.
-각 검사는 수정 전 코드(기준 e63af37)에서 실제로 실패한 반례이며, 근거는
+결함 반례와 정상 동작 보존 검사를 함께 포함한다. v220 근거는
 audit/DEEP_REVIEW_OPS_UI_2026-09-05.md §F 에 있다. 수정 전 상태를 다시 재현하려면
 ``OPS_REVIEW2_OLD=<옛 deploy 디렉터리>`` 로 옛 사본을 가리키면 된다.
+이 옵션은 deploy만 바꾼다. HTML 검사는 ROOT의 현재 화면을 읽는다.
+v221 추가6검사 및 실패 재현은 audit/OPS_UI_CROSSCHECK_2026-09-05.md 참조.
 
 실행:  python -m unittest audit.test_ops_review2  (저장소 루트에서)
 """
@@ -17,6 +19,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -117,6 +120,30 @@ class RefreshHistFxLabels(unittest.TestCase):
     def tearDown(self):
         self.RH.urllib.request.urlopen = self.real_urlopen
 
+    def test_live_fx_duplicate_calendar_labels_removed_before_duplicate_check(self):
+        start, end = ts('2026-09-03 23:00'), ts('2026-09-04 22:59')
+        meta = {'regularMarketTime': ts('2026-09-04 12:00'), 'exchangeTimezoneName': 'Europe/London',
+                'currentTradingPeriod': {'regular': {'start': start, 'end': end}}}
+        # One complete historical bar plus two timestamps in the unfinished session.
+        payload = yahoo_payload([ts('2026-09-02 23:00'), start, meta['regularMarketTime']],
+                                [1380., 1381., 1382.], meta)
+        self.RH.urllib.request.urlopen = lambda *a, **k: FakeResponse(payload)
+        df = self.RH.chart('KRW=X', now=meta['regularMarketTime'])
+        self.assertEqual(list(df.index), [pd.Timestamp('2026-09-03')])
+
+    def test_closed_duplicate_dates_and_raw_duplicate_timestamps_rejected(self):
+        start, end = ts('2026-09-03 23:00'), ts('2026-09-04 22:59')
+        meta = {'regularMarketTime': end, 'exchangeTimezoneName': 'Europe/London',
+                'currentTradingPeriod': {'regular': {'start': start, 'end': end}}}
+        for stamps in ([start, start], [start, start+3600]):
+            self.RH.urllib.request.urlopen = lambda *a, **k: FakeResponse(yahoo_payload(stamps,[1.,1.],meta))
+            with self.assertRaises(RuntimeError):
+                self.RH.chart('KRW=X', now=end+1)
+
+    def test_invalid_timezone_does_not_silently_shift_fx_dates(self):
+        with self.assertRaises(RuntimeError):
+            self.RH._bar_index([ts('2026-09-03 23:00')], {'exchangeTimezoneName':'invalid/timezone'})
+
     def test_bar_dates_follow_exchange_timezone(self):
         RH = self.RH
         stamps = fx_session_stamps('2026-08-23 23:00', 5)          # 월~금 세션(08-24~08-28)
@@ -164,6 +191,12 @@ class NavCollectNonCoreRows(unittest.TestCase):
     def setUp(self):
         self.NC = load('nav_collect')
 
+    def test_universe_uses_only_valid_prices_and_keeps_minimum_sample_gate(self):
+        valid = [dict(nowVal=100.,nav=100.) for _ in range(10)]
+        bad = [None,{},dict(nav=100.),dict(nowVal=True,nav=1),dict(nowVal=100.,nav='bad')]
+        self.assertEqual(self.NC.universe_stats(valid+bad),(10,0.,0.))
+        self.assertEqual(self.NC.universe_stats(valid[:9]+bad),(0,0.,0.))
+
     def _run(self, break_code):
         NC = self.NC
         with tempfile.TemporaryDirectory() as td:
@@ -201,6 +234,53 @@ class NavCollectNonCoreRows(unittest.TestCase):
         NC = self.NC
         with self.assertRaises(RuntimeError):
             self._run(NC.CORE_CODES[0])
+
+    def test_malformed_prices_are_isolated_before_universe_arithmetic(self):
+        NC = self.NC
+        for core in (False, True):
+            for bad_key, bad_value in (('nowVal',None),('nowVal','bad'),('nav','bad'),
+                                       ('nav',0),('nowVal',True),('nav',float('inf'))):
+                with self.subTest(core=core,key=bad_key,value=bad_value), tempfile.TemporaryDirectory() as td:
+                    code = NC.CORE_CODES[0] if core else next(c for c in NC.WATCH if c not in NC.CORE_CODES)
+                    items = [dict(itemcode=c,nowVal=100.,nav=100.,quant=1,marketSum=1) for c in NC.WATCH]
+                    items += [dict(itemcode=f'X{i}',nowVal=100.,nav=100.) for i in range(12)]
+                    # A malformed unrelated market-comparison entry must not block core collection either.
+                    items += [None, {'itemcode':'unrelated','nav':100.}]
+                    next(r for r in items if isinstance(r,dict) and r['itemcode']==code)[bad_key] = bad_value
+                    out = os.path.join(td,'nav.csv')
+                    with patch.object(NC,'OUT',out), patch.object(NC,'fetch',return_value=items):
+                        if core:
+                            with self.assertRaises(RuntimeError):
+                                NC.collect('2026-09-04')
+                            self.assertFalse(os.path.exists(out))
+                        else:
+                            rows = NC.collect('2026-09-04')
+                            self.assertTrue(set(NC.CORE_CODES) <= {r['code'] for r in rows})
+                            self.assertNotIn(code,{r['code'] for r in rows})
+
+
+class TnxFailureIsolation(unittest.TestCase):
+    def test_tnx_failure_preserves_file_and_main_stays_failed_after_other_attempts(self):
+        rh = load('refresh_hist')
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td,'tnx.csv')
+            old = b'Date,Open,Close\n2026-09-03,4.0,4.1\n'
+            with open(path,'wb') as f:
+                f.write(old)
+            with patch.object(rh,'chart',side_effect=OSError('offline fixture')):
+                self.assertEqual(rh.splice_tnx(path),0)
+            with open(path,'rb') as f:
+                self.assertEqual(f.read(),old)
+            self.assertEqual(rh.FAILURES,['tnx.csv'])
+        # Same failure inside orchestration: no real sources, no real output writes.
+        rh.FAILURES.clear()
+        def fail_tnx(path):
+            return rh._abort_update(path,['offline fixture'])
+        with patch.object(rh,'splice_us',return_value=0), patch.object(rh,'splice_tnx',side_effect=fail_tnx), \
+             patch.object(rh,'splice_gold',return_value=0) as gold, \
+             patch.object(rh,'refresh_fx',return_value=0) as fx, patch.object(rh,'splice_kr',return_value=0) as kr:
+            self.assertEqual(rh.main(),1)
+            self.assertEqual((gold.call_count,fx.call_count,kr.call_count),(1,1,6))
 
 
 def node_available():
