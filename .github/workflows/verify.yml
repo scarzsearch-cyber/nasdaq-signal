@@ -35,7 +35,7 @@ jobs:
         run: python3 research_kit.py
 
       - name: 연구 코드리뷰 회귀 검사 (세금 · 체결 · 납입 원가 · 반증 설계)
-        run: python3 -m unittest audit.test_research_review audit.test_account_ledger audit.test_f1_placebo
+        run: python3 -m unittest audit.test_research_review audit.test_account_ledger audit.test_f1_placebo audit.test_f2_mix
 
       - name: 빠른 검증 (엔진 동치 · 미래참조 · 라이브 정합)
         run: python3 verify_all.py --fast
