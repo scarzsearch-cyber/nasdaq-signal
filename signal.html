@@ -76,6 +76,11 @@ body{padding:28px 20px 64px;}
   border:1px solid var(--rule);color:var(--muted);white-space:nowrap;}
 .opill.ok{color:var(--defend);border-color:var(--defend);}  /* [v206] --defense 는 정의된 적 없는 토큰이었다 */
 .opill.warn{color:#B45309;border-color:#B45309;background:rgba(180,83,9,.08);}
+/* [v226] 다크 카드(#1B232C) 위 #B45309 는 약 3.6:1 로 작은 굵은 글씨 기준(4.5:1)에 못 미쳤다(2026-09-06 실측).
+   기존 다크 토큰 --warn(#E8776A) 으로 5.4:1(실측). 라이트는 지시 범위 밖이라 그대로(#B45309 · 실측 4.0:1). */
+@media (prefers-color-scheme: dark){
+  .opill.warn{color:var(--warn);border-color:var(--warn);background:rgba(232,119,106,.10);}
+}
 
 /* ---- 시장 시계 ---- */
 .clockbar{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
