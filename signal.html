@@ -1361,18 +1361,21 @@ function paintVpx(isQld){
   const el = document.getElementById('vpx');
   if(!el) return;
   const R = AUTO && AUTO.risk;
-  const r = (isQld && R) ? priceOf(R.code) : null;
-  if(!r || r.px == null){ el.hidden = true; el.innerHTML = ''; return; }
-  const v = (r.chg_pct == null) ? null : Number(r.chg_pct);
+  /* [v223] 가격은 포트폴리오·「오늘의 행동」과 **같은 진입점**(curPx — 시세 스냅샷과 NAV 장부 중 더 최신)에서 온다.
+     종전엔 스냅샷을 직접 읽어, 시세 수집이 멈춘 뒤엔 판정 옆 배지(며칠 전 스냅샷 · 「15:55 기준」)와 아래 계산(장부 종가)이
+     같은 종목에 **다른 값**을 냈다 — v179 가 막은 유형의 재발(화면 상태 행렬 검사 2026-09-05 실측: 배지 38,585 vs 계산 38,680).
+     등락률은 스냅샷이 출처일 때만 붙인다(장부 종가엔 전일 대비가 없다). 출처 라벨은 curPx 와 같은 문구(「15:55 시세」·「09-04 종가」). */
+  const cur = (isQld && R) ? curPx(R.code) : null;
+  if(!cur || !(cur.px > 0)){ el.hidden = true; el.innerHTML = ''; return; }
+  const r = priceOf(R.code);
+  const fromSnap = !!(r && r.px == cur.px && PRICE && PRICE.as_of_kst && String(PRICE.as_of_kst).slice(0, 10) === cur.d);
+  const v = (fromSnap && r.chg_pct != null) ? Number(r.chg_pct) : null;
   const c = (v == null || !isFinite(v)) ? 'fl' : v > 0 ? 'up' : v < 0 ? 'dn' : 'fl';
   const pct = (v == null || !isFinite(v)) ? '' : `<i class="${c}">${v > 0 ? '+' : ''}${v.toFixed(2)}%</i>`;
-  const age = priceAgeMin();
-  const when = (PRICE && age != null)
-    ? `${PRICE.as_of_kst.slice(11)} 기준` : '';
   el.hidden = false;
   el.title = `${R.name} ${R.code} · 눌러서 괴리율·주문 요령 보기`;
-  el.innerHTML = `<span class="px">${Math.round(r.px).toLocaleString('en-US')}원</span>`
-               + `${pct}<span class="cd">${R.code}${when ? ' · ' + when : ''}</span>`;
+  el.innerHTML = `<span class="px">${Math.round(cur.px).toLocaleString('en-US')}원</span>`
+               + `${pct}<span class="cd">${R.code} · ${cur.src}</span>`;
 }
 
 /* 공격 상태에서도 "전환되면 뭘 사야 하는지" 를 미리 보여준다 */
@@ -3002,12 +3005,11 @@ function paintProx(o, isQld){
   const el = document.getElementById('proxBox');
   if(!el || o.dd == null){ if(el) el.innerHTML=''; return; }
   if(isQld){
-    const gap = o.dd + 16;                       // 방어선 −16% 까지 남은 %p
-    if(gap <= 0){
-      el.innerHTML = `<div class="plbl trig"><b>방어 트리거 발생</b> — 낙폭 ${neg(o.dd.toFixed(2))}% ≤ −16%.
-        규칙대로 방어 바스켓으로.</div>`;
-      return;
-    }
+    let gap = o.dd + 16;                         // 방어선 −16% 까지 남은 %p
+    /* [v223] 판정(state)이 권위다. 자동 모드의 dd 는 소수 둘째 자리로 반올림된 값이라 −16.00 으로 보여도 규칙은 안 걸린
+       것이다(걸렸으면 state 가 방어·changed_today 라 이 갈래에 못 온다). 종전엔 그 경계에서 「방어 트리거 발생 — 규칙대로
+       방어 바스켓으로」를 판정 「공격 · 오늘 할 일 없음」 옆에 띄웠다(화면 상태 행렬 검사 2026-09-05). 근접 0.0%p 로 둔다. */
+    if(gap <= 0) gap = 0;
     const fill = Math.min(100, Math.abs(o.dd) / 16 * 100);
     const zone = gap >= 8 ? ['yellow', '여유'] : gap >= 3 ? ['orange', '접근'] : ['red', '근접'];
     const warn = zone[0] === 'yellow' ? ''

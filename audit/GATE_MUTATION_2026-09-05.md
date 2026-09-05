@@ -56,4 +56,4 @@
 - research 무접촉. 공용 판정 규약 변경 없음.
 
 ## G. 통합
-- (push 뒤 기입)
+- 커밋 **8488b15**(main · 2026-09-05). CI: push 「검증」·「Pages 배포」 success · 수동 dispatch 「검증」에서 새 스텝 **「관문 변별력 검사」 success**(ubuntu 러너에서 임시 클론·127/127 재현).
