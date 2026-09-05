@@ -39,7 +39,7 @@ import subprocess
 import sys
 import time
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone, time as dtime
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
@@ -209,25 +209,106 @@ def as_of_is_current(cur, expected):
 
 
 CERTIFIED_SOURCES = ('yahoo', 'yahoo2', 'naver')
+NY_TZ = 'America/New_York'
 
 
-def certified_as_of(cur, today=None):
+def _easter(y):
+    """부활절(Meeus/Jones/Butcher) — signal.html easter() 와 같은 식."""
+    a, b, c = y % 19, y // 100, y % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    m = (32 + 2 * e + 2 * i - h - k) % 7
+    n = (a + 11 * h + 22 * m) // 451
+    month = (h + m - 7 * n + 114) // 31
+    day = ((h + m - 7 * n + 114) % 31) + 1
+    return date(y, month, day)
+
+
+def nyse_holidays(year):
+    """[2026-09-05 3차 · S2 보완] NYSE 정기 휴장일 — signal.html usHolidays() 와 같은 규칙.
+
+    신정은 토요일이면 앞당기지 않는다(NYSE 규칙) · 관측일 규칙(토→금, 일→월) · 굿프라이데이 ·
+    Juneteenth · 노동절 등. 특별 휴장(국가 애도일 등)은 모른다 — 그날은 「원천 지연 의심」으로
+    실패-폐쇄해 다음 슬롯이 다시 본다(조용히 낡은 신호를 최신이라 하는 것보다 낫다)."""
+    def nth(month, weekday, n):
+        d = date(year, month, 1)
+        d += timedelta(days=(weekday - d.weekday()) % 7)
+        return d + timedelta(weeks=n - 1)
+
+    def last(month, weekday):
+        d = date(year + (month == 12), (month % 12) + 1, 1) - timedelta(days=1)
+        return d - timedelta(days=(d.weekday() - weekday) % 7)
+
+    def observed(month, day):
+        d = date(year, month, day)
+        return d - timedelta(days=1) if d.weekday() == 5 else d + timedelta(days=1) if d.weekday() == 6 else d
+
+    out = set()
+    ny = date(year, 1, 1)
+    if ny.weekday() == 6:
+        out.add(ny + timedelta(days=1))
+    elif ny.weekday() != 5:
+        out.add(ny)
+    out.add(nth(1, 0, 3))                       # Martin Luther King Jr.
+    out.add(nth(2, 0, 3))                       # Presidents' Day
+    out.add(_easter(year) - timedelta(days=2))  # Good Friday
+    out.add(last(5, 0))                         # Memorial Day
+    out.add(observed(6, 19))                    # Juneteenth
+    out.add(observed(7, 4))                     # Independence Day
+    out.add(nth(9, 0, 1))                       # Labor Day
+    out.add(nth(11, 3, 4))                      # Thanksgiving
+    out.add(observed(12, 25))                   # Christmas
+    return out
+
+
+def is_nyse_session(day):
+    return day.weekday() < 5 and day not in nyse_holidays(day.year)
+
+
+def latest_closed_session(now_ts):
+    """now(UTC epoch) 기준 마지막으로 **마감된** NYSE 세션 날짜 — 원천과 무관한 달력 계산.
+
+    정규 마감 16:00 ET(서머타임 20:00Z · 겨울 21:00Z)를 pandas 시간대로 환산한다. 조기마감일(13:00 ET)은
+    보수적으로 16:00 까지 미마감으로 본다 — 그 사이 원천이 오늘 마감을 말해도 「앞선 것」이라 막지 않는다."""
+    import pandas as pd
+    ny = pd.Timestamp(now_ts, unit='s', tz='UTC').tz_convert(NY_TZ)
+    day = ny.date()
+    for _ in range(14):
+        if is_nyse_session(day):
+            close = pd.Timestamp(datetime.combine(day, dtime(16, 0))).tz_localize(NY_TZ)
+            if ny >= close:
+                return day
+        day -= timedelta(days=1)
+    raise RuntimeError('최근 2주에 마감된 NYSE 세션이 없다')
+
+
+def behind_calendar(as_of_day, now_ts):
+    """signal as_of 가 달력상 마지막 마감 세션보다 뒤처졌는가(= 원천 전체가 지연됐거나 갱신 누락)."""
+    return as_of_day < latest_closed_session(now_ts)
+
+
+def certified_as_of(cur, now_ts=None):
     """[2026-09-05 3차 · S2] 예상 종가일(meta)을 못 얻었을 때 갱신 결과 자체가 마감을 확정했는가.
 
     update_signal 은 야후 경로에서 chart meta 로 「마지막 봉 = 마지막 마감 세션」을 검증한 뒤에만
     쓰고(_parse_yahoo_result), 네이버 경로는 marketStatus CLOSE 이고 캐시보다 새 날짜일 때만 쓴다.
-    그 결과(source)가 있으면 이 스크립트의 별도 meta 조회와 같은 원천을 이미 통과한 것이다.
     캐시로 물러선 결과(source=cache)는 새 마감을 확정하지 않으므로 인정하지 않는다.
-    종전엔 meta 조회가 계속 실패하면 갱신이 끝났어도 170분 동안 갱신을 반복한 뒤 실패로 끝나
-    거짓 실패 알림을 냈고, 그 실행의 갱신분은 커밋되지 않았다."""
+    ★ [S2 보완 · 통합 담당 지적] source 와 비미래 날짜만으로는 최신성이 증명되지 않는다 — 원천이
+      통째로 뒤처지면(예: 토요일에 일봉·meta 가 모두 수요일 마감) chart meta 도 같이 뒤처진다.
+      그래서 NYSE 달력으로 독립 계산한 마지막 마감 세션보다 뒤처진 as_of 는 인정하지 않는다."""
+    now_ts = time.time() if now_ts is None else now_ts
     try:
-        if validate_signal_as_of(cur, today) is None:
+        parsed = validate_signal_as_of(cur)
+        if parsed is None:
             return False
         with open(SIG, encoding='utf-8') as f:
             source = json.load(f).get('source')
+        return source in CERTIFIED_SOURCES and not behind_calendar(parsed, now_ts)
     except Exception:
         return False
-    return source in CERTIFIED_SOURCES
 
 
 def validate_signal_as_of(cur, today=None):
@@ -273,40 +354,58 @@ def main():
         except ValueError as e:
             print(f'[{n}] 손상된 신호 날짜: {e}', file=sys.stderr)
             sys.exit(1)
+        # [3차 · S2 보완] 원천과 무관한 달력 기준 — 이보다 뒤처진 as_of 는 어떤 경로로도 최신이 아니다.
+        latest = latest_closed_session(time.time())
+        lag = parsed_cur is not None and parsed_cur < latest
         if exp == 'IN_SESSION':
             if parsed_cur is None:
                 print(f'[{n}] 미국 장중인데 검증할 기존 signal as_of가 없음', file=sys.stderr)
                 sys.exit(1)
-            print(f'[{n}] 미국 장중 — 직전 종가({cur})가 최신. 종료.')
-            return
-        if exp:
+            if not lag:
+                print(f'[{n}] 미국 장중 — 직전 종가({cur})가 최신(달력상 마지막 마감 {latest}). 종료.')
+                return
+            print(f'[{n}] 미국 장중이지만 직전 마감({latest})이 아직 없다(as_of {cur}) — 갱신 시도',
+                  file=sys.stderr)
+        elif exp:
             try:
                 current = as_of_is_current(cur, exp)
             except ValueError as e:
                 print(f'[{n}] 손상된 신호 날짜: {e}', file=sys.stderr)
                 sys.exit(1)
-            if current:
+            if current and not lag:
                 print(f'[{n}] 이미 최신 (as_of {cur} = 예상 {exp}) — 갱신 없이 종료.')
                 return
-        print(f'[{n}] as_of {cur} < 예상 {exp or "?"} — 갱신 시도', flush=True)
+            if current:
+                print(f'[{n}] 원천 예상일 {exp} 이 달력상 마지막 마감 {latest} 보다 뒤처졌다 — '
+                      f'원천 지연 의심, 최신으로 인정하지 않고 갱신 재시도', file=sys.stderr)
+        print(f'[{n}] as_of {cur} < 예상 {exp or "?"} (달력 {latest}) — 갱신 시도', flush=True)
         rc = subprocess.call([sys.executable, os.path.join('deploy', 'update_signal.py')])
         cur = current_as_of()
-        if exp:
+        try:
+            parsed_cur = validate_signal_as_of(cur)
+        except ValueError as e:
+            print(f'[{n}] 갱신 뒤 손상된 신호 날짜: {e}', file=sys.stderr)
+            sys.exit(1)
+        lag = parsed_cur is not None and parsed_cur < latest
+        if exp and exp != 'IN_SESSION':
             try:
                 current = as_of_is_current(cur, exp)
             except ValueError as e:
                 print(f'[{n}] 갱신 뒤 손상된 신호 날짜: {e}', file=sys.stderr)
                 sys.exit(1)
-            if current:
+            if current and not lag:
                 print(f'[{n}] 종가 반영 완료: as_of {cur} (시도 {n}회, {int(time.time() - t0)}초)')
                 return
-        elif rc == 0 and certified_as_of(cur):
-            # [3차 · S2] 예상일 조회는 죽었지만 갱신 자체가 원천 meta 로 마감을 확정했다.
-            print(f'[{n}] 종가 반영 완료(예상일 조회 실패 · 갱신 원천이 마감 확정): as_of {cur} '
-                  f'(시도 {n}회, {int(time.time() - t0)}초)')
+        elif rc == 0 and certified_as_of(cur, time.time()):
+            # [3차 · S2] 예상일 조회는 죽었거나 장중이지만 갱신 자체가 원천 meta 로 마감을 확정했고,
+            # 그 날짜가 달력상 마지막 마감 세션에 뒤처지지 않는다.
+            print(f'[{n}] 종가 반영 완료(예상일 없이 · 갱신 원천이 마감 확정 · 달력 {latest} 와 정합): '
+                  f'as_of {cur} (시도 {n}회, {int(time.time() - t0)}초)')
             return
         if (time.time() - t0) > MAX_MIN * 60:
-            print(f'시한 {MAX_MIN}분 초과 — as_of {cur}, 예상 {exp}. 수동 확인 필요.',
+            why = ('원천이 달력보다 뒤처져 최신성을 확인할 수 없다(원천 지연·특별 휴장이면 다음 슬롯이 다시 본다)'
+                   if lag else '수동 확인 필요')
+            print(f'시한 {MAX_MIN}분 초과 — as_of {cur}, 예상 {exp}, 달력상 마지막 마감 {latest}. {why}.',
                   file=sys.stderr)
             sys.exit(1)
         time.sleep(SLEEP)
@@ -430,7 +529,36 @@ def selftest():
     c = Clock(END + 1)
     m, _ = wait_for_close(live, now=c.now, sleep=c.sleep, refetch=seq(shut), xsrc_closed=boom, big_move=.1)
     assert m is shut
-    print('selftest OK — 날짜 일치·대기·폴링·안정 확인·휴장·큰 움직임 검산 통과')
+    # [3차 · S2 보완] 원천과 무관한 NYSE 달력 — 주말·휴장·장 시작 전·서머타임·조기마감.
+    def T(s):
+        return datetime.strptime(s, '%Y-%m-%d %H:%M').replace(tzinfo=timezone.utc).timestamp()
+    h26 = nyse_holidays(2026)
+    for s in ('2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19',
+              '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25'):
+        assert date.fromisoformat(s) in h26, s
+    assert date(2026, 7, 4) not in h26 and date(2022, 1, 1) not in nyse_holidays(2022)
+    assert latest_closed_session(T('2026-09-05 08:00')) == date(2026, 9, 4)     # 토요일
+    assert latest_closed_session(T('2026-09-04 19:59')) == date(2026, 9, 3)     # EDT 마감 1분 전
+    assert latest_closed_session(T('2026-09-04 20:00')) == date(2026, 9, 4)
+    assert latest_closed_session(T('2026-09-07 22:00')) == date(2026, 9, 4)     # 노동절
+    assert latest_closed_session(T('2026-09-08 13:00')) == date(2026, 9, 4)     # 화 장 시작 전
+    assert latest_closed_session(T('2026-12-02 20:30')) == date(2026, 12, 1)    # EST 21:00Z 마감 전
+    assert latest_closed_session(T('2026-12-02 21:00')) == date(2026, 12, 2)
+    assert behind_calendar(date(2026, 9, 2), T('2026-09-05 08:00'))
+    assert not behind_calendar(date(2026, 9, 4), T('2026-09-08 07:00'))
+    import tempfile
+    real_sig = globals()['SIG']
+    try:
+        with tempfile.TemporaryDirectory(prefix='wait_close_cert_') as td:
+            globals()['SIG'] = os.path.join(td, 'signal.json')
+            for as_of, source, want in (('2026-09-04', 'yahoo', True), ('2026-09-02', 'yahoo', False),
+                                        ('2026-09-04', 'cache', False), ('2026-09-06', 'yahoo', False)):
+                with open(SIG, 'w', encoding='utf-8') as f:
+                    json.dump({'as_of': as_of, 'source': source}, f)
+                assert certified_as_of(as_of, T('2026-09-05 08:00')) is want, (as_of, source)
+    finally:
+        globals()['SIG'] = real_sig
+    print('selftest OK — 날짜 일치·대기·폴링·안정 확인·휴장·큰 움직임·NYSE 달력 최신성 검산 통과')
 
 
 if __name__ == '__main__':

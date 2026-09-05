@@ -42,6 +42,11 @@ def load(name):
     return mod
 
 
+def ts(text):
+    """'YYYY-MM-DD HH:MM' (UTC) → epoch 초."""
+    return int(pd.Timestamp(text, tz='UTC').timestamp())
+
+
 def synth_series(end, start='1999-01-04', seed=7):
     """QQQ 수정종가를 흉내 낸 결정론적 랜덤워크(영업일)."""
     idx = pd.bdate_range(start, end)
@@ -292,6 +297,144 @@ class S2_CloseConfirmationFailure(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 WC.main()
             self.assertEqual(cm.exception.code, 1)
+
+
+def yahoo_chart_payload(series, closed_day):
+    """update_signal.fetch() 가 읽는 실제 Yahoo chart JSON 모양 — 마지막 봉·meta 가 closed_day 마감."""
+    stamps = [int(pd.Timestamp(d).tz_localize('UTC').timestamp()) + 13 * 3600 + 1800 for d in series.index]
+    start, end = ts(f'{closed_day} 13:30'), ts(f'{closed_day} 20:00')
+    meta = {'regularMarketTime': end,
+            'currentTradingPeriod': {'regular': {'start': start, 'end': end}}}
+    return {'chart': {'result': [{'timestamp': stamps,
+                                  'indicators': {'adjclose': [{'adjclose': [float(v) for v in series.values]}]},
+                                  'meta': meta}]}}
+
+
+class FakeHttp:
+    def __init__(self, payload):
+        self.body = json.dumps(payload).encode('utf-8')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self.body
+
+
+class S2b_FreshnessAgainstCalendar(unittest.TestCase):
+    """S2 보완(통합 담당 지적) · 원천이 통째로 뒤처진 경우.
+
+    불변조건: source·비미래 날짜만으로는 최신성을 증명하지 못한다. NYSE 달력(주말·휴장·장 시작 전)으로
+    「마지막으로 마감된 세션」을 독립 계산해, 원천(chart meta·별도 meta)이 그보다 뒤처지면 성공으로
+    인정하지 않는다 — 갱신을 재시도하고 시한이 지나면 「최신성 확인 불가」로 실패한다.
+    생산자 파서(`update_signal.fetch → _parse_yahoo_result`)부터 대기 루프(`wait_close.main`)까지 연결한다."""
+
+    def _run_chain(self, series, closed_day, now_utc, meta_mode, initial_as_of=None):
+        """meta_mode: 'fail' = 예상일 조회 실패 · 'stale' = 원천 meta 도 closed_day · 'live'(qt 장중)."""
+        US = load('update_signal')
+        WC = load('wait_close')
+        clock = FakeClock(t0=ts(now_utc))
+        WC.time = types.SimpleNamespace(time=clock.time, sleep=clock.sleep)
+        if meta_mode == 'fail':
+            WC.fetch_meta = lambda: (_ for _ in ()).throw(OSError('meta 조회 실패 모의'))
+        elif meta_mode == 'stale':
+            WC.fetch_meta = lambda: closed_meta(closed_day)
+        else:
+            day = pd.Timestamp(now_utc).strftime('%Y-%m-%d')
+            live = closed_meta(day)
+            live['qt'] = live['start'] + 3600          # 장중
+            WC.fetch_meta = lambda: live
+        WC.wait_for_close = lambda meta: (meta, '대역')
+        if initial_as_of:
+            with open('data/signal.json', 'w', encoding='utf-8') as f:
+                json.dump({'as_of': initial_as_of, 'source': 'yahoo'}, f)
+        payload = yahoo_chart_payload(series, closed_day)
+        US.urllib.request.urlopen = lambda *a, **k: FakeHttp(payload)      # 실제 fetch → _parse_yahoo_result
+        US.fetch_naver = lambda: (_ for _ in ()).throw(RuntimeError('naver 미사용'))
+        calls = []
+
+        def call(args):
+            calls.append(1)
+            if len(calls) == 1:
+                US.main()
+            return 0
+        WC.subprocess = types.SimpleNamespace(call=call)
+        return WC, calls
+
+    def test_source_two_sessions_behind_is_not_certified_without_expected_date(self):
+        # 통합 담당 반례: 지금 2026-09-05(토) · Yahoo 일봉·meta 모두 09-02 마감 → 09-03·09-04 종가가 빠졌다.
+        with TempRepoDir():
+            WC, calls = self._run_chain(synth_series('2026-09-02'), '2026-09-02',
+                                        '2026-09-05 08:00', 'fail')
+            with self.assertRaises(SystemExit) as cm:
+                WC.main()
+            self.assertEqual(cm.exception.code, 1, '뒤처진 원천을 최신으로 인정했다')
+            self.assertEqual(read_signal()['as_of'], '2026-09-02')    # 갱신은 됐지만 성공은 아니다
+
+    def test_fresh_source_is_certified_on_weekend(self):
+        with TempRepoDir():
+            WC, calls = self._run_chain(synth_series('2026-09-04'), '2026-09-04',
+                                        '2026-09-05 08:00', 'fail')
+            self.assertIsNone(WC.main())
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(read_signal()['as_of'], '2026-09-04')
+
+    def test_holiday_monday_does_not_look_stale(self):
+        # 2026-09-07 노동절 휴장 · 화요일 장 시작 전(07:00Z) → 마지막 마감 세션은 금요일 09-04.
+        with TempRepoDir():
+            WC, calls = self._run_chain(synth_series('2026-09-04'), '2026-09-04',
+                                        '2026-09-08 07:00', 'fail')
+            self.assertIsNone(WC.main())
+            self.assertEqual(read_signal()['as_of'], '2026-09-04')
+
+    def test_stale_expected_date_from_source_is_loud_not_silent_success(self):
+        # 별도 meta 도 09-02 를 「예상」이라고 말하는 날(원천 전체 지연) — 종전엔 「이미 최신」으로 조용히 성공.
+        with TempRepoDir():
+            WC, calls = self._run_chain(synth_series('2026-09-02'), '2026-09-02',
+                                        '2026-09-05 08:00', 'stale', initial_as_of='2026-09-02')
+            with self.assertRaises(SystemExit) as cm:
+                WC.main()
+            self.assertEqual(cm.exception.code, 1)
+            self.assertGreaterEqual(len(calls), 1, '원천 지연 의심인데 갱신을 시도하지 않았다')
+
+    def test_in_session_with_missing_previous_close_attempts_update(self):
+        # 화요일 장중(15:00Z · 월요일 휴장)인데 signal 이 09-02 — 직전 마감(09-04)이 빠져 있다.
+        with TempRepoDir():
+            WC, calls = self._run_chain(synth_series('2026-09-04'), '2026-09-04',
+                                        '2026-09-08 15:00', 'live', initial_as_of='2026-09-02')
+            self.assertIsNone(WC.main())
+            self.assertEqual(len(calls), 1, '장중이라는 이유로 빠진 직전 종가를 갱신하지 않았다')
+            self.assertEqual(read_signal()['as_of'], '2026-09-04')
+
+    def test_in_session_with_current_previous_close_exits_without_update(self):
+        with TempRepoDir():
+            WC, calls = self._run_chain(synth_series('2026-09-04'), '2026-09-04',
+                                        '2026-09-08 15:00', 'live', initial_as_of='2026-09-04')
+            self.assertIsNone(WC.main())
+            self.assertEqual(calls, [])
+
+    def test_nyse_calendar_and_latest_closed_session(self):
+        WC = load('wait_close')
+        from datetime import date
+        h = WC.nyse_holidays(2026)
+        for d in ('2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19',
+                  '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25'):
+            self.assertIn(date.fromisoformat(d), h, d)
+        self.assertNotIn(date(2026, 7, 4), h)          # 토요일 → 금요일 관측
+        self.assertIn(date(2027, 1, 1), WC.nyse_holidays(2027))
+        self.assertNotIn(date(2022, 1, 1), WC.nyse_holidays(2022))   # 토요일 신정은 미관측(NYSE 규칙)
+        L = lambda s: WC.latest_closed_session(ts(s)).isoformat()   # noqa: E731
+        self.assertEqual(L('2026-09-05 08:00'), '2026-09-04')       # 토
+        self.assertEqual(L('2026-09-04 19:59'), '2026-09-03')       # 마감 1분 전(EDT 20:00Z)
+        self.assertEqual(L('2026-09-04 20:00'), '2026-09-04')       # 마감
+        self.assertEqual(L('2026-09-07 22:00'), '2026-09-04')       # 노동절
+        self.assertEqual(L('2026-09-08 13:00'), '2026-09-04')       # 화 장 시작 전
+        self.assertEqual(L('2026-12-02 20:30'), '2026-12-01')       # 겨울(EST 21:00Z 마감) 전
+        self.assertEqual(L('2026-12-02 21:00'), '2026-12-02')
+        self.assertEqual(L('2026-11-27 18:30'), '2026-11-25')       # 추수감사절 다음날 13:00 ET 조기마감은 보수적으로 16:00 까지 미마감
 
 
 class S3_NotificationPartialFailure(unittest.TestCase):
