@@ -5,6 +5,11 @@ name: 알림 테스트
 on:
   workflow_dispatch:
 
+# [2026-09-06 보안 감사] 8개 워크플로 중 유일하게 permissions 가 없어 저장소 기본 권한(write)을 물려받았다.
+#   이 잡은 GITHUB_TOKEN 을 쓰지 않는다(알림 secrets 만) — 읽기로 고정.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

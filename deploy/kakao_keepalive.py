@@ -93,6 +93,11 @@ def activate_refresh_token(new_rt, github_env=None):
     secret 저장 API가 성공해도 이미 시작한 잡의 ``secrets`` 문맥은 옛 값이다. 따라서
     GITHUB_ENV에도 새 값을 넘겨, 같은 잡의 다음 알림/연명 스텝이 방금 무효가 된 토큰을
     다시 쓰지 않게 한다. 토큰 값은 stdout에 출력하지 않는다.
+
+    [2026-09-06 보안 감사] GITHUB_ENV 로 넘긴 값은 ``secrets`` 문맥과 달리 러너가 **자동으로 마스킹하지 않는다** —
+    뒤 스텝이 환경을 찍거나 예외 문구에 실리면 로그에 새 refresh 토큰이 그대로 남는다. 그래서 실제 Actions 안에서
+    (GITHUB_ACTIONS=true · 명시 인자 없이 진짜 GITHUB_ENV 를 쓸 때만) ``::add-mask::`` 워크플로 명령을 먼저 낸다 —
+    그 줄 자체는 러너가 로그에서 지우므로 토큰이 출력되는 것이 아니다. 로컬·셀프테스트(명시 파일 인자)에서는 내지 않는다.
     """
     if not isinstance(new_rt, str) or not new_rt.strip() or '\r' in new_rt or '\n' in new_rt:
         raise ValueError('새 refresh 토큰 형식이 잘못됐다')
@@ -100,6 +105,8 @@ def activate_refresh_token(new_rt, github_env=None):
     os.environ['KAKAO_REFRESH_TOKEN'] = new_rt
     path = os.environ.get('GITHUB_ENV', '') if github_env is None else github_env
     if path:
+        if github_env is None and os.environ.get('GITHUB_ACTIONS') == 'true':
+            print('::add-mask::' + new_rt, flush=True)     # 러너 명령 — 이후 로그에서 이 값을 *** 로 가린다
         with open(path, 'a', encoding='utf-8', newline='') as f:
             f.write('KAKAO_REFRESH_TOKEN=' + new_rt + '\n')
 
@@ -258,7 +265,7 @@ def selftest():
     # refresh_token 회전이 **다음 워크플로 스텝** 환경에 기록된다. 테스트가 명시적으로
     # 만든 임시 파일 밖에는 절대 쓰지 않도록 특수 파일 변수도 격리한다.
     names = ('KAKAO_REST_API_KEY', 'KAKAO_REFRESH_TOKEN', 'KAKAO_CLIENT_SECRET',
-             'GH_PAT', 'GITHUB_REPOSITORY', 'GITHUB_ENV')
+             'GH_PAT', 'GITHUB_REPOSITORY', 'GITHUB_ENV', 'GITHUB_ACTIONS')
     old_env = {k: os.environ.get(k) for k in names}
     try:
         for k in names:
@@ -273,6 +280,26 @@ def selftest():
                         Response(b'{"result_code":0}')])
         urllib.request.urlopen = lambda *a, **k: next(replies)
         assert main() == 2              # 경고는 갔지만 새 secret 은 아직 저장되지 않았다
+
+        # [2026-09-06] 회전 토큰 마스킹 — 진짜 GITHUB_ENV 경로(명시 인자 없음) + GITHUB_ACTIONS=true 일 때만
+        #   ::add-mask:: 를 내고, 로컬(변수 없음)·명시 파일 인자에서는 토큰이 stdout 에 나오지 않는다.
+        import contextlib, io as _io
+        with tempfile.TemporaryDirectory() as td:
+            env_file = os.path.join(td, 'github_env')
+            os.environ['GITHUB_ENV'] = env_file
+            os.environ['GITHUB_ACTIONS'] = 'true'
+            buf = _io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                activate_refresh_token('rotated-token')
+            assert buf.getvalue() == '::add-mask::rotated-token\n', buf.getvalue()
+            assert open(env_file, encoding='utf-8').read() == 'KAKAO_REFRESH_TOKEN=rotated-token\n'
+            os.environ.pop('GITHUB_ACTIONS', None)
+            buf = _io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                activate_refresh_token('local-token')
+                activate_refresh_token('explicit-token', env_file)
+            assert 'token' not in buf.getvalue(), buf.getvalue()
+            os.environ.pop('GITHUB_ENV', None)
     finally:
         urllib.request.urlopen = old_open
         for k, value in old_env.items():
@@ -280,7 +307,7 @@ def selftest():
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = value
-    print('kakao_keepalive selftest: PASS (Client Secret 선택 · 응답 계약 · 환경 격리 · secret 저장 · 폴백)')
+    print('kakao_keepalive selftest: PASS (Client Secret 선택 · 응답 계약 · 환경 격리 · secret 저장 · 폴백 · 회전 토큰 마스킹)')
 
 
 if __name__ == '__main__':
