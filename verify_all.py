@@ -571,6 +571,21 @@ def g_notes_lag():
        % (max(nvs) if nvs else '?', max(cv) if cv else '?'))
 
 
+def _step_id(text, sid):
+    """워크플로에 `id: <sid>` 줄이 **정확히** 있는가.
+
+    [2026-09-05 5차 · 관문 변별력 검사] 종전 `'id: sigalert' in daily` 는 부분문자열이라
+    `id: sigalertx` 처럼 id 만 바뀌고 `steps.sigalert.outcome` 참조가 남은 워크플로(이슈 스텝이
+    영원히 안 뜨는 상태)를 통과시켰다(변조 4/4 미검출 실측). 줄 단위로 본다.
+    """
+    return re.search(r'^\s*id:\s*' + re.escape(sid) + r'\s*(#.*)?$', text, re.M) is not None
+
+
+def _run_line(text, cmd):
+    """워크플로 run 줄이 정확히 `... <cmd>` 로 끝나는가 (`watchdog.py near2` 는 near 가 아니다)."""
+    return re.search(re.escape(cmd) + r'\s*(#.*)?$', text, re.M) is not None
+
+
 def g_deploy():
     """배포 복사 목록 — 빠지면 로컬에선 보이고 **라이브에서만 404** 가 난다(v78 실사고).
 
@@ -628,11 +643,11 @@ def g_deploy():
     if os.path.exists('.github/workflows/daily-signal.yml'):
         daily = _read('.github/workflows/daily-signal.yml') or ''
         ok('배포: 전환 알림 실패가 OOS 기록과 무관하게 이슈로 남는다',
-           'id: sigalert' in daily and "steps.sigalert.outcome == 'failure'" in daily
+           _step_id(daily, 'sigalert') and "steps.sigalert.outcome == 'failure'" in daily
            and 'signal_alert_state.json' in (_read('FILES.md') or ''),
            '발송 실패 뒤 장부가 쌓여도 다음 슬롯 재시도 + GitHub 이슈 (v203)')
         ok('배포: NAV·OOS 장부 실패가 다음 슬롯 재시도와 이슈로 남는다',
-           'id: navlog' in daily and 'id: ooslog' in daily
+           _step_id(daily, 'navlog') and _step_id(daily, 'ooslog')
            and "steps.navlog.outcome == 'failure'" in daily
            and "steps.ooslog.outcome == 'failure'" in daily,
            '부분 기록은 원자 쓰기로 막고 실패한 수집은 열린 이슈로 드러낸다 (v203)')
@@ -648,8 +663,8 @@ def g_deploy():
            '보고 통로 실패는 비차단 — 정상 계산된 신호는 계속 커밋·배포 (v203)')
         finalizer = daily.find('실패 보고 통로 상태 확정')
         ok('배포: 비차단 보고·토큰 실패가 커밋 뒤 다시 빨간 실행으로 드러난다',
-           all(('id: sigissue' in daily, 'id: ledgerissue' in daily,
-                'id: keepalive' in daily, 'steps.sigissue.outcome' in daily,
+           all((_step_id(daily, 'sigissue'), _step_id(daily, 'ledgerissue'),
+                _step_id(daily, 'keepalive'), 'steps.sigissue.outcome' in daily,
                 'steps.ledgerissue.outcome' in daily, 'steps.keepalive.outcome' in daily))
            and finalizer > daily.find('변경분 커밋')
            and 'if: always()' in daily[max(0, finalizer - 100):finalizer + 100],
@@ -766,7 +781,7 @@ def g_watchdog():
     wy = _read('.github/workflows/watchdog.yml') or ''
     ok('파수꾼: 전환 실행일 재알림·근접 진입 알림이 모드와 스텝 양쪽에',
        "'switchday': mode_switchday" in wd and "'near': mode_near" in wd
-       and 'watchdog.py switchday' in wy and 'watchdog.py near' in wy
+       and _run_line(wy, 'watchdog.py switchday') and _run_line(wy, 'watchdog.py near')
        and "row.get('B'" in wd,
        '모드만 있고 스텝이 없으면 조용히 안 돈다 · 근접 판정은 B 열 (v192)')
     kh = _read('deploy/kr_holidays.py') or ''

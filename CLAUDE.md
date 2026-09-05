@@ -389,6 +389,13 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **★ 관문 변별력 검사 (2026-09-05 · 5차 · 장부 `audit/GATE_MUTATION_2026-09-05.md` · 도구 `audit/gate_mutation.py`)**:
+  verify_all 의 관문마다 **그 관문이 막으려는 결함을 임시 클론에 주입**해 실제로 FAIL(설계상 WARN) 하는지 봤다 — 변조 125 + 실행기 2 = **127/127 잡힘**.
+  강화 전 verify_all 로 같은 변조를 돌리면 **4개 미검출**: `g_deploy` 의 워크플로 스텝 id 검사 3건과 `g_watchdog` 스텝 검사가 **부분문자열**
+  (`id: sigalertx` ⊃ `id: sigalert` · `watchdog.py near2` ⊃ `near`)이라 이슈 보고 통로·근접 알림 스텝이 죽은 워크플로를 통과시켰다 → `_step_id`·`_run_line`
+  줄 단위 검사로 강화(I1~I14 본문 무수정 · 전략·화면·장부 무변경). 잣대 오류도 그대로 적었다: 첫 실행의 「못 잡음 12」 중 8은 **변조 문자열이 원문을 포함**한
+  도구 쪽 실수, 그리고 `git clone` 이 HEAD 를 주어 강화 전 관문을 재고 있었다(도구가 작업본을 복사하도록 고침). verify.yml 예약·수동 스텝에 등재(약 4분).
+  ⚠ 변조로 못 재는 것: I1 엔진 내부 검산 · I5 「B>A」류·I10 P1~P3 **전제 감시**(자료가 바뀔 때 실패해야 하는 검사). verify_all 을 고치면 먼저 `python audit/gate_mutation.py`.
 - **★ 파수꾼 연결 검증 (2026-09-05 · v222 후속 · 장부 `audit/WATCHDOG_CHAIN_2026-09-05.md` · 회귀 `audit/test_watchdog_chain4.py` 16개)**:
   9모드를 **이어 돌릴 때**의 파일·출력·알림·커밋을 실제 하위 출력 문자열·임시 저장소·로컬 bare 원격으로 검사. 화면·전략·장부 무변경.
   ⓐ `protocol_status` — 평가기가 「기저율 표류 → 판정 중단」(rc 2)으로 끝나면 todo 가 「출력을 읽지 못했다」였다(v218 실사례) →

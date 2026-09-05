@@ -55,6 +55,12 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: python3 audit/audit_full.py
 
+      # [2026-09-05 5차] 관문 변별력 — 관문마다 결함을 주입해 실제로 FAIL 하는지(약 4분 · 임시 클론).
+      #   push 마다는 무겁고, 관문 자체를 고치는 일은 드물어 예약·수동에서만 돈다.
+      - name: 관문 변별력 검사 (예약 실행·수동 실행만)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python3 audit/gate_mutation.py
+
       - name: 실패하면 이슈 열기
         if: failure() && (github.event_name == 'schedule' || github.event_name == 'push')
         uses: actions/github-script@v7
