@@ -507,6 +507,74 @@ class FixedCandidateScreen(unittest.TestCase):
         self.assertEqual(result['rows']['B']['median_multiple'], 1.)
 
 
+class ScheduledMarketAccounting(unittest.TestCase):
+    def test_closed_market_keeps_holdings_not_targets(self):
+        from research.rebalance_accounting import scheduled_path
+        p = np.full((3, 2), .5)
+        r = np.array([[9., 9.], [1., 0.], [-.5, 0.]])
+        a, turn = scheduled_path(p, r, [False, True, False], .001)
+        np.testing.assert_allclose(a, [1., 1.5, 1.], rtol=0, atol=1e-12)
+        np.testing.assert_array_equal(turn, 0.)
+        p[2] = [0., 1.]  # An unexecutable target cannot change actual holdings.
+        np.testing.assert_array_equal(scheduled_path(p, r, [False, True, False], .001)[0], a)
+
+    def test_daily_schedule_reduces_to_corrected_daily_engine(self):
+        from research.rebalance_accounting import scheduled_path, daily_turnover
+        rng = np.random.default_rng(2026)
+        p = rng.dirichlet(np.ones(4), size=70)
+        r = rng.uniform(-.2, .2, size=p.shape)
+        daily = np.sum(p*r, axis=1); daily[0] = 0.
+        for cost in (0., .001, .03):
+            a, turn = scheduled_path(p, r, np.ones(70, bool), cost)
+            dt = daily_turnover(p, r)
+            expected = np.cumprod((1+daily)*(1-cost*dt))
+            np.testing.assert_allclose(a, expected, rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(turn, dt, rtol=1e-12, atol=1e-12)
+
+    def test_irregular_schedule_matches_independent_held_units(self):
+        from research.rebalance_accounting import scheduled_path
+        from strategy_f1_kr import held_units_reference
+        rng = np.random.default_rng(81)
+        p = rng.dirichlet(np.ones(4), size=70)
+        r = rng.uniform(-.2, .2, size=p.shape)
+        for mask in (np.zeros(70, bool), rng.random(70) < .3, np.ones(70, bool)):
+            a, t = scheduled_path(p, r, mask, .002)
+            expected = held_units_reference(p, r, mask, .002)
+            np.testing.assert_allclose(a, expected, rtol=1e-12, atol=1e-12)
+            np.testing.assert_array_equal(t[~mask], 0.)
+
+    def test_korean_holiday_drops_superseded_signal_and_never_uses_same_day_close(self):
+        from strategy_f1_kr import execution_events, inverse_sources
+        idx = pd.to_datetime(['2020-09-03', '2020-09-04', '2020-09-07', '2020-09-08', '2020-09-09', '2020-09-10'])
+        kr = pd.to_datetime(['2020-09-02', '2020-09-03', '2020-09-04', '2020-09-08', '2020-09-09', '2020-09-10', '2020-09-11'])
+        source, trade = execution_events(idx, kr)
+        np.testing.assert_array_equal(source, [0, 0, 0, 2, 3, 4])
+        np.testing.assert_array_equal(trade, [False, True, False, True, True, True])
+        for lag in (0, 1):
+            source, trade = execution_events(idx, kr, extra_days=lag)
+            np.testing.assert_array_equal(source, inverse_sources(idx, kr, extra_days=lag))
+            self.assertTrue(np.all(source[1:] < np.arange(1, len(idx))))
+
+    def test_invalid_schedule_and_calendar_fail_closed(self):
+        from research.rebalance_accounting import scheduled_path
+        from strategy_f1_kr import execution_events
+        p = np.full((3, 2), .5)
+        r = np.zeros_like(p)
+        for mask in ([True], [1, 0, 1], [0., np.nan, 1.]):
+            with self.assertRaises(ValueError):
+                scheduled_path(p, r, mask)
+        for cost in (-.001, 1., np.inf):
+            with self.assertRaises(ValueError):
+                scheduled_path(p, r, [False, True, True], cost)
+        idx = pd.bdate_range('2020-01-01', periods=5)
+        with self.assertRaises(ValueError):
+            execution_events(idx, idx[:-1])
+        with self.assertRaises(ValueError):
+            execution_events(idx[::-1], idx)
+        with self.assertRaises(ValueError):
+            execution_events(idx, idx, extra_days=.5)
+
+
 class HistoricalCalendarIntegrity(unittest.TestCase):
     def test_fred_drops_blank_and_dot_quotes_without_using_another_column(self):
         import hist_data as history

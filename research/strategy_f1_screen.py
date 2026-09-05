@@ -42,6 +42,7 @@ def execute(W, R, cost, lag=1):
     """Daily targets, lag >= 1. Currency-neutral; asset construction is separate."""
     if isinstance(lag, bool) or int(lag) != lag or lag < 1:
         raise ValueError('lag must be a positive whole trading-day count')
+    lag = int(lag)
     if not np.isfinite(cost) or not 0 <= cost < 1:
         raise ValueError('cost must be in [0, 1)')
     p = np.empty_like(W)
