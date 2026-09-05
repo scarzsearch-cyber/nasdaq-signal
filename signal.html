@@ -1478,11 +1478,21 @@ function drawPerf(){
   if(thin.length) judge += `<p><span class="lead">표본</span> —
     <b style="color:var(--defend)">${thin.join(' · ')}</b> 는 판단 최소치(독립 위기 19회)에
     못 미칩니다 — 이 기준의 순위는 근거가 못 됩니다(전략_v41 §5).</p>`;
+  /* [B04 · 2026-09-05] 20년 값은 아래 「같은 기간으로 맞추면」 표와 **같은 원천(STATS)** 에서 읽는다.
+     종전 하드코딩 「136배 vs 168배」의 168 은 원화 B(189배)가 아니라 원화 **2배 보유**(168배)의 값이었다 —
+     한 화면 안에서 표는 189, 각주는 168 을 말하고 있었다(v179 유형). */
+  const h20 = (() => {
+    const g = k => { const s = STATS.scenarios.find(x => x.key === k);
+                     const m = s && s.strategies && s.strategies[sel];
+                     return (m && m.horizons) ? m.horizons['20'] : null; };
+    const a = g('us_2000'), b = g('kr_1997');
+    return (a != null && b != null) ? ` — 최근 20년으로 맞추면 ${nfmt(a)}배 vs ${nfmt(b)}배` : '';
+  })();
   document.getElementById('perfNote').innerHTML =
     `<p><span class="lead">주의</span> —
        <b style="color:var(--attack)">최종배수는 기준마다 기간이 달라 세로로 비교하면 안 됩니다</b>
        — 기준끼리는 <b>CAGR 열</b>로. (달러 167배 vs 원화 2,800배 차이도 대부분 기간과
-       환율 몫 — 최근 20년으로 맞추면 136배 vs 168배.) 이 우위의 <b style="color:var(--ink)">약 97%는 닷컴 한 사건</b>에서
+       환율 몫${h20}.) 이 우위의 <b style="color:var(--ink)">약 97%는 닷컴 한 사건</b>에서
        나왔고, 2000년형 느린 약세장은 −43~−53%p 완화하지만
        <b style="color:var(--attack)">1987·2020형 급락은 거의 못 피합니다</b>(3%p 안팎).
        느린 약세장 보험이지 만능 방어가 아닙니다.</p>
@@ -1762,7 +1772,7 @@ let ASOF = null;                               // [v90] 신호일 — 체크리�
 let CHANGED_TODAY = false;                     // [v191] 전환일 여부 — drawPending 이 본다 (전환일엔 기존 체크리스트가 담당)
 
 function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
-function savePort(){ PORT.d = new Date().toISOString().slice(0,10);
+function savePort(){ PORT.d = kstISO();      // [B04] KST — UTC 는 09:00 전에 전날 날짜였다(v202 bizDaysSince 와 같은 유형)
   lsSet(PKEY, JSON.stringify(PORT)); abQueue(); }
 function fmtWon(v){ return Math.round(v).toLocaleString('en-US') + '원'; }
 /* [v92] 어림 금액은 만원/억원 단위 — 0의 개수를 안 세게 (제미나이 E 변형: 병기 대신 대체) */
@@ -2184,7 +2194,7 @@ const CHK_ITEMS = ['목표 비중·주문 금액 확인 (아래 내 포트폴리
                    '한국장 09:05~15:20 에 주문 실행',
                    '체결가 기록 (아래 체결 기록 — 보유 자동 반영)'];
 function chkKey(){
-  return 'b_chk_' + (ASOF || new Date().toISOString().slice(0, 10));
+  return 'b_chk_' + (ASOF || kstISO());          // [B04] 수동 모드 예비 키도 KST
 }
 function chkGet(){ try{ return JSON.parse(localStorage.getItem(chkKey()) || '[]'); }catch(e){ return []; } }
 function chkHtml(){
@@ -3189,7 +3199,7 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   setMsg('전체 삭제됨');
 });
 
-document.getElementById('inDate').value = new Date().toISOString().slice(0,10);
+// [B04] 수동 입력 날짜 기본값은 boot() 에서 KST 로 넣는다 (SEOUL 상수가 아래에서 정의되므로 여기서는 못 부른다).
 window.addEventListener('resize', ()=>{ if(AUTO) renderAuto(AUTO); else render(); });
 
 /* ---------------- 시장 시계 ----------------
@@ -3442,6 +3452,7 @@ async function getJSON(p){
 }
 
 async function boot(){
+  { const di = document.getElementById('inDate'); if(di && !di.value) di.value = kstISO(); }   // [B04] KST 기본값
   // [v118] 저장소 증발 방지 — 공간 부족 시 이 사이트의 localStorage(보유·체결 장부)를
   // 지우지 말라고 브라우저에 요청. 홈 화면 설치 상태면 대부분 자동 승인.
   // 거부·미지원이어도 기존과 완전히 동일하게 동작한다.
