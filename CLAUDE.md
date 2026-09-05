@@ -389,6 +389,23 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **v224 (2026-09-06 · 설명서·노트 상태/앵커 행렬 + 시세 경로 시간 실측 · 장부 `audit/SCREEN_MATRIX2_2026-09-06.md` · 회귀 `audit/test_fold_anchor.py`)**:
+  ⓐ **접힌 패널 안 앵커** — v169 접기(`[data-fold].folded`·`b_fold_v1`)는 CSS 로 숨길 뿐이라, 접어 둔 절·시즌·패널 안의 앵커
+  (`guide.html#order`·`#manual`, `notes.html#opsRecovery`, `signal.html#portPanel`·`#tlogWrap`)로 들어오면 내용이 숨은 채 scrollY 0
+  에 머물렀다(세 화면 전부 fresh load 로 재현 · v153 은 `details.foldsec` 만 펼쳤다). → 세 화면 공통 `openFoldTarget`: 조상 패널을 화면에서만
+  펼치고(저장값 무접촉 · 검색/필터와 같은 규약) `_foldPaint` 로 버튼 라벨 재도색. 검색 해제·필터 「전체」 복원 때 라벨이 실제와 어긋나던 것도 같이.
+  ★ 실측 함정: 같은 문서에서 해시만 바꾸면 **재로드가 아니라 hashchange** 라 첫 검사가 헛돌았다 — 다른 문서로 갔다 와서 재야 한다.
+  정적 재확인: 세 화면 앵커·id 교차 0건 깨짐(색상 리터럴 3건 오탐) · 필터×접힘 시즌 임시 펼침/복원(v169 설계) 정상.
+  ⓑ **시세 폴러→Pages 구간별 시간(09-03·09-04 로그 · 취소·중복 없는 실측)** — 「5분 안」의 대상 경로는 **5분 경계(HH:M5:00 KST) → 사이트의
+  `data/price.json`** 이고 화면은 그 위에 탭의 5분 ticker(`PRICE_TICK_MS`)가 얹힌다. 경계→스냅샷 22s(설계 +20s) · 스냅샷→pages run 생성 2s ·
+  배포 run 7~42s → **경계→배포 완료 중앙 46s · max 66s**(09-04 79건 · 09-03 도 같은 자리). 화면 반영 = 배포 완료 + ticker 위상(0~5분) 또는
+  탭 복귀 즉시 — **라이브 표본 없음(관찰 대기)**. 이틀 표본이지 상시 보장이 아니다(예약 실행 지연은 v190 실측대로 분 단위로 흔들린다).
+  ⚠ 발견(인계 · 미수정): **예비 슬롯(:20/:50) 취소 → `workflow_run` 이벤트 → pages 새 run 이 `cancel-in-progress` 로 진행 중인 5분 배포를
+  죽이고 자신은 skipped(0 스텝)** — 09-04 에 :25/:55 스냅샷 3건이 다음 스냅샷까지 317~325s 늦게 반영(나머지 취소 3건은 30~62s 안에 후속
+  push/인계 run 이 덮음). pages.yml 은 공용 워크플로라 아스트라 인계: 후보 = concurrency 를 job 수준으로 내리거나 `workflow_run.conclusion == 'cancelled'`
+  트리거를 걸러 내는 것(g_deploy 의 「conclusion == 'success' 금지」 검사와 충돌 없음) · dispatch 실측으로 확인 필요.
+  ⓒ **주간 파수꾼 첫 `protocol_b` 생성·커밋 관찰** — 슬롯은 **월요일 09:10 KST**(`10 0 * * 1`, 일요일이 아니다). 세션 예약(one-shot · 세션 종료 시
+  소멸)으로 09-07 09:52 KST 읽기 전용 확인을 걸었다 — 못 돌면 미확인으로 남는다. 장부·카톡 조작 없음.
 - **v223 (2026-09-05 · 화면 상태 행렬 검사 · 장부 `audit/SCREEN_STATES_2026-09-05.md` · 생성기 `audit/screen_states.py`)**:
   가짜 데이터 폴더 15개(방어·재조정일·전환일 2종·근접·회색지대·**트리거 경계**·미체결·신선도 2단계·점검 todo/낡음·로드 실패·수동 입력·시세 없음/낡음)를
   정적 서버로 실제 로드해 412px 에서 문구·수량·D-day·가로 스크롤·콘솔을 확인. **전략·판정·장부 무변경.** 고친 것 둘(signal.html):

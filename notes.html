@@ -123,8 +123,21 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v223</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v224</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="foldAnchor">
+      <div class="head"><span class="v">v224</span><span class="tag fix">수정</span>
+        <span class="ttl">접어 둔 절·패널 안으로 가는 링크가 빈 제목에서 멈추던 것</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>설명서의 §③이나 신호 화면의 포트폴리오 패널을 <b>접어 둔</b> 상태에서 「주문 방법」·「비상 수동 판정」·「오늘의 행동」·
+          「체결 기록」 링크를 누르면, 접힌 제목만 보이고 내용은 숨은 채 화면 맨 위에 머물렀습니다. 이제 그 절·시즌·패널만 화면에서
+          펼치고 내용으로 내려갑니다(접어 둔 설정 자체는 그대로). 검색·필터로 잠시 펼쳐졌다 돌아올 때 「접기/펼치기」 버튼 글자가
+          실제 상태와 어긋나던 것도 같이 맞췄습니다.</dd>
+        <dt>왜</dt><dd>접기(v169)는 CSS 로 숨길 뿐이라 링크의 목적지는 있는데 보이지 않았습니다. 세 화면을 같은 방식으로 고쳤습니다.</dd>
+        <dt>결론</dt><dd>표시만 바뀌었습니다. 매매 규칙·판정·저장된 설정은 그대로입니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="screenStates">
       <div class="head"><span class="v">v223</span><span class="tag fix">수정</span>
@@ -1025,6 +1038,7 @@ function setupFold(){
     };
     if(foldShut(p, st)) p.classList.add('folded');
     paint();
+    p._foldPaint = paint;                       // [v224] 앵커·검색·필터가 접힘을 바꾸면 버튼 라벨도 다시 그린다
     b.addEventListener('click', () => {
       p.classList.toggle('folded');
       const s = foldRead(), shut = p.classList.contains('folded');
@@ -1047,6 +1061,20 @@ function setupFold(){
     if(t && isFinite(n) && n >= 0) t.textContent = '동결 후 ' + n + '일';
   }
   setupFold();          // [v169] 시즌 접기
+  /* [v224] 접어 둔 시즌 안의 항목 앵커(notes.html#opsRecovery 등)로 들어오면 그 시즌만 화면에서 펼친다.
+     저장값은 건드리지 않는다(필터와 같은 임시 펼침). 접힌 옛 목록(details.more) 안이면 그것도 연다. */
+  function openFoldTarget(){
+    var id = location.hash.slice(1); if(!id) return;
+    var el = document.getElementById(id); if(!el) return;
+    var moved = false;
+    var m = el.closest('details.more');
+    if(m && !m.open){ m.open = true; moved = true; }
+    var f = el.closest('[data-fold].folded');
+    if(f){ f.classList.remove('folded'); if(f._foldPaint) f._foldPaint(); moved = true; }
+    if(moved) setTimeout(function(){ el.scrollIntoView({block:'start'}); }, 0);
+  }
+  openFoldTarget();
+  window.addEventListener('hashchange', openFoldTarget);
   paint('2026-08-27');
   fetch('data/freeze.json').then(function(r){ return r.ok ? r.json() : null; })
     .then(function(j){ if(j && j.frozen_at) paint(j.frozen_at); })
@@ -1105,6 +1133,7 @@ function setupFold(){
     Array.prototype.forEach.call(document.querySelectorAll('[data-fold]'), function(s){
       if(f === 'all'){ if(foldShut(s)) s.classList.add('folded'); }
       else if(!s.hidden) s.classList.remove('folded');
+      if(s._foldPaint) s._foldPaint();               // [v224] 버튼 라벨도 따라간다
     });
   });
 })();

@@ -1072,6 +1072,17 @@ function foldShut(p, st){
   const s = (st || foldRead())[p.id || p.getAttribute('data-fold')];
   return (s === undefined) ? p.hasAttribute('data-foldshut') : !!s;
 }
+/* [v224] 접어 둔 패널 안의 앵커 — 전환 미체결·체크리스트의 「오늘의 행동」(#portPanel)·「체결 기록」(#tlogWrap) 링크와
+   판정 옆 D-day(#portPanel). 포트폴리오 패널을 접어 둔 상태에선 링크가 접힌 제목만 보여 주고 내용은 숨어 있었다
+   (2026-09-05 상태 행렬 2차 실측). 저장된 접힘(b_fold_v1)은 건드리지 않고 화면만 펼친다. #backup= 해시는 대상이 없어 지나간다. */
+function openFoldTarget(){
+  const id = location.hash.slice(1); if(!id) return;
+  const el = document.getElementById(id); if(!el) return;
+  const f = el.closest('[data-fold].folded');
+  if(f){ f.classList.remove('folded'); if(f._foldPaint) f._foldPaint();
+         setTimeout(() => el.scrollIntoView({block:'start'}), 0); }
+}
+window.addEventListener('hashchange', openFoldTarget);
 function setupFold(){
   const st = foldRead();
   document.querySelectorAll('[data-fold]').forEach(p => {
@@ -1088,6 +1099,7 @@ function setupFold(){
     };
     if(foldShut(p, st)) p.classList.add('folded');
     paint();
+    p._foldPaint = paint;                       // [v224] 앵커·검색·필터가 접힘을 바꾸면 버튼 라벨도 다시 그린다
     b.addEventListener('click', () => {
       p.classList.toggle('folded');
       const s = foldRead(), shut = p.classList.contains('folded');
@@ -3505,6 +3517,7 @@ async function boot(){
   checkSeenBadge();                        // [v102] redraw 뒤 — CURSTATE/ASOF 확정 이후
   drawT4();
   setupFold();                             // [v169] 접기 버튼 + 저장된 접힘 복원
+  openFoldTarget();                        // [v224] 접힌 패널 안 앵커(#portPanel·#tlogWrap)는 그 패널을 화면에서 펼친다
   drawOosHist();                           // [v111] 같은 공용 캐시 — 추가 요청 없음
   drawTogether();                          // [v157] 함께한 날 — 같은 캐시 재사용
   ['fxBase','fxNew','fxVal'].forEach(id => {          // [v158] 환율 계산기 입력

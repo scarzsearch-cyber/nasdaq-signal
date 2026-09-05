@@ -832,6 +832,7 @@ function setupFold(){
     };
     if(foldShut(p, st)) p.classList.add('folded');
     paint();
+    p._foldPaint = paint;                       // [v224] 앵커·검색·필터가 접힘을 바꾸면 버튼 라벨도 다시 그린다
     b.addEventListener('click', () => {
       p.classList.toggle('folded');
       const s = foldRead(), shut = p.classList.contains('folded');
@@ -853,14 +854,19 @@ function setupFold(){
     var el = document.getElementById(id);
     if(!el) return;
     var d = el.closest('details.foldsec');
-    if(d && !d.open){
-      d.open = true;
-      setTimeout(function(){ el.scrollIntoView({block:'start'}); }, 0);
-    }
+    var moved = false;
+    if(d && !d.open){ d.open = true; moved = true; }
+    /* [v224] 접어 둔 절([data-fold].folded — v169 저장 접힘) 안의 앵커도 펼친다. 종전엔 details 만 펼쳐서,
+       §③을 접어 둔 채 신호 화면의 「주문 방법」(#order)·「비상 수동 판정」(#manual) 링크를 누르면
+       내용이 숨은 채 맨 위(scrollY 0)에 머물렀다(2026-09-05 상태 행렬 2차 실측). 저장값은 건드리지 않는다 —
+       검색·필터와 같은 「화면만 임시 펼침」. */
+    var f = el.closest('[data-fold].folded');
+    if(f){ f.classList.remove('folded'); if(f._foldPaint) f._foldPaint(); moved = true; }
+    if(moved) setTimeout(function(){ el.scrollIntoView({block:'start'}); }, 0);
   }
+  setupFold();   // [v169] 절 접기 버튼 + 저장된 접힘 복원 — [v224] 앵커 처리보다 먼저(접힘을 복원한 뒤라야 펼칠 수 있다)
   openFoldTarget();
   window.addEventListener('hashchange', openFoldTarget);
-  setupFold();   // [v169] 절 접기 버튼 + 저장된 접힘 복원
 })();
 
 /* [v156] 설명서 안 검색 — 일치하지 않는 절을 숨긴다(하이라이트보다 간결).
@@ -883,7 +889,7 @@ function setupFold(){
     units.forEach(function(u){ u.style.display = ''; });
     openState.forEach(function(was, d){ d.open = was; });
     var saved = foldRead();                       // [v169] 저장해 둔 접힘 상태로 복원
-    units.forEach(function(u){ if(foldShut(u, saved)) u.classList.add('folded'); });
+    units.forEach(function(u){ if(foldShut(u, saved)) u.classList.add('folded'); if(u._foldPaint) u._foldPaint(); });   // [v224] 라벨도 복원
     if(toc) toc.style.display = '';
     msg.hidden = true; msg.textContent = '';
   }
@@ -907,7 +913,7 @@ function setupFold(){
     if(toc) toc.style.display = 'none';   // 숨긴 절로 가는 목차는 혼란만 준다
     /* [v169] 접어 둔 절이 검색에 걸리면 빈 칸으로 보인다 — 화면만 임시로 펼친다.
        저장된 접힘은 그대로 두고, 검색을 지우면 reset() 이 복원한다. */
-    units.forEach(function(u){ if(u.style.display !== 'none') u.classList.remove('folded'); });
+    units.forEach(function(u){ if(u.style.display !== 'none'){ u.classList.remove('folded'); if(u._foldPaint) u._foldPaint(); } });
     msg.hidden = false;
     msg.textContent = hit ? ('「' + box.value.trim() + '」 — ' + hit + '개 절에서 찾음')
                           : ('「' + box.value.trim() + '」 — 일치하는 내용이 없습니다');
