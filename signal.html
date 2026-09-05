@@ -1009,7 +1009,7 @@ function paintFreeze(){
   if(!FREEZE){ el.textContent = ''; return; }
   const days = Math.max(0, bizDaysSince(FREEZE.oos_start));   // 오늘까지의 영업일
   el.innerHTML = '규칙 동결 <b>' + FREEZE.frozen_at + '</b> · 이후 '
-               + days + '영업일 평가만';
+               + days + '거래일 평가만';
 }
 
 /* [v111] 동결 이후 이력 한 줄 — OOS 장부(공용 캐시) 재사용. 전환 표본이 쌓이는 걸
@@ -1289,7 +1289,8 @@ async function drawOpsCheck(){
   // 한 줄이 들어 있어 위 배너·알약이 그대로 처리한다 — 평시 정상은 「사건 0건 — 이상 없음」.
   const pb = j.protocol_b;
   if(pb && typeof pb === 'object'){
-    const PBV = {ok:'이상 없음', warn:'주의', outside:'역사 밖 — 재검토', invalid:'규약 지문 불일치', error:'평가 실패'};
+    const PBV = {ok:'이상 없음', warn:'주의', outside:'역사 밖 — 재검토', invalid:'규약 지문 불일치', error:'평가 실패',
+                 drift:'기저율 표류 — 재등록 필요'};   // [v225] 평가기 rc 2(표류)를 「평가 실패」와 갈랐다
     const ev = (pb.events == null || isNaN(Number(pb.events))) ? '' : '사건 ' + Number(pb.events) + '건 — ';
     el.innerHTML += ' · 판정 규약 ' + ev + (pb.verdict === 'ok' ? (PBV.ok) : '<b>' + (PBV[pb.verdict] || '?') + '</b>');
   }
@@ -1590,23 +1591,29 @@ function drawHoriz(){
 /* 신호 패널이 화면 밖으로 나가면 상단에 요약을 고정한다 (특히 모바일) */
 // [v37] 신호가 얼마나 낡았는지 알린다.
 // 미국장 기준 경과 '거래일'로 센다(주말에 잘못 경고하지 않도록).
-function bizDaysSince(iso){
+function bizDaysSince(iso, now){
   const d0 = new Date(iso + 'T00:00:00Z');
   // [v202] 오늘은 **한국 날짜**로 잡는다. UTC 게터를 쓰면 날짜가 09:00 KST 에 넘어가
   //   deploy/watchdog.py(kst_today, 「signal.html 과 같은 정의」라고 적힌 함수)와 어긋났다 —
   //   08:40 슬롯에서 파수꾼은 3거래일로 카톡을 보내는데 화면은 2로 세어 배너를 숨겼다.
   //   어긋나던 창이 하필 신호 도착(05:17)부터 주문 창(09:05)까지의 확인 시간대였다.
-  const tp = tzParts(new Date(), SEOUL);
+  const ref = now || new Date();               // [v225] 검사용 주입(기본은 지금)
+  const tp = tzParts(ref, SEOUL);
   // [v220] 미국장이 **진행 중**이면 그날의 종가는 아직 없다 — 오늘을 세지 않는다. 종전에는
   //   매일 00:00~05:00 KST(미국 장중)에 「2거래일 경과 · 확인 필요」 노란 점이 헛떴다.
   //   파수꾼(08:40 KST)은 장중이 아니라 정의가 그대로 같다.
   let live = false;
-  try{ const us = usClock(Date.now()); live = !!(us && us.state === 'live'); }catch(e){}
+  try{ const us = usClock(ref.getTime()); live = !!(us && us.state === 'live'); }catch(e){}
   const d1 = new Date(Date.UTC(tp.y, tp.m - 1, tp.d - (live ? 1 : 0)));
   let n = 0;
   for(let t = new Date(d0); t < d1; t.setUTCDate(t.getUTCDate() + 1)){
     const w = t.getUTCDay();
-    if(w !== 0 && w !== 6) n++;
+    if(w === 0 || w === 6) continue;
+    /* [v225] 미국 정기 휴장도 세지 않는다 — as_of 는 미국 종가일이라 미국 달력이 맞다(시계·실행일의 usHolidays 와 같은 표).
+       종전엔 평일만 세어 노동절 다음 화요일에 「2거래일 경과 — 확인 필요」 노란 점이 헛떴다. deploy/watchdog.py biz_days_since 와 같은 정의.
+       판정과 무관 — 신선도 점·배너·「동결 후 N거래일」 표시만. 특별 휴장은 표에 없어 하루 이르게 세는 쪽(보수적). */
+    if(usHolidays(t.getUTCFullYear()).has(t.getUTCFullYear() + '-' + (t.getUTCMonth() + 1) + '-' + t.getUTCDate())) continue;
+    n++;
   }
   return n;
 }
@@ -1621,7 +1628,7 @@ function showStale(asOf){
   if(n <= 4){
     el.className = 'stale warn';
     el.innerHTML = '<b>신호가 ' + n + '거래일 지났습니다.</b> 자동갱신이 밀렸을 수 있습니다. '
-      + '미국 휴장이 겹쳤다면 정상입니다. 계속 밀리면 '
+      + '미국 정기 휴장은 세지 않은 값입니다(특별 휴장이 겹쳤다면 정상). 계속 밀리면 '
       + '<a href="' + RUN + '" target="_blank" rel="noopener">Actions에서 수동 실행</a>하세요.';
   } else {
     el.className = 'stale bad';

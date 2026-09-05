@@ -131,6 +131,7 @@ class W1_EvaluatorContract(unittest.TestCase):
     def test_baseline_drift_is_reported_as_drift_not_parse_failure(self):
         s = self._status(EVAL_DRIFT, 2)
         self.assertTrue(s['drift'])
+        self.assertEqual(s['verdict'], 'drift', '[v225] 표류는 전용 verdict — 화면 PBV 가 「재등록 필요」로 읽는다')
         self.assertIn('기저율', s['todo'], '기저율 표류를 「출력을 읽지 못했다」로 보고한다')
         self.assertNotIn('읽지 못했다', s['line'])
 
@@ -445,6 +446,27 @@ class W6_HeartbeatCommitLoss(unittest.TestCase):
             WD.mode_heartbeat()
             self.assertNotIn('heartbeat', json.load(open('data/ops_check.json', encoding='utf-8')),
                              '발송 실패인데 이번 달 표시를 남겼다')
+
+
+class W7_FreshnessCalendar(unittest.TestCase):
+    """[v225] biz_days_since 는 미국 거래일(주말·NYSE 정기 휴장 제외)을 센다 — 노동절 주의 조기 알림 재현.
+    판정(state)과 무관한 표시·운영 경고 정의다. 한국 시세는 kr_biz_days_since(한국 달력)로 따로 센다."""
+
+    def test_us_holidays_are_not_counted(self):
+        WD = load('watchdog')
+        d = WD.date
+        self.assertEqual(WD.biz_days_since('2026-09-04', today=d(2026, 9, 8)), 1, '노동절 다음 화요일')
+        self.assertEqual(WD.biz_days_since('2026-09-04', today=d(2026, 9, 9)), 2)
+        self.assertEqual(WD.biz_days_since('2026-09-04', today=d(2026, 9, 10)), 3, '목요일에야 문턱')
+        self.assertEqual(WD.biz_days_since('2026-09-11', today=d(2026, 9, 15)), 2, '휴장 없는 주는 종전과 같다')
+        self.assertEqual(WD.biz_days_since('2026-07-02', today=d(2026, 7, 7)), 2, '독립기념일 관측일(금)')
+
+    def test_same_table_as_wait_close(self):
+        WD = load('watchdog')
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('wc_probe', os.path.join(DEPLOY, 'wait_close.py'))
+        wc = importlib.util.module_from_spec(spec); spec.loader.exec_module(wc)
+        self.assertEqual(WD.us_holidays(2026), wc.nyse_holidays(2026))
 
 
 if __name__ == '__main__':

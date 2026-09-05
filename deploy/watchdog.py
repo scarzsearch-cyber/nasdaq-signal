@@ -140,8 +140,19 @@ def kst_today():
     return datetime.now(timezone(timedelta(hours=9))).date()
 
 
+def us_holidays(year):
+    """NYSE 정기 휴장일 — wait_close.nyse_holidays 와 **같은 표**(정의는 한 곳). 지연 임포트라 파수꾼 부팅 비용 0."""
+    from wait_close import nyse_holidays
+    return nyse_holidays(year)
+
+
 def biz_days_since(iso, today=None):
-    """signal.html 의 bizDaysSince 와 같은 정의 — [as_of, 오늘) 의 평일 수."""
+    """signal.html 의 bizDaysSince 와 같은 정의 — [as_of, 오늘) 의 **미국 거래일** 수(주말·NYSE 정기 휴장 제외).
+
+    [2026-09-06 · v225] 종전엔 평일만 세어 미국 휴장 주엔 누락 1일 만에 문턱(STALE_N=3)에 닿았다 — 노동절 다음 수요일 08:40 에
+    화요일 갱신이 한 번 실패하면 금·월·화 = 3 으로 카톡이 갔고 문구 「3영업일째 그대로」는 과장이었다. 신호 as_of 는 **미국 종가일**
+    이므로 미국 달력이 맞다(한국 시세는 kr_biz_days_since 가 한국 달력). 특별 휴장(애도일 등)은 표에 없어 하루 이르게 세는 쪽 —
+    보수적이다. **판정(state)과는 무관** — 신선도 표시·운영 경고에만 쓰인다. 소비자: stale · near(1거래일 안 게이트) · heartbeat 문구."""
     d0 = date.fromisoformat(iso)
     if d0.isoformat() != iso:
         raise ValueError(f'기준일이 YYYY-MM-DD 정규형이 아님: {iso!r}')
@@ -149,10 +160,14 @@ def biz_days_since(iso, today=None):
     if d0 > d1:
         raise ValueError(f'기준일 {d0}이 현재일 {d1}보다 미래임')
     n = 0
+    hol = {}
     t = d0
     while t < d1:
         if t.weekday() < 5:
-            n += 1
+            if t.year not in hol:
+                hol[t.year] = us_holidays(t.year)
+            if t not in hol[t.year]:
+                n += 1
         t += timedelta(days=1)
     return n
 
@@ -211,7 +226,7 @@ def mode_stale():
         notify('신호 날짜 손상', 'failure',
                'data/signal.json 의 종가 날짜가 미래이거나 형식이 잘못됐습니다 — 화면 수치를 믿지 마세요.')
         return
-    print(f'마지막 종가 {as_of} · {n}영업일 경과 (문턱 {STALE_N})')
+    print(f'마지막 종가 {as_of} · {n}거래일 경과 · 미국 휴장 제외 (문턱 {STALE_N})')
     if n < STALE_N:
         print('정상 — 알림 없음')
         return
@@ -222,7 +237,7 @@ def mode_stale():
         return
     out('alert', 1)
     notify('신호가 갱신되지 않고 있습니다', 'failure',
-           f'마지막 종가 {as_of} · {n}영업일째 그대로입니다.\n'
+           f'마지막 종가 {as_of} · {n}거래일째 그대로입니다(미국 휴장 제외).\n'
            '자동 갱신이 멈췄을 수 있습니다. 화면의 낙폭·상태는 옛 종가 기준입니다.')
 
 
@@ -687,7 +702,7 @@ def mode_price(today=None):
 # ③ 점검 자동 실행 — 사람이 기억해서 파이썬을 돌릴 의무를 없앤다
 # --------------------------------------------------------------------------
 PROTO_EVAL = os.path.join('research', 'oos_protocol_b.py')
-PB_RANK = {'ok': 0, 'error': 1, 'warn': 1, 'invalid': 2, 'outside': 2}
+PB_RANK = {'ok': 0, 'error': 1, 'warn': 1, 'drift': 1, 'invalid': 2, 'outside': 2}   # [v225] drift 전용 verdict(화면 PBV 와 같은 어휘)
 
 
 def protocol_status(env):
@@ -725,7 +740,7 @@ def protocol_status(env):
         # [2026-09-05 4차 · W1] 평가기가 「기저율 표류 → 판정 중단」(rc 2)으로 끝나면 종전엔 아래 else 로
         #   떨어져 「출력을 읽지 못했다」가 todo 가 됐다 — 표류는 읽힌 것이지 못 읽은 것이 아니다.
         #   v218 이 실제로 겪은 상황(v210 자료 정정 뒤)이며, 화면·카톡 문구가 원인을 가리켜야 한다.
-        v, line = 'error', '기저율 표류 — 판정 중단'
+        v, line = 'drift', '기저율 표류 — 판정 중단'          # [v225] 'error'(평가 실패)와 갈라 화면이 「재등록 필요」로 읽게
         todo = 'B 판정 규약 기저율이 등록값과 다르다(원자료 갱신?) — 판정 전에 원인 확인 · 02 §5-1 절차대로 재등록'
     elif rc == 0 and events is not None and '판정: 재검토 사유 없음' in txt:
         v, line, todo = 'ok', '사건 %d건 — 재검토 사유 없음' % events, None
@@ -865,7 +880,7 @@ def mode_heartbeat():
     try:
         sj = json.load(open(SIGNAL, encoding='utf-8'))
         as_of = sj['as_of']
-        lines.append(f'· 신호 {as_of} ({biz_days_since(as_of)}영업일 전)')
+        lines.append(f'· 신호 {as_of} ({biz_days_since(as_of)}거래일 전)')
         # [v196] 상태 한 줄 — B 는 strategies.B (최상위 state 는 A 미러, v192 적발). 메시지 수는 안 는다.
         b = (sj.get('strategies') or {}).get('B') or {}
         if b.get('state') not in ('QLD', 'SCHD'):
@@ -992,6 +1007,13 @@ def selftest():
             fails.append('미래 시세 날짜를 0일 경과로 처리')
         except ValueError:
             pass
+        # [v225] 미국 정기 휴장은 세지 않는다 — 노동절(2026-09-07) 주 · 독립기념일 관측일(2026-07-03 금).
+        expect('신선도: 노동절 다음 화요일은 1거래일', biz_days_since('2026-09-04', today=date(2026, 9, 8)), 1)
+        expect('신선도: 노동절 주 수요일은 2거래일', biz_days_since('2026-09-04', today=date(2026, 9, 9)), 2)
+        expect('신선도: 노동절 주 목요일에야 문턱 3', biz_days_since('2026-09-04', today=date(2026, 9, 10)), 3)
+        expect('신선도: 휴장 없는 주는 종전과 같다', biz_days_since('2026-09-11', today=date(2026, 9, 15)), 2)
+        expect('신선도: 독립기념일 관측일(금) 제외', biz_days_since('2026-07-02', today=date(2026, 7, 7)), 2)
+        expect('신선도: 신정이 토요일인 해는 앞당기지 않는다(2028 · 12-31 금요일이 거래일)', biz_days_since('2027-12-30', today=date(2028, 1, 4)), 3)
         future_output = os.path.join(T, 'future_output')
         os.environ['GITHUB_OUTPUT'] = future_output
         sig(as_of='2099-01-01')

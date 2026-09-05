@@ -389,6 +389,15 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **v225 (2026-09-06 · 모바일 미검증 흐름 8종 실측 + 신선도 미국 달력 공용 정의 + 표류 라벨 · 장부 `audit/MOBILE_OPS_2026-09-06.md`)**:
+  ⓐ 412px 실측 전부 정상: 접힌 절/시즌/패널 안 앵커(v224) · 설명서 검색·해제 · 노트 필터 3종 · 참고 패널 3종 펼침 · 백업 링크(살균·확인창·되돌리기·해시 삭제·거절·깨진 링크) ·
+  CSV 3갈래+헤더 없음(v202) · 다크 모드 희귀 상태 대비 5.6~15:1 · PWA 정적. 관찰(미수정): 점검 알약(warn) 다크 합성 대비 ≈3.6:1.
+  ⓑ **신선도 셈을 미국 거래일로**(판정 무관 · 표시·운영 경고만): `watchdog.biz_days_since`(stale·near·heartbeat) 와 `signal.html bizDaysSince`(점·배너·「동결 후 N거래일」)가
+  주말 + NYSE 정기 휴장(`wait_close.nyse_holidays` = 화면 `usHolidays` 같은 표)을 뺀다. 종전엔 노동절 주 화요일 08:40 에 금·월·화 = 3 으로 **누락 1일 만에 카톡**,
+  화면은 화요일에 노란 점. 시장·데이터별: 신호 = 미국 달력 · 시세/NAV = 한국 달력(기존 `kr_biz_days_since`). 셀프테스트 61→67 · chain4 W7(옛 사본 FAIL→PASS) ·
+  화면 `now` 주입 6경우. 특별 휴장은 표에 없어 하루 이르게 세는 쪽. 문구 「n거래일째(미국 휴장 제외)」.
+  ⓒ **표류 라벨**: 평가기 rc 2 → verdict `drift`(`PB_RANK` 1) · 화면 PBV 「기저율 표류 — 재등록 필요」(종전 「평가 실패」). 평가기(research) 무변경 · `ops_check.json` 어휘에 `drift` 추가(인계).
+  ⓓ bare 클론 간헐 실패(b303eb8): 로컬 20회·러너 dispatch 3회·push 4회 재현 0 → **원인 미확정** · stderr 계측(51908c9)만 유지.
 - **★ pages.yml 취소 연쇄 차단 (2026-09-06 · 장부 `audit/PAGES_CONCURRENCY_2026-09-06.md` · 회귀 `audit/test_pages_concurrency.py` · 커밋 8dec74f→73488a2)**:
   `price` 예비 슬롯(:20/:50)이 다음 예약에 밀려 **취소**될 때마다 `workflow_run(completed)` 로 Pages 실행이 생기고, 종전 **워크플로 수준** `concurrency`
   가 그 순간 **진행 중인 5분 dispatch 배포를 취소**한 뒤 자신은 skipped(0 스텝)로 끝났다(09-04 실측: :25/:55 스냅샷 3건 5분 지연). 가장 작은 수정 —
