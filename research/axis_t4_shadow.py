@@ -42,8 +42,8 @@
       AND 이웃 밴드에서도 최종·Calmar 조건 성립(고원). 격자 경계 최적은 무효.
 
 [한계 — 미리 적는다]
-  · C 는 달러·대용 체인 기준이다. 실제 판정은 원화 실측이지만, 규약의 *구조적*
-    성질(한도 해석·보완자산·판별력)은 통화와 무관하게 드러난다.
+  · C 는 달러·대용 체인 기준이다. 원화의 동일 창에서 다시 재기 전에는 한도 해석·
+    보완자산·판별력의 수치나 판정이 통화와 무관하다고 주장할 수 없다.
   · 3년 창들은 서로 겹친다(월 시작 롤링) — 독립 표본이 아니라 **경향**만 말한다.
 """
 # --- 하위 폴더에서도 루트의 엔진·데이터를 그대로 쓴다 -------------------------
@@ -57,6 +57,7 @@ import pandas as pd
 import hist_data as H
 from axis_lib import rule_w, sim, COST
 from research_kit import dist, fmt_dist, sweep, verdict, DesignError
+from research.band_accounting import banded_path
 
 try:
     _sys.stdout.reconfigure(encoding='utf-8')
@@ -224,7 +225,8 @@ def sec_b(D, wT, wB, votes, rv, cT, cB):
     flips = int((gate[1:] != gate[:-1]).sum())
     dwv = np.abs(np.diff(w, prepend=w[0]))
     gate_days = np.r_[False, gate[1:] != gate[:-1]]
-    print('  회전: 연 %.1f (B %.1f) — 게이트 전환 기인 %.0f%% · 변동성 조정 기인 %.0f%%'
+    print('  종가 목표변경량: 연 %.1f (B %.1f) — 게이트 전환일 몫 %.0f%% · 나머지 %.0f%% '
+          '(실제 보유 회전·매매일수 아님)'
           % (dwv.sum() / yrs, np.abs(np.diff(wB, prepend=wB[0])).sum() / yrs,
              dwv[gate_days].sum() / dwv.sum() * 100, dwv[~gate_days].sum() / dwv.sum() * 100))
     print('  게이트 전환 %d회 (연 %.1f) · votes==2 경계 체류 %.1f%% 일수'
@@ -378,23 +380,26 @@ def sec_c(D, wT, wB):
 
 # ==================================================================== D
 def band_curve(D, wT, band, cost, every=1):
-    """무거래 밴드 집행: |목표−보유| > band 일 때만(그리고 every일마다 검사) 보유를 목표로."""
-    idx = D['idx']
-    rk, dfr = D['qldr'], D['schdr']
-    n = len(idx)
-    pos = np.empty(n)
-    h = wT[0]
-    for i in range(n):
-        t = wT[i - 1] if i else wT[0]           # lag=1
-        if i % every == 0 and abs(t - h) > band:
-            h = t
-        pos[i] = h
-    r = np.nan_to_num(pos * rk + (1 - pos) * dfr)
-    r[0] = 0.0
-    turn = np.abs(np.diff(pos, prepend=pos[0]))
-    curve = pd.Series(np.cumprod((1 + r) * (1 - cost * turn)), index=idx)
+    """실제 보유비중과 비교해 거래하고, 거래 사이에는 보유 수량을 유지한다.
+
+    lag=1, every의 기존 실행행 위상(0, every, ...)은 유지한다. 비용은 옛
+    비례 차감 규약이며 F1/F2의 매수/매도액별 수수료와 다르다. §D만 교정한
+    것으로 다른 절이 사용하는 axis_lib.sim의 부분비중 비용까지 인증하지 않는다.
+    """
+    idx = pd.DatetimeIndex(D['idx'])
+    if isinstance(every, (bool, np.bool_)) or not isinstance(every, (int, np.integer)) or every < 1:
+        raise ValueError('every must be a positive integer')
+    w = np.asarray(wT, float)
+    if (w.shape != (len(idx),) or len(idx) < 2 or idx.hasnans or
+            not idx.is_unique or not idx.is_monotonic_increasing):
+        raise ValueError('matching weights and at least two ordered dates required')
+    lagged = np.r_[w[0], w[:-1]]
+    p = np.column_stack([lagged, 1-lagged])
+    r = np.column_stack([D['qldr'], D['schdr']])
+    result = banded_path(p, r, np.arange(len(idx)) % every == 0, cost, band)
+    curve = pd.Series(result['wealth'], index=idx)
     yrs = (idx[-1] - idx[0]).days / 365.25
-    return curve, float(turn.sum() / yrs)
+    return curve, float(result['turnover'].sum() / yrs)
 
 
 def sec_d(D, wT):
@@ -412,7 +417,8 @@ def sec_d(D, wT):
             return m
         r = sweep(f, {'band': bands}, metric='calmar', edge='warn')
         tabs[cost] = r['table']
-        print('\n  편도 %.1f%% (경계축: %s · 고원 %s):' % (cost * 100, r['edge_axes'], r['plateau']))
+        print('\n  비례비용 %.1f%% (경계축: %s · 도구의 근접성 표시 %s · D-1 고원은 아래 별도):'
+              % (cost * 100, r['edge_axes'], r['plateau']))
         t = r['table']
         base = t[t['band'] == 0.0].iloc[0]
         for _, x in t.iterrows():
@@ -447,23 +453,22 @@ def sec_d(D, wT):
     for b in ok_bands:
         j = bands.index(b)
         nb = [bands[k] for k in (j - 1, j + 1) if 0 <= k < len(bands)]
-        good = bool(nb) and all(
+        good = len(nb) == 2 and all(
             float(t[t['band'] == q]['final'].iloc[0]) >= base['final']
             and float(t[t['band'] == q]['calmar'].iloc[0]) >= base['calmar']
             for q in nb)
         if good:
             plateau_ok, pick = True, b
             break
-    # [코드리뷰 2026-09-04] ★ D-1 은 자료가 정한 기각이 아니다. 회전 조건이
-    #   `turn <= base*0.6` 인데, 같은 실행의 sec_b 가 인쇄하듯 T4 회전의 **81%가 0<->1
-    #   게이트 전환**(크기 1.0)이라 어떤 밴드로도 억제되지 않는다. 사전등록 격자 끝
-    #   (band=0.20)에서도 회전이 base 의 86% 이고, 0.005~1.000 을 199칸 전수 스캔해도
-    #   네 조건 동시 충족은 0개다(회전 조건만 처음 만족하는 0.930 에서 Calmar 가 미달).
-    #   즉 통과할 입력이 존재하지 않는 관문이다(CLAUDE.md §-1 ⑤). 그 사실을 인쇄한다.
+    # [2026-09-05 R06 철회] 옛 81%/86%는 목표 차이 회전으로 잰 값이다.
+    #   실제 보유 회전의 하한이나 모든 입력의 불가능성 증명이 아니다.
+    #   이웃 하나뿐인 격자 경계도 사전 기준의 고원으로 인정하지 않는다.
     tmin = float(t['turn'].min())
-    print('  [진단] 회전 하한 %.2f (요구 %.2f = base %.2f x0.6) — 밴드로 억제 못 하는 '
-          '게이트 전환이 회전의 대부분이라 이 관문은 통과할 입력이 없다.'
+    print('  [진단] 이번 격자의 최소 연회전 %.2f (요구 %.2f = base %.2f x0.6). '
+          '이 격자의 결과이며 다른 입력 전체가 불가능하다는 증명은 아니다.'
           % (tmin, base['turn'] * 0.6, base['turn']))
+    print('  다음 질문: 실제 거래일수 감소와 회전액 감소를 분리하고, 원화·한국장·납입 '
+          '계좌에서 검증해야 한다(STRATEGY_RESEARCH_2026-09-05 §15).')
     checks = [('D-1 밴드 개선 존재 (0.2% 비용·고원)', bool(ok_bands) and plateau_ok,
                '조건 충족 밴드 %s · 대표 %s'
                % (['%.1f%%' % (b * 100) for b in ok_bands], ('%.1f%%' % (pick * 100)) if pick else '-'))]
@@ -472,6 +477,8 @@ def sec_d(D, wT):
 
 # ==================================================================== main
 def main():
+    print('[R06 경계] 실제 보유 회계 교정은 D절이다. A/B/C절의 axis_lib.sim 부분비중 '
+          '비용과 옛 사건 판정까지 재인증한 것이 아니다.')
     selfcheck_events()
     D, wT, wB, votes, rv = build('tbill')
     ck_a, cT, cB = sec_a(D, wT, wB)

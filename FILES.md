@@ -8,6 +8,7 @@
 
 - `research/STRATEGY_RESEARCH_2026-09-05.md` — 소유자가 허용한 A·T4·B 밖 구조의 분리 연구 사전 기록. 실제 B 동결과 분리한다.
 - `research/rebalance_accounting.py` — 실제 비중 표류·전 자산 편도 회전 공용 계산. 매일 재조정과 거래가능일 사이 보유를 구분하며 계좌 과세·납입은 미포함.
+- `research/band_accounting.py` — R06 옛 비례비용 집행 진단의 실제 보유·밴드 원장. F1/F2의 정확한 매매액 수수료/계좌 원장과 구분.
 - `research/strategy_f1_screen.py` — 사전 고정 F1 8개 달러 세전 1차 비교. 실제 금액 원장 대조·7/10년 모든 시작일·비용/지연 민감도. 원화 ISA 판정은 아님.
 - `research/strategy_f1_kr.py` — F1 원화/달러 상품모형 × 한국/미국 거래일 연결. 휴일 보유·날짜 역방향 검산·보유수량 검산. 납입·계좌세금은 미포함.
 - `research/account_ledger.py` — 분리 연구용 실제 매매금액·평균원가·세금 재원 매도·납입 대기현금 원장. 실제 ETF 과표·바스켓 내부 세금·개인 종합과세는 미포함.
@@ -16,6 +17,7 @@
 - `audit/test_f1_placebo.py` — 연 블록 보존·다중보정 해상도·무작위 달력 구간·배치 원장 검산.
 - `research/strategy_f2_mix.py` — F2 고정 혼합3개·무작위 비중 분포200개·시점 반증·F1 포함 36개 보정. 세전 진단이며 채택 아님.
 - `audit/test_f2_mix.py` — F2 혼합 끝점·방어 비중·배치 원장 축퇴·무작위 분포 재현 검산.
+- `audit/test_execution_bands.py` — 무거래 기간 수량 유지·표류 비용·독립 수량 원장·구형 어댑터·D-1 경계 회귀 검사.
 
 ```
 내가_보는_것/          ★ 소유자용 (한국어). 여기 밖의 파일은 소유자에게 시키지 않는다
@@ -406,7 +408,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 |
 |---|---|
-| `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). v203 공통 사건계약 21회: 공식 M1(<0.7) 76% · M2 81% · 동시 67% (민감도 M1<0.5는 67%), 무거래 밴드 기각 → v210 재실행(순회 B09): M1 76% · M2 19/21=90% · 동시 67% · A-1 앵커를 v210 기준(T4 254,088 · B 181,018 @2026-08-26)으로 갱신 |
+| `research/axis_t4_shadow.py` | T4 v80 연구 참조. v210 사건/앵커 정정은 순회 B09. R06은 **D절의 실제 보유 밴드 회계**와 격자 경계 교정: 기존 D-1 미충족은 유지하되 모든 입력의 불가능성 주장은 철회. A/B/C의 부분비중 비용은 별도 미교정 |
 | `research/axis_t4_synthcrash.py` | 합성 하락장 해부 — 닷컴형 B 60% 구조·2008 은 소수 추첨(~29%). 시간추세 없음 · ¼ 양자화 유효 · 혼합 프런티어 · 비용 민감도 |
 | `research/axis_t4_krcost.py` | 한국비용(0.2%) 내성 변형 9종 — 관문 K1~K7 사전 고정, **전멸** |
 | `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 내성 · 사건승 15/21=71%(재난보험형) → v210 재실행 13/21=62% · 사각지대 최장 90일 · **P3 미달** (정정 2026-09-05 · 순회 B06-1) |
@@ -442,7 +444,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|---|
 | `research/audit_stat.py` | 혼합 x·B+(1−x)·T4 를 블록 부트스트랩·ESS·Deflated Sharpe 로 해부 | 고원은 채굴 산물 가능 |
 | `research/audit_pbo.py` | 탐색한 후보 전부를 CSCV(Bailey–López de Prado 2014)에 — 「표본 내 1등 고르기」의 과적합도 | PBO 0.49~0.53 → v210 재실행 Sharpe 0.03 / Calmar 0.51 (혼합만 0.36 / 0.59) |
-| `research/audit_exec.py` | 혼합의 실전 집행 근사 — 매일 움직이는 목표비중에서 고원이 사는가 | ¼ 양자화 필요 |
+| `research/audit_exec.py` | 혼합의 옛 달러 집행 진단 — R06 실제 수량 보유/회전/매매일 교정. ¼ 양자화의 목표변경 횟수는 실제 매매일이 아니며 한국 ISA 적용은 미검증 |
 | `research/cand_general.py` | 「전략 간 분산」이 B×T4 특유인가, 아무 희석에나 생기나 | 일반화 실패 |
 | `research/b_adversarial.py` | **「B 에게도 확증편향이 있는 것 아닌가」** (소유자 질문) — B 를 심판이 아닌 피고로 | 04 §5-15 |
 | `research/what_we_know.py` | 「동전던지기·모른다로 도망치지 마라」 — 문턱·룩백·기전의 **식별 가능성** 분리 | 04 §5-14 |
