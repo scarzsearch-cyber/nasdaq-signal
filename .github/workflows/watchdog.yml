@@ -186,8 +186,12 @@ jobs:
       # ⑤ [v195] 휴장일 표 연장 — 표는 2025~2032 로 **조용히 끝나는 파일**이다. 사람이 2032 년에 기억해서
       #   다시 만들 리 없으므로 매주 재생성해 해가 바뀌면 한 해씩 민다. 내용이 같으면 emit 이 파일을
       #   쓰지 않는다 → 커밋도 없다. 임시공휴일·선거일은 여전히 deploy/kr_holidays.py 의 SPECIAL 에 손으로.
+      #   [2026-09-05 4차 · W4] 이 스텝이 실패하면(음력 표 소진 등) 앞서 쓴 ops_check.json 의 커밋까지
+      #   막혔다 — 서로 무관한 산출물이다. 실패는 삼키지 않고 아래 이슈 조건이 outcome 으로 읽는다.
       - name: 휴장일 표 연장
+        id: hol
         if: env.WEEKLY == 'true'
+        continue-on-error: true
         run: python3 deploy/kr_holidays.py --emit
 
       # 화면 배포는 다음 「일일 신호 갱신」이 끌고 간다(pages.yml 이 그 완료를 구독).
@@ -220,7 +224,7 @@ jobs:
           steps.stats.outputs.alert == '1' || steps.price.outputs.alert == '1' ||
           steps.chk.outputs.alert == '1' || steps.reb.outputs.alert == '1' ||
           steps.sw.outputs.alert == '1' || steps.near.outputs.alert == '1' ||
-          steps.hb.outputs.alert == '1')
+          steps.hb.outputs.alert == '1' || steps.hol.outcome == 'failure')
         uses: actions/github-script@v7
         with:
           script: |
@@ -235,6 +239,7 @@ jobs:
               '- **성과 스냅샷** — 월간 갱신이 건너뛰어 성과 비교표가 낡았습니다(매매와 무관).',
               '- **시세 수집** — 자산 가격·괴리 배지가 화면에서 사라져 있습니다(매매와 무관).',
               '- **자동 점검** — 전제·상품·비용 중 하나가 주의선을 넘었습니다.',
+              '- **휴장일 표 연장** — 실패했다면 다음 해 표가 안 늘어난 것입니다(deploy/kr_holidays.py · 매매와 무관).',
               '',
               '어느 쪽인지는 위 로그에 한국어로 찍혀 있습니다.',
               '**전략을 바꾸는 일이 아닙니다** — 기본 대응은 「지켜본다」입니다.'
