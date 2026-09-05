@@ -53,6 +53,9 @@ LEDGERS = {
     'audit/REBAL_LEDGER_2026-09-06.md': (3, '재조정 독립 원장(sim_hold 다자산)'),
     'audit/SECURITY_INPUT_2026-09-06.md': (3, '보안·입력 경계'),
     'audit/REPRO_2026-09-06.md': (4, '재현성(격리 클론 실행)'),
+    'audit/CSP_2026-09-06.md': (4, '배포본 CSP 실측'),
+    'audit/SCREEN_DYNAMICS_2026-09-06.md': (4, '화면 갱신·저장 경계 실측'),
+    'audit/RECOVERY_DOCS_2026-09-06.md': (1, '복구 안내 대조'),
 }
 # 장부가 이름만 언급한 파일에 근거를 주지 않도록, 근거를 인정할 파일을 명시하는 장부(없으면 본문 언급 전부)
 LEDGER_ONLY = {
@@ -63,6 +66,8 @@ LEDGER_ONLY = {
                                            '.github/workflows/notify-test.yml', '.github/workflows/verify.yml', '.github/workflows/price.yml',
                                            '.github/workflows/watchdog.yml', '.github/workflows/daily-signal.yml', '.github/workflows/pages.yml',
                                            '.github/workflows/monthly-stats.yml', '.github/workflows/source-probe.yml', 'audit/test_repro6.py'},
+    'audit/CSP_2026-09-06.md': {'signal.html', 'guide.html', 'notes.html', 'deploy/csp_inject.py', 'deploy/stamp_rev.py', '.github/workflows/pages.yml', 'audit/test_screen8.py'},
+    'audit/SCREEN_DYNAMICS_2026-09-06.md': {'signal.html', 'audit/test_screen8.py'},
     'audit/REPRO_2026-09-06.md': {'verify_all.py', 'research_kit.py', 'deploy/build_stats.py', 'deploy/kr_holidays.py', 'deploy/wait_close.py', 'deploy/nav_collect.py',
                                   'deploy/watchdog.py', 'research/axis_isa.py', 'research/emit_dd_distribution.py', 'data/kr_holidays.json', 'audit/test_repro6.py'},
 }
@@ -80,6 +85,7 @@ TESTS = {
     'audit/test_f4_products.py': 3,
     'audit/test_survival5.py': 3,
     'audit/test_repro6.py': 3,
+    'audit/test_screen8.py': 3,
 }
 # verify_all 상시 관문이 직접 재계산·대조하는 파일(문자열 검사만인 것은 L1 로 낮춰 적는다).
 VERIFY_L3 = {'hist_defensive.py', 'hist_data.py', 'axis_lib.py', 'axis_defmix.py', 'axis_volguard.py', 'reentry_lib.py',

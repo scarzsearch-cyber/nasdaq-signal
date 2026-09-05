@@ -51,7 +51,9 @@ notify.py            [v73/v77] 실패·전환 알림 — 카카오톡 "나에게
                      KAKAO_CLIENT_SECRET도 등록. 최초 발급은 deploy/kakao_setup.py)
                      또는 Discord/Telegram. 미설정이면 조용히 생략
 kakao_keepalive.py   [v77] 카카오 refresh 토큰(2개월 시한부)을 매일 갱신해 연명.
-                     교체 신호 시 GH_PAT 로 secret 자동 교체. 새 토큰 발급 순간 옛 토큰은
+                     교체 신호 시 GH_PAT 로 secret 자동 교체(`gh secret set` — GH_PAT 는 이 저장소의
+                     Actions secrets 쓰기 권한이 있는 토큰이어야 한다: classic 이면 repo 스코프,
+                     fine-grained 면 Secrets: Read and write). 새 토큰 발급 순간 옛 토큰은
                      무효이므로 저장 실패 시 즉시 재설정하라는 카톡을 보내고 실패로 표시
 data_check.py        [v73] 월간 연장의 검증 게이트 — 결측·중복·역순·0이하·±30%·공백·열누락 시
                      해당 파일 갱신 거부(기존 유지) + 종료코드 1. 열별 절대범위·OHLC 모순·
