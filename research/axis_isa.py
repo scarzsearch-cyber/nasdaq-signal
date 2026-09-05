@@ -19,8 +19,9 @@
   ③ 이연 + 9.9%   해지 시 한 번 9.9%           -> 세율 인하의 값
   ④ ISA 서민형    ③ + 순이익 400만원 비과세    -> 비과세 한도의 값
 
-[규약] 납입은 연 2,000만원(월 1,666,667원)씩 5년 = 1억. ISA 한도상 거치식이 불가능하다.
+[규약] 이 비교는 연 2,000만원(월 1,666,667원)씩 5년 = 1억을 납입한다.
   그 뒤는 추가 납입 없이 보유. 방어자산은 채택안 40/40/20.
+  남은 납입한도 안의 일시 납입도 가능하나, 이 표에서 재는 경로는 아니다.
 
 실행:  python axis_isa.py            # 표
        python axis_isa.py --emit     # data/isa_stats.json 생성
@@ -223,6 +224,20 @@ def rolling(rr, dfr, w, years, step=126):
     return out, len(starts)
 
 
+def decompose(g, d1, d2, isa):
+    """일반계좌 대비 이득을 같은 분모로 분해한다 (단위: %p).
+
+    [v210] 종전 rate/exempt는 직전 단계 잔액으로 나눴다. 그렇게 얻은 비율을
+    총이득으로 다시 나누면 기여도 합계가 100%가 아니다. 잔액·세금은 불변이다.
+    이는 정해진 적용 순서에서 중앙값의 차이를 나눈 회계 분해이지 인과 추정이 아니다.
+    """
+    g, d1, d2, isa = map(float, (g, d1, d2, isa))
+    if not np.isfinite([g, d1, d2, isa]).all() or g <= 0:
+        raise ValueError('이득 분해에는 유한한 잔액과 양수 일반계좌 기준값이 필요하다')
+    return dict(defer=(d1 - g) / g * 100, rate=(d2 - d1) / g * 100,
+                exempt=(isa - d2) / g * 100, total=(isa - g) / g * 100)
+
+
 def show(res, years, paid):
     print()
     print('  [%d년 창 · 납입 %s원(연 2천만 x 5년) · 창 %d개]' % (years, f'{paid:,.0f}', res[1]))
@@ -251,7 +266,7 @@ if __name__ == '__main__':
     wB = rule_w(D['ddv'], -0.16, -0.16)
 
     print('ISA 중개형·서민형 기준 세후 판정 — 원화 · 환노출 2배 · 방어 40/40/20')
-    print('납입 연 2,000만원 x 5년 = 1억 (ISA 한도상 거치식 불가). 편도 0.1% + 슬리피지 0.1%.')
+    print('이 비교의 납입: 연 2,000만원 x 5년 = 1억. 편도 0.1% + 슬리피지 0.1%.')
     print('구간 %s ~ %s' % (FX_START.date(), IDX[-1].date()))
 
     emit = {}
@@ -267,19 +282,17 @@ if __name__ == '__main__':
     r = rolling(lev2, mix, wB, 20)[0]
     g, d1, d2, isa = (r['gen']['median'], r['defer']['median'],
                       r['defer99']['median'], r['isa']['median'])
-    tot = isa / g - 1
-    print('  %-30s %+8.1f%%   (전체의 %.0f%%)' % ('과세이연 (①->②)', (d1 / g - 1) * 100,
-                                                100 * (d1 / g - 1) / tot))
-    print('  %-30s %+8.1f%%   (전체의 %.0f%%)' % ('세율 15.4%->9.9% (②->③)', (d2 / d1 - 1) * 100,
-                                                100 * (d2 / d1 - 1) / tot))
-    print('  %-30s %+8.1f%%   (전체의 %.0f%%)' % ('400만원 비과세 (③->④)', (isa / d2 - 1) * 100,
-                                                100 * (isa / d2 - 1) / tot))
-    print('  %-30s %+8.1f%%' % ('합계 ISA vs 일반계좌', tot * 100))
+    decomp = decompose(g, d1, d2, isa)
+    for key, label in [('defer', '과세이연 (①->②)'), ('rate', '세율 15.4%->9.9% (②->③)'),
+                       ('exempt', '400만원 비과세 (③->④)')]:
+        share = ('전체의 %.0f%%' % (100 * decomp[key] / decomp['total'])
+                 if decomp['total'] else '전체 이득 0: 기여율 없음')
+        print('  %-30s %+8.1f%%p   (%s)' % (label, decomp[key], share))
+    print('  %-30s %+8.1f%%' % ('합계 ISA vs 일반계좌', decomp['total']))
     print()
     print('  ※ 과세이연이 압도적이다. 이 전략이 연 2.1회 전량 전환하기 때문이다 —')
     print('    일반계좌는 전환할 때마다 복리의 원금이 깎인다.')
-    emit['decomp'] = dict(defer=(d1 / g - 1) * 100, rate=(d2 / d1 - 1) * 100,
-                          exempt=(isa / d2 - 1) * 100, total=tot * 100)
+    emit['decomp'] = decomp
 
     if '--emit' in sys.argv:
         emit['params'] = dict(monthly=MONTHLY, years_pay=YEARS_PAY, exempt=EXEMPT,

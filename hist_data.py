@@ -39,6 +39,10 @@ def _fred(path, col):
     **한 번도 쓰지 않았다** — 어떤 이름을 넘겨도 결과가 같았다. 다중 컬럼 파일을
     넘기면 두 번째 컬럼이 조용히 선택됐다. 이제 이름이 있으면 그것으로 고르고,
     없으면 종전대로 두 번째 컬럼으로 물러선다(기존 호출부 7곳 전부 동작 동일).
+
+    [v210] 점(.)뿐 아니라 CSV 빈칸이 파싱된 NaN도 제외한다. 가격이 없는 휴장일이
+    지수 거래일 격자에 남으면 252일 룩백과 합성 레버리지의 일간 비용까지 바뀐다.
+    보간이 필요한 금리·환율 호출자는 자기 목표 격자로 다시 맞춘 뒤 명시적으로 채운다.
     """
     d = pd.read_csv(path)
     name = col if col in d.columns else d.columns[1]
@@ -46,7 +50,7 @@ def _fred(path, col):
     d.columns = ['Date', 'v']
     d = d[d['v'] != '.']
     d['Date'] = pd.to_datetime(d['Date'])
-    return d.set_index('Date')['v'].astype(float).sort_index()
+    return d.set_index('Date')['v'].astype(float).dropna().sort_index()
 
 
 def _yahoo(path):

@@ -8,7 +8,8 @@
   rule_dd(px, in_th, out_th)  252일 고점 낙폭 상태기계 (마감 판정, w∈{0,1})
       검산: (−16,−16) 을 QQQ 체인에 걸면 reentry_lib.run 의 wB 와 완전 일치.
   sim2(w, r_eng, r_def, cost) 공격/방어 2분할, lag=1, 비용은 회전에만
-      검산: B 재현이 build_stats 공표(217110.075/25.26/−60.48/0.418)와 일치.
+      검산: B 재현을 현행 data/strategy_stats.json의 us_1972 공표값과 대조한다.
+      v210 이전의 217110.075/25.26은 옛 거래일 격자의 값이므로 현재 상수로 인용하지 않는다.
   synth2x(r_idx, c_daily)     2배 합성 = 2r − c_daily (axis_lib.lev_r 규약 그대로)
   fullmet(curve, tb)          최종배수·CAGR·MDD·Calmar·Sortino·Sharpe·회복일·전환수
 """

@@ -822,7 +822,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     </details>
   </div>
 
-  <!-- 수치 출처: axis_isa.py [v203 세금·납입 회계 정정 반영] (data/isa_stats.json).
+  <!-- 수치 출처: axis_isa.py [v210 거래일·기여도 정정 반영] (data/isa_stats.json).
        갱신하려면  python research/axis_isa.py --emit  후 아래 표를 맞춰 쓸 것. -->
   <div class="guide" id="taxPanel" data-fold data-foldshut>
     <h2>계좌 — ISA 중개형 · 서민형 기준</h2>
@@ -831,17 +831,17 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div>
         <div class="k">ISA 실효세율</div>
         <div class="v good">9.9%</div>
-        <div class="s">일반계좌 13.1~16.9%</div>
+        <div class="s">일반계좌 13.2~17.0%</div>
       </div>
       <div>
         <div class="k">일반계좌 대비</div>
-        <div class="v good">+54.7%</div>
+        <div class="v good">+59.9%</div>
         <div class="s">5년 납입 · 20년 결과</div>
       </div>
       <div>
         <div class="k">이득의 출처</div>
-        <div class="v">과세이연 83%</div>
-        <div class="s">세율 인하 12% · 비과세 400만 0%</div>
+        <div class="v">과세이연 84%</div>
+        <div class="s">세율 인하 약 16% · 비과세 효과는 작음</div>
       </div>
     </div>
 
@@ -851,25 +851,27 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
           <th class="num">20년</th><th class="num">실효세율</th></tr></thead>
         <tbody>
           <tr class="best"><td class="acct">ISA · 만기 연장해 계속 보유</td>
-            <td class="num">6.34배</td><td class="num">31.15배</td><td class="num">135.24배</td>
+            <td class="num">6.39배</td><td class="num">27.98배</td><td class="num">141.61배</td>
             <td class="num">9.8~9.9%</td></tr>
           <tr><td class="acct">ISA · 3년마다 해지·재가입 <span class="muted">(낙관적 상한)</span></td>
-            <td class="num">6.02배</td><td class="num">27.22배</td><td class="num">114.38배</td>
-            <td class="num">8.3~9.1%</td></tr>
+            <td class="num">6.06배</td><td class="num">24.55배</td><td class="num">118.05배</td>
+            <td class="num">8.3~9.0%</td></tr>
           <tr><td class="acct">일반계좌 · 전환마다 15.4%</td>
-            <td class="num">5.54배</td><td class="num">22.39배</td><td class="num">87.44배</td>
-            <td class="num">13.1~16.9%</td></tr>
+            <td class="num">5.43배</td><td class="num">20.66배</td><td class="num">88.57배</td>
+            <td class="num">13.2~17.0%</td></tr>
           <tr class="ref"><td class="acct">세전 (참고)</td>
-            <td class="num">6.93배</td><td class="num">34.46배</td><td class="num">149.99배</td>
+            <td class="num">6.98배</td><td class="num">30.94배</td><td class="num">157.05배</td>
             <td class="num">0.0%</td></tr>
         </tbody>
       </table>
     </div>
     <div class="hint">
       <b>방법</b> — 연 2,000만원(월 166.7만원)씩 5년 넣어 1억을 채우고 그 뒤엔 보유.
-      ISA는 납입한도 때문에 거치식이 불가능합니다. 배수는 <b>납입액 1억 대비 세후 평가액</b>,
+      남은 납입한도 안에서 목돈을 한 번에 넣을 수도 있지만, 이 표는 나눠 넣는 경우입니다.
+      배수는 <b>납입액 1억 대비 세후 평가액</b>,
       각 열의 기간(10·15·20년)을 여러 시작일로 계산한 중간 결과입니다(원화 · 방어 40/40/20,
       수수료·슬리피지 각 0.1% 반영). 처음에 한 번 넣는 거치식 비교와는 다른 계산입니다.
+      시작일은 1981년 이후이며, 과거 자료를 재구성한 계산입니다. 미래 수익을 보장하지 않습니다.
     </div>
 
     <div class="pickbox">
@@ -881,19 +883,19 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
       <div class="p"><div class="n">2</div><div class="t">
         <b>그보다 많다면 — ISA를 먼저 채우고 초과분만 일반계좌로.</b>
         이 전략은 연 2.1회 전량 전환하므로 과세이연 효과가 가장 큰 자금부터 ISA에 넣는 쪽이 유리합니다.
-        <em>미납분은 이월됩니다. 매달 균등하지 않아도, 몰아넣어도 결과는 거의 같습니다.</em>
+        <em>미납분은 이월됩니다. 남은 한도 안에서 납입할 수 있으며, 넣는 시점에 따라 결과도 달라집니다.</em>
       </div></div>
       <div class="p"><div class="n">3</div><div class="t">
         <b>3년 만기가 오면 — 해지하지 말고 연장합니다.</b>
         해지하면 불어난 돈을 다시 넣을 수 없습니다(재납입도 연 2,000만원 한도).
-        <em>20년 기준으로 연장이 3년마다 해지보다 약 18% 앞섭니다(135.24배 vs 114.38배).</em>
+        <em>이 20년 비교에서는 연장이 약 20% 앞섰습니다(141.61배 vs 118.05배). 모든 구간에서의 우세를 뜻하지는 않습니다.</em>
       </div></div>
     </div>
 
     <div class="rules">
       <b>놓치기 쉬운 것</b><br>
-      · 비과세 400만원은 이 규모에서 사실상 의미가 없습니다 — 실효세율은 <b>9.9%로 수렴</b>합니다.
-        ISA의 값어치는 비과세가 아니라 <b>과세이연</b>에서 나옵니다(이득의 83%).<br>
+      · 위 20년 예시에서는 비과세 400만원의 상대적 효과가 작고, 실효세율이 <b>9.9%에 가까워집니다</b>.
+        계산상 이득의 약 84%는 <b>과세이연</b>입니다. 금액·수익에 따라 달라집니다.<br>
       · 3년 의무보유. 그 전에 해지하면 세제혜택이 사라집니다.
     </div>
   </div>

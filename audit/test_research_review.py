@@ -321,6 +321,69 @@ class MultiAssetRebalance(unittest.TestCase):
         np.testing.assert_array_equal(mask, [True, False, True, True, False])
 
 
+class HistoricalCalendarIntegrity(unittest.TestCase):
+    def test_fred_drops_blank_and_dot_quotes_without_using_another_column(self):
+        import hist_data as history
+        parsed = pd.read_csv(io.StringIO(
+            'observation_date,NASDAQCOM,other\n'
+            '1972-02-18,100,900\n'
+            '1972-02-21,,901\n'
+            '1972-02-22,.,902\n'
+            '1972-02-23,101,903\n'))
+        with patch.object(history.pd, 'read_csv', return_value=parsed):
+            actual = history._fred('unused.csv', 'NASDAQCOM')
+        self.assertEqual(list(actual.index), [pd.Timestamp('1972-02-18'), pd.Timestamp('1972-02-23')])
+        np.testing.assert_array_equal(actual.to_numpy(), [100., 101.])
+
+    def test_proxy_calendar_does_not_include_missing_price_as_zero_return(self):
+        import hist_data as history
+        frames = {
+            'data/hist/fred_NASDAQCOM.csv': pd.read_csv(io.StringIO(
+                'observation_date,NASDAQCOM\n1972-02-18,100\n1972-02-21,\n1972-02-22,101\n')),
+            'data/hist/yahoo_NDX.csv': pd.DataFrame(dict(
+                Date=pd.to_datetime(['1985-10-01', '1985-10-02']), Close=[100., 101.])),
+            'qqq_us_d.csv': pd.DataFrame(dict(
+                Date=pd.to_datetime(['1999-03-10', '1999-03-11']), Close=[100., 101.])),
+        }
+        with patch.object(history.pd, 'read_csv', side_effect=lambda path, **kw: frames[str(path)].copy()):
+            returns, source = history.qqq_proxy()
+        self.assertNotIn(pd.Timestamp('1972-02-21'), returns.index)
+        self.assertEqual(len(returns), 6)
+        self.assertAlmostEqual(returns.loc['1972-02-22'], .01)
+        self.assertTrue(returns.index.equals(source.index))
+
+
+class IsaDecomposition(unittest.TestCase):
+    def test_static_isa_panel_matches_generated_account_values(self):
+        import json
+        import re
+        data = json.loads((ROOT / 'data/isa_stats.json').read_text(encoding='utf-8'))
+        source = (ROOT / 'signal.html').read_text(encoding='utf-8')
+        panel = source.split('id="taxPanel"', 1)[1].split('id="t4Panel"', 1)[0]
+        rows = re.findall(r'<tr\b[^>]*>(.*?)</tr>', panel, flags=re.S)[1:]
+        for row, key in zip(rows, ('isa', 'isa3', 'gen', 'pre')):
+            cells = re.findall(r'<td\b[^>]*>(.*?)</td>', row, flags=re.S)
+            expected = [f"{data['y'+str(y)]['modes'][key]['median'] / data['y'+str(y)]['paid']:.2f}배"
+                        for y in (10, 15, 20)]
+            self.assertEqual(cells[1:4], expected, key)
+        self.assertEqual(len(rows), 4)
+        self.assertIn(f"+{data['decomp']['total']:.1f}%", panel)
+
+    def test_components_use_one_denominator_and_sum_to_total(self):
+        import axis_isa
+        out = axis_isa.decompose(100., 150., 160., 170.)
+        for key, expected in dict(defer=50., rate=10., exempt=10., total=70.).items():
+            self.assertAlmostEqual(out[key], expected)
+        self.assertAlmostEqual(sum(out[k] for k in ('defer', 'rate', 'exempt')), out['total'])
+        self.assertEqual(axis_isa.decompose(100., 100., 100., 100.)['total'], 0.)
+
+    def test_invalid_reference_cannot_produce_plausible_percentages(self):
+        import axis_isa
+        for base in (0., -1., float('nan'), float('inf')):
+            with self.subTest(base=base), self.assertRaises(ValueError):
+                axis_isa.decompose(base, 150., 160., 170.)
+
+
 class HistoricalModelScope(unittest.TestCase):
     """Document current model boundaries, not their accuracy as forecasts."""
 
