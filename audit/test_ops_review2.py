@@ -307,7 +307,8 @@ class SignalHtmlDayCounts(unittest.TestCase):
             self.skipTest('node 없음')
         src = self.src
         helpers = extract_js(src, "const NY='America/New_York'", 'function krIso(')
-        biz = extract_js(src, 'function bizDaysSince(iso){', '\nfunction showStale(')
+        # [v225] 서명이 (iso, now) 로 바뀌었다 — now 는 검사용 주입(기본 지금). 휴장 표(usHolidays)는 helpers 블록 안에 있다.
+        biz = extract_js(src, 'function bizDaysSince(iso, now){', '\nfunction showStale(')
         days = re.search(r'function daysSince\(d\)\{.*?\n(?=/\*|function )', src, re.S).group(0)
         fake_clock = (
             'const RealDate = Date; let FIXED = 0;\n'
@@ -345,6 +346,20 @@ class SignalHtmlDayCounts(unittest.TestCase):
             'const morning = bizDaysSince("2026-09-11");'
             'console.log(JSON.stringify({live, morning}));')
         self.assertEqual(r, {'live': 1, 'morning': 2})
+
+    def test_biz_days_since_skips_us_holidays(self):
+        # [v225] 노동절(2026-09-07) 주 — 종전(평일 셈)은 화요일 아침에 2(노란 점)·목요일에 4 였다.
+        #   파수꾼 biz_days_since 와 같은 미국 거래일 셈: 화 1 · 수 2 · 목 3. 독립기념일 관측일(07-03 금)도 뺀다.
+        r = self._run_js(
+            'FIXED = Date.UTC(2026, 8, 7, 23, 40);'           # 09-08(화) 08:40 KST
+            'const tue = bizDaysSince("2026-09-04");'
+            'FIXED = Date.UTC(2026, 8, 8, 23, 40);'           # 09-09(수)
+            'const wed = bizDaysSince("2026-09-04");'
+            'FIXED = Date.UTC(2026, 8, 9, 23, 40);'           # 09-10(목)
+            'const thu = bizDaysSince("2026-09-04");'
+            'const j4 = bizDaysSince("2026-07-02", new Date(Date.UTC(2026, 6, 7, 1, 0)));'   # now 주입 · 07-07(화) 10:00 KST
+            'console.log(JSON.stringify({tue, wed, thu, j4}));')
+        self.assertEqual(r, {'tue': 1, 'wed': 2, 'thu': 3, 'j4': 2})
 
 
 class ScreenContracts(unittest.TestCase):
