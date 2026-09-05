@@ -50,6 +50,7 @@
 - `audit/SCREEN_DYNAMICS_2026-09-06.md` — 화면 갱신 순서·실패·복구 + 저장·복원 경계: 갱신 경쟁 후퇴 · 탭 복귀 신선도 정체 · 손상 저장값 패널 마비 · 되돌리기 스냅샷 실패 시 덮어쓰기(4건 수정) · 오프라인 복구·이전 버전 값·저장 불가(정상).
 - `audit/RECOVERY_DOCS_2026-09-06.md` — 운영 문서의 복구 절차 대조: 명령·워크플로·secrets 이름 일치 · 누락 3(재설정 확인법 · 통째 정지 복구 · GH_PAT 권한) 수정 · 계정 소유자 전용 단계 목록.
 - `audit/test_screen8.py` — 위 회귀 5(시세 갱신 순서 · 살균 제외 건수 · 손상 저장값 격리 · 복원 중단 · 세 화면 CSP 해시 정책·스텝 순서).
+- `audit/RESEARCH_SCOPE_2026-09-06.md` — 계산·보조 도구 미검증 범위 선정(읽기 전용): research 134+문서 10+research_kit+점검.py 를 운영 사용 12 · 공용 24 · 보관 73 · 불명확 34 로 분류 · 후보 3(낙폭 백분위 · 전제 감시+점검 파싱 · 위기 궤적) 제안만 · 착수 안 함.
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.
