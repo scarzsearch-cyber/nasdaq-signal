@@ -389,6 +389,13 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **★ pages.yml 취소 연쇄 차단 (2026-09-06 · 장부 `audit/PAGES_CONCURRENCY_2026-09-06.md` · 회귀 `audit/test_pages_concurrency.py` · 커밋 8dec74f→73488a2)**:
+  `price` 예비 슬롯(:20/:50)이 다음 예약에 밀려 **취소**될 때마다 `workflow_run(completed)` 로 Pages 실행이 생기고, 종전 **워크플로 수준** `concurrency`
+  가 그 순간 **진행 중인 5분 dispatch 배포를 취소**한 뒤 자신은 skipped(0 스텝)로 끝났다(09-04 실측: :25/:55 스냅샷 3건 5분 지연). 가장 작은 수정 —
+  deploy 잡에 `if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'cancelled'` + `concurrency` 를 **잡 수준**으로.
+  실패한 선행 실행은 v203 대로 계속 재배포(`== 'success'` 금지 검사 유지). dispatch 실측(일요일 · 데이터 정적): 정상 완료 18s · 연속 갱신은 앞 run 취소·뒤 run 성공 ·
+  **선행 취소 경로에서 진행 중 배포 success 유지 + workflow_run run skipped** · 사이트 = 브랜치 = main. ⚠ 내 검사 파일 오타로 CI 가 두 번 빨갰다(8dec74f·58a26cb → 73488a2 정정).
+  ⚠ 「건너뛴 잡은 그룹에 안 들어간다」는 실측 1회 기반 — 재발하면 회귀(모형)가 아니라 dispatch 로 다시 재야 한다.
 - **v224 (2026-09-06 · 설명서·노트 상태/앵커 행렬 + 시세 경로 시간 실측 · 장부 `audit/SCREEN_MATRIX2_2026-09-06.md` · 회귀 `audit/test_fold_anchor.py`)**:
   ⓐ **접힌 패널 안 앵커** — v169 접기(`[data-fold].folded`·`b_fold_v1`)는 CSS 로 숨길 뿐이라, 접어 둔 절·시즌·패널 안의 앵커
   (`guide.html#order`·`#manual`, `notes.html#opsRecovery`, `signal.html#portPanel`·`#tlogWrap`)로 들어오면 내용이 숨은 채 scrollY 0
