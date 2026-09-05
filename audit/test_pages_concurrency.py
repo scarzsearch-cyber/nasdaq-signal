@@ -33,9 +33,8 @@ class StaticContract(unittest.TestCase):
     def test_job_level_concurrency_and_skip_condition(self):
         y = _yml()
         job = y[y.index('  deploy:'):]
-        self.assertIsNotNone(re.search(r'^    concurrency:
-      group: pages
-      cancel-in-progress: true', job, re.M), '잡 수준 concurrency')
+        self.assertIsNotNone(re.search(r'^    concurrency:\n      group: pages\n      cancel-in-progress: true', job, re.M),
+                             '잡 수준 concurrency')
         m = re.search(r'^    if: (.+)$', job, re.M)
         self.assertIsNotNone(m, 'deploy 잡의 if 가 없다')
         cond = m.group(1)
