@@ -96,7 +96,7 @@
 | 배치 | 상태 | 세션·날짜 | 커밋 | 발견(P1/P2/P3/P4) | 비고 |
 |---|---|---|---|---|---|
 | B01 | ✅ | Claude Fable 5.1 · 2026-09-05 | (이 커밋) | 0/0/1/3 | 17파일 5,700줄 전문 · 셀프테스트 9종 실행(I14) · 반례: cp949 디코드 단위검사 추가 |
-| B02 | ⏳ | | | | |
+| B02 | ✅ | Claude Fable 5.1 · 2026-09-05 | (이 커밋) | 0/0/0/4 | 15파일 3,700줄 전문 · 실행: verify_all 전체(실패 0) · audit_all(실패 0·경고 1 기지) · audit_full · audit/verify.py · test_research_review(13 OK) · 워크플로 8종 이벤트 표 |
 | B03 | ⏳ | | | | |
 | B04 | ⏳ | | | | |
 | B05 | ⏳ | | | | |
@@ -127,6 +127,33 @@
 | B01-4 | P4 | `deploy/kr_holidays.py:98-101` SUB_FROM | 2026-05-01 시행 규정(노동절·제헌절 대체공휴일)이 코드 주석의 주장 | 틀리면 2027-05-03·07-19 가 거짓 휴장일 → 화면 시계·실행일 하루 오차 | verify() 는 KOSPI 실거래일(≤2026-08)로만 대조 가능 — 2027 은 검증 불가 | 판단 불가 — 2027 관보/KRX 공지로 확인할 것(파수꾼 emit 이 매주 재생성하므로 SPECIAL 수정만으로 반영) |
 
 읽기 vs 실행: 전문 판독 17/17 · 실행 15/17(셀프테스트) · 미실행 2(`price_now.py` 본체 — 네트워크 · `build_stats.py` 본체 — 산출물 갱신, verify_all I7 이 대신 재계산).
+
+### B02 자동화·검증 (2026-09-05)
+
+**세 줄 요약** — ① 워크플로 8종(daily-signal·pages·price·watchdog·monthly-stats·verify·source-probe·notify-test)과 `verify_all.py` 1,657줄, `audit/` 5종, `내가_보는_것/점검.py` 를 전문으로 읽고, 실행 가능한 것은 전부 돌렸다(verify_all 전체 실패 0 · audit_all 실패 0/경고 1 · audit_full 종료 0 · audit/verify.py 종료 0 · test_research_review 13 OK). 아래 이벤트 표로 실행마다 어느 커밋을 보는지·권한·동시성·실패 경로를 대조했다. ② **매매·판정·알림에 닿는 결함은 0.** v206 이 고친 W-2(예약 실행의 낡은 github.sha)가 이 배치의 유일한 P1 이었고 이미 닫혔다. 남은 것은 전부 P4(액션 버전 불일치 · 단일 슬롯 워크플로의 push 경쟁 · UTC 날짜 · 감사 앵커 여유). ③ 고친 것 없음 — 넷 다 「바꾸자」의 증거 기준(§3) 미달이라 기록만 했다.
+
+**워크플로 이벤트 표** (이 표가 이 배치의 핵심 산출물이다 — 「어느 커밋을 보고 도는가」)
+
+| 워크플로 | 트리거 | 체크아웃 커밋 | 쓰기 권한 | 동시성 | 실패 경로 |
+|---|---|---|---|---|---|
+| daily-signal | cron 8슬롯 + dispatch | 예약 실행이 만들어진 시점의 main → **v206 부터 첫 스텝에서 `origin/main` 으로 강제 정렬** · push 직전 원격이 같은 종가면 중복 버림(exit 0) · 더 낡았으면 실패(다음 슬롯) | contents·issues·actions write | 그룹 daily-signal · 취소 안 함(직렬 대기) | 카톡(signal_alert 실패 스텝) + 이슈 |
+| pages | workflow_run(일일 신호·price·월간 스냅샷) + push main + dispatch | 이벤트 시점 main + price-data 브랜치 파일 1개(못 가져오면 안 싣는다) | pages·id-token write | 그룹 pages · **진행 중 취소**(최신만 남긴다 — 옳다) | 배포 실패 = 옛 화면 유지(신선도 도트가 티를 낸다) |
+| price | cron(08:30~12:26 폴러 인계) + 예비 슬롯 | 실행 시점 main · 브랜치는 orphan force-push(항상 커밋 1) | contents·actions write | 그룹 price · 취소 안 함(폴러 생존 시 대기) | 배포 깨우기 실패 → 즉시 종료 → 종전 방식 후퇴 |
+| watchdog | cron 08:40 매일 + 09:10 월요일 + dispatch | 실행 시점 main · 주간만 커밋(ops_check·kr_holidays) | contents·issues write | 그룹 watchdog · 취소 안 함 | push 실패 = 스텝 실패 → 이슈(다음 주 재계산) |
+| monthly-stats | cron 매월 1일 + dispatch | 실행 시점 main · rebase 안 함(주석에 이유) | contents write | 그룹 monthly-stats | push 실패 = 실패-폐쇄 → 파수꾼 stats 45일 문턱이 잡는다 |
+| verify | push main + cron + dispatch | push 커밋 | contents read · issues write | 없음(독립 — 배포와 무관, v137 fail-open) | 실패 → 이슈(라벨 verify) · 배포는 계속 |
+| source-probe / notify-test | dispatch 만 | dispatch 시점 main | 읽기 / 알림 secrets | 없음 | 사람이 보는 실행 로그 |
+
+| ID | 등급 | 파일:줄 | 조건 | 영향 | 근거 | 처리 |
+|---|---|---|---|---|---|---|
+| B02-1 | P4 | `.github/workflows/verify.yml:27-28` · `price.yml:49-51` | `actions/checkout@v4`·`setup-python@v5` — 나머지 6 워크플로는 v7 | 동작 차이 없음(둘 다 Node 20). 다만 GitHub 이 옛 메이저를 폐기 예고하면 이 둘만 먼저 깨진다 | `grep -n "uses: actions/" .github/workflows/*.yml` | 기록만 — 검증(verify)과 시세(price)는 판정 경로가 아니고, 올리는 것도 「바꾸자」라 다음 액션 폐기 공지 때 함께 |
+| B02-2 | P4 | `watchdog.yml:208` · `monthly-stats.yml:88` | 예약 실행이 큐에서 기다리는 사이 사람이 main 에 push | 봇 push 가 non-fast-forward 로 실패 → 스텝 실패 → 이슈. 데이터만 커밋하는 워크플로라 실패-폐쇄가 옳고 다음 슬롯(주간·월간)이 새 HEAD 로 재계산 | daily-signal 의 W-2 와 같은 기전이나 이쪽은 슬롯이 하나라 경쟁 창이 실행 시간(1~3분)뿐 | 기록만 — 실측 사고 0 · 실패해도 옛 산출물이 남는다(fail-closed) |
+| B02-3 | P4 | `내가_보는_것/점검.py` `R['as_of']=str(date.today())` | 러너 UTC 자정~09:00 KST 사이에 돌면 | as_of 가 하루 전 날짜 | 주간 슬롯은 월요일 09:10 KST = 00:10 UTC 라 같은 날짜 — 조건 미충족 | 기록만 — dispatch 로 새벽에 손으로 돌릴 때만 하루 어긋난다 |
+| B02-4 | P4 | `audit/audit_all.py` E 관문 앵커 214,076(±2%) | 엔진 정정으로 공표 B 가 217,110 으로 움직인 뒤 | 여유 1.4%p → 다음 정정이 0.6% 만 더 움직여도 이 감사가 FAIL(참 결함이 아닌 앵커 노후) | 실행 출력 · 감사 대장 P4-h 와 같은 항목 | 기록만 — 앵커를 올리는 것은 「결과를 본 뒤 기준 조정」이라 verify_all I7(±1% 라이브 재계산)이 이미 그 역할을 맡는다 |
+
+경고 1건(`audit_all` 「[달러] 20년 창 좌측꼬리 40/40/20 > 배당100 (35.9 vs 42.7)」)은 v23 판정 기준의 **기지 경고**다 — 원화 기준으로는 40/40/20 이 앞선다(40.85 vs 35.75). 04 §5-16·§5-17 의 「통화가 아니라 표본 창 효과」와 같은 자리이며 새 사실이 아니다.
+
+읽기 vs 실행: 전문 판독 15/15 · 실행 6/15(verify_all 전체 · audit_all · audit_full · audit/verify.py · test_research_review · 점검.py 는 파수꾼 check 경유 산출물 `data/ops_check.json` 확인) · 워크플로 8종은 YAML 파싱 + 이벤트 표 대조(실행은 CI 이력 `gh run list` 로 확인 — v206 커밋의 verify·pages 성공).
 
 ## 9. 총괄 보고 (전 배치 완료 뒤)
 
