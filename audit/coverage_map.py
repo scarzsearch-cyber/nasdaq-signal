@@ -51,12 +51,20 @@ LEDGERS = {
     'audit/SURVIVAL_2026-09-06.md': (3, '생존·감시 격리 검증'),
     'audit/A11Y_2026-09-06.md': (4, '접근성 실측(v227·v228)'),
     'audit/REBAL_LEDGER_2026-09-06.md': (3, '재조정 독립 원장(sim_hold 다자산)'),
+    'audit/SECURITY_INPUT_2026-09-06.md': (3, '보안·입력 경계'),
+    'audit/REPRO_2026-09-06.md': (4, '재현성(격리 클론 실행)'),
 }
 # 장부가 이름만 언급한 파일에 근거를 주지 않도록, 근거를 인정할 파일을 명시하는 장부(없으면 본문 언급 전부)
 LEDGER_ONLY = {
     'audit/REBAL_LEDGER_2026-09-06.md': {'axis_defmix.py', 'hist_defasset.py', 'audit/rebal_ledger_check.py'},
     'audit/SURVIVAL_2026-09-06.md': {'deploy/watchdog.py', 'deploy/kakao_keepalive.py', '.github/workflows/watchdog.yml',
                                      '.github/workflows/verify.yml', '.github/workflows/daily-signal.yml', 'audit/test_survival5.py'},
+    'audit/SECURITY_INPUT_2026-09-06.md': {'signal.html', 'guide.html', 'notes.html', 'deploy/kakao_keepalive.py', 'deploy/notify.py', 'deploy/kakao_setup.py',
+                                           '.github/workflows/notify-test.yml', '.github/workflows/verify.yml', '.github/workflows/price.yml',
+                                           '.github/workflows/watchdog.yml', '.github/workflows/daily-signal.yml', '.github/workflows/pages.yml',
+                                           '.github/workflows/monthly-stats.yml', '.github/workflows/source-probe.yml', 'audit/test_repro6.py'},
+    'audit/REPRO_2026-09-06.md': {'verify_all.py', 'research_kit.py', 'deploy/build_stats.py', 'deploy/kr_holidays.py', 'deploy/wait_close.py', 'deploy/nav_collect.py',
+                                  'deploy/watchdog.py', 'research/axis_isa.py', 'research/emit_dd_distribution.py', 'data/kr_holidays.json', 'audit/test_repro6.py'},
 }
 # 변조 검사는 verify_all 에만 해당한다(다른 파일은 변조 「대상」이지 검사받은 것이 아니다).
 GATE_MUTATION = ('audit/GATE_MUTATION_2026-09-05.md', 5, '관문 변별력')
@@ -71,6 +79,7 @@ TESTS = {
     'audit/test_f3_design.py': 3, 'audit/test_basket_accounting.py': 3, 'audit/test_f4_design.py': 3,
     'audit/test_f4_products.py': 3,
     'audit/test_survival5.py': 3,
+    'audit/test_repro6.py': 3,
 }
 # verify_all 상시 관문이 직접 재계산·대조하는 파일(문자열 검사만인 것은 L1 로 낮춰 적는다).
 VERIFY_L3 = {'hist_defensive.py', 'hist_data.py', 'axis_lib.py', 'axis_defmix.py', 'axis_volguard.py', 'reentry_lib.py',
