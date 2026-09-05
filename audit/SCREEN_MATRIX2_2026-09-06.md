@@ -64,4 +64,4 @@
 - ③ 은 예약 관찰이 세션 의존이다.
 
 ## G. 통합
-- (push 뒤 기입)
+- 커밋 **1cc1425**(review/guide-notes-7 → main fast-forward · 2026-09-06). CI: 「검증」 success(회귀 목록에 `audit.test_fold_anchor` 포함) · 「GitHub Pages 배포」 success. 배포 화면 실측: 도장 「전략 반영 v224 · 2026-09-06 01:15」· 노트 최신 v224 · `b_fold_v1={routine:1}` 상태로 `guide.html#order` → §③ 펼침·대상 상단(top 12px)·버튼 「접기」·저장값 그대로.
