@@ -42,4 +42,5 @@
 - 화면 변경 없음. 통합 결과는 §G.
 
 ## G. 통합
-- (push 뒤 기입)
+- 커밋 **b2063a7**(review/watchdog-4 → main fast-forward · 2026-09-05). CI: 「검증」 success(회귀 목록에 `audit.test_watchdog_chain4` 포함) · 「GitHub Pages 배포」 success. 화면 파일 무변경이라 배포 내용은 동일.
+- 소유자 작업 폴더 main 은 같은 커밋으로 fast-forward. 다음 실제 확인 지점: 월요일 09:10 KST 주간 슬롯의 「점검 결과 커밋」이 나가는지(휴장일 스텝과 무관하게) · `data/ops_check.json` 에 `protocol_b` 키가 처음 생기는데 알림이 없어야 정상(첫 등장은 악화 아님).
