@@ -69,7 +69,10 @@ def setup():
               MIX=np.nan_to_num(np.asarray(G.Dm['schdr'], float)))
     B = curve(-0.16, 252)
     cal, p05, fin, bl = measure(B)
-    assert abs(fin - 217110.075) < 0.5 and abs(cal - 0.418) < 0.001, f'B 공표 재현 실패 {fin} {cal}'
+    # [순회 B09 · 2026-09-05] v210(FRED 빈 가격 행 114개 제거) 뒤 B 54년 공표는 217,110.075 -> 220,985.206
+    #   (`data/strategy_stats.json` us_1972 B · Calmar 0.418 그대로). 옛 앵커로는 setup() 에서 죽어
+    #   이 파일이 통째로 돌지 않았다. 자료가 또 바뀌면 이 자리를 의도적으로 갱신하고 이유를 남긴다.
+    assert abs(fin - 220985.206) < 0.5 and abs(cal - 0.418) < 0.001, f'B 공표 재현 실패 {fin} {cal} (v210 앵커 220,985.206)'
     _S.update(calB=cal, p05B=p05, finB=fin, blB=bl)
     return _S
 

@@ -67,8 +67,14 @@ LOOKS = (21, 63, 126, 252)     # v68 사전 고정 — 바꾸지 않는다
 TH = 2
 VT = 0.40
 WIN = 20
-V68 = dict(t4_final=155279, t4_mdd=-0.534, b_final=168413, b_mdd=-0.631)
+V68 = dict(t4_final=155279, t4_mdd=-0.534, b_final=168413, b_mdd=-0.631)   # v68 공표 (v210 거래일 정정 전 · 역사 기록)
 V68_END = pd.Timestamp('2026-08-26')
+# [순회 B09 · 2026-09-05] v210(FRED 빈 가격 행 114개 제거) 뒤 **같은 코드**로 같은 종료일까지 재면
+#   T4 254,088(+63.6%) · MDD -50.9% / B 181,018(+7.5%) · MDD -63.1%(동일) — 원인은 자료 하나뿐이다
+#   (B08 에서 v203·v209·v210 작업트리로 대조). A-1 은 현행 자료 기준 V210 으로 재현하고 v68 값은 병기한다.
+#   자료가 또 바뀌면 이 자리를 의도적으로 갱신하고 이유를 남긴다 — 허용 폭을 조용히 넓히지 마라.
+V210 = dict(t4_final=254088, t4_mdd=-0.509, b_final=181018, b_mdd=-0.631)
+REF = V210
 
 
 # ==================================================================== 신호
@@ -142,15 +148,17 @@ def sec_a(D, wT, wB):
     # [코드리뷰 2026-09-04] v68의 고정 숫자와 현재 데이터 끝을 비교하면 자료가
     # 연장될수록 오차가 커져 언젠가 반드시 실패한다. 같은 종료일끼리만 재현한다.
     mT_ref, mB_ref = met(cT.loc[:V68_END]), met(cB.loc[:V68_END])
-    ok_mdd = (abs(mT_ref['mdd'] - V68['t4_mdd']) <= 0.003
-              and abs(mB_ref['mdd'] - V68['b_mdd']) <= 0.003)
-    ok_fin = (abs(mT_ref['final'] / V68['t4_final'] - 1) <= 0.05
-              and abs(mB_ref['final'] / V68['b_final'] - 1) <= 0.05)
-    print('  v68 기준일 %s까지 같은 창으로 재현' % V68_END.date())
-    print('  T4  최종 {:,.0f} (v68 {:,d})  MDD {:.1f}% (v68 {:.1f}%)  Calmar {:.3f}'.format(
-        mT_ref['final'], V68['t4_final'], mT_ref['mdd'] * 100, V68['t4_mdd'] * 100, mT_ref['calmar']))
-    print('  B   최종 {:,.0f} (v68 {:,d})  MDD {:.1f}% (v68 {:.1f}%)  Calmar {:.3f}'.format(
-        mB_ref['final'], V68['b_final'], mB_ref['mdd'] * 100, V68['b_mdd'] * 100, mB_ref['calmar']))
+    ok_mdd = (abs(mT_ref['mdd'] - REF['t4_mdd']) <= 0.003
+              and abs(mB_ref['mdd'] - REF['b_mdd']) <= 0.003)
+    ok_fin = (abs(mT_ref['final'] / REF['t4_final'] - 1) <= 0.05
+              and abs(mB_ref['final'] / REF['b_final'] - 1) <= 0.05)
+    print('  v68 기준일 %s까지 같은 창으로 재현 (앵커: v210 자료 기준 · v68 공표값 병기)' % V68_END.date())
+    print('  T4  최종 {:,.0f} (v210 기준 {:,d} · v68 {:,d})  MDD {:.1f}% (v210 {:.1f}% · v68 {:.1f}%)  Calmar {:.3f}'.format(
+        mT_ref['final'], REF['t4_final'], V68['t4_final'], mT_ref['mdd'] * 100, REF['t4_mdd'] * 100,
+        V68['t4_mdd'] * 100, mT_ref['calmar']))
+    print('  B   최종 {:,.0f} (v210 기준 {:,d} · v68 {:,d})  MDD {:.1f}% (v210 {:.1f}% · v68 {:.1f}%)  Calmar {:.3f}'.format(
+        mB_ref['final'], REF['b_final'], V68['b_final'], mB_ref['mdd'] * 100, REF['b_mdd'] * 100,
+        V68['b_mdd'] * 100, mB_ref['calmar']))
 
     # 장부 구현 vs pandas — 같은 원시 파일(data/qqq.csv)
     _sys.path.insert(0, _os.path.join(_ROOT, 'deploy'))
@@ -184,14 +192,14 @@ def sec_a(D, wT, wB):
           % (dis * 100, d_dw['median'], -d_dw['worst'] if d_dw['worst'] < 0 else d_dw['best'], d_dw['n']))
     # MDD와 최종배수는 따로 보고해 어느 쪽이 깨졌는지 숨기지 않는다.
     checks = [
-        ('A-1a v68 MDD 재현 (≤0.3%p)', ok_mdd,
+        ('A-1a MDD 재현 (v210 기준 앵커 · ≤0.3%p)', ok_mdd,
          'MDD 오차 T4 %+.2f%%p · B %+.2f%%p'
-         % ((mT_ref['mdd'] - V68['t4_mdd']) * 100,
-            (mB_ref['mdd'] - V68['b_mdd']) * 100)),
-        ('A-1b v68 최종배수 재현 (같은 종료일·≤5%)', ok_fin,
+         % ((mT_ref['mdd'] - REF['t4_mdd']) * 100,
+            (mB_ref['mdd'] - REF['b_mdd']) * 100)),
+        ('A-1b 최종배수 재현 (v210 기준 앵커 · 같은 종료일·≤5%)', ok_fin,
          '최종 오차 T4 %+.1f%% · B %+.1f%% (기준일 %s)'
-         % ((mT_ref['final'] / V68['t4_final'] - 1) * 100,
-            (mB_ref['final'] / V68['b_final'] - 1) * 100, V68_END.date())),
+         % ((mT_ref['final'] / REF['t4_final'] - 1) * 100,
+            (mB_ref['final'] / REF['b_final'] - 1) * 100, V68_END.date())),
         ('A-2 장부 구현 동치 (불일치 0)', n_bad == 0, '250세션 중 %d건' % n_bad),
         ('A-3 원천 이원화 미미', dis < 0.02 and d_dw['median'] < 0.02,
          '게이트 %.2f%% · |Δw| 중앙 %.4f' % (dis * 100, d_dw['median'])),

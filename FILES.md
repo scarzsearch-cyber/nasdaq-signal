@@ -399,7 +399,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 역할 |
 |---|---|
-| `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). v203 공통 사건계약 21회: 공식 M1(<0.7) 76% · M2 81% · 동시 67% (민감도 M1<0.5는 67%), 무거래 밴드 기각 |
+| `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). v203 공통 사건계약 21회: 공식 M1(<0.7) 76% · M2 81% · 동시 67% (민감도 M1<0.5는 67%), 무거래 밴드 기각 → v210 재실행(순회 B09): M1 76% · M2 19/21=90% · 동시 67% · A-1 앵커를 v210 기준(T4 254,088 · B 181,018 @2026-08-26)으로 갱신 |
 | `research/axis_t4_synthcrash.py` | 합성 하락장 해부 — 닷컴형 B 60% 구조·2008 은 소수 추첨(~29%). 시간추세 없음 · ¼ 양자화 유효 · 혼합 프런티어 · 비용 민감도 |
 | `research/axis_t4_krcost.py` | 한국비용(0.2%) 내성 변형 9종 — 관문 K1~K7 사전 고정, **전멸** |
 | `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 내성 · 사건승 15/21=71%(재난보험형) → v210 재실행 13/21=62% · 사각지대 최장 90일 · **P3 미달** (정정 2026-09-05 · 순회 B06-1) |
@@ -434,7 +434,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | 파일 | 무엇을 쟀나 | 판정·산출 |
 |---|---|---|
 | `research/audit_stat.py` | 혼합 x·B+(1−x)·T4 를 블록 부트스트랩·ESS·Deflated Sharpe 로 해부 | 고원은 채굴 산물 가능 |
-| `research/audit_pbo.py` | 탐색한 후보 전부를 CSCV(Bailey–López de Prado 2014)에 — 「표본 내 1등 고르기」의 과적합도 | PBO 0.49~0.53 |
+| `research/audit_pbo.py` | 탐색한 후보 전부를 CSCV(Bailey–López de Prado 2014)에 — 「표본 내 1등 고르기」의 과적합도 | PBO 0.49~0.53 → v210 재실행 Sharpe 0.03 / Calmar 0.51 (혼합만 0.36 / 0.59) |
 | `research/audit_exec.py` | 혼합의 실전 집행 근사 — 매일 움직이는 목표비중에서 고원이 사는가 | ¼ 양자화 필요 |
 | `research/cand_general.py` | 「전략 간 분산」이 B×T4 특유인가, 아무 희석에나 생기나 | 일반화 실패 |
 | `research/b_adversarial.py` | **「B 에게도 확증편향이 있는 것 아닌가」** (소유자 질문) — B 를 심판이 아닌 피고로 | 04 §5-15 |
