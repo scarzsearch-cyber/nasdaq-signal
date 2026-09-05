@@ -56,7 +56,7 @@
   ★ 어느 쪽이 나와도 이 파일은 규칙을 바꾸지 않는다. 바꾸는 결정은 소유자.
 
 엔진: eng_common (1972~ 54년 · 방어 40/40/20 · 2배 합성 = QLD 역산 드래그 · 편도 0.1%) —
-검산 217,110.075 / 0.418 통과 못 하면 즉시 중단. 실행: python research/lookback200.py
+검산(strategy_stats 공표 · v210 뒤 220,985.206 / 0.418) 통과 못 하면 즉시 중단. 실행: python research/lookback200.py
 """
 import os as _os, sys as _sys
 _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))

@@ -48,7 +48,7 @@ KS = [('1배 QQQ', 1.0), ('2배 현행 B', 2.0), ('2.5배', 2.5), ('3배 TQQQ', 
 
 
 def build():
-    G, X = EC.selfcheck()          # 공표 재현 검산 내장 (final 217110 / Calmar 0.418)
+    G, X = EC.selfcheck()          # 공표 재현 검산 내장 (strategy_stats us_1972 B — v210 뒤 220,985.206 / Calmar 0.418)
     MIXR = np.nan_to_num(np.asarray(G.Dm['schdr'], float))
     wB = np.asarray(G.wB, float)
     cur = {nm: np.asarray(EC.sim2(wB, np.asarray(lev_r(G.D, k), float), MIXR), float)
