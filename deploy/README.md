@@ -48,7 +48,7 @@
 | `nav_collect.py` | 국내 ETF 종가·NAV·괴리율 한 줄 적립(네이버 ETF 목록) · `--selftest` |
 | `oos_log.py` | 동결(2026-08-27) 이후 하루 한 줄 — 순수 OOS 장부 |
 | `price_now.py` · `price_poll.py` · `kr_sources.py` | 장중 시세 스냅샷 · 5분 폴러 · 예비 출처 6종 |
-| `watchdog.py` | 파수꾼 9모드 · `--selftest` 28경우 |
+| `watchdog.py` | 파수꾼 9모드 · `--selftest` 61경우 |
 | `build_stats.py` · `refresh_hist.py` | 성과지표 4시나리오 · 원자료 append-only 연장 |
 | `stamp_rev.py` · `data_check.py` · `kr_holidays.py` | 화면 「전략 반영 vNN」 도장 · 원자료 무결성 · 휴장일 표 |
 

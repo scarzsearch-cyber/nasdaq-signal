@@ -1560,7 +1560,7 @@ def i14_selftests():
     다르다(v148). v203 배포 리뷰에서 만든 작은 회귀검사도 같은 실수를 반복하지 않도록
     단일 검증 진입점에 연결한다."""
     head("I14 셀프테스트 (운영 · 알림 · 데이터 갱신 · 배포)")
-    for label, args in (("파수꾼 모드 셀프테스트 (switchday·near·heartbeat 합성 30여 경우)",
+    for label, args in (("파수꾼 모드 셀프테스트 (switchday·near·heartbeat 등 합성 61경우)",
                          ['deploy/watchdog.py', '--selftest']),
                         ("종가 대기 루프 셀프테스트 (날짜 일치·v190 대기 경로)",
                          ['deploy/wait_close.py', '--selftest']),
