@@ -19,7 +19,7 @@
 README.md               전략·자동화·파일지도·오류원인·체크리스트
 HANDOFF.md              작업 시작 전 읽을 것 (하지 마라 목록)
 AGENTS.md               Codex 진입점 — 같은 폴더의 CLAUDE.md 전문을 읽게 하는 한 줄 안내
-CLAUDE.md               AI 공통 규칙의 단일 원천 — 수정 금지 목록·작업 규약·정정 이력 (v208)
+CLAUDE.md               AI 공통 규칙의 단일 원천 — 수정 금지 목록·작업 규약·정정 이력 (v209)
 FILES.md                이 파일
 
 verify_all.py           ★ 검증 단일 진입점 —  python verify_all.py
@@ -494,12 +494,12 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 | 파일 | 무엇을 쟀나 | 판정 |
 |---|---|---|
-| `audit/test_research_review.py` | 적립식 세금 납부의 2차 실현손익·거치식 환원·현금흐름·캐시 교체 실패 | 오프라인 회귀 검사 |
+| `audit/test_research_review.py` | 적립식 세금·거치식 환원·현금흐름·캐시 실패·재조정·결측 비중·원화 합성 범위/비용 잔차 구분 | 오프라인 회귀 검사 |
 | `research/horizon_ess.py` | 「손실 0 문턱 7년」의 **유효표본** | 비중첩 **7.9개**, 견고한 0 은 15년 |
 | `research/dsr_b.py` | Deflated Sharpe 를 **B 본체**에 | DSR 1.000 — 단 변별력 없음 |
 | `research/isa_pension.py` | ISA 만기 → 연금계좌 이체 (조특법 91조의18 ④) | **기각** (레버리지 IRP 매매 불가) |
 | `research/tranche.py` | 트랜치 / 리밸런스 타이밍 운 (Hoffstein et al. 2020) | **기각** — 관문 ①② 미달 |
-| `research/drag_sigma.py` | 변동성 드래그의 σ 의존성 — 상수 가정이 왜곡하나 | **비쟁점** (21세기 +0.0%) |
+| `research/drag_sigma.py` | 달러 합성 구간의 비용 잔차 시점 민감도 — 원화 전 구간 합성과 별개 | **v209 정정**: 현행 달러2000~ +0.4%, 원화 영향0·비용 모형 보수성은 미입증; MEASUREMENT_AUDIT §9 |
 | `research/withdraw.py` | **인출(decumulation) 엔진** — 형성기 반대편 | 인출기 1년 현금 완충 |
 
 ### 9-6. 운영 · 방어 다리 · 외부 전략
@@ -518,7 +518,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 
 ### 9-7. 옛 축 — §6 이 누락했던 것 (v40~v44)
 
-후속 전수리뷰 및 교정 장부: `research/CODE_REVIEW_2026-09-05.md` — v204 원대상 137개 파일·61건 처리표, v205 설명 정정, v207 추가 회계 결함 R01, v208 공용 계좌 입력 검사 R02. 각 차수의 검토·실행 범위와 남은 한계를 분리한다.
+후속 전수리뷰 및 교정 장부: `research/CODE_REVIEW_2026-09-05.md` — v204 원대상 137개 파일·61건 처리표, v205 설명 정정, v207 추가 회계 결함 R01, v208 공용 계좌 입력 검사 R02, v209 합성 범위·비용 해석 R03. 각 차수의 검토·실행 범위와 남은 한계를 분리한다.
 코드리뷰 전수 순회(2026-09-05 소유자 지시 · 15배치 · 순차 · 인계용 프롬프트+장부): `audit/CODE_REVIEW_SWEEP_2026-09-05.md`.
 전체 감사 장부(2026-09-05 · Claude Fable 5.1 · v206): `audit/AUDIT_LEDGER_2026-09-05.md` — 코드·문서·지침·검증·자동화·데이터 계약 전 층의 기준 커밋·파일별 검토 상태·발견(심각도순)·통합/보관/폐기·실행한 검증·보고.
 

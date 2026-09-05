@@ -321,5 +321,43 @@ class MultiAssetRebalance(unittest.TestCase):
         np.testing.assert_array_equal(mask, [True, False, True, True, False])
 
 
+class HistoricalModelScope(unittest.TestCase):
+    """Document current model boundaries, not their accuracy as forecasts."""
+
+    def test_krw_attack_remains_synthetic_and_cost_sensitive_after_listing(self):
+        import hist_krfinal as kf
+        idx = pd.bdate_range('2023-07-03', periods=4)
+        px = pd.Series([100., 110., 105., 108.], index=idx)
+        fx = pd.Series([1300., 1310., 1290., 1305.], index=idx)
+
+        def rebuild(cost, real_qld_return):
+            data = dict(idx=idx, px=px, c_daily=cost,
+                        qldr=np.full(len(idx), real_qld_return), schdr=np.zeros(len(idx)))
+            with patch.object(kf.DF, 'build', return_value=data), patch.object(kf.K, 'fx', return_value=fx):
+                return kf.build_krw('chain')
+
+        cost = .033 / 252
+        base = rebuild(cost, .5)
+        rq = px.pct_change().fillna(0).to_numpy()
+        fr = fx.pct_change().fillna(0).to_numpy()
+        np.testing.assert_allclose(base[2], 2 * ((1+rq)*(1+fr)-1) - cost)
+        # Changing the supplied real USD QLD path does not change KRW attack.
+        np.testing.assert_array_equal(base[2], rebuild(cost, -.5)[2])
+        np.testing.assert_allclose(rebuild(cost+.01/252, .5)[2] - base[2], -.01/252,
+                                   rtol=0, atol=1e-16)
+
+    def test_daily_double_compounding_has_path_drag_without_cost_residual(self):
+        tree = ast.parse((ROOT / 'research/eng_common.py').read_text(encoding='utf-8-sig'))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'synth2x')
+        ns = dict(np=np)
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'eng_common.py', 'exec'), ns)
+        returns = np.array([.1, -1/11])
+        self.assertAlmostEqual(np.prod(1+returns), 1.)
+        synthetic = ns['synth2x'](returns, 0.)
+        np.testing.assert_array_equal(2*returns - synthetic, 0.)
+        self.assertAlmostEqual(np.prod(1+synthetic), 54/55)
+        self.assertLess(np.prod(1+synthetic), 1.)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
