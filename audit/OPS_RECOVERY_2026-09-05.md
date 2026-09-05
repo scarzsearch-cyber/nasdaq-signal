@@ -44,4 +44,7 @@
 - 화면 변경: notes.html 안내 항목 추가뿐(신호·설명서 무변경). 통합 결과는 §G.
 
 ## G. 통합
-- (push 뒤 기입)
+- 통합 직전 `origin/main` = 92cceab(기준과 동일 · 겹친 변경 0) → `review/ops-recovery-3` 빨리감기 push → **58bb7a7**.
+- CI: 검증 run 33963526116 success(unittest 에 `audit.test_ops_recovery3` 포함) · Pages 배포 run 33963526126 success.
+- 배포 사이트: notes.html 에 v222 항목·시즌 v186–v222 반영 확인(curl). 신호·설명서 화면은 이번에 바뀌지 않았다(도장 v220 유지).
+- 소유자 작업 폴더(main)는 깨끗한 92cceab 상태였고 손대지 않았다 — `git pull` 로 빨리감기된다.
