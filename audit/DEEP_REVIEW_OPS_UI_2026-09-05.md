@@ -230,4 +230,7 @@
 **P1 없음.** 실제 매매 규칙·판정·실측 장부·원자료 저장 행은 이 리뷰에서 바꾸지 않았다.
 
 ## G. 통합·검증 (push 뒤 기입)
-- 최종 커밋·CI·배포 확인은 인수인계 보고 §7 과 아래 줄에 적는다.
+- 통합 직전 `origin/main` = e63af37(기준과 동일 · 겹친 변경 0) → `review/ops-ui-2` 를 빨리감기로 push → **d27b90f**.
+- CI: 검증 run 33954865758 success(unittest 154개 OK · `audit.test_ops_review2` 11개 포함 · `--fast`·전체 실패 0) · Pages 배포 run 33954865759 success.
+- 배포 사이트 실측(curl · 2026-09-05 17:2x KST): index.html `HTML_REV = v220 · 2026-09-05 17:17` · 체크리스트 「137번의 전환 중」 · guide.html 「137번 중」·「−55.9%」·「139번」 0 · notes.html v220 항목·시즌 v186–v220.
+- 소유자 작업 폴더(main)는 깨끗한 e63af37 상태였고 손대지 않았다 — `git pull` 로 빨리감기된다.
