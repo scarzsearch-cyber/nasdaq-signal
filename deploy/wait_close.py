@@ -208,6 +208,28 @@ def as_of_is_current(cur, expected):
     return cur_day == exp_day
 
 
+CERTIFIED_SOURCES = ('yahoo', 'yahoo2', 'naver')
+
+
+def certified_as_of(cur, today=None):
+    """[2026-09-05 3차 · S2] 예상 종가일(meta)을 못 얻었을 때 갱신 결과 자체가 마감을 확정했는가.
+
+    update_signal 은 야후 경로에서 chart meta 로 「마지막 봉 = 마지막 마감 세션」을 검증한 뒤에만
+    쓰고(_parse_yahoo_result), 네이버 경로는 marketStatus CLOSE 이고 캐시보다 새 날짜일 때만 쓴다.
+    그 결과(source)가 있으면 이 스크립트의 별도 meta 조회와 같은 원천을 이미 통과한 것이다.
+    캐시로 물러선 결과(source=cache)는 새 마감을 확정하지 않으므로 인정하지 않는다.
+    종전엔 meta 조회가 계속 실패하면 갱신이 끝났어도 170분 동안 갱신을 반복한 뒤 실패로 끝나
+    거짓 실패 알림을 냈고, 그 실행의 갱신분은 커밋되지 않았다."""
+    try:
+        if validate_signal_as_of(cur, today) is None:
+            return False
+        with open(SIG, encoding='utf-8') as f:
+            source = json.load(f).get('source')
+    except Exception:
+        return False
+    return source in CERTIFIED_SOURCES
+
+
 def validate_signal_as_of(cur, today=None):
     """장중 조기 종료 전에도 signal 날짜의 정규형·비미래 계약을 확인한다."""
     if not cur:
@@ -267,7 +289,7 @@ def main():
                 print(f'[{n}] 이미 최신 (as_of {cur} = 예상 {exp}) — 갱신 없이 종료.')
                 return
         print(f'[{n}] as_of {cur} < 예상 {exp or "?"} — 갱신 시도', flush=True)
-        subprocess.call([sys.executable, os.path.join('deploy', 'update_signal.py')])
+        rc = subprocess.call([sys.executable, os.path.join('deploy', 'update_signal.py')])
         cur = current_as_of()
         if exp:
             try:
@@ -278,6 +300,11 @@ def main():
             if current:
                 print(f'[{n}] 종가 반영 완료: as_of {cur} (시도 {n}회, {int(time.time() - t0)}초)')
                 return
+        elif rc == 0 and certified_as_of(cur):
+            # [3차 · S2] 예상일 조회는 죽었지만 갱신 자체가 원천 meta 로 마감을 확정했다.
+            print(f'[{n}] 종가 반영 완료(예상일 조회 실패 · 갱신 원천이 마감 확정): as_of {cur} '
+                  f'(시도 {n}회, {int(time.time() - t0)}초)')
+            return
         if (time.time() - t0) > MAX_MIN * 60:
             print(f'시한 {MAX_MIN}분 초과 — as_of {cur}, 예상 {exp}. 수동 확인 필요.',
                   file=sys.stderr)

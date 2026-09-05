@@ -58,6 +58,11 @@ OFFSET = 20                  # 매 5분 경계 + 20초
 HOLI = os.path.join(ROOT, 'data', 'kr_holidays.json')
 PRICE = price_now.OUT        # data/price.json
 BRANCH = 'price-data'
+# [2026-09-05 3차 · S4] 값이 그대로여도 이 간격마다 다시 발행한다. 종전엔 값이 같으면 발행을
+# 생략해 브랜치의 as_of 가 마지막 **변화** 시각에 머물렀고, 화면의 「N분 전」으로는 조용한 장과
+# 멈춘 폴러를 가를 수 없었다. 이제 as_of 는 마지막 **확인** 시각(최대 30분 양자화)이다 —
+# 폴러가 살아 있으면 35분을 넘지 않고, 넘으면 폴러·배포 경로가 멈춘 것이다.
+REPUBLISH_S = 30 * 60
 
 
 def log(msg):
@@ -143,15 +148,25 @@ def snapshot():
     return doc
 
 
-def branch_items():
-    """price-data 브랜치의 현재 스냅샷 items (없으면 None).
-    값이 그대로면 브랜치·배포까지 헛돌 이유가 없다 — v176 의 같은 비교."""
+def _published_at(doc):
+    """스냅샷 문서의 as_of_iso → aware datetime (없거나 깨졌으면 None)."""
+    try:
+        t = datetime.fromisoformat(str(doc.get('as_of_iso')))
+        return t if t.tzinfo else t.replace(tzinfo=KST)
+    except Exception:
+        return None
+
+
+def branch_state():
+    """price-data 브랜치의 현재 스냅샷 상태 {'items', 'published'} (없으면 None).
+    값이 그대로고 REPUBLISH_S 안이면 브랜치·배포까지 헛돌 이유가 없다 — v176 의 같은 비교."""
     try:
         subprocess.run(['git', 'fetch', '-q', '--depth=1', 'origin', BRANCH], cwd=ROOT, check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
         raw = subprocess.run(['git', 'show', 'FETCH_HEAD:data/price.json'], cwd=ROOT, check=True,
                              capture_output=True, timeout=30).stdout
-        return json.loads(raw.decode('utf-8')).get('items')
+        doc = json.loads(raw.decode('utf-8'))
+        return {'items': doc.get('items'), 'published': _published_at(doc)}
     except Exception:
         return None
 
@@ -230,20 +245,25 @@ def handover(dry=False):
     log('오후 실행 인계 요청함' if ok else f'오후 실행 인계 실패({err}) — 예비 슬롯(매시 :20·:50)이 이어받는다')
 
 
-def cycle(last_items, dry):
-    """스냅샷 1회: 수집 → 값이 바뀌었으면 브랜치 덮어쓰기 → 배포 깨우기.
-    반환 (items, ok). ok=False 면 배포 경로가 막힌 것 — 호출자가 종료한다."""
+def cycle(last, dry, now=None):
+    """스냅샷 1회: 수집 → 값이 바뀌었거나 조용한 간격(REPUBLISH_S)이 지났으면 브랜치 덮어쓰기 → 배포 깨우기.
+    last 는 {'items', 'published'}(브랜치 상태) 또는 None. 반환 (state, ok).
+    ok=False 면 배포 경로가 막힌 것 — 호출자가 종료한다."""
     doc = snapshot()
     log(f"{doc['as_of_kst']} · {len(doc['items'])}종목 · "
         + ' '.join(f"{c}={r['px']:,}" for c, r in doc['items'].items()))
-    if doc['items'] == last_items:
+    now = now or datetime.now(KST)
+    published = (last or {}).get('published')
+    quiet = published is not None and (now - published).total_seconds() < REPUBLISH_S
+    if last and doc['items'] == last.get('items') and quiet:
         log('시세 변화 없음 — 브랜치·배포 생략')
-        return last_items, True
+        return last, True
     if not publish(dry):
-        return last_items, False
+        return last, False
+    state = {'items': doc['items'], 'published': _published_at(doc) or now}
     if not wake_pages(dry):
-        return doc['items'], False
-    return doc['items'], True
+        return state, False
+    return state, True
 
 
 # ── 검산 (네트워크 0) ────────────────────────────────────────────────────
@@ -370,13 +390,13 @@ def selftest():
     # 누락·손상·범위 밖 달력, 휴일, 개장 전·마감 뒤에는 cycle이 한 번도 불리지 않는다.
     real_holi = globals()['HOLI']
     real_cycle = globals()['cycle']
-    real_branch_items = globals()['branch_items']
+    real_branch_state = globals()['branch_state']
     calls = []
     with tempfile.TemporaryDirectory(prefix='price_once_') as td:
         once_holi = os.path.join(td, 'kr_holidays.json')
         globals()['HOLI'] = once_holi
         globals()['cycle'] = lambda *args, **kwargs: calls.append((args, kwargs)) or (None, True)
-        globals()['branch_items'] = lambda: {'before': True}
+        globals()['branch_state'] = lambda: {'items': {'before': True}, 'published': None}
         try:
             # 파일 없음·파싱 실패·범위 밖은 모두 발행 없이 종료한다.
             assert main(['--mode', 'once', '--dry-run'], now=T(10, 0)) == 0
@@ -423,8 +443,30 @@ def selftest():
         finally:
             globals()['HOLI'] = real_holi
             globals()['cycle'] = real_cycle
-            globals()['branch_items'] = real_branch_items
-    print('selftest OK — 구간·정렬·휴장·once 관문·유한 시세·원자 저장·수집 3회 실패·하루 85스냅샷 검산 통과')
+            globals()['branch_state'] = real_branch_state
+
+    # [3차 · S4] 값이 그대로여도 REPUBLISH_S 가 지나면 다시 발행한다 — 조용한 장 ≠ 멈춘 폴러.
+    real_snapshot, real_publish, real_wake = globals()['snapshot'], globals()['publish'], globals()['wake_pages']
+    try:
+        items = {'418660': {'px': 38585}}
+        t0 = at(d, dtime(10, 0))
+        published = []
+        globals()['publish'] = lambda dry: published.append(1) or True
+        globals()['wake_pages'] = lambda dry: True
+
+        def doc_at(t):
+            return {'as_of_kst': t.strftime('%Y-%m-%d %H:%M'), 'as_of_iso': t.isoformat(timespec='seconds'),
+                    'source': 'x', 'items': items}
+        globals()['snapshot'] = lambda: doc_at(t0 + timedelta(minutes=5))
+        state, ok = cycle({'items': items, 'published': t0}, False, now=t0 + timedelta(minutes=5))
+        assert ok and published == [] and state['published'] == t0
+        globals()['snapshot'] = lambda: doc_at(t0 + timedelta(minutes=31))
+        state, ok = cycle(state, False, now=t0 + timedelta(minutes=31))
+        assert ok and published == [1] and state['published'] == t0 + timedelta(minutes=31)
+        assert _published_at({'as_of_iso': '깨짐'}) is None
+    finally:
+        globals()['snapshot'], globals()['publish'], globals()['wake_pages'] = real_snapshot, real_publish, real_wake
+    print('selftest OK — 구간·정렬·휴장·once 관문·유한 시세·원자 저장·수집 3회 실패·하루 85스냅샷·조용한 장 재발행 검산 통과')
     return 0
 
 
@@ -463,7 +505,7 @@ def main(argv=None, now=None, clock=None, sleeper=sleep_until):
             log('개장 전 — 수동 1회 시세 발행 없이 종료')
             return 0
         try:
-            cycle(branch_items(), a.dry_run)
+            cycle(branch_state(), a.dry_run, now=now)
         except Exception as e:
             log(f'수동 스냅샷 실패: {type(e).__name__}: {str(e)[:200]}')
         return 0
@@ -473,7 +515,7 @@ def main(argv=None, now=None, clock=None, sleeper=sleep_until):
         log(f'개장 전 — {start:%H:%M:%S} 까지 {(start - now).total_seconds():.0f}초 대기')
         sleeper(start)
     log(f'폴링 시작 — {end:%H:%M} 까지 5분마다')
-    last = branch_items()
+    last = branch_state()
     n = 0
     # [2026-09-04 코드리뷰] cycle() 안에서 예외가 하나만 나도 6시간짜리 폴러가 통째로
     # 죽었다(수집 HTTP 오류·git 타임아웃 등). 예비 슬롯(매시 :20·:50)이 이어받으므로
@@ -483,7 +525,7 @@ def main(argv=None, now=None, clock=None, sleeper=sleep_until):
     consec = 0
     while True:
         try:
-            last, ok = cycle(last, a.dry_run)
+            last, ok = cycle(last, a.dry_run, now=clock())
             consec = 0
         except Exception as e:
             consec += 1

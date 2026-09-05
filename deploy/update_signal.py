@@ -13,6 +13,7 @@ data/strategy_stats.json 을 그대로 실어 나른다.
 """
 import json, os, sys
 import datetime
+import tempfile
 # 윈도우 콘솔(cp949)에서 '−'(U+2212) 때문에 마지막 print 가 죽는다.
 # 파일은 이미 쓰인 뒤라 결과는 맞지만, 수동 실행이 실패로 보인다.
 try:
@@ -62,6 +63,28 @@ OUT_DIR = "data"
 CSV_PATH = os.path.join(OUT_DIR, "qqq.csv")
 JSON_PATH = os.path.join(OUT_DIR, "signal.json")
 STATS_PATH = os.path.join(OUT_DIR, "strategy_stats.json")
+
+
+def _atomic_write_text(path, text):
+    """[2026-09-05 3차 · S1] 같은 디렉터리 임시파일에 다 쓴 뒤 한 번에 교체한다.
+
+    종전 `open(path, "w")` + `json.dump` 는 파일을 먼저 비우고 채웠다. 직렬화·디스크 오류로
+    중간에 죽으면 data/signal.json 이 **빈 파일**로 남아, 같은 실행 안에서 뒤따르는 소비자
+    (signal_alert·oos_log·화면)가 마지막 성공 판정까지 잃었다. 이제 어느 시점에 죽어도
+    두 산출물(qqq.csv·signal.json)은 마지막 성공 상태로 파싱된다."""
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(prefix="." + os.path.basename(path) + ".", suffix=".tmp",
+                               dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        tmp = None
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
 
 # 과거 4대 위기 (궤적 비교용) — 고점일 기준
 CRISES = [
@@ -408,7 +431,8 @@ def main():
     # 「더 새로운 날인가」를 판정하므로, 캐시를 덮어쓴 뒤엔 대조가 불가능해진다.
     sanity_check(px, source)
 
-    px.rename("Close").to_frame().to_csv(CSV_PATH, index_label="Date")
+    _atomic_write_text(CSV_PATH, px.rename("Close").to_frame()
+                       .to_csv(index_label="Date", lineterminator="\n"))
 
     now_utc = pd.Timestamp.now("UTC")
     now_kst = now_utc.tz_convert("Asia/Seoul")
@@ -472,8 +496,8 @@ def main():
         "enter": -16.0,
         "exit": -11.0,
     }
-    with open(JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=1)
+    # 직렬화를 먼저 끝내고(실패해도 기존 파일 무접촉) 원자적으로 교체한다.
+    _atomic_write_text(JSON_PATH, json.dumps(payload, ensure_ascii=False, indent=1))
 
     line = f"{payload['as_of']}  종가 {payload['close']}  낙폭 {payload['dd']}%"
     for k, name, _, _ in STRATS:

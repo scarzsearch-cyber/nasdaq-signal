@@ -123,8 +123,25 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v221</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v222</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="opsRecovery">
+      <div class="head"><span class="v">v222</span><span class="tag fix">수정</span>
+        <span class="ttl">자동화가 도중에 실패했을 때 — 신호 파일 보호 · 헛된 실패 알림 제거 · 시세 「N분 전」의 뜻 통일</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>① 새벽 신호 갱신이 <b>파일을 쓰는 도중</b>에 죽으면 신호 파일이 빈 채로 남을 수 있었습니다 — 이제 다 쓴 뒤 한 번에 바꿔 끼워
+          어느 순간에 죽어도 마지막 정상 판정이 남습니다. ② 야후의 「마감 확인」 조회만 죽은 날, 신호는 이미 갱신됐는데도 세 시간 가까이 헛돌다
+          <b>실패 카톡</b>이 갔습니다 — 갱신 결과가 마감을 확정했으면 정상으로 끝냅니다(캐시로 물러선 결과는 여전히 실패로 둡니다).
+          ③ 장중 시세가 한동안 그대로면 화면의 「N분 전」이 마지막 <b>값이 바뀐</b> 시각에 멈춰, 조용한 장과 수집이 멈춘 것을 구별할 수 없었습니다 —
+          값이 같아도 30분마다 다시 올려 「N분 전」이 마지막 <b>확인</b> 시각이 됩니다(35분을 넘기면 수집이 멈춘 것).</dd>
+        <dt>왜</dt><dd>부품 하나하나의 검사는 통과했지만 <b>이어서 돌릴 때</b>만 드러나는 실패들이었습니다. 가짜 시계와 임시 저장소에 실제 실패를
+          주입해 재현한 뒤 고쳤고, 알림 일부 실패 시 다음 슬롯이 다시 보내는 것(중복은 감수), 월간 자료 일부 실패 시 성과표를 안 만드는 것,
+          같은 종가를 두 실행이 동시에 밀 때 오래된 쪽이 버려지는 것은 설계대로 동작함을 확인했습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>매매 규칙·판정·실측 장부·과거 자료는 그대로입니다.</b> 신호 화면과 설명서도 바뀌지 않았습니다.
+          상세는 저장소 <code>audit/OPS_RECOVERY_2026-09-05.md</code>.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="opsReviewCrosscheck">
       <div class="head"><span class="v">v221</span><span class="tag fix">수정</span>
