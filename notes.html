@@ -123,8 +123,18 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v217</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v218</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="protoRereg">
+      <div class="head"><span class="v">v218</span><span class="tag fix">수정</span>
+        <span class="ttl">B 판정 규약의 기준 숫자를 손본 과거 자료로 다시 쟀습니다</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>2026-09-05 에 과거 자료의 가짜 거래일 114일을 걷어낸 뒤, 규칙이 고장 났는지 재는 장치(v188)의 기준 숫자가 옛 자료 기준으로 남아 있었습니다. 그대로 두면 매주 자동 점검이 「기준이 어긋났다」고 멈추고 카톡을 보냈을 상태라, 같은 방법으로 다시 재서 등록했습니다 — 재난급 하락은 8건 전부 보험 지급(옛 7건), 보험료 주의선 −33%→−29%, 3년 누적 출혈 주의선 −31.5%→−33%.</dd>
+        <dt>왜</dt><dd>동결 뒤 판정에 들어간 사건이 아직 0건이라, 지금 고치는 것은 결과를 보고 기준을 옮기는 것이 아닙니다. 원인이 자료 정정 하나뿐인 것도 세 시점의 코드를 나란히 돌려 확인했습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>매매 규칙·신호·장부는 그대로.</b> 장치가 다시 「사건 0건 — 이상 없음」을 냅니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="researchF4">
       <div class="head"><span class="v">v217</span><span class="tag fix">수정</span>
@@ -454,7 +464,7 @@ details.more[open] summary{margin-bottom:6px}
       <div class="head"><span class="v">v188</span><span class="tag new">신규</span>
         <span class="ttl">규칙이 고장 나면 알게 되는 장치 — B 판정 규약</span></div>
       <dl>
-        <dt>무엇이</dt><dd>동결 이전 54년으로 기저율을 재서(재난급 하락 7건 전부에서 보험 지급 · 보험료 최악 −33%) 관문을 등록했고, 파수꾼이 매주 평가해 화면 「자동 점검」 줄에 「판정 규약 사건 N건 — 이상 없음」으로 보입니다.</dd>
+        <dt>무엇이</dt><dd>동결 이전 54년으로 기저율을 재서(재난급 하락 7건 전부에서 보험 지급 · 보험료 주의선 −33% — 2026-09-05 자료 정정 뒤 8건·−29%로 다시 등록, v218) 관문을 등록했고, 파수꾼이 매주 평가해 화면 「자동 점검」 줄에 「판정 규약 사건 N건 — 이상 없음」으로 보입니다.</dd>
         <dt>왜</dt><dd>T4 그림자에는 판정 방법이 있었는데 정작 돈이 실린 B에는 없었습니다. 규약 없이 장부만 쌓이면 판정은 사후 재량이 됩니다.</dd>
         <dt>결론</dt><dd class="res"><b>규칙은 그대로.</b> 관문이 깨지면 「재검토 개시」까지만 — 자동으로 규칙을 바꾸지 않습니다.</dd>
       </dl>

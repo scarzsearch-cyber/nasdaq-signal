@@ -31,8 +31,8 @@
    "applies_when": "H 사건창 MDD ≤ −0.50",
    "test": "B 사건창 MDD > H 사건창 MDD (B 가 얕다)",
    "history": {
-    "pass": 7,
-    "n": 7
+    "pass": 8,
+    "n": 8
    },
    "on_fail": "역사 범위 밖 → 재검토 연구 개시",
    "fail_means": "「느린 약세장 보험」 기전이 그 재난에서 작동하지 않았다",
@@ -40,14 +40,14 @@
   },
   "B_premium": {
    "stat": "사건창 B/H 총수익비 − 1 (음수 = 보험료)",
-   "warn_below": -0.333,
+   "warn_below": -0.293,
    "outside_history_below": -0.411,
    "history": {
-    "median": -0.051,
-    "p10": -0.293,
-    "p05": -0.333,
+    "median": -0.049,
+    "p10": -0.276,
+    "p05": -0.293,
     "worst": -0.411,
-    "n": 70
+    "n": 69
    },
    "on_warn": "기록 + 알림 한 줄 (변경 없음)",
    "on_outside": "재검토 연구 개시",
@@ -55,23 +55,23 @@
   },
   "R_rolling_3y": {
    "stat": "3년(756거래일) 롤링 B/H − 1",
-   "warn_below": -0.315,
+   "warn_below": -0.331,
    "outside_history_below": -0.493,
    "history": {
-    "median": -0.011,
+    "median": -0.007,
     "p10": -0.242,
-    "p05": -0.315,
+    "p05": -0.331,
     "worst": -0.493,
-    "share_negative": 0.62,
-    "nonoverlap_windows": 17.3
+    "share_negative": 0.58,
+    "nonoverlap_windows": 17.2
    },
    "computable_from": "동결 + 756거래일 — 그 전엔 계산하지 않는다",
-   "note": "B 는 3년 창의 62% 에서 H 에 진다. 이 관문은 「지고 있다」가 아니라 「역사보다 크게 지고 있다」만 잡는다"
+   "note": "B 는 3년 창의 58% 에서 H 에 진다(등록 당시 62%). 이 관문은 「지고 있다」가 아니라 「역사보다 크게 지고 있다」만 잡는다"
   }
  },
  "judgment": {
   "when": "달력이 아니라 사건 — 각 독립 사건의 +252 거래일이 찬 시점에 그 사건을 판정. R 은 계산 가능해진 뒤 상시",
-  "A_discriminates_with": "사건 1건 (역사 7/7 이므로 1회 실패가 곧 역사 밖)",
+  "A_discriminates_with": "사건 1건 (역사 8/8 이므로 1회 실패가 곧 역사 밖 · 등록 당시 7/7)",
   "combination": "어느 관문이든 「역사 밖」 1건 → 재검토 연구 개시. 「주의」는 기록·알림만",
   "response": {
    "warn": "기록 + 화면/알림 한 줄. 자동 변경 없음",
@@ -81,6 +81,44 @@
  },
  "does_not_answer": "「−16 이 −14 보다 나은가」 — 이웃 문턱 판별은 OOS 몇 십 년이 필요하다 (04 §5-22 D). 이 규약은 「B 가 역사처럼 작동하는가」만 묻는다",
  "evaluator": "python research/oos_protocol_b.py --oos",
- "base_rates_source": "python research/oos_protocol_b.py (동결 이전 데이터, 2026-09-02 실행)",
- "fingerprint": "c7f4f90ba8340e5a"
+ "base_rates_source": "python research/oos_protocol_b.py (동결 이전 데이터 · 2026-09-02 실행 · 2026-09-05 v210 거래일 정정 자료로 재실행해 재등록)",
+ "fingerprint": "74387a5c73c0fc06",
+ "revised_at": "2026-09-05",
+ "revisions": [
+  {
+   "date": "2026-09-05",
+   "version": "v218",
+   "previous_fingerprint": "c7f4f90ba8340e5a",
+   "reason": "v210(2026-09-05)이 FRED 빈 가격 행 114개를 거래일에서 제외하자 같은 엔진·같은 정의의 역사 기저율이 움직여 평가기 자기검산이 「판정 중단」을 냈다. 동결 이후 판정 사건 0건인 상태에서 같은 정의로 다시 잰 값으로 갱신 — 관문의 정의·결합·대응은 무변경. 원인은 v203·v209(일치)·v210(어긋남) 작업트리 재실행으로 v210 단독 확인(순회 B14).",
+   "previous": {
+    "A_disaster_payout.history": {
+     "pass": 7,
+     "n": 7
+    },
+    "B_premium": {
+     "warn_below": -0.333,
+     "outside_history_below": -0.411,
+     "history": {
+      "median": -0.051,
+      "p10": -0.293,
+      "p05": -0.333,
+      "worst": -0.411,
+      "n": 70
+     }
+    },
+    "R_rolling_3y": {
+     "warn_below": -0.315,
+     "outside_history_below": -0.493,
+     "history": {
+      "median": -0.011,
+      "p10": -0.242,
+      "p05": -0.315,
+      "worst": -0.493,
+      "share_negative": 0.62,
+      "nonoverlap_windows": 17.3
+     }
+    }
+   }
+  }
+ ]
 }
