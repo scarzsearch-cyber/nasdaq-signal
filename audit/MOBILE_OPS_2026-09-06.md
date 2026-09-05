@@ -46,4 +46,4 @@
 - ② 는 미확정. ①의 PWA standalone 은 정적 확인뿐.
 
 ## G. 통합
-- (push 뒤 기입)
+- 커밋 **9f3d6fb**(v225) → **ecd9fa2**(Node 하네스 정정). 9f3d6fb 의 CI 검증은 내가 로컬에서 CI 회귀 목록 전체를 안 돌려 `test_ops_review2` Node 하네스(서명 추출)가 깨진 채 밀렸다 — ecd9fa2 에서 서명·휴장 경우를 맞추고 219개 전체를 로컬에서 돌린 뒤 push. CI 검증·Pages 둘 다 success. 배포본에 v225 신선도 코드 반영 확인(usHolidays 제외 줄 1건).
