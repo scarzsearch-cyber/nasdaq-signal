@@ -9,6 +9,11 @@
 - `research/STRATEGY_RESEARCH_2026-09-05.md` — 소유자가 허용한 A·T4·B 밖 구조의 분리 연구 사전 기록. 실제 B 동결과 분리한다.
 - `research/rebalance_accounting.py` — 실제 비중 표류·전 자산 편도 회전 공용 계산. 매일 재조정과 거래가능일 사이 보유를 구분하며 계좌 과세·납입은 미포함.
 - `research/band_accounting.py` — R06 옛 비례비용 집행 진단의 실제 보유·밴드 원장. F1/F2의 정확한 매매액 수수료/계좌 원장과 구분.
+- `research/execution_policy.py` — F3 현금 우선·실제 보유 밴드·전량 방어 예외. 매매액 비용과 원가/세금은 기존 원장 재사용; 실전 주문 없음.
+- `research/strategy_f3_execution.py` — F3 고정4부모·0/5/10/15 밴드와 공통200개 민감도·기본/비용/지연/비용0 세전 진단. 채택/개인계좌 결론 아님.
+- `research/strategy_f3_placebo.py` — F1/F2 기존999회 정수 횟수와 신규1000회를 검증 후 연장, F3 1999회·전체52개 시점 반증. 실전 변경 없음.
+- `audit/test_execution_policy.py` — F3 현금·실제 수량·이분법 독립 검산, 밴드0 정확 축퇴, 휴장·납입·전량 방어·분배 회귀17개.
+- `audit/test_f3_design.py` — F3 고정 후보·이웃·난수 스트림·52개 검정 분해능·정수 횟수 복원 회귀4개.
 - `research/strategy_f1_screen.py` — 사전 고정 F1 8개 달러 세전 1차 비교. 실제 금액 원장 대조·7/10년 모든 시작일·비용/지연 민감도. 원화 ISA 판정은 아님.
 - `research/strategy_f1_kr.py` — F1 원화/달러 상품모형 × 한국/미국 거래일 연결. 휴일 보유·날짜 역방향 검산·보유수량 검산. 납입·계좌세금은 미포함.
 - `research/account_ledger.py` — 분리 연구용 실제 매매금액·평균원가·세금 재원 매도·납입 대기현금 원장. 실제 ETF 과표·바스켓 내부 세금·개인 종합과세는 미포함.

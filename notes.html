@@ -123,8 +123,24 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v213</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v216</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="researchF3">
+      <div class="head"><span class="v">v216</span><span class="tag fix">수정</span>
+        <span class="ttl">거래하지 않는 날의 계산 오류와 연구 근거의 해석을 바로잡았습니다</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>옛 연구 일부는 거래를 생략한다고 하면서 계산에서는 매일 비중을 맞추고 있었습니다.
+          실제 보유 수량을 유지하도록 고쳤습니다. 별도 실험에서는 작은 비중 차이를 허용하면 거래를 줄일 수 있었지만,
+          <b>거래 감소가 곧 더 높은 수익은 아니었습니다.</b> 일부 T4 조건에는 부담을 줄이는 장점이 남았습니다.</dd>
+        <dt>달라진 해석</dt><dd>우연한 시점 선택인지 확인하는 검사를 더 넓게 다시 하자,
+          이전에 통과했던 B·T4·혼합도 모든 조건을 충족하지는 못했습니다.
+          <b>기존 수익률 계산이 바뀐 것은 아니지만, 과거 검증 통과를 확실한 미래 근거로 읽으면 안 됩니다.</b>
+          반대로 이번 미충족이 전략의 실패를 확정하는 것도 아닙니다.</dd>
+        <dt>결론</dt><dd class="res"><b>실제 매매 규칙·신호·장부는 그대로입니다.</b>
+          새 전략을 채택하지 않았고, 실제 상품의 비용·세금과 앞으로의 기록은 계속 확인해야 합니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix">
       <div class="head"><span class="v">v215<span class="dim">·214</span></span><span class="tag fix">수정</span>
