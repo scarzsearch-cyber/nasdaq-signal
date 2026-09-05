@@ -1612,6 +1612,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--fast', action='store_true', help='빠른 검사만 (CI 기본)')
     a = ap.parse_args()
+    # [2026-09-06 재현성 감사] 모든 검사가 'data/…'·'signal.html' 같은 저장소 상대 경로를 읽는다 — 다른 작업 디렉터리에서
+    #   `python <경로>/verify_all.py` 로 부르면 파일이 전부 「없음」으로 읽혀 경고 12건·종료 1 로 끝났다(격리 클론 실측).
+    #   research 스크립트의 경로 보정(README §「어디서 실행하든」)과 같게 이 파일의 디렉터리를 작업 디렉터리로 삼는다.
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print("=" * 78)
     print("전략 검증 — 단일 진입점" + ("  [빠른 모드]" if a.fast else "  [전체]"))
     print("=" * 78)

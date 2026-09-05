@@ -43,6 +43,9 @@
 - `audit/DOC_CORRECTIONS_2026-09-06.md` — 01·02·04 정정안(항목별 현재 문구·문제·근거와 기준 버전·제안·결론 영향): 값 정정 5 · 출처 미확정 2(964원 → 857.5 · 45배/9배 → 삭제 권장) · 조건 병기 10 · 04 여섯 자리 · guide 전사 1건 수정. 담당 문서 미수정 · 인계용.
 - `audit/REBAL_LEDGER_2026-09-06.md` — `axis_defmix.sim_hold` 다자산 재조정 회계의 독립 금액 원장 대조(합성 12사례×격자 6 · 실자료 54년 M/Q/None) · 결함 주입 8/8 탐지 · 비용 단위(다리당 vs 편도) 정리 · 검사 편입 제안(미등재).
 - `audit/rebal_ledger_check.py` — 위 원장 검증기(엔진 미복제 · 엔진 사본 메모리 변조로 탐지력 확인 · CI 미등재 · 수동 실행).
+- `audit/SECURITY_INPUT_2026-09-06.md` — 보안·입력 경계 감사: URL 해시·CSV·백업·외부 JSON → innerHTML 경로 · 비밀 스캔(추적 파일 498 + 이력 557커밋 0건) · 워크플로 권한·표현식 주입·액션 고정. 수정 2(notify-test permissions · 회전 토큰 add-mask).
+- `audit/REPRO_2026-09-06.md` — 설치·실행 재현성 감사: 격리 클론+임시 venv 로 문서 순서 실행(verify_all·unittest 232·research_kit·셀프테스트·cp949 콘솔) · 생성물 재생성 대조 · verify_all cwd 의존 수정 · kr_holidays.json 코드↔산출물 어긋남 관찰.
+- `audit/test_repro6.py` — 위 회귀 3(verify_all 다른 cwd rc 0 · 워크플로 8종 permissions · notify-test 읽기 전용).
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.
