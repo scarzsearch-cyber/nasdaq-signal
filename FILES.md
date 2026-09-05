@@ -7,6 +7,10 @@
 ## 폴더 구조 (2026-08-27 v39 정리)
 
 - `research/STRATEGY_RESEARCH_2026-09-05.md` — 소유자가 허용한 A·T4·B 밖 구조의 분리 연구 사전 기록. 실제 B 동결과 분리한다.
+- `research/basket_accounting.py` — F4-A 이진 B의 공격·배당·국채·금 별도 원가/보유 원장. 월초·신호30일 확인·2%p 전량 재조정 근사; 실제 ETF 과표/정수 주문 아님.
+- `research/strategy_f4_basket.py` — F4-A 고정 C0~C3의 기존 합성 바스켓 축퇴·독립 달력·비용/지연/금 비용 민감도. 개인 금액·신호 변경 없음.
+- `audit/test_basket_accounting.py` — F4-A 독립 주수/이분법·현금·양의 종목 손익·확인일·표류·경계 회귀14개.
+- `audit/test_f4_design.py` — F4-A 비용0/양수 합성 바스켓 축퇴·임의 휴장/재진입 달력·고정 비교 범위 회귀4개.
 - `research/rebalance_accounting.py` — 실제 비중 표류·전 자산 편도 회전 공용 계산. 매일 재조정과 거래가능일 사이 보유를 구분하며 계좌 과세·납입은 미포함.
 - `research/band_accounting.py` — R06 옛 비례비용 집행 진단의 실제 보유·밴드 원장. F1/F2의 정확한 매매액 수수료/계좌 원장과 구분.
 - `research/execution_policy.py` — F3 현금 우선·실제 보유 밴드·전량 방어 예외. 매매액 비용과 원가/세금은 기존 원장 재사용; 실전 주문 없음.
