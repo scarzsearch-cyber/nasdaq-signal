@@ -321,6 +321,192 @@ class MultiAssetRebalance(unittest.TestCase):
         np.testing.assert_array_equal(mask, [True, False, True, True, False])
 
 
+class FractionalTurnoverAccounting(unittest.TestCase):
+    @staticmethod
+    def extracted(path, names, extra):
+        tree = ast.parse((ROOT / path).read_text(encoding='utf-8-sig'))
+        nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
+        ns = dict(np=np, pd=pd, COST=.1, **extra)
+        # The helper is optional only so the original five implementations can
+        # fail on the hand-calculated fixture before the production fix exists.
+        if (ROOT / 'research/rebalance_accounting.py').exists():
+            from research.rebalance_accounting import daily_turnover
+            ns['daily_turnover'] = daily_turnover
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), path, 'exec'), ns)
+        return ns
+
+    def paths(self, w, risky, safe, cost=.1):
+        from types import SimpleNamespace
+        idx = pd.date_range('2020-01-01', periods=len(w))
+        zero = np.zeros(len(w))
+        extra = dict(n=len(w), idx=idx, QLDR=risky, MIXR=safe, tb=safe, TB=safe,
+                     EC=SimpleNamespace(COST=cost), G=SimpleNamespace(COST=cost),
+                     t4_w=lambda _: w)
+        ns = self.extracted('axis_defmix.py', ['sim_def'], extra)
+        yield 'sim_def', np.asarray(ns['sim_def'](dict(idx=idx, qldr=risky), w, safe, cost=cost))
+        ns = self.extracted('research/eng_common.py', ['sim2'], extra)
+        yield 'sim2', np.asarray(ns['sim2'](w, risky, safe, cost=cost))
+        ns = self.extracted('research/t4_lev_post.py', ['sim'], extra)
+        yield 't4_lev', np.asarray(ns['sim'](w, risky))
+        ns = self.extracted('research/hypo_hex.py', ['_lag1', '_one_way_turnover', 'three_way'], extra)
+        yield 'three_way', np.asarray(ns['three_way'](w, zero, 1-w, cost=cost))
+        ns = self.extracted('research/hypo_t4_real.py', ['multi_t4'], extra)
+        yield 'multi_t4', np.asarray(ns['multi_t4']([(risky, risky)], cost=cost))
+
+    def test_all_five_paths_charge_unchanged_target_drift(self):
+        w = np.array([0., .5, .5, .5])
+        risky = np.array([0., 0., 1., 0.])
+        # Same initial purchase: .95, then 50/50 return doubles only the
+        # risky holding: 1.425. Restore 50/50, trading 1/6 -> 1.40125.
+        for name, actual in self.paths(w, risky, np.zeros(4)):
+            with self.subTest(engine=name):
+                np.testing.assert_allclose(actual, [1., 1., 1.425, 1.40125], rtol=0, atol=1e-12)
+
+    def test_fractional_initial_position_has_no_unrequested_initial_fee(self):
+        for name, actual in self.paths(np.full(3, .5), np.array([9., 1., 0.]), np.zeros(3)):
+            with self.subTest(engine=name):
+                np.testing.assert_allclose(actual, [1., 1.5, 1.475], rtol=0, atol=1e-12)
+
+    def test_target_change_that_matches_drift_does_not_trade(self):
+        w = np.array([.5, 2/3, 2/3])
+        for name, actual in self.paths(w, np.array([0., 1., 0.]), np.zeros(3)):
+            with self.subTest(engine=name):
+                self.assertAlmostEqual(actual[-1], 1.5)
+
+    def test_binary_and_zero_cost_cases_match_original_formula(self):
+        rng = np.random.default_rng(20260905)
+        for kind in ('binary', 'fractional'):
+            w = rng.integers(0, 2, 80).astype(float) if kind == 'binary' else rng.random(80)
+            w[0] = 0.  # Original multi_t4 started in cash.
+            risky, safe = rng.uniform(-.2, .2, (2, 80))
+            pos = np.r_[w[0], w[:-1]]
+            returns = pos*risky + (1-pos)*safe
+            returns[0] = 0.
+            for cost in ((0., .001, .1) if kind == 'binary' else (0.,)):
+                expected = np.cumprod((1+returns)*(1-cost*np.abs(np.diff(pos, prepend=pos[0]))))
+                for name, actual in self.paths(w, risky, safe, cost):
+                    with self.subTest(kind=kind, engine=name, cost=cost):
+                        np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_random_fractional_paths_match_currency_ledger(self):
+        rng = np.random.default_rng(391)
+        for cost in (0., .001, .03):
+            w = rng.random(101)
+            R = rng.uniform(-.3, .3, (101, 2))
+            expected = MultiAssetRebalance.reference(
+                np.column_stack([w, 1-w]), R, np.ones(101, bool), cost)
+            for name, actual in self.paths(w, R[:, 0], R[:, 1], cost):
+                with self.subTest(engine=name, cost=cost):
+                    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_lag_and_window_restart_use_matching_holdings(self):
+        idx = pd.date_range('2020-01-01', periods=12)
+        w = np.linspace(.1, .9, 12)
+        risky, safe = np.sin(np.arange(12))*.1, np.cos(np.arange(12))*.01
+        ns = self.extracted('axis_defmix.py', ['sim_def'], {})
+        for lag in (0, 1, 2, 20):
+            ws = w[2:10]
+            pos = ws.copy()
+            if lag:
+                pos[:lag] = ws[0]
+                pos[lag:] = ws[:-lag]
+            R = np.column_stack([risky[2:10], safe[2:10]])
+            # Currency reference expects close-day targets and applies lag=1.
+            ref_w = np.r_[pos[1:], pos[-1]]
+            W = np.column_stack([ref_w, 1-ref_w])
+            W[0] = [pos[0], 1-pos[0]]
+            if lag == 0:
+                # Explicit direct ledger for the look-ahead diagnostic path.
+                held = [float(pos[0]), float(1-pos[0])]
+                expected = [1.]
+                for i in range(1, len(pos)):
+                    value = sum(held)
+                    value *= 1-.1*abs(pos[i]-held[0]/value)
+                    held = [value*pos[i]*(1+R[i, 0]), value*(1-pos[i])*(1+R[i, 1])]
+                    expected.append(sum(held))
+            else:
+                expected = MultiAssetRebalance.reference(W, R, np.ones(8, bool), .1)
+            actual = ns['sim_def'](dict(idx=idx, qldr=risky), w, safe, cost=.1,
+                                   lag=lag, start=idx[2], end=idx[9])
+            np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_turnover_rejects_invalid_weights_and_returns(self):
+        from research.rebalance_accounting import daily_turnover
+        W = np.full((3, 2), .5)
+        R = np.zeros_like(W)
+        for bad in (np.empty((0, 2)), np.ones(3), W*2, -W,
+                    np.array([[.5, .5], [np.nan, .5], [.5, .5]])):
+            with self.subTest(weights=str(bad)), self.assertRaises(ValueError):
+                daily_turnover(bad, R)
+        for bad in (np.full_like(R, -1.01), np.full_like(R, np.inf), np.full_like(R, np.nan)):
+            with self.subTest(returns=str(bad)), self.assertRaises(ValueError):
+                daily_turnover(W, bad)
+        np.testing.assert_array_equal(daily_turnover(W[:1], R[:1]), [0.])
+        R[1] = -1.
+        np.testing.assert_array_equal(daily_turnover(W, R), [0., 0., 0.])
+
+    def test_multileg_netting_and_drift_match_currency_ledger(self):
+        from types import SimpleNamespace
+        idx = pd.date_range('2020-01-01', periods=5)
+        # Two risk legs share one T-bill. Opposite target changes must not
+        # charge fictitious transfers between identical T-bill sleeves.
+        signals = [np.array([0., 1., 0., .5, .5]), np.array([0., 0., 1., .5, .5])]
+        returns = np.array([[0., 0.], [0., 0.], [1., -.5], [0., 0.], [-.2, .3]])
+        W = np.column_stack(signals) / 2
+        W = np.column_stack([W, 1-W.sum(axis=1)])
+        R = np.column_stack([returns, np.zeros(5)])
+        ns = self.extracted('research/hypo_t4_real.py', ['multi_t4'], dict(
+            idx=idx, tb=np.zeros(5), G=SimpleNamespace(COST=.1), t4_w=lambda x: x))
+        actual = ns['multi_t4'](list(zip(signals, returns.T)), cost=.1)
+        expected = MultiAssetRebalance.reference(W, R, np.ones(5, bool), .1)
+        np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
+class FixedCandidateScreen(unittest.TestCase):
+    def test_candidates_are_causal_with_fixed_warmup(self):
+        from strategy_f1_screen import targets
+        tree = ast.parse((ROOT / 'research/eng_common.py').read_text(encoding='utf-8-sig'))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'rule_dd')
+        ns = dict(np=np)
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'eng_common.py', 'exec'), ns)
+        px = pd.Series(np.exp(np.arange(400)*.001))
+        before = targets(px, np.full(400, .5), ns['rule_dd'])
+        changed = px.copy()
+        changed.iloc[300:] *= .1
+        after = targets(changed, np.full(400, .5), ns['rule_dd'])
+        self.assertEqual(len(before), 8)
+        for name in before:
+            np.testing.assert_array_equal(before[name][:300], after[name][:300])
+        np.testing.assert_array_equal(before['MA200-mix'][:199, 0], 0.)
+        self.assertEqual(before['MA200-mix'][199, 0], 1.)
+        np.testing.assert_array_equal(before['MOM252-mix'][:252, 0], 0.)
+        self.assertEqual(before['MOM252-mix'][252, 0], 1.)
+
+    def test_screen_execution_and_lag_match_currency_reference(self):
+        from strategy_f1_screen import execute, currency_reference
+        rng = np.random.default_rng(17)
+        W = rng.dirichlet(np.ones(4), size=101)
+        R = rng.uniform(-.1, .1, size=W.shape)
+        for lag in (1, 2, 200):
+            actual, _ = execute(W, R, .002, lag)
+            expected = currency_reference(W, R, .002, lag)
+            np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+        for lag in (0, -1, True, 1.5):
+            with self.assertRaises(ValueError):
+                execute(W, R, .001, lag)
+
+    def test_rolling_calendar_windows_and_independent_counts(self):
+        from strategy_f1_screen import windows
+        idx = pd.date_range('2000-01-01', periods=121, freq='MS')
+        result = windows({'B': np.ones(121), 'flat': np.ones(121)}, idx, 7)
+        self.assertEqual(result['starts'], 37)
+        self.assertEqual(result['nonoverlap_windows'], 1)
+        self.assertEqual(result['last_start'], '2003-01-01')
+        self.assertEqual(result['rows']['flat']['paired_tie_fraction_vs_B'], 1.)
+        self.assertEqual(result['rows']['flat']['paired_win_fraction_vs_B'], 0.)
+        self.assertEqual(result['rows']['B']['median_multiple'], 1.)
+
+
 class HistoricalCalendarIntegrity(unittest.TestCase):
     def test_fred_drops_blank_and_dot_quotes_without_using_another_column(self):
         import hist_data as history

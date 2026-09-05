@@ -37,6 +37,7 @@ import hist_defensive as DF
 import hist_korea as K
 from reentry_lib import met, rolling_stats
 from axis_lib import COST, rule_w, check
+from research.rebalance_accounting import daily_turnover
 import sys
 
 try:                       # [코드리뷰 2026-09-04] 이 파일은 콘솔에 표를 찍는다.
@@ -146,7 +147,11 @@ def mix_r(comp, weights):
 
 # ---------------------------------------------------------------- 엔진
 def sim_def(D, w, defr, riskr=None, cost=COST, lag=1, start=None, end=None):
-    """방어자산 수익률 배열을 갈아끼우는 거치식 시뮬레이터 (axis_lib.sim 과 동치)."""
+    """거치식. 이진 비중은 axis_lib.sim과 동치, 부분 비중은 실제 표류 거래 과금.
+
+    매일 목표로 재조정한다. 최초일 수익/진입비용은 0이며 cost는 전체 자산
+    편도 회전(비중 차이 합의 절반)에 적용한다. 방어 바스켓 내부 비용은 별도다.
+    """
     idx = D['idx']
     n = len(idx)
     lo = 0 if start is None else idx.searchsorted(pd.Timestamp(start))
@@ -162,7 +167,8 @@ def sim_def(D, w, defr, riskr=None, cost=COST, lag=1, start=None, end=None):
         pos[:] = wv                                    # 당일 신호 = 당일 체결
     r = np.nan_to_num(pos * rr[sl] + (1 - pos) * defr[sl])
     r[0] = 0.0
-    turn = np.abs(np.diff(pos, prepend=pos[0]))
+    turn = daily_turnover(np.column_stack([pos, 1-pos]),
+                          np.column_stack([np.nan_to_num(rr[sl]), np.nan_to_num(defr[sl])]))
     return pd.Series(np.cumprod((1 + r) * (1 - cost * turn)), index=idx[sl])
 
 

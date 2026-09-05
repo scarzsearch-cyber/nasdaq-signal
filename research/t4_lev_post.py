@@ -46,6 +46,7 @@ import eng_common as EC                                 # noqa: E402
 import hypo_gates as G                                  # noqa: E402
 import hypo_t4_real as R                                # noqa: E402
 from axis_lib import lev_r                              # noqa: E402
+from research.rebalance_accounting import daily_turnover
 
 idx = G.idx
 n = len(idx)
@@ -70,11 +71,12 @@ def t4w_k(k):
 
 
 def sim(w, r, lag=1):
-    """T4 는 공격/T-bill 2분할 (정본 규약)."""
+    """T4 공격/T-bill 일별 재조정. 목표 차이가 아닌 실제 보유 표류까지 과금."""
     pos = np.empty(n); pos[:lag] = w[0]; pos[lag:] = w[:-lag]
     rr = pos * np.nan_to_num(r) + (1 - pos) * TB
     rr[0] = 0.0
-    turn = np.abs(np.diff(pos, prepend=pos[0]))
+    turn = daily_turnover(np.column_stack([pos, 1-pos]),
+                          np.column_stack([np.nan_to_num(r), TB]))
     return np.cumprod((1 + rr) * (1 - EC.COST * turn))
 
 

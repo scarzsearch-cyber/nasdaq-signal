@@ -22,6 +22,7 @@ _sys.path.insert(0, _os.path.join(_ROOT, 'research'))
 import json
 import numpy as np
 import pandas as pd
+from research.rebalance_accounting import daily_turnover
 
 COST = 0.001
 
@@ -44,14 +45,15 @@ def rule_dd(px, in_th, out_th, win=252):
 
 
 def sim2(w, r_eng, r_def, cost=COST):
-    """2분할 실행 — axis_defmix.sim_def 와 같은 규약 (lag=1, 편도 cost×|Δw|)."""
+    """2분할 일별 재조정 — lag=1, 목표 대비 실제 보유비중의 편도 회전 과금."""
     n = len(w)
     pos = np.empty(n)
     pos[0] = w[0]
     pos[1:] = w[:-1]
     r = pos * np.nan_to_num(r_eng) + (1 - pos) * np.nan_to_num(r_def)
     r[0] = 0.0
-    turn = np.abs(np.diff(pos, prepend=pos[0]))
+    turn = daily_turnover(np.column_stack([pos, 1-pos]),
+                          np.column_stack([np.nan_to_num(r_eng), np.nan_to_num(r_def)]))
     return np.cumprod((1 + r) * (1 - cost * turn))
 
 

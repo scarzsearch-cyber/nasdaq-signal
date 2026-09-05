@@ -41,6 +41,7 @@ except Exception:
 import hypo_gates as G                                  # noqa: E402
 import hypo_t4_real as R                                # noqa: E402
 from axis_defmix import sim_def                         # noqa: E402
+from research.rebalance_accounting import daily_turnover
 
 idx = G.idx
 n = len(idx)
@@ -68,10 +69,10 @@ def _lag1(w):
     return out
 
 
-def _one_way_turnover(*positions):
-    """완전투자 포트폴리오의 편도 회전율 = 전체 비중변화 절댓값 합의 절반."""
-    return 0.5 * sum(np.abs(np.diff(np.asarray(p, float), prepend=float(p[0])))
-                     for p in positions)
+def _one_way_turnover(*positions, returns=None):
+    """실제 보유 대비 전체 자산 편도 회전. 무수익 손검산만 returns 생략 가능."""
+    p = np.column_stack(positions)
+    return daily_turnover(p, np.zeros_like(p) if returns is None else returns)
 
 
 def _selfcheck_three_way_cost():
@@ -97,7 +98,7 @@ def three_way(wq, wm, wt, cost=COST):
     pos, pm, pt = _lag1(wq), _lag1(wm), _lag1(wt)
     r = pos * QLDR + pm * MIXR + pt * tb
     r[0] = 0.0
-    turn = _one_way_turnover(pos, pm, pt)
+    turn = _one_way_turnover(pos, pm, pt, returns=np.column_stack([QLDR, MIXR, tb]))
     return pd.Series(np.cumprod((1 + r) * (1 - cost * turn)), index=idx)
 
 

@@ -41,6 +41,7 @@ import hypo_gates as G                                  # noqa: E402  재료·�
 import hypo_t4wide as W                                 # noqa: E402  30Y·금 2x 대리 재사용
 import oos_log as OL                                    # noqa: E402  정본 스펙 (읽기 전용)
 from axis_defmix import sim_def                         # noqa: E402  검증 엔진
+from research.rebalance_accounting import daily_turnover
 
 idx = G.idx
 tb = G.tb
@@ -86,22 +87,28 @@ def _check():
 
 
 def multi_t4(legs, cost=G.COST):
-    """슬리브 균등(1/n) — 각 다리가 정본 T4 를 독립 수행. lag=1, 대기 T-bill."""
+    """각 다리의 T4 목표를 매일 균등 배분. lag=1, 동일 T-bill은 한 자산으로 상계.
+
+    독립 계좌를 처음만 균등 매수해 보유하는 방식이 아니다. 전일 수익으로
+    변한 다리 간 비중과 각 다리 내부 비중을 모두 거래량에 반영한다.
+    첫 행은 sim_def와 같이 초기 목표를 이미 보유한 자산 1이다.
+    """
     m = len(legs)
+    if not m:
+        raise ValueError('one or more legs are required')
     ws = [t4_w(l[0]) for l in legs]
     rx = [np.nan_to_num(l[1]) for l in legs]
     n = len(idx)
-    pos = np.zeros(m)
-    v = 1.0
-    vals = np.empty(n)
-    vals[0] = 1.0                                       # sim_def 규약: 첫날 r=0
-    for i in range(1, n):
-        newp = np.array([ws[j][i - 1] for j in range(m)])
-        v *= (1 - cost * float(np.sum(np.abs(newp - pos))) / m)
-        pos = newp
-        ret = float(sum((pos[j] * rx[j][i] + (1 - pos[j]) * tb[i]) for j in range(m))) / m
-        v *= (1 + ret)
-        vals[i] = v
+    targets = np.column_stack(ws) / m
+    pos = np.empty_like(targets)
+    pos[0] = targets[0]
+    pos[1:] = targets[:-1]
+    pos = np.column_stack([pos, 1-pos.sum(axis=1)])
+    returns = np.column_stack(rx + [tb])
+    ret = np.sum(pos * returns, axis=1)
+    ret[0] = 0.
+    turn = daily_turnover(pos, returns)
+    vals = np.cumprod((1+ret) * (1-cost*turn))
     return pd.Series(vals, index=idx)
 
 
