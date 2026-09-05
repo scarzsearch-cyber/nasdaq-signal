@@ -89,9 +89,10 @@ def git(root, *args):
 M = []
 
 
-def mut(id_, gate, need_d, expect, why=''):
+def mut(id_, gate, need_d, expect, why='', blind=False):
+    """blind=True: 그 관문의 **검사 대상이 아닌** 결함 — 못 잡는 것이 정상이며 BLIND 로 표시한다(사각지대 문서화)."""
     def deco(fn):
-        M.append((id_, gate, need_d, expect, fn, why))
+        M.append((id_, gate, need_d, expect, fn, why, blind))
         return fn
     return deco
 
@@ -721,6 +722,126 @@ def _(r):
     sub(r, 'deploy/kr_holidays.py', 'MIN_DAYS_PER_YEAR', 'MIN_DAYS_YEAR', count=0)
 
 
+
+# ---- [2026-09-06 · 6차] 자료 의존 관문 I1·I5·I10 — 격리 클론의 원자료를 합성 계열로 바꿔 「실패해야 할 때 실패하는가」 ----
+#   계약(관문이 재는 것): I1 = 엔진 동치(run==sim · 세율0 축퇴 · 회계 장난감 · 적립 항등식 · 단일자산 sim_hold==sim_def)
+#                        I5 = 채택 결정이 지금 자료로도 같은가(B>A · 원화 20년창 좌측꼬리 40/40/20>배당100 · 미국 종가>원화환산)
+#                        I10 = 전제(2배 보유 MDD ≤ −90% · 최근 20년 CAGR > 3% · 전략 > 2배 보유)
+#   ⚠ 실제 원자료·동결값·장부는 건드리지 않는다 — 클론 안의 사본만 바꾼다. 새 규칙을 관문에 넣지 않는다.
+def _synth_prices(root, ret_fn):
+    """세 가격 원자료(FRED 종합 1971~ · 야후 NDX 1985~ · QQQ 1999~)의 **날짜는 그대로** 두고 종가만 합성한다.
+    엔진(hist_data.qqq_proxy)은 세 파일을 일간수익률로 접합하므로 파일마다 같은 ret_fn 을 자기 날짜에 적용하면 된다."""
+    import pandas as pd, numpy as np
+    for rel, dcol, vcol in (('data/hist/fred_NASDAQCOM.csv', 'observation_date', 'NASDAQCOM'),
+                            ('data/hist/yahoo_NDX.csv', 'Date', 'Close'),
+                            ('qqq_us_d.csv', 'Date', 'Close')):
+        d = pd.read_csv(_p(root, rel))
+        dates = pd.to_datetime(d[dcol])
+        n = len(d); px = np.empty(n); px[0] = 100.0
+        for i in range(1, n):
+            px[i] = px[i - 1] * (1.0 + ret_fn(i, n, dates.iloc[i]))
+        d[vcol] = np.round(px, 6)
+        if rel == 'qqq_us_d.csv':
+            for c in ('Open', 'High', 'Low'):
+                d[c] = d[vcol]
+        d.to_csv(_p(root, rel), index=False)
+
+
+def _growth(i, n, dt):                       # 폭락 없는 완만한 상승(연 ≈ 16% · σ 6%) — 2배 보유가 안 무너지고 전환도 안 생긴다
+    import numpy as np
+    rng = _growth.rng
+    return 0.0006 + rng.normal(0.0, 0.004)
+
+
+def _flat20(i, n, dt):                       # 2006-08 까지 상승, 그 뒤 20년은 평균 0(횡보)
+    import numpy as np
+    return _growth(i, n, dt) if dt < __import__('pandas').Timestamp('2006-08-01') else _flat20.rng.normal(0.0, 0.004)
+
+
+def _sawtooth(i, n, dt):                     # 20일 +1.0% / 40일 −0.6% — 첫 −16 뒤 B 는 −13 에서 재진입해 다시 맞고, A(−11 복귀)는 밖에 머문다
+    return 0.010 if (i % 60) < 20 else -0.006
+
+
+@mut('data_growth_i10', 'i10_premise', True,
+     [('P1 2배 보유 MDD', 'F'), ('P3 전략이 2배 그냥 보유를 이긴다', 'F')],
+     '폭락 없는 합성 계열: 2배 보유 MDD 가 얕고(P1) 전환이 없어 전략=보유(P3) — 나스닥 고유 성질이 사라진 세계')
+def _(r):
+    import numpy as np
+    _growth.rng = np.random.default_rng(1)
+    _synth_prices(r, _growth)
+
+
+@mut('data_flat20_i10', 'i10_premise', True, [('P2 기초지수 최근 20년 연평균 상승', 'F')],
+     '최근 20년 횡보 합성 계열 — 지킬 상승이 없다(P2)')
+def _(r):
+    import numpy as np
+    _growth.rng = np.random.default_rng(2); _flat20.rng = np.random.default_rng(3)
+    _synth_prices(r, _flat20)
+
+
+@mut('data_growth_i5', 'i5_decisions', True, [('B(-16/-16) > A(-16/-11)', 'F')],
+     '전환이 한 번도 없으면 B 와 A 가 같아 「B>A」가 성립하지 않는다 — 채택 결정의 근거가 자료에서 사라진 경우')
+def _(r):
+    import numpy as np
+    _growth.rng = np.random.default_rng(1)
+    _synth_prices(r, _growth)
+
+
+@mut('data_sawtooth_i5', 'i5_decisions', True, [('B(-16/-16) > A(-16/-11)', 'F')],
+     '톱니 합성 계열: B 는 −16 을 넘나들며 왕복 손실, A 는 −11 복귀선 밖에 머문다 → A>B')
+def _(r):
+    _synth_prices(r, _sawtooth)
+
+
+@mut('data_fx_flat_i5', 'i5_decisions', True, [('신호원: 미국 종가 > 원화환산', 'F')],
+     '환율을 상수로 — 원화환산 신호와 미국 종가 신호가 같아져 「미국 종가 > 원화환산 ×2」가 성립하지 않는다')
+def _(r):
+    import pandas as pd
+    d = pd.read_csv(_p(r, 'data/hist/fred_DEXKOUS.csv'))
+    d['DEXKOUS'] = 1000.0
+    d.to_csv(_p(r, 'data/hist/fred_DEXKOUS.csv'), index=False)
+
+
+@mut('data_gold_collapse_i5', 'i5_decisions', True, [('[원화] 20년창 좌측꼬리 40/40/20 > 배당100', 'F')],
+     '금 다리를 1981 부터 연 −25% 로 무너뜨리면 40/40/20 의 최악 20년창이 배당100 아래로 내려간다. '
+     '(첫 시도 — SCHD 2011~ 를 연 50% 로 부풀린 변조는 못 뒤집었다: 5분위를 정하는 최악 창들이 2011 이전에 끝나 부풀림이 닿지 않는다. '
+     '관문 결함이 아니라 변조가 5분위 창을 안 건드린 것 — 그대로 적는다)')
+def _(r):
+    import pandas as pd, numpy as np
+    d = pd.read_csv(_p(r, 'data/hist/lbma_gold_pm.csv'))
+    dt = pd.to_datetime(d['Date'])
+    k = np.clip((dt - pd.Timestamp('1981-01-01')).dt.days.values / 365.25, 0, None)
+    d['Close'] = d['Close'].values * (0.75 ** k)
+    d.to_csv(_p(r, 'data/hist/lbma_gold_pm.csv'), index=False)
+
+
+# ---- I1 엔진 동치 — 관문이 재는 회계·동치 결함 ----
+@mut('i1_sim_cost_double', 'i1_engine', False, [('axis_lib.check', 'F')],
+     'sim 의 전환 비용을 2배로 — run(reentry_lib) 과 갈린다')
+def _(r):
+    sub(r, 'axis_lib.py', 'curve = pd.Series(np.cumprod((1 + r) * (1 - cost * turn)), index=idx[sl])',
+        'curve = pd.Series(np.cumprod((1 + r) * (1 - 2 * cost * turn)), index=idx[sl])')
+
+
+@mut('i1_withdraw_basis', 'i1_engine', False, [('axis_lib.check', 'F')],
+     '세금 마련 매도에서 원가를 안 빼면(2차 실현손익 소실) 회계 장난감이 어긋난다')
+def _(r):
+    sub(r, 'axis_lib.py', '    basis_sold = B * (tax / V)\n', '    basis_sold = 0.0\n')
+
+
+@mut('i1_accum_buycost', 'i1_engine', False, [('axis_lib.check', 'F')],
+     '적립 매수비용 기본값 0 → 0.1%: accumulate 가 Σ 납입일별 거치식 배수 항등식에서 벗어난다')
+def _(r):
+    sub(r, 'axis_lib.py', 'rk=None, buy_cost=0.0, return_paths=False):', 'rk=None, buy_cost=0.001, return_paths=False):')
+
+
+@mut('i1_hold_rebal_blind', 'i1_engine', False, [('axis_defmix.check_hold', 'F')],
+     '★ 사각지대: sim_hold 의 **다자산 재조정 비용**을 2배로 — check_hold 는 단일자산(재조정 0)만 sim_def 와 대조하므로 못 본다',
+     blind=True)
+def _(r):
+    sub(r, 'axis_defmix.py', 'V *= (1 - rebal_cost * 2 * turn)', 'V *= (1 - rebal_cost * 4 * turn)')
+
+
 # ------------------------------------------------------------------ 실행기
 TAKES_D = {'i2_pit', 'i3_lag', 'i4_real', 'i5_decisions', 'i7_stats', 'i10_premise'}
 
@@ -778,7 +899,7 @@ def main():
     sel = [m for m in M if not pre or any(m[0].startswith(x) for x in pre)]
     if a.list:
         for m in sel:
-            print('%-26s %-18s %s' % (m[0], m[1], '; '.join(n for n, _ in m[3])))
+            print('%-26s %-18s %s%s' % (m[0], m[1], '; '.join(n for n, _ in m[3]), ' [blind]' if m[6] else ''))
         return 0
     tmp = tempfile.mkdtemp(prefix='gate_mut_')
     root = os.path.join(tmp, 'clone')
@@ -812,7 +933,7 @@ def main():
         return 2
     print('기준선 관문 %d개 전부 PASS (%.0f초)' % (len(gates), time.time() - t0))
     rows = []
-    for id_, gate, need_d, expect, fn, why in sel:
+    for id_, gate, need_d, expect, fn, why, blind in sel:
         t1 = time.time()
         try:
             fn(root)
@@ -831,7 +952,8 @@ def main():
             if not any(name in x for x in pool):
                 missed.append('%s(%s)' % (name, kind))
         extra = [x for x in res['F'] if not any(n in x for n, _ in expect)]
-        rows.append((id_, gate, 'MISSED' if missed else 'CAUGHT',
+        verdict = 'CAUGHT' if not missed else ('BLIND' if blind else 'MISSED')
+        rows.append((id_, gate, verdict,
                      ('못 잡음: ' + '; '.join(missed)) if missed
                      else ('연쇄 FAIL %d' % len(extra) if extra else '') , round(time.time() - t1, 1)))
     # ---- 실행기 자체: ① 실패 1건이면 종료코드 1 ② 한 관문이 예외로 죽어도 뒤 관문이 돈다
@@ -857,8 +979,9 @@ def main():
     for row in rows:
         print('%-26s %-18s %-7s %s' % (row[0], row[1], row[2], row[3]))
     n_c = sum(1 for x in rows if x[2] == 'CAUGHT')
-    n_m = [x for x in rows if x[2] != 'CAUGHT']
-    print('\n변조 %d개 · 잡힘 %d · 못 잡음/오류 %d · %.0f초' % (len(rows), n_c, len(n_m), time.time() - t0))
+    n_b = sum(1 for x in rows if x[2] == 'BLIND')
+    n_m = [x for x in rows if x[2] not in ('CAUGHT', 'BLIND')]
+    print('\n변조 %d개 · 잡힘 %d · 사각지대(문서화) %d · 못 잡음/오류 %d · %.0f초' % (len(rows), n_c, n_b, len(n_m), time.time() - t0))
     for x in n_m:
         print('  ✗ %s (%s) — %s' % (x[0], x[1], x[3]))
     if not a.keep:
