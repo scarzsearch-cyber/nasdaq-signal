@@ -33,6 +33,8 @@
 - `audit/test_ops_review2.py` — v220 회귀 11검사: ^TNX 마감 뒤 확정봉 유지·FX 거래소 시간대 라벨·금요일 FRED 꼬리 야후 보강·NAV 비핵심 결측 격리·화면 날짜 셈(node)·calmar 가드·재실행 수치 대조.
 - `audit/OPS_UI_CROSSCHECK_2026-09-05.md` — v221 독립 교차검증: v220 수정 확인·NAV 가격 격리·FX 장중 중복/시간대·TNX 실패 전파 보완. 같은 회귀 모듈에6검사 추가(총17).
 - `audit/OPS_RECOVERY_2026-09-05.md` — v222 장애·재시도·복구 통합 검증 장부: 6개 시나리오의 연결 경로·사용자 영향·수정·불변조건·남은 한계.
+- `audit/COVERAGE_MAP_2026-09-06.md` — 저장소 검사 현황표(검사 실행 없음): 추적 파일 492 × 감사 장부·회귀·관문 대조 · 수준 L0~L5/n/a · 담당(돈전략 확인/확인 필요/운영) · 검사 후 변경 · 남은 후보.
+- `audit/coverage_map.py` — 현황표 생성기(git 이력·장부 텍스트 대조만 · 검사 미실행).
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.
