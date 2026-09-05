@@ -11,6 +11,8 @@
 - `research/strategy_f4_basket.py` — F4-A 고정 C0~C3의 기존 합성 바스켓 축퇴·독립 달력·비용/지연/금 비용 민감도. 개인 금액·신호 변경 없음.
 - `audit/test_basket_accounting.py` — F4-A 독립 주수/이분법·현금·양의 종목 손익·확인일·표류·경계 회귀14개.
 - `audit/test_f4_design.py` — F4-A 비용0/양수 합성 바스켓 축퇴·임의 휴장/재진입 달력·고정 비교 범위 회귀4개.
+- `research/strategy_f4_products.py` — F4-B 실물 ETF/대리 가격 13경로 진단. 알려진 미국 종가→한국 시가·독립 주수·자료 누락을 확인하며, 달력 불일치는 기본 실행 실패/명시 진단 모드로 구분한다.
+- `audit/test_f4_products.py` — F4-B 휴일·미래정보·가격 조정·수익 귀속·독립 주수·양방향 달력 누락 회귀12개.
 - `research/rebalance_accounting.py` — 실제 비중 표류·전 자산 편도 회전 공용 계산. 매일 재조정과 거래가능일 사이 보유를 구분하며 계좌 과세·납입은 미포함.
 - `research/band_accounting.py` — R06 옛 비례비용 집행 진단의 실제 보유·밴드 원장. F1/F2의 정확한 매매액 수수료/계좌 원장과 구분.
 - `research/execution_policy.py` — F3 현금 우선·실제 보유 밴드·전량 방어 예외. 매매액 비용과 원가/세금은 기존 원장 재사용; 실전 주문 없음.
@@ -403,7 +405,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 |---|---|
 | `data/freeze.json` | **동결된 규칙**·자산·체결규약·비용 + 지문 + 날짜규약 |
 | `data/oos_log.csv` | 동결 이후 하루 한 줄 (append-only). 워크플로가 쌓는다. T4 그림자 3열 포함 |
-| `data/oos_protocol_b.json` | **[2026-09-02] B 자체의 OOS 판정 규약** (기계용 원본 + 지문). T4 는 v80 §6 에 있었는데 B 에는 없던 것 — 사건 정의·관문 A(재난 지급 7/7)·B(보험료 P05/최악)·R(3년 롤링)·대응(재검토까지). 사람용은 02 §5-1, 평가는 `research/oos_protocol_b.py --oos` |
+| `data/oos_protocol_b.json` | **[2026-09-02 등록·09-05 재등록] B 자체의 OOS 판정 규약** (기계용 원본 + 지문). 사건 정의·관문 A(재난 지급 **8/8**, 최초등록7/7은 역사기록)·B(보험료 P05/최악)·R(3년 롤링)·대응(재검토까지). 사람용은 02 §5-1, 평가는 `research/oos_protocol_b.py --oos` |
 | `verify_all.py` I13 | 위 JSON 의 지문이 다르면 **실패** — 사건이 쌓인 뒤 관문을 손대는 것(사후 재량)을 실수로는 못 하게 |
 | `deploy/oos_log.py` | 위를 기록한다. **판단하지 않는다.** [v80] qqq.csv 날짜 가드 (미갱신 시 그림자 빈 칸) |
 | `verify_all.py` I11 | 코드·화면이 동결 기록과 다르면 **매 push 마다 실패** |
@@ -422,7 +424,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/axis_t4_synthcrash.py` | 합성 하락장 해부 — 닷컴형 B 60% 구조·2008 은 소수 추첨(~29%). 시간추세 없음 · ¼ 양자화 유효 · 혼합 프런티어 · 비용 민감도 |
 | `research/axis_t4_krcost.py` | 한국비용(0.2%) 내성 변형 9종 — 관문 K1~K7 사전 고정, **전멸** |
 | `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 내성 · 사건승 15/21=71%(재난보험형) → v210 재실행 13/21=62% · 사각지대 최장 90일 · **P3 미달** (정정 2026-09-05 · 순회 B06-1) |
-| `research/axis_nextgen.py` | [v87·v203] 평가행 24개 = 명목 신규 22 + 대조 2. 중복 제거 시 신규 20경로 — 관문 N1~N8 **전멸**. 괴리 비대칭·T4 분해·최소 후회 → **v210 재실행(2026-09-05 · 순회 B08): MIX(0.50) 이 N1~N8 통과**(혼합 하위호환 · 후반 2000~ 0.91×B · 뒤집힌 것은 N6 이웃 MIX(0.25) 의 N2 가 0.895→1.19×B 로 넘어간 것뿐 · v213 부분비중 비용 교정 전 경로) — **채택 아님** · 그림자 등록 논의 자격 여부는 소유자 결정 |
+| `research/axis_nextgen.py` | 평가24행·중복제거 신규20경로. v87 전멸→v210 MIX50 통과. **2026-09-05 교차검증: 실제 표류 비용·회전량 교정 후에도 N1~N8 충족 유지**. MIX50 최종−0.7763%, 연편도회전4.9651(문턱5), 2000~0.90×B. 독립120경로검산. **채택 아님**, 달러·T-bill·거치식 연구로 ISA 계좌와 다르다. 옛 앵커는 자료 재현 전용 |
 | `research/axis_finalverify.py` | [v88·v203] 최종 검증 — 현행 40/40/20 방어를 일관 적용, 비용·지연·사건창·실측 장부를 다시 계산. J1 생존 · J2/J3 대기 결론 유지 |
 | `research/axis_horizon.py` | [v88 부록2·v203] 달력 월 시작 보유기간별 원금손실 — 1년 21.3% / 5년 1.0% / **10년+ 0.0%** (최악 20년 창 17.90배) |
 | `docs/history/전략_v80~v83.md` | 기록 4편. **v80 §6·§7 = 판정 부속서 (수정 금지)** · v82 = 룰 감사 |
@@ -523,7 +525,9 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/isa_pension.py` | ISA 만기 → 연금계좌 이체 (조특법 91조의18 ④) | **기각** (레버리지 IRP 매매 불가) |
 | `research/tranche.py` | 트랜치 / 리밸런스 타이밍 운 (Hoffstein et al. 2020) | **기각** — 관문 ①② 미달 |
 | `research/drag_sigma.py` | 달러 합성 구간의 비용 잔차 시점 민감도 — 원화 전 구간 합성과 별개 | **v210 재실행**: 달러2000~ +0.5%, 전체진단+39.9%; 원화 영향0·비용 모형 보수성은 미입증; MEASUREMENT_AUDIT §9 |
-| `research/withdraw.py` | **인출(decumulation) 엔진** — 형성기 반대편 | 인출기 1년 현금 완충 |
+| `research/withdraw.py` | **인출 엔진** — 정액 고갈·비율 소득 변동, 이전 인출 후 잔액 포함 | 연5% B 최악소득−55.9%; 1년 현금 충분성 미검증 |
+| `audit/check_handoff_20260905.py` | 인계 숫자 독립 검산: OOS·관측위상·c21 세금·nextgen120경로 | 원자료 빌더 공유, 시뮬레이터/평가기 독립; 오프라인 읽기 전용 |
+| `audit/HANDOFF_CROSSCHECK_2026-09-05.md` | 인계서 사실 대조·추가 결함 수정·돈전략 영향 보고 | 검사 범위와 남은 한계를 분리 |
 
 ### 9-6. 운영 · 방어 다리 · 외부 전략
 

@@ -123,8 +123,33 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v218</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v219</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="researchF4Products">
+      <div class="head"><span class="v">v219</span><span class="tag fix">수정</span>
+        <span class="ttl">실제 ETF 과거 자료의 누락을 확인했습니다</span></div>
+      <dl>
+        <dt>확인한 것</dt><dd>연구용 ETF 자료와 거래일 자료를 맞춰 보니 서로 빠진 날짜가 있었습니다.
+          <b>계산끼리 일치해도 원자료까지 완전하다는 뜻은 아닙니다.</b>
+          빠진 날짜를 조용히 채우지 않고, 미확인 상태를 결과에 드러내도록 검사를 추가했습니다.</dd>
+        <dt>남은 한계</dt><dd>누락된 날짜 안에서 가격이 얼마나 떨어졌는지와 거래 시점이 달라지는지를 더 확인해야 합니다.
+          현재의 짧은 실물 비교를 장기 수익 보장이나 목표 달성 예상액으로 쓰지 않습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>이번 변경으로 실제 매매 규칙·오늘의 신호·실측 장부를 바꾸지는 않았습니다.</b>
+          원자료와 과거 계산에 미친 영향은 추가 확인 중입니다.</dd>
+      </dl>
+    </div>
+
+    <div class="item" data-k="fix" id="withdrawalReview">
+      <div class="head"><span class="v">v219</span><span class="tag fix">수정</span>
+        <span class="ttl">돈을 꺼내 쓰는 시기의 소득 계산을 바로잡았습니다</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>매년 자산의 일정 비율을 꺼내 쓰는 옛 계산에서, 이전에 꺼낸 돈만큼 투자 원금이 줄어드는 효과가 빠져 있었습니다.
+          이를 반영하면 다음 해 쓸 수 있는 돈의 감소가 더 커질 수 있습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>지금의 자산 형성기 계산과는 별개입니다.</b>
+          「생활비 1년치 현금이면 충분하다」고 입증한 것은 아니므로, 실제 인출 계획은 따로 검증해야 합니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="protoRereg">
       <div class="head"><span class="v">v218</span><span class="tag fix">수정</span>
