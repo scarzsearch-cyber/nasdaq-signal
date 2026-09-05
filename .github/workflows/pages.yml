@@ -61,6 +61,9 @@ jobs:
           cp icon-512.png _site/icon-512.png
           # [v46] 화면(전략 로직) 자체의 개정 시점을 박는다. 종가 갱신과 별개다.
           python3 deploy/stamp_rev.py _site/index.html
+          # [v229] 배포본에만 CSP <meta>(인라인 스크립트 해시 · connect-src self) — 도장 치환 **뒤**에 계산해야 해시가 맞다.
+          #   실패하면 CSP 없는 종전 배포본으로 나간다(아래 || — 화면을 얼리지 않는다 · deploy/csp_inject.py 머리 참조).
+          python3 deploy/csp_inject.py _site/index.html _site/guide.html _site/notes.html || echo "::warning::CSP 주입 실패 — 이번 배포본은 CSP 없이 나간다(종전과 동일)"
           cp data/signal.json _site/data/ 2>/dev/null || echo "signal.json 없음 — 첫 실행이면 정상"
           cp data/strategy_stats.json _site/data/ 2>/dev/null || echo "strategy_stats.json 없음 — 성과 패널만 숨겨짐"
           cp data/kr_holidays.json _site/data/ 2>/dev/null || echo "kr_holidays.json 없음 — 시계가 주말만 반영"

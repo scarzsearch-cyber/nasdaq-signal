@@ -615,8 +615,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
              못 받아오면 onerror 로 조용히 숨긴다(화면을 깨뜨리지 않는다). -->
         <summary>버전 · 동결<span class="mstat"><img id="ciBadge"
           src="https://github.com/scarzsearch-cyber/nasdaq-signal/actions/workflows/verify.yml/badge.svg"
-          alt="자동 검증 상태" title="코드·화면·문서가 동결 규칙과 어긋나지 않는지 매 변경마다 도는 검사입니다."
-          onerror="this.style.display='none'"><span class="opill" id="opsPill" hidden></span></span></summary>
+          alt="자동 검증 상태" title="코드·화면·문서가 동결 규칙과 어긋나지 않는지 매 변경마다 도는 검사입니다."><span class="opill" id="opsPill" hidden></span></span></summary>
         <div class="rev" id="htmlRev" title="전략 로직의 버전과 마지막 반영 시각(KST)입니다. 위의 종가일과는 별개입니다."></div>
         <div class="frz" id="frzBadge" title="규칙을 동결한 날입니다. 이후 데이터는 평가만 하고 그 결과를 보고 규칙을 바꾸지 않습니다 — 그래야 순수 out-of-sample 표본이 됩니다."></div>
         <div class="frz" id="oosHist" title="동결 이후 OOS 장부에 쌓인 실측 기록입니다. 전환이 기록될수록 표본이 자랍니다."></div>
@@ -645,6 +644,14 @@ input[type=range],input[type=checkbox]{accent-color:var(--attack);}
     var MSG = '화면 스크립트 오류가 났습니다 — 새로고침 해주세요. 반복되면 브라우저 캐시를 지우고 다시 접속하세요.';
     window.addEventListener('error', function(){ window.__sysWarn(MSG); });
     window.addEventListener('unhandledrejection', function(){ window.__sysWarn(MSG); });
+    // [v229] 검증 배지를 못 받아오면 숨긴다 — 종전의 onerror 속성을 리스너로(배포본 CSP 가 인라인 핸들러를 막는다).
+    //   이미 실패한 채 도착했으면(complete 인데 크기 0) 바로 숨긴다.
+    var badge = document.getElementById('ciBadge');
+    if(badge){
+      var hideBadge = function(){ badge.style.display = 'none'; };
+      badge.addEventListener('error', hideBadge);
+      if(badge.complete && badge.naturalWidth === 0) hideBadge();
+    }
   })();
   </script>
 
@@ -943,16 +950,35 @@ let KRHOL = null;                                // data/kr_holidays.json (deplo
    사용자 입력(수동 종가·보유·체결·목표액·체크리스트)에만 쓴다. 취향값(SKEY 등)은 제외. */
 let LS_WARNED = false;
 function lsSet(k, v){
-  try{ localStorage.setItem(k, v); }
+  try{ localStorage.setItem(k, v); return true; }     // [v229] 성공 여부 — 복원 전 되돌리기 스냅샷 보관은 이 값을 본다
   catch(e){
     if(!LS_WARNED && window.__sysWarn){
       LS_WARNED = true;
       window.__sysWarn('입력이 이 기기에 저장되지 않습니다 — 시크릿 모드이거나 저장 공간이 부족할 수 있습니다. 지금 입력한 내용은 화면을 닫으면 사라집니다.');
     }
   }
+  return false;
+}
+/* [v229] 저장값 모양 검증 — 손상된 localStorage(다른 도구·확장·옛 버전이 쓴 값)가 있으면 종전엔 그 패널이
+   스크립트 오류로 통째로 비었고(포트폴리오 0행 · 「화면 스크립트 오류」 배너) 새로고침·캐시 삭제로는 안 풀렸다.
+   모양이 틀리면 원래 값을 `<키>_bad` 로 옮겨 두고(복구 재료) 기본값으로 부팅하며 한 줄로 알린다. 정상 값은 그대로. */
+const QUAR = [];
+function quarantine(key, raw, what){
+  try{ localStorage.setItem(key + '_bad', String(raw).slice(0, 200000)); }catch(e){}
+  try{ localStorage.removeItem(key); }catch(e){}
+  QUAR.push(what);
+  if(window.__sysWarn) window.__sysWarn('저장된 ' + QUAR.join('·') + '을(를) 읽지 못해 비웠습니다 — 백업 파일이 있으면 「파일에서 복원」으로 되살릴 수 있습니다.');
 }
 function load(){
-  try{ const raw = localStorage.getItem(KEY); if(raw) rows = JSON.parse(raw); }catch(e){}
+  let raw = null;
+  try{ raw = localStorage.getItem(KEY); if(raw) rows = JSON.parse(raw); }catch(e){ rows = null; }
+  if(raw != null && !Array.isArray(rows)){ quarantine(KEY, raw, '수동 종가 입력'); rows = []; return; }
+  if(Array.isArray(rows)){
+    const ok = rows.filter(r => r && OK_DATE.test(String(r.d || '')) && isFinite(Number(r.c)) && Number(r.c) > 0)
+                   .map(r => ({d: r.d, c: Number(r.c)}));
+    if(ok.length !== rows.length){ quarantine(KEY, raw, '수동 종가 입력 일부'); }
+    rows = ok;
+  } else rows = [];
 }
 function save(){
   lsSet(KEY, JSON.stringify(rows));
@@ -1806,7 +1832,15 @@ let CLOCK_FULL = false;                        // [v107] 전환일·근접이면
 let ASOF = null;                               // [v90] 신호일 — 체크리스트 키
 let CHANGED_TODAY = false;                     // [v191] 전환일 여부 — drawPending 이 본다 (전환일엔 기존 체크리스트가 담당)
 
-function loadPort(){ try{ const r = localStorage.getItem(PKEY); if(r) PORT = JSON.parse(r); }catch(e){} }
+function loadPort(){
+  let r = null, j = null;
+  try{ r = localStorage.getItem(PKEY); if(r) j = JSON.parse(r); }catch(e){ j = null; }
+  if(r == null) return;
+  // [v229] sanitizeBackup 과 같은 문을 지난다 — 파일·링크 복원과 저장값 부팅이 다른 검증을 갖지 않게
+  const s = (j && typeof j === 'object' && !Array.isArray(j)) ? sanitizeBackup({v: 1, port: j, trades: []}) : null;
+  if(!s){ quarantine(PKEY, r, '보유 입력'); PORT = {d: null, a: {}, cash: 0}; return; }
+  PORT = s.port;
+}
 function savePort(){ PORT.d = kstISO();      // [B04] KST — UTC 는 09:00 전에 전날 날짜였다(v202 bizDaysSince 와 같은 유형)
   lsSet(PKEY, JSON.stringify(PORT)); abQueue(); }
 function fmtWon(v){ return Math.round(v).toLocaleString('en-US') + '원'; }
@@ -1829,11 +1863,23 @@ function pnum(v){ return parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-
    실시간이 아니다. **판정에 쓰지 않는다** — 화면 표시 전용이고, 파일이 없거나
    낡았으면 조용히 숨긴다(신선도 원칙: 옛 값을 새 값인 척 보여주지 않는다). */
 let PRICE = null;
+let _priceSeq = 0;                        // [v229] 마지막으로 보낸 요청의 순번
 async function loadPrice(){
+  /* [v229] 갱신 경쟁 — 탭 복귀(visibilitychange)와 5분 ticker 가 겹치면 요청이 둘 나가는데,
+     느린 쪽이 **옛 스냅샷**을 들고 나중에 도착해 새 값을 덮어썼다(로컬 재현: 10:10 이 먼저 오고
+     10:05 가 뒤에 와서 배지·placeholder 가 10:05 로 되돌아감). ① 더 새 요청이 나갔으면 이 응답은
+     버린다 ② 서버가 더 옛 스냅샷을 돌려줘도 화면을 뒤로 돌리지 않는다(v145 「옛 값을 새 값인 척」의 역방향).
+     ③ 뒤늦은 실패도 새 성공을 지우지 않는다. */
+  const seq = ++_priceSeq;
   try{
     const j = await getJSON('data/price.json');
-    if(j && j.items && Object.keys(j.items).length) PRICE = j;
-  }catch(e){ PRICE = null; }
+    if(seq !== _priceSeq) return;
+    if(j && j.items && Object.keys(j.items).length){
+      const tNew = Date.parse(j.as_of_iso || ''), tCur = PRICE ? Date.parse(PRICE.as_of_iso || '') : NaN;
+      if(isFinite(tNew) && isFinite(tCur) && tNew < tCur) return;
+      PRICE = j;
+    }
+  }catch(e){ if(seq === _priceSeq) PRICE = null; }
 }
 /* 스냅샷이 몇 분 전 것인지 — 5분 간격(v190)이므로 그 이상 벌어지면 사용자가 알아야 한다. */
 function priceAgeMin(){
@@ -1928,8 +1974,31 @@ function startPriceTicker(){
   }, PRICE_TICK_MS);
   // 탭으로 돌아왔을 때는 장 마감 뒤라도 한 번 읽는다 — 종가 스냅샷을 놓치지 않게.
   document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'visible') refreshPrice();
+    if(document.visibilityState === 'visible'){ refreshPrice(); recheckSignal(); }
   });
+}
+
+/* [v229] 켜 둔 탭으로 돌아왔을 때 **신호**도 다시 본다. 종전엔 시세만 다시 읽어서, 금요일에 열어 둔
+   탭을 화요일에 다시 보면 판정·낙폭·신선도 점(초록)·「N거래일 지났습니다」 배너가 전부 **금요일 값
+   그대로**였다 — 신선도는 renderAuto 가 그린 시점에 굳는다. 새 종가가 올라와 있으면 부팅과 같은
+   경로(redraw)로 다시 그리고(입력칸·포커스 보존 실측), 같으면 신선도 점·배너만 지금 시각으로 다시 잰다.
+   수동 모드(AUTO 없음)·조회 실패는 화면을 건드리지 않는다. */
+let _sigBusy = false;
+async function recheckSignal(){
+  if(!AUTO || _sigBusy) return;
+  _sigBusy = true;
+  try{
+    const j = await getJSON('data/signal.json');
+    if(!j || !j.as_of) return;
+    if(j.as_of !== AUTO.as_of){
+      AUTO = j; if(j.stats) STATS = j.stats;
+      if(AUTO.default && STRAT[AUTO.default]) sel = AUTO.default;
+      redraw(); checkSeenBadge(); drawT4();
+    } else {
+      paintAsof(AUTO); showStale(AUTO.as_of);
+    }
+  }catch(e){ /* 연결 없음 — 마지막 화면 유지 */ }
+  finally{ _sigBusy = false; }
 }
 
 async function loadNav(){
@@ -2341,7 +2410,15 @@ function tlogChips(){
     document.getElementById('tlPx').value = Math.round(p.px);
   }));
 }
-function loadTrades(){ try{ const r = localStorage.getItem(TKEY); if(r) TRADES = JSON.parse(r); }catch(e){} }
+function loadTrades(){
+  let r = null, j = null;
+  try{ r = localStorage.getItem(TKEY); if(r) j = JSON.parse(r); }catch(e){ j = null; }
+  if(r == null) return;
+  const s = Array.isArray(j) ? sanitizeBackup({v: 1, port: {}, trades: j}) : null;   // [v229] 같은 살균
+  if(!s){ quarantine(TKEY, r, '체결 기록'); TRADES = []; return; }
+  if(s.trades.length !== j.length){ quarantine(TKEY, r, '체결 기록 일부(' + (j.length - s.trades.length) + '건)'); lsSet(TKEY, JSON.stringify(s.trades)); }
+  TRADES = s.trades;
+}
 function saveTrades(){ lsSet(TKEY, JSON.stringify(TRADES)); abQueue(); }
 /* [v93] 백업 검증·적용 — 붙여넣기 복원과 파일 복원이 공유
    [v123] 적용 코어(applyState)를 분리 — 복원 되돌리기(undo)가 같은 경로를 쓴다. */
@@ -2388,9 +2465,15 @@ function applyBackup(j, from){
   }
   // [v186] 출처를 밝힌다 — 실수로 남의 링크를 눌렀을 때 알아채라고.
   const src = from === '링크' ? '⚠ 링크로 받은 백업입니다.\n\n' : '';
+  const drop = j.dropped ? ' 형식이 맞지 않는 체결 ' + j.dropped + '건은 제외됩니다.' : '';   // [v229]
   if(!confirm(src + '현재 보유 입력과 체결 기록 ' + TRADES.length + '건을 백업 내용(체결 '
-              + j.trades.length + '건)으로 덮어씁니다. 계속할까요?')) return false;
-  lsSet(UNDOKEY, JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL, t: kstISO()}));
+              + j.trades.length + '건)으로 덮어씁니다.' + drop + ' 계속할까요?')) return false;
+  // [v229] 되돌리기 스냅샷을 못 남기면 덮어쓰지 않는다 — 종전엔 저장 공간 부족으로 스냅샷만 실패해도
+  //   그대로 덮어쓰고 「복원했습니다 · 되돌리기」 칩을 띄웠다(되돌릴 것이 없는데). 실측 재현 2026-09-06.
+  if(!lsSet(UNDOKEY, JSON.stringify({v: 1, port: PORT, trades: TRADES, goal: GOAL, t: kstISO()}))){
+    alert('복원 전 상태를 이 기기에 보관하지 못해 복원을 중단했습니다 — 저장 공간(또는 시크릿 모드)을 확인하세요. 아무것도 바꾸지 않았습니다.');
+    return false;
+  }
   applyState(j);
   showUndoChip();
   return true;
@@ -2421,10 +2504,10 @@ function sanitizeBackup(j){
   });
   const port = {d: OK_DATE.test(String(j.port.d || '')) ? j.port.d : null,
                 a, cash: sNum(j.port.cash)};
-  const trades = j.trades.filter(t => t && OK_DATE.test(String(t.d || ''))
+  const kept = j.trades.filter(t => t && OK_DATE.test(String(t.d || ''))
                                    && OK_CODE.test(String(t.code || ''))
-                                   && (t.side === 'buy' || t.side === 'sell'))
-    .slice(0, 2000)                              // 터무니없이 긴 장부는 자른다
+                                   && (t.side === 'buy' || t.side === 'sell'));
+  const trades = kept.slice(0, 2000)             // 터무니없이 긴 장부는 자른다
     .map(t => {
       const o = {d: t.d, code: String(t.code), side: t.side,
                  qty: sNum(t.qty), px: sNum(t.px), ref: sNum(t.ref)};
@@ -2436,6 +2519,9 @@ function sanitizeBackup(j){
   const out = {v: 1, port, trades};
   const g = sNum(j.goal && j.goal.target);
   if(g > 0) out.goal = {target: g};
+  // [v229] 버린 체결 수 — 종전엔 조용히 빠져 「복원했습니다」만 보였다(살균은 그대로 · 알리기만 한다)
+  const dropped = j.trades.length - trades.length;
+  if(dropped > 0) Object.defineProperty(out, 'dropped', {value: dropped, enumerable: false});
   return out;
 }
 
@@ -3143,13 +3229,16 @@ function render(){
   ).join('');
 }
 
+function paintAsof(j){      // [v229] 신선도 점 + 종가일 — 부팅(renderAuto)과 탭 복귀(recheckSignal)가 같은 줄을 쓴다
+  document.getElementById('asof').innerHTML = freshDot(j.as_of) + j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
+}
 function renderAuto(j){
   const S = STRAT[sel];
   const st = (j.strategies && j.strategies[sel]) ? j.strategies[sel] : null;
   if(!st){                                   // 구버전 signal.json — B 항목이 없음
     AUTO = null; load(); render(); return;
   }
-  document.getElementById('asof').innerHTML = freshDot(j.as_of) + j.as_of + ' 종가 기준 · 자동갱신 ' + stamp(j);
+  paintAsof(j);
   showStale(j.as_of);
   ASOF = j.as_of;
   // [v154] recent 는 **내림차순**(최신이 [0]) — 실측 확인. 뒤에서 빼면 2주 전 값이 나온다.

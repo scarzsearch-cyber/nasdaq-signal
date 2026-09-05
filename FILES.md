@@ -46,6 +46,10 @@
 - `audit/SECURITY_INPUT_2026-09-06.md` — 보안·입력 경계 감사: URL 해시·CSV·백업·외부 JSON → innerHTML 경로 · 비밀 스캔(추적 파일 498 + 이력 557커밋 0건) · 워크플로 권한·표현식 주입·액션 고정. 수정 2(notify-test permissions · 회전 토큰 add-mask).
 - `audit/REPRO_2026-09-06.md` — 설치·실행 재현성 감사: 격리 클론+임시 venv 로 문서 순서 실행(verify_all·unittest 232·research_kit·셀프테스트·cp949 콘솔) · 생성물 재생성 대조 · verify_all cwd 의존 수정 · kr_holidays.json 코드↔산출물 어긋남 관찰.
 - `audit/test_repro6.py` — 위 회귀 3(verify_all 다른 cwd rc 0 · 워크플로 8종 permissions · notify-test 읽기 전용).
+- `audit/CSP_2026-09-06.md` — 배포본 CSP 적용: 실제 Pages 헤더(CSP 없음) · 외부 자원 전수 · 해시 정책 설계(도장 뒤 계산 · fail-open) · 로컬 배포 사본 실측(주입 스크립트·핸들러·타 오리진 fetch 차단 · 기능 정상).
+- `audit/SCREEN_DYNAMICS_2026-09-06.md` — 화면 갱신 순서·실패·복구 + 저장·복원 경계: 갱신 경쟁 후퇴 · 탭 복귀 신선도 정체 · 손상 저장값 패널 마비 · 되돌리기 스냅샷 실패 시 덮어쓰기(4건 수정) · 오프라인 복구·이전 버전 값·저장 불가(정상).
+- `audit/RECOVERY_DOCS_2026-09-06.md` — 운영 문서의 복구 절차 대조: 명령·워크플로·secrets 이름 일치 · 누락 3(재설정 확인법 · 통째 정지 복구 · GH_PAT 권한) 수정 · 계정 소유자 전용 단계 목록.
+- `audit/test_screen8.py` — 위 회귀 5(시세 갱신 순서 · 살균 제외 건수 · 손상 저장값 격리 · 복원 중단 · 세 화면 CSP 해시 정책·스텝 순서).
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.
@@ -592,6 +596,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | 파일 | 역할 |
 |---|---|
 | `deploy/stamp_rev.py` | 배포본에 **화면 개정 시점**을 박는다 — signal.html 커밋 제목의 vNN 을 추출(그래서 커밋 제목에 vNN 필수) |
+| `deploy/csp_inject.py` | 배포본 세 화면에 **CSP meta** 주입(인라인 스크립트 sha256 해시 · connect-src self · 외부 자원 허용 목록) · 도장 치환 뒤 계산 · `--selftest` · 실패 시 pages.yml 이 CSP 없이 배포(fail-open) [v229] |
 | `deploy/wait_close.py` | **[v75]** 종가 확정 대기 루프 — GitHub 예약 실행이 슬롯을 통째로 건너뛰는 실측 사례에 대응. **[v190] 마감 전에 뜨면 마감까지 자고 20초 간격으로 종가가 굳는 순간을 잡는다**(쓰기 전 30초 안정 확인 · 큰 움직임이면 대조 소스 CLOSE 까지 최대 15분 대기 · 마감 뒤 8분 안 굳으면 조용히 종료해 다음 슬롯에 맡김). `--selftest` 가짜 시계 9경로 |
 | `.github/workflows/monthly-stats.yml` | 매월 1일 원자료·성과표·지평표 최신화. 정확한 산출물만 스테이징하고 검증 통과 시 커밋하며, push 경합은 rebase하지 않고 실패-폐쇄해 최신 HEAD 수동 재실행에 맡긴다 |
 | `.github/workflows/notify-test.yml` | **[v76]** secret 등록 후 알림 채널 수동 연결 확인. 예약 실행 없음 |
