@@ -360,7 +360,7 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/axis_ext2_probe.py` | v54 최선후보 G1 정밀검증 | 4블록 2/4 |
 | `research/axis_mech.py` | 운용 메커니즘 29라벨·중복 제거 27경로 (v55·v203) | G1~G6 전부 통과 0/27 |
 | `research/axis_selbias.py` | 선택편향 감사 T1~T4 (v56) | 편향 지문 없음 |
-| `research/axis_minimax.py` | 비중첩 6구간 미니맥스 순위 (v56) | 현행 3위/210 |
+| `research/axis_minimax.py` | 비중첩 6구간 미니맥스 순위 (v56) | 현행 3위/210 → v210 재실행 1위/210 (정정 2026-09-05) |
 | `research/axis_selbias_disjoint.py` | v56 T3 정정 — 비중첩 창 (v57) | 0/4, −6~37% |
 | `research/axis_meta.py` | Meta-Strategy 7종 + Oracle (v58) | 상한의 0% 이하 |
 | `research/axis_meta_crisis.py` | 메타가 왜 못 고르는가 (v58·v203) | 완결된 다음 10년 기준 직전1등 일치 1/3 |
@@ -402,8 +402,8 @@ for f in verify.py hist_*.py hyst_*.py; do python "$f" > /dev/null && echo "OK $
 | `research/axis_t4_shadow.py` | **T4 유일한 실행 가능 참조 구현** (v68 은 코드 미커밋). v203 공통 사건계약 21회: 공식 M1(<0.7) 76% · M2 81% · 동시 67% (민감도 M1<0.5는 67%), 무거래 밴드 기각 |
 | `research/axis_t4_synthcrash.py` | 합성 하락장 해부 — 닷컴형 B 60% 구조·2008 은 소수 추첨(~29%). 시간추세 없음 · ¼ 양자화 유효 · 혼합 프런티어 · 비용 민감도 |
 | `research/axis_t4_krcost.py` | 한국비용(0.2%) 내성 변형 9종 — 관문 K1~K7 사전 고정, **전멸** |
-| `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 내성 · 사건승 15/21=71%(재난보험형) · 사각지대 최장 112일. v203 교정 후 문턱 통과 |
-| `research/axis_nextgen.py` | [v87·v203] 평가행 24개 = 명목 신규 22 + 대조 2. 중복 제거 시 신규 20경로 — 관문 N1~N8 **전멸**. 괴리 비대칭·T4 분해·최소 후회 |
+| `research/axis_b_inspect.py` | B 동일 잣대 검사 P1~P4 — 비용 내성 · 사건승 15/21=71%(재난보험형) → v210 재실행 13/21=62% · 사각지대 최장 90일 · **P3 미달** (정정 2026-09-05 · 순회 B06-1) |
+| `research/axis_nextgen.py` | [v87·v203] 평가행 24개 = 명목 신규 22 + 대조 2. 중복 제거 시 신규 20경로 — 관문 N1~N8 **전멸**. 괴리 비대칭·T4 분해·최소 후회 → **v210 재실행(2026-09-05 · 순회 B08): MIX(0.50) 이 N1~N8 통과**(혼합 하위호환 · 후반 2000~ 0.91×B · 뒤집힌 것은 N6 이웃 MIX(0.25) 의 N2 가 0.895→1.19×B 로 넘어간 것뿐 · v213 부분비중 비용 교정 전 경로) — **채택 아님** · 그림자 등록 논의 자격 여부는 소유자 결정 |
 | `research/axis_finalverify.py` | [v88·v203] 최종 검증 — 현행 40/40/20 방어를 일관 적용, 비용·지연·사건창·실측 장부를 다시 계산. J1 생존 · J2/J3 대기 결론 유지 |
 | `research/axis_horizon.py` | [v88 부록2·v203] 달력 월 시작 보유기간별 원금손실 — 1년 21.3% / 5년 1.0% / **10년+ 0.0%** (최악 20년 창 17.90배) |
 | `docs/history/전략_v80~v83.md` | 기록 4편. **v80 §6·§7 = 판정 부속서 (수정 금지)** · v82 = 룰 감사 |
