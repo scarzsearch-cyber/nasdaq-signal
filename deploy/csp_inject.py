@@ -112,7 +112,94 @@ def selftest():
     before = inject(doc)[1][0]
     after = inject(doc.replace('var a = 1;', "var a = 'v9';"))[1][0]
     assert before != after
-    print('csp_inject selftest: PASS (해시 2 · 멱등 · 위치 · 핸들러/외부 src/무스크립트 거부 · 치환 뒤 해시 변동)')
+    # [2026-09-06 후속] 파일 경로 — 전부-아니면-전무 · 원자 쓰기 · 자기검증 · 되돌리기
+    import tempfile as _tf
+    global atomic_write
+    with _tf.TemporaryDirectory() as td:
+        good = os.path.join(td, 'a.html'); good2 = os.path.join(td, 'b.html'); bad = os.path.join(td, 'c.html')
+        for p, text in ((good, doc), (good2, doc.replace('var a = 1;', 'var a = 2;')), (bad, doc.replace('<p>x</p>', '<img onerror="x()">'))):
+            with io.open(p, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(text)
+        try:
+            run_files([good, bad])                      # 둘째가 실패하면 첫째도 쓰지 않는다
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError('실패한 파일이 있는데 종료코드 0')
+        assert io.open(good, encoding='utf-8').read() == doc and io.open(bad, encoding='utf-8').read() != '' \
+            and 'Content-Security-Policy' not in io.open(good, encoding='utf-8').read(), '반쪽 배포본이 남았다'
+        assert run_files([good, good2]) == 0
+        for p in (good, good2):
+            back = io.open(p, encoding='utf-8').read()
+            assert back.count('Content-Security-Policy') == 1 and script_hashes(back) == meta_hashes(back), p
+        # 쓰기 뒤 읽어 보니 어긋난 경우 — 원본으로 되돌리고 실패
+        with io.open(good, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(doc)
+        with io.open(good2, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(doc)
+        real_write = atomic_write
+        def corrupt_second(path, text, _n=[0]):
+            _n[0] += 1
+            real_write(path, text.replace('var a = 1;', 'var a = 3;') if _n[0] == 2 else text)
+        atomic_write = corrupt_second
+        try:
+            try:
+                run_files([good, good2])
+            except SystemExit as e:
+                assert '되돌렸다' in str(e), e
+            else:
+                raise AssertionError('손상된 쓰기가 통과했다')
+        finally:
+            atomic_write = real_write
+        assert io.open(good, encoding='utf-8').read() == doc and io.open(good2, encoding='utf-8').read() == doc, '되돌리기 실패'
+    print('csp_inject selftest: PASS (해시 2 · 멱등 · 위치 · 핸들러/외부 src/무스크립트 거부 · 치환 뒤 해시 변동 · 파일 전부-아니면-전무 · 자기검증 · 되돌리기)')
+    return 0
+
+
+def meta_hashes(html):
+    """문서에 박힌 CSP meta 의 script-src 해시 목록(없으면 [])."""
+    m = META_RE.search(html)
+    if not m:
+        return []
+    s = re.search(r"script-src ((?:'sha256-[A-Za-z0-9+/=]+' ?)+)", m.group(0))
+    return s.group(1).split() if s else []
+
+
+def run_files(paths):
+    """[2026-09-06 후속] 전부-아니면-전무 · 자기검증.
+
+    ① 모든 파일을 먼저 메모리에서 계산한다 — 하나라도 실패하면 **어느 파일도 쓰지 않는다**(index 에만 CSP 가 붙고
+       guide/notes 는 없는 반쪽 배포본을 만들지 않는다). ② 쓰기 전에 결과 문서에서 해시를 다시 계산해 meta 와 같은지
+       본다(정규식·삽입 실수 방어). ③ 원자 쓰기(임시 파일 → os.replace) 뒤 파일을 다시 읽어 같은 검사를 반복하고,
+       어긋나면 **원본으로 되돌리고** 실패한다 — 정책이 틀린 채로 배포되는 길을 막는다.
+    """
+    plan = []
+    for path in paths:
+        if not os.path.exists(path):
+            raise SystemExit('%s 가 없다' % path)
+        with io.open(path, encoding='utf-8') as f:
+            html = f.read()
+        try:
+            out, hashes = inject(html)
+        except ValueError as e:                        # 계산 단계 실패 — 아직 아무 파일도 쓰지 않았다
+            raise SystemExit('%s — %s (어느 파일도 쓰지 않았다)' % (path, e))
+        if script_hashes(out) != hashes or meta_hashes(out) != hashes:
+            raise SystemExit('%s — 삽입 결과의 스크립트 해시가 meta 와 다르다(쓰지 않았다)' % path)
+        plan.append((path, html, out, hashes))
+    written = []
+    try:
+        for path, html, out, hashes in plan:
+            atomic_write(path, out)
+            written.append((path, html))
+            with io.open(path, encoding='utf-8') as f:
+                back = f.read()
+            if back != out or script_hashes(back) != meta_hashes(back):
+                raise RuntimeError('%s — 쓴 뒤 다시 읽은 문서가 정책과 어긋난다' % path)
+            print('CSP 주입: %s — 인라인 스크립트 %d개 해시' % (path, len(hashes)))
+    except Exception as e:
+        for path, html in written:                     # 되돌린다 — 반쪽 상태로 남기지 않는다
+            atomic_write(path, html)
+        raise SystemExit('CSP 주입 실패 — 원본으로 되돌렸다: %s' % e)
     return 0
 
 
@@ -120,15 +207,7 @@ def main(argv):
     if argv[1:] == ['--selftest']:
         return selftest()
     paths = argv[1:] or ['_site/index.html', '_site/guide.html', '_site/notes.html']
-    for path in paths:
-        if not os.path.exists(path):
-            raise SystemExit('%s 가 없다' % path)
-        with io.open(path, encoding='utf-8') as f:
-            html = f.read()
-        out, hashes = inject(html)
-        atomic_write(path, out)
-        print('CSP 주입: %s — 인라인 스크립트 %d개 해시' % (path, len(hashes)))
-    return 0
+    return run_files(paths)
 
 
 if __name__ == '__main__':

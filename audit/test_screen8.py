@@ -179,6 +179,42 @@ class C1_CspInjectOnRealScreens(unittest.TestCase):
         self.assertLess(y.index('deploy/stamp_rev.py _site/index.html'), y.index('deploy/csp_inject.py _site/index.html'),
                         'CSP 해시는 도장 치환 뒤에 계산해야 한다')
         self.assertIn('|| echo "::warning::CSP', y, '주입 실패는 fail-open(CSP 없는 배포본)')
+        # 주입 뒤에는 세 화면을 다시 만지는 스텝이 없다(해시가 최종 배포본과 어긋날 자리 없음) — 주입 줄 뒤 upload 전까지 data/ 복사·rm 뿐
+        tail = y[y.index('deploy/csp_inject.py _site/index.html'):y.index('upload-pages-artifact')]
+        for bad in ('index.html', 'guide.html', 'notes.html'):
+            self.assertNotIn(bad, tail.split('\n', 1)[1], '주입 뒤 %s 를 다시 만지는 스텝이 생겼다' % bad)
+
+    def test_step_is_fail_open_with_warning(self):
+        """주입기가 죽어도 스텝은 성공(rc 0)하고 ::warning:: 주석이 남는다 — pages.yml 의 실제 줄을 bash 로 흉내낸다."""
+        bash = shutil.which('bash') or next((p for p in (r'C:\Program Files\Git\bin\bash.exe',) if os.path.exists(p)), None)
+        if not bash:
+            self.skipTest('bash 없음')
+        y = io.open(os.path.join(ROOT, '.github', 'workflows', 'pages.yml'), encoding='utf-8').read()
+        line = next(l for l in y.splitlines() if 'deploy/csp_inject.py _site/index.html' in l and not l.strip().startswith('#')).strip()
+        sim = line.replace('python3 deploy/csp_inject.py _site/index.html _site/guide.html _site/notes.html', 'false')
+        r = subprocess.run([bash, '-c', sim], capture_output=True, text=True, encoding='utf-8', timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('::warning::CSP', r.stdout)
+
+    def test_written_policy_matches_final_html(self):
+        """실제 세 화면 사본에 주입한 뒤 다시 읽어, meta 의 해시 = 문서의 실제 스크립트 해시. 도장(stamp_rev) 뒤 계산이므로 index 는 도장을 먼저 찍는다."""
+        import csp_inject as C
+        with tempfile.TemporaryDirectory() as td:
+            paths = []
+            for name in ('signal.html', 'guide.html', 'notes.html'):
+                p = os.path.join(td, 'index.html' if name == 'signal.html' else name)
+                shutil.copy(os.path.join(ROOT, name), p)
+                paths.append(p)
+            r = subprocess.run([sys.executable, os.path.join(ROOT, 'deploy', 'stamp_rev.py'), paths[0], 'v999 · 2026-09-06 00:00'],
+                               capture_output=True, text=True, encoding='utf-8', timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr[-400:])
+            self.assertEqual(C.run_files(paths), 0)
+            for p in paths:
+                back = io.open(p, encoding='utf-8').read()
+                self.assertEqual(C.script_hashes(back), C.meta_hashes(back), p)
+                self.assertEqual(back.count('Content-Security-Policy'), 1)
+            stamped = io.open(paths[0], encoding='utf-8').read()
+            self.assertIn('const HTML_REV = "v999', stamped, '도장이 해시 계산 전에 찍혀 있어야 한다')
 
 
 if __name__ == '__main__':
