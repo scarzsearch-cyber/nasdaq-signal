@@ -49,3 +49,4 @@
 
 ## G. 통합
 - 커밋 8dec74f(수정) → 58a26cb → **73488a2**(검사 정정 · CI 검증 success · Pages success). dispatch 실측은 73488a2 기준.
+- b303eb8(장부·CLAUDE): CI 검증이 **무관한 회귀 `test_ops_recovery3.S6` 의 로컬 bare 클론 exit 128** 로 한 번 빨갰고 재실행(attempt 2)은 통과 — 간헐 실패. 원인은 그 검사의 git 헬퍼가 stderr 를 삼켜 안 보였다 → 다음 커밋에서 stderr 를 예외에 붙였다(재시도 없음).

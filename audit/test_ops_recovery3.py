@@ -642,8 +642,14 @@ class S5_MonthlyPartialRefresh(unittest.TestCase):
 
 
 def git(*args, cwd, check=True):
-    return subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', *args], cwd=cwd,
-                          check=check, capture_output=True, encoding='utf-8', errors='replace')
+    # [2026-09-06] 러너에서 로컬 bare 클론이 한 번 exit 128 로 죽었는데(재실행은 통과) 예외에 stderr 가 없어 원인을 못 봤다
+    #   — 실패하면 git 의 stderr 를 메시지에 붙인다. 재시도로 가리지 않는다(간헐 실패는 보여야 한다).
+    r = subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', *args], cwd=cwd,
+                       check=False, capture_output=True, encoding='utf-8', errors='replace')
+    if check and r.returncode != 0:
+        raise subprocess.CalledProcessError(r.returncode, r.args, output=r.stdout,
+                                            stderr='%s\n[git stderr] %s' % (r.stderr, (r.stderr or '').strip()[-400:]))
+    return r
 
 
 def bash_exe():
