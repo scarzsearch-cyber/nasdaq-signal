@@ -34,8 +34,8 @@ jobs:
       - name: 연구도구 자기검사 (설계 오류 4종 차단 확인)
         run: python3 research_kit.py
 
-      - name: 연구 코드리뷰 회귀 검사 (세금 · 캐시 · 구간 경계 · 체결 표본)
-        run: python3 audit/test_research_review.py
+      - name: 연구 코드리뷰 회귀 검사 (세금 · 캐시 · 체결 · 납입 원가)
+        run: python3 -m unittest audit.test_research_review audit.test_account_ledger
 
       - name: 빠른 검증 (엔진 동치 · 미래참조 · 라이브 정합)
         run: python3 verify_all.py --fast
@@ -67,7 +67,7 @@ jobs:
               state: 'open', labels: 'verify-fail'
             });
             const body = [
-              '`verify_all.py` 또는 `audit_full.py` 가 실패했습니다.',
+              '회귀 검사, `verify_all.py` 또는 `audit_full.py` 가 실패했습니다.',
               '',
               `로그: ${url}`,
               '',
