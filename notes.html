@@ -123,8 +123,25 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v219</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v220</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="opsReview2">
+      <div class="head"><span class="v">v220</span><span class="tag fix">수정</span>
+        <span class="ttl">자동화·화면 2차 점검 — 국채 금리 자료가 매달 하루 빠지던 것과 화면 날짜 셈을 바로잡았습니다</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>① 매월 원자료를 늘릴 때 <b>국채 금리(^TNX)의 마지막 날이 매번 빠졌습니다</b> — 야후가 그 지수의 마지막 체결을
+          마감 1분 전으로 적어 두는데, 자동화가 그것을 「아직 장중」으로 읽어 확정된 하루를 지웠습니다(다른 자료보다 늘 하루 짧았던 이유).
+          ② 환율 원본(FRED)이 죽었을 때 쓰는 예비 경로가 <b>여름철엔 날짜를 하루 이르게 붙여</b> 실제로는 한 번도 이어 붙일 수 없는 상태였습니다.
+          ③ 국내 ETF 괴리율 장부는 <b>감시 대상 다른 종목 한 줄에 값이 빠져도</b> 핵심 4종까지 통째로 기록을 멈췄습니다.
+          ④ 화면의 <b>방어 재조정 D-day 가 아침 9시 전에는 하루 늦게</b> 보였습니다 — 파수꾼 카톡(08:40)과 어긋나던 창입니다.
+          ⑤ 설명서 ③의 전환 통계(139번 중 75번)와 ⑥의 인출 소득 최악값은 9월 5일 자료 정정 뒤 다시 계산하지 않은 옛 값이라 재계산값(137번 중 70번 · −55.9%)으로 바꿨습니다.</dd>
+        <dt>왜</dt><dd>세 가지 모두 「읽기만으로는 안 보이고 실제 응답·실행 로그·과거 커밋을 대조해야 보이는」 결함이었습니다.
+          고치기 전 실패를 재현하는 검사를 먼저 만들고, 고친 뒤 통과를 확인했으며 그 검사를 자동 검증에 남겼습니다.</dd>
+        <dt>결론</dt><dd class="res"><b>매매 규칙·판정·실측 장부·이미 저장된 과거 자료 행은 그대로입니다.</b>
+          빠져 있던 국채 금리 날짜는 다음 달 자동 갱신부터 정상적으로 붙습니다. 상세는 저장소 <code>audit/DEEP_REVIEW_OPS_UI_2026-09-05.md</code>.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="researchF4Products">
       <div class="head"><span class="v">v219</span><span class="tag fix">수정</span>

@@ -1105,7 +1105,7 @@ function setupFold(){
    새 통계·새 주장을 여기에 추가하는 것은 금지(투자 판단 문구 자동 생성 금지 규약). */
 const FACTS = [
   '이 전략 초과수익의 약 <b>97%</b>는 닷컴 붕괴 한 사건에서 나왔습니다.',            // guide ④-2
-  '과거 전환 139번 중 <b>75번(54%)</b>은 전환한 뒤 손해였습니다 — 정상 범위입니다.',  // guide ③
+  '과거 전환 137번 중 <b>70번(51%)</b>은 전환한 뒤 손해였습니다 — 정상 범위입니다.',  // guide ③ (2026-09-05 재계산 · ops_risk)
   '최대 <b>10번을 연속</b>으로 틀린 구간이 있었고, 그동안 누적 −20.4%였습니다.',      // guide ③
   '역사 표본에서 <b>원금손실 0 문턱은 7년</b>입니다.',                                // guide ②
   '10년을 버틴 창은 표본 안에서 <b>손실 0%</b>, 중앙 10.8배였습니다.',                // guide ② 표 (2026-09-05 재계산)
@@ -1430,7 +1430,7 @@ function drawPerf(){
   const cols = m => `<td class="num">${nfmt(m.final)}배</td>
         <td class="num">${neg(m.cagr.toFixed(2))}%</td>
         <td class="num">${neg(m.mdd.toFixed(2))}%</td>
-        <td class="num sec">${m.calmar.toFixed(3)}</td>
+        <td class="num sec">${m.calmar==null?'—':m.calmar.toFixed(3)}</td>
         <td class="num sec">${m.sortino==null?'—':m.sortino.toFixed(3)}</td>
         <td class="num">${uwfmt(m)}</td>
         <td class="num sec">${m.ulcer==null?'—':m.ulcer.toFixed(1)}</td>`;
@@ -1462,7 +1462,9 @@ function drawPerf(){
     const jrows = PERF_VARIANTS.map(([vk, vlab]) => {
       const m = jsc[vk] ? jsc[vk][sel] : null;
       if(!m) return '';
-      return `<br><b>${vlab}</b> — Calmar ${m.calmar.toFixed(3)} <b>${gCal(m.calmar)}</b>`
+      // [v220] build_stats.pack 은 calmar 가 비유한이면 null 을 낸다(sortino·sharpe 와 같은 규약) —
+      //   화면이 toFixed 를 그대로 부르면 drawPerf 가 죽고 redraw 순서상 판정 카드까지 안 그려진다.
+      return `<br><b>${vlab}</b> — Calmar ${m.calmar==null?'—':m.calmar.toFixed(3)} <b>${m.calmar==null?'—':gCal(m.calmar)}</b>`
         + (m.sortino == null ? '' : ` · Sortino ${m.sortino.toFixed(3)} <b>${gSor(m.sortino)}</b>`)
         + (m.ulcer == null ? '' : ` · Ulcer ${m.ulcer.toFixed(1)} <b>${gUlc(m.ulcer)}</b>`);
     }).join('');
@@ -1559,7 +1561,7 @@ function drawHoriz(){
         const m = s[vk] ? s[vk][sel] : null;
         if(!m) return;
         rows.push([s.label, `${m.start.slice(0, 7)}~${m.end.slice(0, 7)} (${m.years}년)`, vlab,
-          m.final, m.cagr.toFixed(2), m.mdd.toFixed(2), m.calmar.toFixed(3),
+          m.final, m.cagr.toFixed(2), m.mdd.toFixed(2), m.calmar == null ? '' : m.calmar.toFixed(3),
           m.sortino == null ? '' : m.sortino.toFixed(3), m.uw_months == null ? '' : uwfmt(m),
           m.ulcer == null ? '' : m.ulcer.toFixed(1), m.switches]);
       });
@@ -1580,7 +1582,12 @@ function bizDaysSince(iso){
   //   08:40 슬롯에서 파수꾼은 3거래일로 카톡을 보내는데 화면은 2로 세어 배너를 숨겼다.
   //   어긋나던 창이 하필 신호 도착(05:17)부터 주문 창(09:05)까지의 확인 시간대였다.
   const tp = tzParts(new Date(), SEOUL);
-  const d1 = new Date(Date.UTC(tp.y, tp.m - 1, tp.d));
+  // [v220] 미국장이 **진행 중**이면 그날의 종가는 아직 없다 — 오늘을 세지 않는다. 종전에는
+  //   매일 00:00~05:00 KST(미국 장중)에 「2거래일 경과 · 확인 필요」 노란 점이 헛떴다.
+  //   파수꾼(08:40 KST)은 장중이 아니라 정의가 그대로 같다.
+  let live = false;
+  try{ const us = usClock(Date.now()); live = !!(us && us.state === 'live'); }catch(e){}
+  const d1 = new Date(Date.UTC(tp.y, tp.m - 1, tp.d - (live ? 1 : 0)));
   let n = 0;
   for(let t = new Date(d0); t < d1; t.setUTCDate(t.getUTCDate() + 1)){
     const w = t.getUTCDay();
@@ -2207,7 +2214,7 @@ function chkHtml(){
        label 밖에 둔다 (label 안이면 링크를 눌러도 체크박스가 토글된다). */
     /* [v196] 망설이는 순간의 한 줄 — 새 문장 창작 0: 04 §5-8·설명서 §③ 에 이미 발행된 수치.
        v129 가 지운 「상기성 문구」와 다르다 — 그건 평시 면책이고 이건 결정 순간의 근거다. */
-    + `<div class="chkmiss">망설여진다면 — 과거 139번의 전환 중 <b>75번(54%)</b>은 손해로 끝났고 그게 정상입니다.
+    + `<div class="chkmiss">망설여진다면 — 과거 137번의 전환 중 <b>70번(51%)</b>은 손해로 끝났고 그게 정상입니다.
        놓친 전환의 최악은 <b>−96.5%</b>(2000-09-06)였습니다.</div>`
     + `<div class="chklink"><a href="guide.html#order">주문 방법 — 괴리율 확인 · 지정가 넣는 법 →</a></div>`
     /* [v160] 못 한 날의 안내 — 전환일에만 뜨므로 평소엔 보이지 않는다.
@@ -2842,7 +2849,16 @@ function getDefenseEntryDate(){
   });
   return DEF_ENTRY_P;
 }
-function daysSince(d){ return Math.max(0, Math.floor((Date.now() - Date.parse(d)) / 864e5)); }
+/* [v220] 달력일(KST) 차이. 종전 `Date.now() − Date.parse(d)` 는 UTC 자정(09:00 KST)에서 날이 바뀌어,
+   재조정 확인일 아침 08:40(파수꾼 카톡 시각)에 화면은 아직 D-1 을 보였다 — v202 ⑪(bizDaysSince)과
+   같은 유형이 daysSince 에 남아 있었다. 파수꾼 rebalance_due 의 (kst_today − entry).days 와 같은 정의다.
+   소비자: 재조정 D-day 셋(v117·v182·v100) · OOS 장부 일수 · 함께한 날 · 자동 현재가 나이 · 백업 리마인더. */
+function daysSince(d){
+  const t0 = Date.parse(d);
+  if(!isFinite(t0)) return 0;
+  const tp = tzParts(new Date(), SEOUL);
+  return Math.max(0, Math.floor((Date.UTC(tp.y, tp.m - 1, tp.d) - t0) / 864e5));
+}
 
 /* [v154] 전일 대비 낙폭 변화(%p) — 낙폭은 음수라 「diff>0 = 얕아짐 = 회복 방향」이다.
    ⚠ AUTO.recent 는 **최신이 [0]** 인 내림차순이다(signal.json 실측) — 뒤에서 빼면

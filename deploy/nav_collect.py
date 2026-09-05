@@ -334,18 +334,31 @@ def collect(as_of=None, now=None):
     by = {str(i.get('itemcode') or ''): i for i in lst if isinstance(i, dict)}
     n, med, sd = universe_stats(lst)
 
-    rows = []
+    rows, dropped = [], []
     for code, nm in WATCH.items():
         it = by.get(code)
         if not it or not it.get('nav'):
             continue
         if (as_of, code) in have:
             continue
-        rows.append({'as_of': as_of, 'code': code, 'name': nm,
-                     'close': it['nowVal'], 'nav': it['nav'],
-                     'dev_pct': round((it['nowVal'] / it['nav'] - 1) * 100, 4),
-                     'volume': it.get('quant', ''), 'mktcap_eok': it.get('marketSum', ''),
-                      'univ_n': n, 'univ_med_pct': round(med, 4), 'univ_sd_pct': round(sd, 4)})
+        row = {'as_of': as_of, 'code': code, 'name': nm,
+               'close': it['nowVal'], 'nav': it['nav'],
+               'dev_pct': round((it['nowVal'] / it['nav'] - 1) * 100, 4),
+               'volume': it.get('quant', ''), 'mktcap_eok': it.get('marketSum', ''),
+               'univ_n': n, 'univ_med_pct': round(med, 4), 'univ_sd_pct': round(sd, 4)}
+        if code not in CORE_CODES:
+            # [2026-09-05 2차 리뷰 R2-07] 비핵심 감시 종목 한 줄의 결측(거래량·시총 등)이 아래
+            # _validate_nav_rows 에서 핵심 4종 장부까지 통째로 막았다. 핵심 밖 행은 건너뛰고
+            # 경고만 남긴다. 핵심 4종은 그대로 엄격하다(아래 missing 검사·전체 검증).
+            try:
+                _validate_nav_rows([row])
+            except RuntimeError as e:
+                dropped.append(f'{code}: {e}')
+                continue
+        rows.append(row)
+    if dropped:
+        print('[경고] 비핵심 감시 종목의 불완전한 행을 뺐다(핵심 4종 장부는 계속 적는다): '
+              + ' / '.join(dropped), file=sys.stderr)
 
     covered_core = existing_core | {r['code'] for r in rows if r['code'] in CORE_CODES}
     missing = sorted(set(CORE_CODES) - covered_core)
@@ -523,9 +536,40 @@ def selftest():
                 pass
             with open(OUT, 'rb') as f:
                 assert f.read() == collected
+
+            # [R2-07] 비핵심 감시 종목의 거래량 결측은 그 행만 빼고 핵심 4종은 적는다.
+            OUT = os.path.join(td, 'noncore.csv')
+            noncore = next(c for c in WATCH if c not in CORE_CODES)
+
+            def items_noncore_broken():
+                rows = items()
+                for r in rows:
+                    if r['itemcode'] == noncore:
+                        r.pop('quant')
+                return rows
+            fetch = items_noncore_broken
+            got = collect('2026-09-01')
+            assert {r['code'] for r in got} == set(WATCH) - {noncore}
+            assert os.path.exists(OUT)
+            # 핵심 종목의 같은 결측은 여전히 실패-폐쇄한다(파일도 만들지 않는다).
+            OUT = os.path.join(td, 'core_broken.csv')
+
+            def items_core_broken():
+                rows = items()
+                for r in rows:
+                    if r['itemcode'] == CORE_CODES[0]:
+                        r.pop('quant')
+                return rows
+            fetch = items_core_broken
+            try:
+                collect('2026-09-01')
+                raise AssertionError('핵심 종목 거래량 결측을 통과시켰다')
+            except RuntimeError:
+                pass
+            assert not os.path.exists(OUT)
     finally:
         HOL, OUT, fetch = saved_hol, saved_out, saved_fetch
-    print('nav_collect selftest: PASS (휴장일 · 장중 적립 금지 · 핵심 4종 완전성 · 값/날짜 · 원자 append/no-op)')
+    print('nav_collect selftest: PASS (휴장일 · 장중 적립 금지 · 핵심 4종 완전성 · 값/날짜 · 원자 append/no-op · 비핵심 결측 격리)')
 
 
 def report():

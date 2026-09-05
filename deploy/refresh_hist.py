@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import urllib.request
 
 import pandas as pd
@@ -47,18 +48,45 @@ except Exception:
     pass
 
 
-def _drop_intraday_bar(df, meta):
-    """정규장 **진행 중**인 오늘 봉만 제거한다. 판정 메타가 없으면 실패-폐쇄한다."""
+def _bar_index(timestamps, meta):
+    """봉의 날짜 라벨 = **거래소 시간대의 달력일** (야후 화면과 같은 날짜).
+
+    [2026-09-05 2차 리뷰 R2-12] UTC 로 자르면 FX(KRW=X)가 어긋난다. 런던 서머타임엔 세션이
+    전날 23:00 UTC 에 시작해 금요일 세션이 목요일 라벨을 받았고, FRED 꼬리(금요일)를 이음날로
+    못 찾아 야후 예비 경로가 여름 내내 실패-폐쇄했다(겨울엔 00:00 UTC 시작이라 우연히 맞았다).
+    미국(13:30 UTC)·한국(00:00 UTC)·시카고(12:20 UTC) 봉은 어느 쪽으로 잘라도 같은 날이다.
+    시간대 이름을 모르면 UTC(종전 동작)."""
+    idx = pd.to_datetime(timestamps, unit='s', utc=True)
+    tz = (meta or {}).get('exchangeTimezoneName')
+    if tz:
+        try:
+            idx = idx.tz_convert(tz)
+        except Exception:
+            pass
+    return idx.tz_localize(None).normalize()
+
+
+def _drop_intraday_bar(df, meta, now=None):
+    """정규장 **진행 중**인 오늘 봉만 제거한다. 판정 메타가 없으면 실패-폐쇄한다.
+
+    [2026-09-05 2차 리뷰 R2-11] regularMarketTime 만으로는 장중을 판정할 수 없다. ^TNX 같은
+    지수는 마지막 체결이 마감 1분 전(18:59, 마감 19:00 UTC)이라 마감 뒤에도 start<=qt<end 가
+    참이었고, 매달 1일 07:17 UTC 슬롯이 확정봉을 지워 yahoo_TNX.csv 가 다른 미국 자료보다
+    늘 하루 짧았다(실측 08-27 vs 08-28, 9704ac0 과 그 부모 커밋에서도 같은 간격).
+    벽시계(now)가 마감을 지났으면 확정봉이다. now 는 검산용 주입 인자다."""
     regular = (meta or {}).get('currentTradingPeriod', {}).get('regular', {})
     qt = (meta or {}).get('regularMarketTime')
     start, end = regular.get('start'), regular.get('end')
     if not all(isinstance(v, (int, float)) for v in (qt, start, end)):
         raise RuntimeError('Yahoo 응답에 장중 판정 메타가 없다')
-    if not (start <= qt < end) or len(df) == 0:
+    if len(df) == 0 or not (start <= qt < end):
+        return df
+    now_ts = time.time() if now is None else float(now)
+    if now_ts >= end:
         return df
     # FX처럼 현재 세션을 시작 timestamp와 현재 quote timestamp 두 행으로 주는 응답도
     # 있다. 마지막 한 행만 자르면 close=None인 시작 행이 남으므로 세션 시작일부터 뺀다.
-    live_start = pd.to_datetime(start, unit='s', utc=True).tz_convert(None).normalize()
+    live_start = _bar_index([start], meta)[0]
     return df.loc[df.index < live_start]
 
 
@@ -77,8 +105,8 @@ def _drop_kr_intraday_bar(df, now=None):
     return df
 
 
-def chart(symbol, years=3, require_adj=False):
-    """야후 v8 chart — 수정주가 필수 경로는 raw close 대체를 금지한다."""
+def chart(symbol, years=3, require_adj=False, now=None):
+    """야후 v8 chart — 수정주가 필수 경로는 raw close 대체를 금지한다. now 는 검산용 벽시계."""
     import datetime
     p2 = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
     p1 = p2 - years * 366 * 86400
@@ -87,7 +115,8 @@ def chart(symbol, years=3, require_adj=False):
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with urllib.request.urlopen(req, timeout=60) as r:
         res = json.loads(r.read().decode('utf-8', 'replace'))['chart']['result'][0]
-    idx = pd.to_datetime(res['timestamp'], unit='s', utc=True).tz_convert(None).normalize()
+    meta = res.get('meta', {})
+    idx = _bar_index(res['timestamp'], meta)
     if idx.has_duplicates or not idx.is_monotonic_increasing:
         raise RuntimeError(f'{symbol}: Yahoo 원본 날짜가 중복되거나 역순임')
     q = res['indicators']['quote'][0]
@@ -118,7 +147,7 @@ def chart(symbol, years=3, require_adj=False):
     if df.empty:
         raise RuntimeError(f'{symbol}: Yahoo 원본이 빈 placeholder뿐임')
     # 장중 행은 아직 close가 없을 수 있으므로 결측 검증보다 먼저 메타로 제거한다.
-    df = _drop_intraday_bar(df, res.get('meta', {}))
+    df = _drop_intraday_bar(df, meta, now=now)
     if df.empty:
         raise RuntimeError(f'{symbol}: 확정된 Yahoo 봉이 없음')
     numeric = df[value_cols].apply(pd.to_numeric, errors='coerce')
@@ -710,8 +739,13 @@ def selftest():
             one = pd.DataFrame({'close': [1.0]}, index=[prev_day])
             two = pd.DataFrame({'close': [1.0, 1.1]}, index=[prev_day, live_day])
             assert len(_drop_intraday_bar(one, pre)) == 1
-            assert len(_drop_intraday_bar(two, intra)) == 1
+            assert len(_drop_intraday_bar(two, intra, now=start + 3600)) == 1
             assert len(_drop_intraday_bar(two, post)) == 2
+            # [R2-11] 마감이 지났으면 마지막 체결이 마감 직전(^TNX 18:59)이어도 확정봉이다.
+            late = {'regularMarketTime': end - 60,
+                    'currentTradingPeriod': {'regular': {'start': start, 'end': end}}}
+            assert len(_drop_intraday_bar(two, late, now=end + 12 * 3600)) == 2
+            assert len(_drop_intraday_bar(two, late, now=end - 30)) == 1
             # FX는 한 현재 세션을 start placeholder와 실시간 quote 두 행으로 줄 수 있다.
             fx_start = int(pd.Timestamp('2026-09-03 23:00', tz='UTC').timestamp())
             fx_qt = int(pd.Timestamp('2026-09-04 12:00', tz='UTC').timestamp())
@@ -720,7 +754,7 @@ def selftest():
                 ['2026-09-02', '2026-09-03', '2026-09-04']))
             fx_meta = {'regularMarketTime': fx_qt,
                        'currentTradingPeriod': {'regular': {'start': fx_start, 'end': fx_end}}}
-            assert len(_drop_intraday_bar(fx_rows, fx_meta)) == 1
+            assert len(_drop_intraday_bar(fx_rows, fx_meta, now=fx_qt)) == 1
             try:
                 _drop_intraday_bar(two, {})
                 raise AssertionError('장중 판정 메타 없는 응답을 허용했다')
@@ -970,6 +1004,25 @@ def selftest():
             urllib.request.urlopen = lambda *args, **kwargs: FakeResponse(json.dumps(adj_payload))
             adj_df = real_chart('418660.KS', require_adj=True)
             assert len(adj_df) == 1 and float(adj_df['adj'].iloc[0]) == 100.25
+            # [R2-12] FX 봉 라벨은 거래소 시간대(런던) 달력일이다. 서머타임엔 전날 23:00 UTC
+            #   시작 봉이 다음 날 세션이라, UTC 로 자르면 금요일 세션이 목요일이 되어 FRED 꼬리를 못 잇는다.
+            fx_stamps = [int(pd.Timestamp(d, tz='UTC').timestamp()) for d in
+                         ('2026-08-23 23:00', '2026-08-24 23:00', '2026-08-25 23:00',
+                          '2026-08-26 23:00', '2026-08-27 23:00')]
+            fx_quote = {k: [1380.0, 1381.0, 1382.0, 1383.0, 1384.0]
+                        for k in ('open', 'high', 'low', 'close')}
+            fx_quote['volume'] = [0] * 5
+            fx_end = int(pd.Timestamp('2026-08-28 22:59', tz='UTC').timestamp())
+            fx_payload = {'chart': {'result': [{
+                'timestamp': fx_stamps, 'indicators': {'quote': [fx_quote]},
+                'meta': {'regularMarketTime': fx_end, 'exchangeTimezoneName': 'Europe/London',
+                         'currentTradingPeriod': {'regular': {
+                             'start': int(pd.Timestamp('2026-08-27 23:00', tz='UTC').timestamp()),
+                             'end': fx_end}}}}]}}
+            urllib.request.urlopen = lambda *args, **kwargs: FakeResponse(json.dumps(fx_payload))
+            fx_df = real_chart('KRW=X')
+            assert [d.isoformat() for d in fx_df.index.date] == [
+                '2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28']
             partial_quote = dict(raw_quote)
             partial_quote['open'] = [99.0, 100.0]
             partial_payload = {'chart': {'result': [{

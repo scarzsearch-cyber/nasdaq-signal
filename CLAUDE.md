@@ -389,6 +389,21 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **v220 (2026-09-05 · 운영·화면 20파일 2차 심층 코드리뷰 · 장부 `audit/DEEP_REVIEW_OPS_UI_2026-09-05.md` · 회귀 `audit/test_ops_review2.py`)**:
+  기준 e63af37 · 별도 작업트리 `review/ops-ui-2`. **전략 B 동결값·판정·실측 장부·저장된 원자료 행 무변경.** P1 없음.
+  ⓐ **P2 `refresh_hist._drop_intraday_bar`** — ^TNX 는 야후 regularMarketTime 이 마감 1분 전(18:59<end 19:00)이라 마감 뒤에도
+  장중으로 읽혀 **월간 실행마다 전일 확정봉을 지웠다**(실측: `yahoo_TNX.csv` 08-27 vs QQQ 08-28 · 9704ac0 과 부모 커밋도 같은 하루 간격 ·
+  2026-09-05 07:49 UTC 야후 메타 읽기 전용 조사로 재현). 벽시계가 마감을 지났으면 확정봉으로 둔다(`now` 주입 인자).
+  ⓑ **P2 FX 라벨** — `chart()` 가 UTC 로 날짜를 잘라 KRW=X(런던 서머타임 23:00Z 시작)가 하루 이른 라벨을 받았고, `refresh_fx` 야후
+  보강이 금요일 FRED 꼬리를 이음날로 못 찾아 **예비 경로가 여름엔 항상 실패-폐쇄**였다 → 거래소 시간대 달력일로 라벨(`_bar_index`).
+  ⓒ **P3 `nav_collect`** — 비핵심 감시 종목 한 줄의 거래량 결측이 핵심 4종 장부까지 막던 것 → 비핵심만 격리·경고.
+  ⓓ **P3 `signal.html daysSince`** — UTC 자정 기준이라 재조정 확인일 00:00~09:00 KST(08:40 카톡 시각 포함)에 D-1 을 보였다(v202 ⑪ 과 같은
+  유형) → KST 달력일 · 파수꾼 `rebalance_due` 와 같은 정의. `bizDaysSince` 는 미국 장중(00~05시 KST)엔 오늘을 안 세어 헛 「확인 필요」 제거(08:40 값 불변).
+  ⓔ **P3 화면 옛 수치** — 설명서 ③ 전환 통계 139/75(54%)/102/20 → `ops_risk` v210 재실행 **137/70(51%)/103/21** · ⑥ 인출 최악 −51.3% →
+  `withdraw` [5] 재실행 **연 5% 예시 −55.9%**(이전 인출 반영) · 신호 화면 FACTS·체크리스트도 같은 값. ⓕ P4 calmar null 가드(build_stats 규약과 정합).
+  검사: 옛 사본에서 3실패+1오류 → 수정 뒤 11/11 · 셀프테스트 2종 확장 · `verify.yml` unittest 목록에 등재 · 브라우저 412/데스크톱 실측.
+  ⚠ 남긴 기록(P4): `splice_tnx` 예외 미포착 · `wait_close` 거짓 실패 알림 가능 · `price_poll` 값 불변 시 as_of 정체 · notify 분할 부분 실패 중복.
+  **저장된 TNX 누락일은 다음 월간 실행이 자가 보충한다(옛 행 무접촉).** 이 항목을 근거로 「저장소 전체 검토 완료」라고 쓰지 마라.
 - **v218 (2026-09-05 · 코드리뷰 순회 B14)**: research n~s 13종(`new_paths`·`oos_protocol_b`·`ops_risk`·`pbo_thresh`·`plan30_withdraw`·
   `post_dotcom`·`q1_physical_bond`·`q2_hedged_attack`·`q5_near_presell`·`recovery_speed`·`schd_qqq_overlap`·`slice_scan`·`surv_alert`) 전문 + **13편 실행**. **전략·장부 무변경.**
   ⓐ **P1 · B 판정 규약 기저율 재등록** — v210 거래일 정정 뒤 `oos_protocol_b.py --oos` 의 자기검산이 「역사 기저율이 등록값과 다르다 → 판정 중단」을
