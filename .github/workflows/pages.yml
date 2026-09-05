@@ -25,15 +25,21 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
   deploy:
     # workflow_run이 빨간색이어도 앞선 커밋은 이미 main에 들어갔을 수 있다. 특히
     # 이슈 API 실패를 커밋 뒤 드러내는 daily-signal은 그렇다. 최신 main을 다시
     # 배포하는 것은 안전하고, success만 허용하면 새 신호가 화면에 안 나오는 쪽이 위험하다.
+    # [2026-09-06] ★ 취소된 선행 실행은 예외다 — price 의 예비 슬롯(:20/:50)은 다음 예약에 밀려 매번 취소되는데
+    #   그 workflow_run(cancelled) 이벤트로 생긴 실행이 종전 **워크플로 수준** concurrency 로 진행 중인 5분 배포를
+    #   취소하고 자신은 skipped(0 스텝)로 끝났다(09-04 실측: :25/:55 스냅샷 3건이 다음 스냅샷까지 5분 지연).
+    #   취소된 선행 실행은 아무것도 푸시하지 않았으므로 배포할 것이 없다 → 그 경우만 잡을 건너뛰고, concurrency 를
+    #   **잡 수준**으로 내려 건너뛴 잡이 그룹에 들어가지 않게 한다. 실패(failure)한 선행 실행은 위 주석대로 계속 재배포한다.
+    #   회귀: audit/test_pages_concurrency.py · 실측: audit/PAGES_CONCURRENCY_2026-09-06.md
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'cancelled'
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

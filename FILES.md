@@ -33,6 +33,8 @@
 - `audit/test_ops_review2.py` — v220 회귀 11검사: ^TNX 마감 뒤 확정봉 유지·FX 거래소 시간대 라벨·금요일 FRED 꼬리 야후 보강·NAV 비핵심 결측 격리·화면 날짜 셈(node)·calmar 가드·재실행 수치 대조.
 - `audit/OPS_UI_CROSSCHECK_2026-09-05.md` — v221 독립 교차검증: v220 수정 확인·NAV 가격 격리·FX 장중 중복/시간대·TNX 실패 전파 보완. 같은 회귀 모듈에6검사 추가(총17).
 - `audit/OPS_RECOVERY_2026-09-05.md` — v222 장애·재시도·복구 통합 검증 장부: 6개 시나리오의 연결 경로·사용자 영향·수정·불변조건·남은 한계.
+- `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
+- `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.
 - `audit/SCREEN_MATRIX2_2026-09-06.md` — 설명서·노트 상태/앵커 행렬(v224)·시세 폴러→Pages 구간별 시간 실측(09-03·09-04)·주간 파수꾼 관찰 대기 기록.
 - `audit/test_fold_anchor.py` — 세 화면의 접힌 패널 안 앵커 처리·버튼 라벨 재도색 정적 회귀(v224).
 - `audit/SCREEN_STATES_2026-09-05.md` — 화면 상태 행렬 검사 장부(v223): 15상태 실제 로드 결과 · 시세 배지 단일 진입점·트리거 경계 수정 근거.
