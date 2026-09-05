@@ -45,9 +45,22 @@ LEDGERS = {
     'audit/SCREEN_STATES_2026-09-05.md': (4, 'v223 화면 실측'),
     'audit/SCREEN_MATRIX2_2026-09-06.md': (4, 'v224 화면 실측'),
     'audit/MOBILE_OPS_2026-09-06.md': (4, 'v225 모바일 실측'),
+    # 2026-09-06 네 묶음 + 후속(650a6aa 이후)
+    'audit/DOC_CLAIMS_2026-09-06.md': (1, '문서 주장 대조'),
+    'audit/DOC_CORRECTIONS_2026-09-06.md': (1, '정정안(01·02·04 · 화면 전사 1건)'),
+    'audit/SURVIVAL_2026-09-06.md': (3, '생존·감시 격리 검증'),
+    'audit/A11Y_2026-09-06.md': (4, '접근성 실측(v227·v228)'),
+    'audit/REBAL_LEDGER_2026-09-06.md': (3, '재조정 독립 원장(sim_hold 다자산)'),
+}
+# 장부가 이름만 언급한 파일에 근거를 주지 않도록, 근거를 인정할 파일을 명시하는 장부(없으면 본문 언급 전부)
+LEDGER_ONLY = {
+    'audit/REBAL_LEDGER_2026-09-06.md': {'axis_defmix.py', 'hist_defasset.py', 'audit/rebal_ledger_check.py'},
+    'audit/SURVIVAL_2026-09-06.md': {'deploy/watchdog.py', 'deploy/kakao_keepalive.py', '.github/workflows/watchdog.yml',
+                                     '.github/workflows/verify.yml', '.github/workflows/daily-signal.yml', 'audit/test_survival5.py'},
 }
 # 변조 검사는 verify_all 에만 해당한다(다른 파일은 변조 「대상」이지 검사받은 것이 아니다).
 GATE_MUTATION = ('audit/GATE_MUTATION_2026-09-05.md', 5, '관문 변별력')
+GATE_MUTATION2 = ('audit/GATES_DATA_2026-09-06.md', 5, '자료 의존 관문 변조(I1·I5·I10)')   # verify_all 에만 해당(변조 대상 파일은 검사받은 것이 아니다)
 
 # 회귀 모듈 → (수준, 다루는 파일). 모듈 본문의 파일/모듈 이름을 그대로 근거로 쓴다.
 TESTS = {
@@ -57,6 +70,7 @@ TESTS = {
     'audit/test_f2_mix.py': 3, 'audit/test_execution_bands.py': 3, 'audit/test_execution_policy.py': 3,
     'audit/test_f3_design.py': 3, 'audit/test_basket_accounting.py': 3, 'audit/test_f4_design.py': 3,
     'audit/test_f4_products.py': 3,
+    'audit/test_survival5.py': 3,
 }
 # verify_all 상시 관문이 직접 재계산·대조하는 파일(문자열 검사만인 것은 L1 로 낮춰 적는다).
 VERIFY_L3 = {'hist_defensive.py', 'hist_data.py', 'axis_lib.py', 'axis_defmix.py', 'axis_volguard.py', 'reentry_lib.py',
@@ -126,7 +140,7 @@ def classify(p):
 def main():
     tracked = [t for t in git('ls-files').splitlines() if t.strip()]
     texts = {}
-    for lp in list(LEDGERS) + [GATE_MUTATION[0]] + list(TESTS):
+    for lp in list(LEDGERS) + [GATE_MUTATION[0], GATE_MUTATION2[0]] + list(TESTS):
         fp = os.path.join(ROOT, lp)
         texts[lp] = io.open(fp, encoding='utf-8').read() if os.path.exists(fp) else ''
     ctime = {}
@@ -147,10 +161,13 @@ def main():
             pass
         else:
             for lp, (lv, name) in LEDGERS.items():
+                if lp in LEDGER_ONLY and p not in LEDGER_ONLY[lp]:
+                    continue
                 if pat.search(texts[lp]) or (p in texts[lp]) or (stem_pat and stem_pat.search(texts[lp])):   # 순회 장부는 stem 만 적는다
                     ev.append((lv, name, lp))
             if p == 'verify_all.py':
                 ev.append((GATE_MUTATION[1], GATE_MUTATION[2], GATE_MUTATION[0]))
+                ev.append((GATE_MUTATION2[1], GATE_MUTATION2[2], GATE_MUTATION2[0]))
             for tp, lv in TESTS.items():
                 t = texts[tp]
                 if p == tp:

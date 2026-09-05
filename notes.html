@@ -9,13 +9,13 @@
 <title>업데이트 노트 — 나스닥 신호</title>
 <link rel="icon" type="image/png" href="icon-192.png">
 <style>
-:root{color-scheme:light dark;--paper:#EEF1F4;--panel:#FFFFFF;--ink:#16202B;--muted:#6B7A88;
-  --rule:#C3CCD4;--attack:#0B5FD6;--defend:#B8722A;--acc-bg:rgba(11,95,214,.06);}
+:root{color-scheme:light dark;--paper:#EEF1F4;--panel:#FFFFFF;--ink:#16202B;--muted:#5E6C78;  /* [v228] 라이트 보조 글자 한 단계 어둡게(종이 3.9 → 4.8:1) · 다크 무변경 */
+  --rule:#C3CCD4;--attack:#0B5FD6;--defend:#B8722A;--defend-txt:#8A5518;--acc-bg:rgba(11,95,214,.06);}
 /* 다크 모드 — signal.html v95 와 같은 토큰·같은 값 (OS 설정 추종, 토글 없음) */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#12181F;--panel:#1B232C;--ink:#E7ECF1;--muted:#93A3B2;--rule:#33404E;
-    --attack:#5B9BF0;--defend:#D99A57;--acc-bg:rgba(91,155,240,.10);}
+    --attack:#5B9BF0;--defend:#D99A57;--defend-txt:#D99A57;--acc-bg:rgba(91,155,240,.10);}
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--paper);color:var(--ink);font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;
@@ -58,11 +58,11 @@ h2 .ver{color:var(--attack);font-variant-numeric:tabular-nums}
 .v{font-weight:800;font-size:14.5px;font-variant-numeric:tabular-nums;color:var(--attack)}
 .tag{font-size:11.5px;font-weight:700;border-radius:5px;padding:2px 7px;letter-spacing:-.2px}
 .tag.new{background:rgba(11,95,214,.12);color:var(--attack)}
-.tag.fix{background:rgba(184,114,42,.14);color:var(--defend)}
-.tag.del{background:rgba(107,122,136,.16);color:var(--muted)}
+.tag.fix{background:rgba(184,114,42,.14);color:var(--defend-txt)}  /* [v228] 라이트 3.3 → 5.3:1 · 다크는 --defend */
+.tag.del{background:rgba(107,122,136,.12);color:var(--muted)}  /* [v228] 틴트 .16 → .12 — 라이트 4.46 → 4.7:1 */
 .tag.doc{background:rgba(107,122,136,.10);color:var(--muted)}
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .tag.new{background:rgba(91,155,240,.18)}
+  :root:not([data-theme="light"]) .tag.new{background:rgba(91,155,240,.10)}   /* [v228] 틴트 .18 → .10 — 다크 4.2 → 4.8:1 (2026-09-06 실측) */
   :root:not([data-theme="light"]) .tag.fix{background:rgba(217,154,87,.18)}
   /* [v227] 켜진 필터 칩: 다크 토큰 --attack(#5B9BF0) 위 흰 글씨는 2.8:1(13px 굵게) — 종이색(--paper)으로 7:1 (2026-09-06 실측) */
   :root:not([data-theme="light"]) .filters button.on{color:var(--paper)}
@@ -125,8 +125,20 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v227</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v228</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="lightMuted">
+      <div class="head"><span class="v">v228</span><span class="tag fix">수정</span>
+        <span class="ttl">라이트 모드의 회색 보조 글씨·태그가 흐리던 것 · 설명서 FAQ 환율 숫자 정정</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>세 화면이 공유하는 라이트 모드 회색(라벨·힌트·표 머리·「오늘 할 일」 줄·제목 부제)이 종이 바탕 위 3.9:1, 흰 카드 위 4.4:1 로 기준(4.5:1)에 못 미쳤습니다 —
+          같은 색상에서 한 단계 어둡게(4.8 / 5.4). 「점검 이상없음」 알약과 이 노트의 「수정」 태그 주황 글씨는 3.3~3.4 → 5.3~5.5, 「삭제」 태그와 다크 모드 「신규」 태그는 배경 틴트만 옅게(4.7~4.8).
+          설명서 FAQ 「원/달러 964→1,385원」은 출처가 없는 숫자였습니다 — 환율 원자료의 1997-01-02 값 857.5 로 바로잡았습니다.</dd>
+        <dt>왜</dt><dd>v227 에서 전역 색이라 미뤄 둔 것을 소유자 지시로 사용처 88곳을 전부 확인하고 바꿨습니다. 본문(진한 글씨)·보조 설명·투명도로 흐린 세 번째 단계의 구분은 그대로입니다. 다크 모드 값은 손대지 않았습니다.</dd>
+        <dt>결론</dt><dd>표시만 바뀌었습니다. 투명도로 일부러 조용히 둔 두 줄(동결 날짜 줄·평시 팩트 한 줄)은 그대로 두었습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="a11yChips">
       <div class="head"><span class="v">v227</span><span class="tag fix">수정</span>

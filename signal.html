@@ -18,7 +18,8 @@
   --paper:#EEF1F4;
   --panel:#FFFFFF;
   --ink:#16202B;
-  --muted:#6B7A88;
+  --muted:#5E6C78;        /* [v228] 라이트 보조 글자 #6B7A88 → 한 단계 어둡게 — 종이 위 3.9 → 4.8:1 · 흰 카드 위 4.4 → 5.4 (2026-09-06 실측) · 다크 값 무변경 */
+  --defend-txt:#8A5518;    /* [v228] 방어색 글자용(작은 굵은 글씨) — 종이 위 --defend 3.4 → 5.5:1 · 다크는 --defend 그대로 */
   --rule:#C3CCD4;
   --attack:#0B5FD6;
   --defend:#B8722A;
@@ -34,7 +35,7 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --paper:#12181F; --panel:#1B232C; --ink:#E7ECF1; --muted:#93A3B2; --rule:#33404E;
-    --attack:#5B9BF0; --defend:#D99A57; --warn:#E8776A;
+    --attack:#5B9BF0; --defend:#D99A57; --warn:#E8776A; --defend-txt:#D99A57;
     --surface2:#20293380; --hairline:#2B3644; --chip-bg:#26313D; --acc-bg:#1C2A3D;
   }
 }
@@ -74,7 +75,7 @@ body{padding:28px 20px 64px;}
 .mstat img{height:15px;vertical-align:-3px;}
 .opill{font-size:11px;font-weight:700;letter-spacing:0;padding:1px 6px;border-radius:9px;
   border:1px solid var(--rule);color:var(--muted);white-space:nowrap;}
-.opill.ok{color:var(--defend);border-color:var(--defend);}  /* [v206] --defense 는 정의된 적 없는 토큰이었다 */
+.opill.ok{color:var(--defend-txt);border-color:var(--defend);}  /* [v228] 글자만 --defend-txt (라이트 3.4 → 5.5:1) */  /* [v206] --defense 는 정의된 적 없는 토큰이었다 */
 .opill.warn{color:#7c2d12;border-color:#B45309;background:rgba(180,83,9,.08);}   /* [v227] 글자색을 .stale.warn 과 같은 #7c2d12 로 — 라이트 카드 위 4.0 → 9:1 · 테두리·바탕 그대로 */
 /* [v226] 다크 카드(#1B232C) 위 #B45309 는 약 3.6:1 로 작은 굵은 글씨 기준(4.5:1)에 못 미쳤다(2026-09-06 실측).
    기존 다크 토큰 --warn(#E8776A) 으로 5.4:1(실측). */
@@ -3559,7 +3560,7 @@ function drawTrajectory(tr){
   // [v95] SVG 는 CSS 변수를 못 쓰므로 렌더 시점의 테마 색을 읽어온다
   const cs = getComputedStyle(document.documentElement);
   const gridColor = cs.getPropertyValue('--hairline').trim() || '#E1E7EB';
-  const axisColor = cs.getPropertyValue('--muted').trim() || '#6B7A88';
+  const axisColor = cs.getPropertyValue('--muted').trim() || '#5E6C78';
   const inkColor  = cs.getPropertyValue('--ink').trim()   || '#16202B';
   const S=STRAT[sel];
   const W=680,H=240,PL=44,PR=14,PT=14,PB=26;
