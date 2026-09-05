@@ -64,6 +64,8 @@ h2 .ver{color:var(--attack);font-variant-numeric:tabular-nums}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .tag.new{background:rgba(91,155,240,.18)}
   :root:not([data-theme="light"]) .tag.fix{background:rgba(217,154,87,.18)}
+  /* [v227] 켜진 필터 칩: 다크 토큰 --attack(#5B9BF0) 위 흰 글씨는 2.8:1(13px 굵게) — 종이색(--paper)으로 7:1 (2026-09-06 실측) */
+  :root:not([data-theme="light"]) .filters button.on{color:var(--paper)}
 }
 .ttl{font-weight:700;font-size:15px}
 .item dl{margin:0}
@@ -123,8 +125,19 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v226</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v227</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="a11yChips">
+      <div class="head"><span class="v">v227</span><span class="tag fix">수정</span>
+        <span class="ttl">다크 모드에서 켜진 필터 칩 · 라이트 모드 점검 알약 글씨가 흐리던 것</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>이 노트의 필터 칩(「전체·신규·고친 것·없앤 것」)은 다크 모드에서 켜진 칩의 흰 글씨가 옅은 파란 바탕과 2.8:1 로 잘 안 읽혔습니다 —
+          종이색 글씨로 바꿔 6.3:1. 신호 화면의 「점검 N건」 알약은 라이트 모드에서 4.0:1 이라, 신선도 경고 배너와 같은 진한 주황으로 7.5:1.</dd>
+        <dt>왜</dt><dd>설명서·노트의 다크 모드 상태(검색·펼침·필터)를 전부 재 봤고 이 둘만 기준(4.5:1)에 못 미쳤습니다. 새 색이 아니라 화면이 이미 쓰는 색입니다.</dd>
+        <dt>결론</dt><dd>표시만 바뀌었습니다. 라이트 모드의 회색 본문·태그 색은 전역 토큰이라 손대지 않았습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="pillContrast">
       <div class="head"><span class="v">v226</span><span class="tag fix">수정</span>
