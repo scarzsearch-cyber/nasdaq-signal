@@ -175,6 +175,13 @@ def sim(D, w, riskon_r=None, cost=COST, lag=1, start=None, end=None):
     w 는 D['idx'] 전체 길이여야 한다(구간은 start/end 로 자른다).
     분수 비중을 선형 혼합하므로 축2 앙상블이 그대로 통한다.
 
+    ⚠ [B03-3 · 2026-09-05] start= 는 **전체 경로 w 를 자를 뿐 상태를 리셋하지 않는다.**
+      reentry_lib.run(start=) / hist_korea.run_kr(start=) 은 시작일에 상태기계를 w0=1(공격)로
+      **다시 시작**한다 — 그래서 시작일이 방어 구간이면 run 은 첫날 1→0 「유령 전환」 비용
+      0.1% 를 한 번 더 물고(실측 2008-12-01·2002-10-01·2022-06-01 시작 B: run/sim = 0.9990),
+      히스테리시스 띠 안(A: −16<dd≤−11)에서 시작하면 상태 자체가 갈린다. 공표 4시나리오는
+      전부 공격 상태에서 시작하므로 무관하나, **방어 중 시작하는 창을 두 엔진으로 섞어 비교하지 마라.**
+
     lag : 신호가 체결에 반영되기까지의 거래일. 규약은 1(전일 종가 -> 당일 체결).
           **lag=0 은 당일 신호로 당일 체결 = 미래훔쳐보기 대조군**이다.
           [2026-09-04 코드리뷰] 종전에는 `pos[lag:] = wv[:-lag]` 가 lag=0 에서
@@ -389,7 +396,7 @@ def after_tax_annual(D, k, w, rate=0.22, cost=COST, start=None, end=None,
 
 # ------------------------------------------------------------------ 검산·출력
 def check_accum(D):
-    """[v33 신설] 적립 시뮬레이터 규약 검산 — 납입 1회면 거치식과 같아야 한다.
+    """[v33 신설 · B03-2 재작성] 적립 시뮬레이터 규약 검산 — accumulate() == Σ 거치식.
 
     v29~v32 까지 accumulate()/accum()/accum_tax() 가 '그날 수익 -> 전환' 순서라
     전일 종가 신호가 하루 더 늦게 반영되는 **실질 2일 지연**이었다. 이 검산이
@@ -407,43 +414,35 @@ def check_accum(D):
     n = len(D['idx'])
     span = 12 * 252
     if n < span + 252:
-        print('검산 적립(1회납입)  표본 %d행 — 12년 창을 못 잡아 건너뛴다' % n)
+        print('검산 적립  표본 %d행 - 12년 창을 못 잡아 건너뛴다' % n)
         return True                       # 못 재는 것과 틀린 것은 다르다
     lo = min(3000, n - span)
     hi = lo + span
     w = rule_w(D['ddv'], -0.16, -0.16)
-    months = _months(D['idx'])
-    paid, fin, _ = accumulate(D, 2.0, w, lo, hi)          # 여기선 60회 납입
-    # 납입 1회짜리를 직접 만든다
     rk = lev_r(D, 2.0)
-    dfr = D['schdr']
-    R = C = 0.0
-    prev = w[lo]
-    first = None
-    for i in range(lo, hi):
-        pos = w[i - 1] if i > lo else w[lo]
-        if pos != prev:
-            if pos >= 1:
-                R += C * (1 - COST); C = 0.0
-            else:
-                C += R * (1 - COST); R = 0.0
-            prev = pos
-        R *= (1 + rk[i]); C *= (1 + dfr[i])
-        if i > lo and months[i] != months[i - 1] and first is None:
-            first = i
-            if pos >= 1:
-                R += 1.0
-            else:
-                C += 1.0
-    if first is None:
-        print('검산 적립(1회납입)  창 %d:%d 에 월 경계가 없다 — 검산 불가' % (lo, hi))
+    # [B03-2 · 2026-09-05 코드리뷰] ★ 종전 검산은 accumulate() 를 부르고 그 결과(fin)를
+    #   **버린 뒤** 납입 1회짜리 루프를 여기서 손으로 다시 짜 sim() 과 비교했다. 엔진을
+    #   안 지나는 사본이라 accumulate() 가 어떻게 틀려도 통과했다(§-1 ⑤ 「실패할 수 없는
+    #   것은 관문이 아니다」 · v203 ⓑ audit_all 우회와 같은 유형).
+    #   이제 accumulate() 자체를 항등식으로 검산한다 — 납입 1단위는 그날부터 끝까지
+    #   전략 곡선 배수만큼 자라고 전환 비용은 총액에 비례하므로(선형)
+    #       최종평가액 == Σ_m  c[hi-1] / c[납입일_m]   (c = 같은 창의 sim 곡선)
+    #   이 정확히 성립한다. 반례 재현: 순서를 「수익 → 전환」으로 바꾼 가짜 accumulate 는
+    #   여기서 즉시 떨어진다(오차 1e-3 대).
+    paid, fin, _ = accumulate(D, 2.0, w, lo, hi, rk=rk)
+    months = _months(D['idx'])
+    pays = [i for i in range(lo + 1, hi) if months[i] != months[i - 1]]
+    if not pays:
+        print('검산 적립  창 %d:%d 에 월 경계가 없다 - 검산 불가' % (lo, hi))
         return False
-    got = R + C
-    c, _ = sim(D, w, rk, start=D['idx'][first], end=D['idx'][hi - 1])
-    exp = float(c.iloc[-1])
-    err = abs(got / exp - 1)
-    print('검산 적립(1회납입) vs 거치식  %.6f vs %.6f  오차=%.1e' % (got, exp, err))
-    return err < 1e-9
+    c, _ = sim(D, w, rk, start=lo, end=hi)
+    cv = c.values
+    exp = float(sum(cv[-1] / cv[i - lo] for i in pays))
+    err = abs(fin / exp - 1)
+    ok = err < 1e-9 and int(paid) == len(pays)
+    print('검산 적립(%d회 납입) vs Σ거치식  %.6f vs %.6f  오차=%.1e  납입 %d/%d'
+          % (len(pays), fin, exp, err, int(paid), len(pays)))
+    return ok
 
 
 def check(D):
@@ -466,7 +465,7 @@ def check(D):
       ⑤ 중간실현 과세가 원가를 정의할 수 없는 분수 비중을 실패-폐쇄하는가
       ⑥ 매도일 새 자산 수익을 매도차익으로 잘못 과세하지 않는가
       ⑦ 세금 마련용 일부 매도의 원가·2차 실현손익이 다음 연도로 이어지는가
-      ⑧ 적립(1회납입) == 거치식
+      ⑧ 적립 accumulate() == Σ 납입일별 거치식 배수  (B03-2: 엔진 자체를 검산한다)
     """
     from reentry_lib import run
     from hyst_core import A, B

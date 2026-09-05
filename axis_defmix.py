@@ -539,6 +539,60 @@ REAL_NAME = {'458730': 'TIGER 미국배당다우존스', '305080': 'TIGER 미국
              '418660': 'TIGER 미국나스닥100레버리지'}
 
 
+def _real_curve(pos, rl, rd, mix, cost, slip):
+    """real_run 의 실물 루프. pos[i] = 한국 거래일 i 개장 전에 확정된 신호(0/1).
+
+    하루의 순서는 sim_hold / sim_def 와 같다 — ① 전일 신호(pos[i-1])대로 **당일 시작에**
+    전환(편도 비용+슬리피지) → ② 그 포지션으로 당일 종가 수익. 단일자산이면
+    「전일 포지션 × 당일 수익, 전환일 비용」 벡터식과 오차 0 이다(check_real 이 검산).
+
+    [B03-1 · 2026-09-05 코드리뷰] 종전 루프는 **수익 → 전환** 순서였고, 방어 진입일에는
+      `buckets is None and p < 1` 갈래가 `V *= 1.0` 이라 **그날 레버리지 손실을 통째로
+      건너뛰었다**(방어로 들어가는 날은 대개 큰 하락일이라 MDD 가 체계적으로 얕았다).
+      실측(배당100 · B · 2023-06-20~): 최종 3.221 → 3.094 · MDD −36.3% → −42.2%.
+      axis_lib.accumulate 의 v33 정정(「전환을 그날 수익 적용 전에」)과 같은 유형이다.
+    """
+    V = 1.0
+    prev = pos[0]
+    # [코드리뷰 2026-09-04] sim_hold 와 같은 초기화. 종전에는 buckets 를 무조건 None 으로
+    # 두어, 시작일이 방어 구간이면 첫 전환이 올 때까지 방어 바스켓 수익이 통째로 0 이 됐다.
+    buckets = None if prev >= 1 else {c: V * mix[c] for c in mix}
+    out = []
+    for i in range(len(pos)):
+        p = pos[i - 1] if i > 0 else pos[0]
+        if p != prev:                                     # ① 당일 시작에 전환
+            V *= (1 - cost - slip)
+            buckets = None if p >= 1 else {c: V * mix[c] for c in mix}
+            prev = p
+        if i > 0:                                         # ② 당일 수익 (첫날 0 — sim_def 규약)
+            if buckets is None:
+                V *= (1 + rl[i])
+            else:
+                for c in mix:
+                    buckets[c] *= (1 + rd[c][i])
+                V = sum(buckets.values())
+        out.append(V)
+    return np.asarray(out)
+
+
+def check_real(n=600, seed=0):
+    """[B03-1] _real_curve 규약 검산 — 단일자산이면 벡터식과 오차 0 이어야 한다.
+    합성 수익률·임의 0/1 전환으로 잰다(실물 CSV 불요). 종전 순서(수익 → 전환)는 여기서 떨어진다."""
+    rng = np.random.default_rng(seed)
+    rl = rng.normal(0.0, 0.02, n); rl[0] = 0.0
+    rd = rng.normal(0.0, 0.005, n); rd[0] = 0.0
+    pos = (rng.random(n) > 0.3).astype(float)
+    cv = _real_curve(pos, rl, {'x': rd}, {'x': 1.0}, 0.001, 0.001)
+    eff = np.r_[pos[0], pos[:-1]]
+    r = eff * rl + (1 - eff) * rd
+    turn = np.abs(np.diff(eff, prepend=eff[0]))
+    ref = np.cumprod((1 + r) * (1 - 0.002 * turn))
+    err = float(np.max(np.abs(cv / ref - 1)))
+    print('검산 real_run 단일자산 vs 벡터식(전일 포지션·당일 수익)  오차 %.1e  전환 %d회'
+          % (err, int((np.abs(np.diff(pos)) > 0).sum())))
+    return err < 1e-12
+
+
 def real_run(D, start='2023-06-20', slip=0.001, cost=COST):
     """실제 국내 상장 ETF 만으로 돌린다. 소급 없음 — 전부 상장 이후 구간이다.
 
@@ -575,27 +629,7 @@ def real_run(D, start='2023-06-20', slip=0.001, cost=COST):
                     cur = float(wv_[k - 1])
                 pos.append(cur)
             pos = np.array(pos)
-            V = 1.0
-            prev = pos[0]
-            # [코드리뷰 2026-09-04] sim_hold 와 같은 초기화. 종전에는 buckets 를
-            # 무조건 None 으로 두어, 시작일이 방어 구간이면 첫 전환이 올 때까지
-            # 방어 바스켓 수익이 통째로 0 이 됐다(무이자 현금으로 잡혔다).
-            buckets = None if prev >= 1 else {c: V * mix[c] for c in mix}
-            out = []
-            for i in range(len(ii)):
-                p = pos[i - 1] if i > 0 else pos[0]
-                if buckets is None:
-                    V *= (1 + rl[i]) if p >= 1 else 1.0
-                else:
-                    for c in mix:
-                        buckets[c] *= (1 + rd[c][i])
-                    V = sum(buckets.values())
-                if p != prev:
-                    V *= (1 - cost - slip)
-                    buckets = None if p >= 1 else {c: V * mix[c] for c in mix}
-                    prev = p
-                out.append(V)
-            cv = pd.Series(out, index=ii)
+            cv = pd.Series(_real_curve(pos, rl, rd, mix, cost, slip), index=ii)
             m = met(cv)
             print('  %-38s %10.3f %8.2f%% %8.2f%% %6d' %
                   (nm, m['final'], m['cagr'] * 100, m['mdd'] * 100,
@@ -633,6 +667,7 @@ if __name__ == '__main__':
     assert check(D), '검산 실패'
     comp = materials(D)
     assert check_hold(D, comp), 'sim_hold 규약 검산 실패'
+    assert check_real(), 'real_run 규약 검산 실패'
 
     diagnose(D, comp)
     correlations(D, comp)

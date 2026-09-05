@@ -97,7 +97,7 @@
 |---|---|---|---|---|---|
 | B01 | ✅ | Claude Fable 5.1 · 2026-09-05 | (이 커밋) | 0/0/1/3 | 17파일 5,700줄 전문 · 셀프테스트 9종 실행(I14) · 반례: cp949 디코드 단위검사 추가 |
 | B02 | ✅ | Claude Fable 5.1 · 2026-09-05 | (이 커밋) | 0/0/0/4 | 15파일 3,700줄 전문 · 실행: verify_all 전체(실패 0) · audit_all(실패 0·경고 1 기지) · audit_full · audit/verify.py · test_research_review(13 OK) · 워크플로 8종 이벤트 표 |
-| B03 | ⏳ | | | | |
+| B03 | ✅ | Claude Fable 5.1 · 2026-09-05 | (이 커밋) | 0/2/1/5 | 14파일 3,800줄 전문 · 수정 전 지문(§9 실물표·검산 12항·적립 항등식) · 반례 2건(벡터식 5.9e-15 · 가짜 엔진 1.1e-01) · 공표 4시나리오 불변 |
 | B04 | ⏳ | | | | |
 | B05 | ⏳ | | | | |
 | B06 | ⏳ | | | | |
@@ -154,6 +154,27 @@
 경고 1건(`audit_all` 「[달러] 20년 창 좌측꼬리 40/40/20 > 배당100 (35.9 vs 42.7)」)은 v23 판정 기준의 **기지 경고**다 — 원화 기준으로는 40/40/20 이 앞선다(40.85 vs 35.75). 04 §5-16·§5-17 의 「통화가 아니라 표본 창 효과」와 같은 자리이며 새 사실이 아니다.
 
 읽기 vs 실행: 전문 판독 15/15 · 실행 6/15(verify_all 전체 · audit_all · audit_full · audit/verify.py · test_research_review · 점검.py 는 파수꾼 check 경유 산출물 `data/ops_check.json` 확인) · 워크플로 8종은 YAML 파싱 + 이벤트 표 대조(실행은 CI 이력 `gh run list` 로 확인 — v206 커밋의 verify·pages 성공).
+
+### B03 공용 엔진 14 (2026-09-05)
+
+⚠ **동시 작업 기록**: B01(07:21)과 B02(10:11) 사이에 다른 세션의 커밋 v207~v210(63fc348·089e10a·4c01375·330e1c7 — `axis_lib._need_binary` 보강, `hist_data._fred` 빈 가격 행 제거, 공표 `strategy_stats.json` 재생성: us_1972 B 217,110 → **220,985**)이 main 에 들어왔다. 이 배치는 **v210 이후의 코드**를 읽고 쟀다(수정 전 지문도 v210 기준). 소유자 지시 「하나씩 혼자서」와 어긋나는 상태라 §9 총괄에 남긴다 — 이 배치의 수정은 그 커밋들과 파일이 겹치지 않는다(axis_lib 는 겹치나 함수가 다르다: v208 `_need_binary` vs 이번 `check_accum`).
+
+**세 줄 요약** — ① 14파일 3,800줄을 전문으로 읽고 `axis_lib.check(D)`(검산 12항목)·`axis_defmix.check_hold`·`reentry_lib` 자기검사·`research_kit` 자기검사를 실행했으며, 수정 **전에** §9 실물표·검산·적립 항등식 지문을 떴다. ② **매매·판정·공표 4시나리오에 닿는 결함은 0.** 연구 표 하나(P2)와 검산 하나(P2)가 틀려 있었다 — 실물 ETF 표(axis_defmix §9)가 **방어 진입일의 레버리지 손실을 통째로 건너뛰어** MDD 가 6%p 얕게 찍혔고, 적립 검산 `check_accum` 은 **accumulate() 결과를 버리고 손으로 짠 사본**을 검산하고 있어 엔진이 어떻게 틀려도 통과했다. ③ 둘 다 고쳤고 반례로 변별력을 확인했다(실물표: 독립 벡터식과 오차 5.9e-15 · 검산: 순서를 바꾼 가짜 엔진이 오차 1.1e-01 로 실패). 봉인 함수(`SHARED_SEAL` 8종)는 건드리지 않았다 — `run()` 의 규약 주석은 함수 밖(모듈 docstring)에 두었다.
+
+**수정 전후 지문**: 공표 4시나리오 B(167.315 / 220,985.206 / 2,799.948 / 2.863) **불변** — 수정한 두 함수 모두 공표 경로 밖이다(§9 표는 인쇄 전용 · 현행 .md 에 인용 0건 grep 확인 · `kr_real` 은 `hist_krreal.run_real` 이 만들고 그 함수는 `eff = hold.shift(1)` 로 처음부터 맞았다). `axis_lib.check(D)` 12항목 전부 통과(chain 방어 B 272,975.76 run=sim 오차 0).
+
+| ID | 등급 | 파일:줄 | 조건 | 영향 | 근거 | 처리 |
+|---|---|---|---|---|---|---|
+| B03-1 | P2 | `axis_defmix.py` `real_run` 루프(구 578~597행) | 실물 ETF 표(§9) 계산 시 항상 | **수익 → 전환** 순서 + 방어 진입일 `V *= 1.0` 갈래로 그날 레버리지 손실 누락 → 배당100·B: 최종 3.221 → **3.094** · MDD −36.3% → **−42.2%**(6%p 얕게) · 방어 바스켓 5종 순위도 바뀜(국채50금50 이 최종·MDD 1위) | 독립 벡터식(전일 포지션×당일 수익·전환일 비용)으로 재계산 = 3.094 · 현 코드는 lag1(3.094)·lag2(2.642) 어느 규약과도 일치 안 함 | **수정** — `_real_curve()` 로 분리, 순서를 sim_hold 와 같게(① 전환 ② 수익) · `check_real()` 신설(단일자산 vs 벡터식 오차 5.9e-15) · `__main__` 에 assert |
+| B03-2 | P2 | `axis_lib.py` `check_accum`(구 391~446행) | `check(D)` 를 부르는 모든 스크립트(9개) | `accumulate()` 를 호출하고 **결과를 버린 뒤** 납입 1회 루프를 손으로 다시 짜 `sim` 과 비교 — 엔진을 안 지나는 사본이라 accumulate 가 틀려도 PASS(v203 ⓑ audit_all 우회와 같은 유형 · §-1 ⑤) | 반례: 순서를 「수익 → 전환」으로 바꾼 가짜 accumulate 를 꽂아도 종전 검산은 통과했을 구조(사본만 검산) | **수정** — 항등식 `최종평가액 == Σ_m c[hi-1]/c[납입일_m]` 로 accumulate 자체를 검산(정상 오차 1.1e-15 · 가짜 엔진 오차 1.1e-01 → False 확인) · 납입 횟수 일치도 검사 |
+| B03-3 | P3 | `reentry_lib.run` · `hist_korea.run_kr` (start=) vs `axis_lib.sim` (start=) | 시작일이 방어 구간이거나 히스테리시스 띠 안일 때 | run/run_kr 은 시작일에 상태를 w0=1(공격)로 **다시 시작** → 방어 중 시작 창에서 첫날 1→0 유령 전환 비용(0.1%) 한 번 · A 는 띠 안 시작 시 상태 자체가 갈림. sim 은 전체 경로를 자를 뿐 | 실측 B: run/sim = **0.9990**(2008-12-01·2002-10-01·2022-06-01 시작) · 공격 시작(2000-01-03)은 1.0000 | **문서 정정만** — run 은 봉인이라 모듈 docstring·sim·run_kr docstring 에 규약 차이를 명시. 공표 4시나리오는 전부 공격 시작이라 무영향. 값을 바꾸는 것은 연구 롤링창 0.1% 이동이라 증거 기준 미달(§3) |
+| B03-4 | P4 | `axis_defmix.materials` 'ust10'(현물) vs `hist_defasset.mix_monthly` 'ust10'(선물형+보수) | 같은 키를 두 모듈에서 다른 뜻으로 | mix_monthly 의 ust10 갈래는 **호출처 0**(전부 MIX_V23 = ust5) — 지금은 무해 | grep `mix_monthly(` 7곳 전부 MIX_V23 | 기록만 — 키 이름을 바꾸면 봉인 2종 갱신이 필요하고 얻는 것이 없다 |
+| B03-5 | P4 | `axis_defmix.mix_monthly_from` = `hist_defasset.mix_monthly_parts` (글자 그대로 같은 코드) | — | 둘 다 `SHARED_SEAL` 봉인이라 한쪽만 고치면 갈린다 | diff 0 | 기록만 — 통합은 봉인 2종 갱신 + 사용처 재실행이 필요. 갈림은 I8 이 잡는다 |
+| B03-6 | P4 | `axis_lib.accumulate(park=)` | `park` 를 주면(axis_accum 1곳) | 대기자금뿐 아니라 **방어 전환 자금(C)** 도 park 수익률을 받는다(docstring 은 「대기자금 수익률」) | 코드 판독 · 호출처 1(`research/axis_accum.py`) | 기록만 — 그 연구는 T-bill 대기 가정을 명시하고 있다 |
+| B03-7 | P4 | `reentry_lib.CRISES` '2023-현재' 끝 2026-08-24 · `axis_volguard` 구간 끝 2026-08-26 하드코딩 | 원자료가 연장될수록 | 「현재」 라벨이 고정 날짜에서 멈춘다(연구 인쇄 전용) | 코드 판독 | 기록만 |
+| B03-8 | P4 | `hist_defensive.SCHD_START='2011-10-20'` vs `hist_divetf.SP_SCHD='2011-10-25'` | — | 상장일(10-20) vs 원자료 첫 행(10-25, `schd_us_d.csv` 실측) — 각자 쓰임이 달라 무해 | csv head 확인 | 기록만 |
+
+읽기 vs 실행: 전문 판독 14/14 · 실행 6/14(`axis_lib.check` · `axis_defmix.check_hold/check_real/real_run` · `reentry_lib` 자기검사 · `research_kit` 자기검사 · `hist_data`·`hist_defensive` 는 build 경유) · 미실행 8(`axis_volguard`·`hist_krfinal`·`hist_tiger`·`hist_divetf`·`hist_krreal`·`hist_defasset` 본체 인쇄 — 판독만, 단 `hist_krreal.run_real`/`hist_defasset.mix_monthly` 는 verify_all I7·I8 이 재계산·봉인).
 
 ## 9. 총괄 보고 (전 배치 완료 뒤)
 

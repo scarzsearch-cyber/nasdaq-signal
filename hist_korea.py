@@ -77,7 +77,12 @@ def kr_exec_map(idx, krdays):
 
 def run_kr(D, S, cost=0.001, slip=0.0, start=None, end=None,
            krdays=None, use_fx=False, fxs=None, w0=1.0):
-    """reentry_lib.run 과 동일하되 체결 인덱스를 한국 거래일 규칙으로 대체."""
+    """reentry_lib.run 과 동일하되 체결 인덱스를 한국 거래일 규칙으로 대체.
+
+    ⚠ start= 는 reentry_lib.run 과 같이 시작일에 상태를 w0(공격)로 **다시 시작**한다
+      (axis_lib.sim 은 전체 경로를 자른다 — B03-3 참조). 방어 중 시작 창에서는 유령
+      전환 비용 한 번(cost+slip)만큼 sim 과 갈린다. 공표 kr_1997(1997-01-02)은 공격 시작.
+    """
     ddv, qldr, schdr, idx = D['ddv'], D['qldr'], D['schdr'], D['idx']
     n = len(idx)
     lo = 0 if start is None else idx.searchsorted(pd.Timestamp(start))
