@@ -676,5 +676,93 @@ class HistoricalModelScope(unittest.TestCase):
         self.assertLess(np.prod(1+synthetic), 1.)
 
 
+class NextgenDriftAccounting(unittest.TestCase):
+    def test_constant_half_weight_requires_drift_trade(self):
+        import axis_nextgen as ng
+        data = dict(idx=pd.bdate_range('2020-01-01',periods=4),
+                    qldr=np.array([0.,0.,1.,0.]), schdr=np.zeros(4))
+        weights = np.array([0.,.5,.5,.5])
+        old, _ = ng.legacy_sim(data,weights,cost=.1)
+        new, turn = ng.execution_path(data,weights,cost=.1)
+        self.assertAlmostEqual(old.iloc[-1],1.425)
+        self.assertAlmostEqual(new.iloc[-1],1.40125)
+        self.assertAlmostEqual(turn[-1],1/6)
+
+    def test_binary_paths_unchanged_across_lags_and_windows(self):
+        import axis_nextgen as ng
+        rng = np.random.default_rng(219)
+        data = dict(idx=pd.bdate_range('2020-01-01',periods=30),
+                    qldr=rng.normal(0,.03,30), schdr=rng.normal(0,.01,30))
+        weights = rng.integers(0,2,30).astype(float)
+        for lag in (0,1,2,100):
+            for start,end in ((None,None),(7,20)):
+                new,_ = ng.execution_path(data,weights,lag=lag,start=start,end=end)
+                old,_ = ng.legacy_sim(data,weights,lag=lag,start=start,end=end)
+                np.testing.assert_array_equal(new,old)
+
+    def test_nonfinite_market_input_rejected(self):
+        import axis_nextgen as ng
+        data = dict(idx=pd.bdate_range('2020-01-01',periods=2),
+                    qldr=[0.,np.nan],schdr=[0.,0.])
+        with self.assertRaises(ValueError):
+            ng.execution_path(data,[.5,.5])
+
+
+class ProportionalWithdrawals(unittest.TestCase):
+    @staticmethod
+    def calculate(a, rate, step):
+        # Load the pure helper without executing withdraw's historical selfcheck.
+        tree = ast.parse((ROOT / 'research/withdraw.py').read_text(encoding='utf-8-sig'))
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
+                  and n.name == 'proportional_income')
+        ns = dict(np=np)
+        exec(compile(ast.Module(body=[fn], type_ignores=[]), 'withdraw.py', 'exec'), ns)
+        return ns[fn.name](a, rate, step)
+
+    def test_flat_market_income_falls_after_withdrawal(self):
+        d = self.calculate(np.ones(6), .1, 1)
+        self.assertAlmostEqual(d['roll'], -.1)
+        self.assertAlmostEqual(d['rm_min'], .9**5)
+
+    def test_crash_and_recovery_do_not_restore_spent_principal(self):
+        d = self.calculate([1., .5, 1.], .1, 1)
+        self.assertAlmostEqual(d['roll'], -.55)
+        self.assertAlmostEqual(d['rm_min'], .45)
+
+    def test_all_phases_against_sequential_cash_ledger(self):
+        curve = np.exp(np.cumsum(np.random.default_rng(218).normal(0, .2, 48)))
+        for rate in (0., .03, .05, .08):
+            ws, rms, hfs = [], [], []
+            for phase in range(4):
+                value, flows = 1., []
+                positions = list(range(phase, len(curve), 4))
+                for j, pos in enumerate(positions):
+                    if j:
+                        value *= curve[pos] / curve[positions[j-1]]
+                    flows.append(value * rate if rate else value)
+                    value -= value * rate
+                flows = np.array(flows)
+                ratio = flows / np.maximum.accumulate(flows)
+                ws.append(min(flows[1:]/flows[:-1]-1))
+                rms.append(min(ratio))
+                hfs.append(np.mean(ratio[1:] < .5))
+            d = self.calculate(curve, rate, 4)
+            for field, expected in dict(roll=min(ws), w_min=min(ws), w_med=np.median(ws),
+                                        w_max=max(ws), rm_min=min(rms), hf_med=np.median(hfs)).items():
+                self.assertAlmostEqual(d[field], expected, places=12)
+
+    def test_zero_rate_is_only_market_comparator(self):
+        d = self.calculate([1., 2., 1., 4.], 0., 2)
+        self.assertEqual(d['roll'], 0.)
+        self.assertEqual(d['rm_min'], 1.)
+
+    def test_invalid_inputs_fail_closed(self):
+        for curve, rate, step in (([1, 0], .1, 1), ([1, np.nan], .1, 1),
+                                  ([1, 2], 1., 1), ([1, 2], -.1, 1),
+                                  ([1, 2], .1, 0), ([1, 2], .1, 2)):
+            with self.assertRaises(ValueError):
+                self.calculate(curve, rate, step)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

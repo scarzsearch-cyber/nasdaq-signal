@@ -57,6 +57,33 @@ def ruin_curve(a, rate, H):
     return float(dead.mean()), V, dead
 
 
+def proportional_income(a, rate, step=252):
+    """Annual beginning-of-period fraction of remaining wealth, every start phase.
+
+    No tax, inflation or additional withdrawal fee. The input curve is the
+    no-withdrawal investment path. rate=0 is its normalized market-only limit,
+    NOT an income stream. Annual gross income ratio = (1-rate)*asset gross.
+    """
+    a = np.asarray(a, dtype=float)
+    if (a.ndim != 1 or not isinstance(step, (int, np.integer)) or step < 1
+            or len(a) < 2 * step or not np.isfinite(a).all() or (a <= 0).any()
+            or not np.isfinite(rate) or not 0 <= rate < 1):
+        raise ValueError('positive finite curve, >=2*step observations, 0<=rate<1 required')
+    worst, peak_ratio, half_frequency = [], [], []
+    for phase in range(step):
+        sampled = a[phase::step]
+        # Every previous withdrawal leaves only (1-rate) invested.
+        log_income = np.log(sampled) - np.log(sampled[0]) + np.log1p(-rate)*np.arange(len(sampled))
+        yoy = (1-rate)*sampled[1:]/sampled[:-1] - 1
+        ratio = np.exp(log_income - np.maximum.accumulate(log_income))
+        worst.append(float(yoy.min()))
+        peak_ratio.append(float(ratio.min()))
+        half_frequency.append(float(np.mean(ratio[1:] < .5)))
+    return dict(roll=float(np.min((1-rate)*a[step:]/a[:-step]-1)),
+                w_min=min(worst), w_med=float(np.median(worst)), w_max=max(worst),
+                rm_min=min(peak_ratio), hf_med=float(np.median(half_frequency)))
+
+
 def main():
     wB = EC.rule_dd(PX, -0.16, -0.16)
     aB = EC.sim2(wB, QLDR, MIXR)
@@ -111,21 +138,17 @@ def main():
     # [순회 B15 · 2026-09-05] 종전엔 연 1회 표본을 **위상 하나**(a[::252])로만 찍어 값이 표본 격자에 매달렸다 —
     #   v210 이 114행을 빼자 같은 코드가 −51.3% → −16.0% 를 냈다(위상 252개 중 최악 −53.6% · 중앙 −37.4% · 최선 −16.0%).
     #   위상 252개 전수 + 롤링 1년(모든 시작일)로 재정의한다. 판정([6])도 여기서 계산한 값을 쓴다.
-    print('\n[5] 정액이 아니라 「평가액의 x%」로 인출하면 — 소득 변동 (진짜 아픈 곳)')
+    print('\n[5] 연초 잔액의 일정 비율 인출 — 이전 인출 후 잔액 감소 포함')
     print(f"{'전략':>10} {'롤링1년 최악':>12} {'위상최악 연간감소':>16} {'위상중앙':>9} {'최악 소득/이전고점':>17} {'반토막 빈도(중앙)':>17}")
     INC = {}
     for lab, a in (('전략 B', aB), ('1배 보유', a1)):
-        roll = float(np.min(a[Y:] / a[:-Y] - 1))                     # 모든 시작일의 1년 수익 최악
-        ws, rm, hf = [], [], []
-        for p in range(Y):                                           # 연 1회 관측일을 어디에 두느냐 — 252가지 전부
-            ys = a[p::Y]; inc = ys / ys[0]; yoy = inc[1:] / inc[:-1] - 1
-            ws.append(float(yoy.min())); rm.append(float(np.min(inc / np.maximum.accumulate(inc))))
-            hf.append(float(np.mean(inc[1:] / np.maximum.accumulate(inc)[1:] < 0.5)))
-        INC[lab] = dict(roll=roll, w_min=min(ws), w_med=float(np.median(ws)), rm_min=min(rm), hf_med=float(np.median(hf)))
-        d = INC[lab]
-        print(f"{lab:>10} {d['roll']:>11.1%} {d['w_min']:>15.1%} {d['w_med']:>8.1%} {d['rm_min']:>14.1%} {d['hf_med']:>16.1%}")
-    print('  ※ 인출액이 평가액에 비례하므로 위 수치가 곧 「생활비가 얼마나 줄어드나」다. 「위상」= 연 1회 관측일의 자리(252가지) —')
-    print('     한 자리만 보면 값이 표본 격자에 매달린다(v210 정정 전 −51.3% 는 그 한 자리 값). 롤링 1년 최악이 위상과 무관한 크기다.')
+        for rate in (0., *RATES):
+            d = proportional_income(a, rate, Y)
+            INC[lab, rate] = d
+            label = f'{lab} {rate:.0%}' if rate else f'{lab} 무인출'
+            print(f"{label:>10} {d['roll']:>11.1%} {d['w_min']:>15.1%} {d['w_med']:>8.1%} {d['rm_min']:>14.1%} {d['hf_med']:>16.1%}")
+    print('  ※ 무인출 행은 시장 변동 비교용으로 생활비가 아니다. 나머지는 연초 잔액의 해당 비율을 인출한다.')
+    print('     세금·인출 매매비용·물가 미포함. 252거래일을 1년으로 가정하며 관측 위상 252개를 모두 계산한다.')
 
     # ---- [5-b] 물가 연동 인출 — 초판의 미결을 스윕으로 메운다 ---------------
     #   ⚠ FRED CPIAUCSL 을 받으려 했으나 이 환경에서 접속 불가(3회 재시도 실패).
@@ -154,16 +177,16 @@ def main():
             row += f'{ruin_infl(aB, r, 20, infl):>9.1%}'
         print(row)
     print('  (20년 지평 · 전략 B · 명목 정액이 왼쪽 끝 열)')
-    print('  → 물가를 넣어도 파산은 거의 안 난다. [5] 와 같은 이유로 이 표본의 성장이')
-    print('     인출을 압도하기 때문 — 즉 **파산확률은 이 전략의 인출 위험 지표가 아니다.**')
-    print('     실제 위험은 아래 [5] 의 소득 변동이다.')
+    print('  → 이 과거 표본의 낮은 파산 빈도는 미래 안전성의 증명이 아니다.')
+    print('     정액 인출의 고갈 위험과 [5] 비율 인출의 소득 감소는 서로 다른 위험이다.')
 
     print('\n[6] 판정')
-    print('  · **파산확률은 이 전략의 인출 위험 지표가 아니다.** 물가 6% 를 넣어도')
+    print('  · 과거 표본의 파산 빈도만으로 인출 안전성을 판단하지 않는다. 물가 6% 가정의')
     print(f'    5% 인출에서 파산 {ruin_infl(aB, 0.05, 20, 0.06):.1%} — 표본의 성장(20년 중앙 {np.median(aB[20*Y:] / aB[:-20*Y]):.0f}배)이 인출을 압도한다.')
-    b_ = INC['전략 B']
-    print(f"  · **실제 위험은 소득 변동이다**([5]): 롤링 1년 최악 {b_['roll']:+.1%}(위상 최악 {b_['w_min']:+.1%} · 중앙 {b_['w_med']:+.1%}),")
-    print(f"    소득이 이전 고점의 {b_['rm_min']:.1%} 까지 떨어지는 구간이 있다. → **1년치 생활비 현금 완충이 설계 요건.**")
+    b_ = INC['전략 B', 0.05]
+    print(f"  · 비율 인출의 소득 위험([5], 연 5% 예시): 롤링 1년 최악 {b_['roll']:+.1%}(위상 최악 {b_['w_min']:+.1%} · 중앙 {b_['w_med']:+.1%}),")
+    print(f"    소득이 이전 고점의 {b_['rm_min']:.1%}까지 떨어진다. 인출률에 따라 달라지는 값이다.")
+    print('    현금 완충은 별도 설계 대상이며, 이 계산만으로 1년치가 충분하다는 결론을 낼 수 없다.')
     print('  · 남은 한계 둘: ① 물가는 상수 스윕이고 실계열(CPIAUCSL)은 접속 불가라')
     print('    못 썼다 — 1970~80년대는 어떤 상수보다 높았으므로 그 구간엔 낙관적이다.')
     print('    ② 유효표본 문제는 그대로다(20년 비중첩 2.8개, horizon_ess 와 같은 한계).')

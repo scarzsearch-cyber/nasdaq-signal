@@ -411,10 +411,10 @@ def c21():
     base_seg = dom[2.0][S:E + 1] / dom[2.0][S]
     base_dd = base_seg / np.maximum.accumulate(base_seg) - 1
     base_mdd = 100 * float(base_dd.min())
-    print('21세기 {} ~ {} ({:.1f}년) · 전략 B ISA {:.1f}배 · MDD {:.1f}%'
+    print('21세기 {} ~ {} ({:.1f}년) · 전략 B ISA 세후 {:.1f}배 · 세전 경로 MDD {:.1f}%'
           .format(idx[S].date(), idx[E].date(), len(m) / 252.0, base, base_mdd))
     print('  {:<6}{:>10}{:>10}{:>10}{:>10}{:>9}'
-          .format('k', '세전', 'ISA', '해외', 'vs ISA2', '직투MDD'))
+          .format('k', '세전', 'ISA세후', '해외세후', 'vs ISA2', '세전MDD'))
     for k in KS:
         a_dom, a_us = dom[k], us[k]
         seg = a_us[S:E + 1] / a_us[S]
@@ -426,9 +426,10 @@ def c21():
     k3_seg = us[k3][S:E + 1] / us[k3][S]
     k3_dd = 100 * float((k3_seg / np.maximum.accumulate(k3_seg) - 1).min())
     k3_post = after_us(us_tax[k3], sw, yr, S, E)
-    print('  실제 선택지: 전략 B ISA {:.1f}배 / {:.1f}% vs 3배 B 직투 {:.1f}배 / {:.1f}%'
+    print('  모형 비교(세후 최종배수 / 세전 경로 MDD): 전략 B ISA {:.1f}배 / {:.1f}% vs 3배 B 직투 {:.1f}배 / {:.1f}%'
           .format(base, base_mdd, k3_post, k3_dd))
     print('  ※ 이 표가 화면(아티팩트 배율 탭)에 실리는 기준이다. 원화자료 전체 창은 위 main() 에만.')
+    print('  ※ MDD는 세금 인출을 반영한 계좌 낙폭이 아니다. 거치식·합성상품 모형이며 개인 납입형 비교와 다르다.')
 
 
 # =============================================================================

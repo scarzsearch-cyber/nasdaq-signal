@@ -72,8 +72,9 @@ import numpy as np
 import pandas as pd
 
 import hist_data as H
-from axis_lib import sim
-from research_kit import dist, fmt_dist, verdict
+from axis_lib import sim as legacy_sim, _win
+from research.rebalance_accounting import daily_turnover
+from research_kit import dist, fmt_dist
 from axis_t4_shadow import build, met, VT, TH, independent_escapes, event_bounds
 
 try:
@@ -91,6 +92,41 @@ V81 = dict(b1=170800, t1=163161, mix1=185582, b2=148455, t2=109451)   # v81/v83 
 #   의도적으로 갱신하고 그 이유를 남긴다 — 조용히 넓히지 마라.
 V210 = dict(b1=183542, t1=257279, mix1=265730, b2=159850, t2=172259)
 REF = V210
+
+
+def execution_path(D, w, riskon_r=None, cost=0.001, lag=1, start=None, end=None):
+    """Same window/lag contract as legacy_sim, with actual drift turnover.
+
+    Local repair only: does not change legacy axis_lib's other consumers.
+    Returns (curve, daily one-way turnover); not per-order broker accounting.
+    """
+    if not isinstance(lag, (int, np.integer)) or lag < 0:
+        raise ValueError('lag must be a nonnegative integer')
+    if not np.isfinite(cost) or not 0 <= cost < 1:
+        raise ValueError('cost must be in [0,1)')
+    lo, hi = _win(D['idx'], start, end)
+    weights = np.asarray(w, float)
+    if weights.shape != (len(D['idx']),):
+        raise ValueError('weights must span the input dates')
+    weights = weights[lo:hi]
+    positions = weights.copy()
+    if lag:
+        positions[:] = weights[0]
+        if lag < len(weights):
+            positions[lag:] = weights[:-lag]
+    rr = D['qldr'] if riskon_r is None else riskon_r
+    returns = np.column_stack([np.asarray(rr, float)[lo:hi], np.asarray(D['schdr'], float)[lo:hi]])
+    targets = np.column_stack([positions, 1-positions])
+    turnover = daily_turnover(targets, returns)
+    growth = np.sum(targets*returns, axis=1)
+    growth[0] = 0.
+    curve = pd.Series(np.cumprod((1+growth)*(1-cost*turnover)), index=D['idx'][lo:hi])
+    return curve, turnover
+
+
+def sim(D, w, **kwargs):
+    curve, turnover = execution_path(D, w, **kwargs)
+    return curve, int(np.count_nonzero(turnover > 1e-9))
 
 
 # ==================================================================== 후보
@@ -180,9 +216,10 @@ def main():
     print('=' * 112)
     print('0. 재현 검산 — v210 자료 기준 앵커 (T-bill · lag=1) · v81/v83 공표값 병기')
     print('=' * 112)
-    cB1, _ = sim(D, wB, cost=0.001); cT1, _ = sim(D, wT, cost=0.001)
-    cM1, _ = sim(D, 0.25 * wB + 0.75 * wT, cost=0.001)
-    cB2, _ = sim(D, wB, cost=KCOST);  cT2, _ = sim(D, wT, cost=KCOST)
+    # Preserve old anchors as a data/legacy reproduction check, not current results.
+    cB1, _ = legacy_sim(D, wB, cost=0.001); cT1, _ = legacy_sim(D, wT, cost=0.001)
+    cM1, _ = legacy_sim(D, 0.25 * wB + 0.75 * wT, cost=0.001)
+    cB2, _ = legacy_sim(D, wB, cost=KCOST); cT2, _ = legacy_sim(D, wT, cost=KCOST)
     pairs = [('B 0.1%', cB1, 'b1'), ('T4 0.1%', cT1, 't1'), ('MIX25 0.1%', cM1, 'mix1'),
              ('B 0.2%', cB2, 'b2'), ('T4 0.2%', cT2, 't2')]
     ok_rep = True
@@ -193,6 +230,10 @@ def main():
               % (nm, format(f, ',.0f'), format(REF[k], ','), err * 100, format(V81[k], ',')))
     if not ok_rep:
         raise SystemExit('재현 실패 — 엔진/데이터가 v210 기준 앵커와 다르다. 여기서 중단.')
+
+    print('  위 앵커는 옛 목표차이 비용식 재현 전용. 아래 평가는 실제 보유비중 표류 비용과 회전량을 사용한다.')
+    cB1, _ = sim(D, wB, cost=0.001); cT1, _ = sim(D, wT, cost=0.001)
+    cB2, _ = sim(D, wB, cost=KCOST); cT2, _ = sim(D, wT, cost=KCOST)
 
     mB2 = met(cB2)
     cB2l, _ = sim(D, wB, cost=KCOST, lag=2); mB2l = met(cB2l)
@@ -220,9 +261,9 @@ def main():
     wBv = wB
     rows = {}
     for nm, w in cands.items():
-        c, _ = sim(D, w, cost=KCOST)
+        c, turnover = execution_path(D, w, cost=KCOST)
         m = met(c)
-        turn = np.abs(np.diff(w, prepend=w[0])).sum() / yrs
+        turn = float(turnover.sum()) / yrs
         ev = event_stats(D, w, c, cB2, wBv, keep, px)
         c1, _ = sim(D, w, cost=0.001); f1 = float(c1.iloc[-1])
         cl, _ = sim(D, w, cost=KCOST, lag=2); ml = met(cl)
@@ -277,8 +318,7 @@ def main():
     if passers:
         best = max(passers, key=lambda q: rows[q]['m']['calmar'])
         sub = '혼합 하위호환' if rows[best]['m']['calmar'] < mM2['calmar'] else 'MIX25 도 넘음'
-        checks = [(k, bool(v), '') for k, v in rows[best]['ks'].items()]
-        print(verdict('N1~N8 통과 — 그림자 등록 논의 자격: %s (%s)' % (best, sub), checks)['text'])
+        print('N1~N8 충족 — 연구 진단상 그림자 등록 논의 자격: %s (%s). 전략 채택 아님.' % (best, sub))
         others = [p for p in passers if p != best]
         if others:
             print('   그 외 통과(타이브레이크 탈락): %s' % ', '.join(others))
