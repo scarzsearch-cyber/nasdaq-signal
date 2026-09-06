@@ -56,6 +56,9 @@ LEDGERS = {
     'audit/CSP_2026-09-06.md': (4, '배포본 CSP 실측'),
     'audit/SCREEN_DYNAMICS_2026-09-06.md': (4, '화면 갱신·저장 경계 실측'),
     'audit/RECOVERY_DOCS_2026-09-06.md': (1, '복구 안내 대조'),
+    'audit/PREMISE_2026-09-06.md': (4, '전제 감시 독립 재계산·파서 연결'),
+    'audit/DDPCT_2026-09-06.md': (3, '낙폭 백분위 독립 검산'),
+    'audit/CRISIS_2026-09-06.md': (4, '위기 타임머신 독립 슬라이스·실측'),
 }
 # 장부가 이름만 언급한 파일에 근거를 주지 않도록, 근거를 인정할 파일을 명시하는 장부(없으면 본문 언급 전부)
 LEDGER_ONLY = {
@@ -68,6 +71,9 @@ LEDGER_ONLY = {
                                            '.github/workflows/monthly-stats.yml', '.github/workflows/source-probe.yml', 'audit/test_repro6.py'},
     'audit/CSP_2026-09-06.md': {'signal.html', 'guide.html', 'notes.html', 'deploy/csp_inject.py', 'deploy/stamp_rev.py', '.github/workflows/pages.yml', 'audit/test_screen8.py'},
     'audit/SCREEN_DYNAMICS_2026-09-06.md': {'signal.html', 'audit/test_screen8.py'},
+    'audit/PREMISE_2026-09-06.md': {'research/surv_map.py', 'research/exec_cost.py', '내가_보는_것/점검.py', 'data/ops_check.json', 'audit/test_premise9.py'},
+    'audit/DDPCT_2026-09-06.md': {'research/emit_dd_distribution.py', 'data/dd_percentile.json', 'signal.html', 'audit/test_ddpct10.py'},
+    'audit/CRISIS_2026-09-06.md': {'research/build_crisis_paths.py', 'data/crisis_paths.json', 'signal.html', 'deploy/update_signal.py', 'audit/test_crisis11.py'},
     'audit/REPRO_2026-09-06.md': {'verify_all.py', 'research_kit.py', 'deploy/build_stats.py', 'deploy/kr_holidays.py', 'deploy/wait_close.py', 'deploy/nav_collect.py',
                                   'deploy/watchdog.py', 'research/axis_isa.py', 'research/emit_dd_distribution.py', 'data/kr_holidays.json', 'audit/test_repro6.py'},
 }
@@ -86,6 +92,9 @@ TESTS = {
     'audit/test_survival5.py': 3,
     'audit/test_repro6.py': 3,
     'audit/test_screen8.py': 3,
+    'audit/test_premise9.py': 3,
+    'audit/test_ddpct10.py': 3,
+    'audit/test_crisis11.py': 3,
 }
 # verify_all 상시 관문이 직접 재계산·대조하는 파일(문자열 검사만인 것은 L1 로 낮춰 적는다).
 VERIFY_L3 = {'hist_defensive.py', 'hist_data.py', 'axis_lib.py', 'axis_defmix.py', 'axis_volguard.py', 'reentry_lib.py',
