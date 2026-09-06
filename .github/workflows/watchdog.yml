@@ -32,9 +32,9 @@ jobs:
       # 월요일 슬롯(과 수동 실행)에서만 무거운 점검을 돌린다.
       WEEKLY: ${{ github.event.schedule == '10 0 * * 1' || github.event_name == 'workflow_dispatch' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7 = v7.0.1 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97   # v7 = v7.0.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           python-version: '3.12'
 
@@ -225,7 +225,7 @@ jobs:
           steps.chk.outputs.alert == '1' || steps.reb.outputs.alert == '1' ||
           steps.sw.outputs.alert == '1' || steps.near.outputs.alert == '1' ||
           steps.hb.outputs.alert == '1' || steps.hol.outcome == 'failure')
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b   # v7 = v7.1.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           script: |
             const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;

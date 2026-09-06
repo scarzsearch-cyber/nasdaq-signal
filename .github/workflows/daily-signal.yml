@@ -34,7 +34,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7 = v7.0.1 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
 
       # [v206] 예약 실행은 **큐에 들어갈 때의 커밋**(github.sha)을 체크아웃한다. 마감 전 슬롯
       #   둘(04:35·04:45)이 함께 큐에 들어가면 둘째 슬롯은 첫째가 커밋한 **뒤에** 돌면서도
@@ -47,7 +47,7 @@ jobs:
           git fetch --no-tags origin main
           git reset --hard origin/main
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97   # v7 = v7.0.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           python-version: '3.12'
 
@@ -90,7 +90,7 @@ jobs:
         id: sigissue
         if: steps.sigalert.outcome == 'failure'
         continue-on-error: true   # 이슈 API 장애가 NAV/OOS·신호 커밋을 막으면 안 된다
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b   # v7 = v7.1.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           script: |
             const fs = require('fs');
@@ -136,7 +136,7 @@ jobs:
         id: ledgerissue
         if: steps.navlog.outcome == 'failure' || steps.ooslog.outcome == 'failure'
         continue-on-error: true   # 실패 보고 통로가 핵심 신호 커밋보다 우선할 수 없다
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b   # v7 = v7.1.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           script: |
             const fs = require('fs');
@@ -178,7 +178,8 @@ jobs:
           else
             # 실행일이 아니라 **종가 날짜**(as_of)를 적는다. 실행이 늦어진 날
             # "8/28 종가"라고 찍혔지만 실제로는 8/27 종가였던 혼동을 막는다.
-            ASOF=$(python3 -c "import json; print(json.load(open('data/signal.json'))['as_of'])")
+            # [2026-09-06] signal.json 은 한글을 담은 UTF-8 이라 인코딩을 명시한다(러너는 UTF-8 로캘이지만 로컬 회귀·다른 로캘에서도 같게).
+            ASOF=$(python3 -c "import json; print(json.load(open('data/signal.json', encoding='utf-8'))['as_of'])")
             git commit -m "signal: ${ASOF} 미국 종가 반영 · NAV 적립"
             # [v206] push 직전에 원격을 다시 본다. 마감을 기다리는 사이(최대 25분) 원격이
             #   움직였고 그 원격이 **이미 같은(또는 더 새) 종가**를 반영했다면 이 커밋은
@@ -186,7 +187,7 @@ jobs:
             #   다른 이유로 움직였으면(코드 push 등) 아래 v203 규약대로 실패-폐쇄한다.
             git fetch --no-tags origin main
             if ! git merge-base --is-ancestor origin/main HEAD; then
-              REMOTE_ASOF=$(git show origin/main:data/signal.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('as_of',''))")
+              REMOTE_ASOF=$(git show origin/main:data/signal.json | python3 -c "import json,sys,io; print(json.load(io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')).get('as_of',''))")
               if [ -n "$REMOTE_ASOF" ] && [ ! "$REMOTE_ASOF" \< "$ASOF" ]; then
                 echo "원격 main 이 이미 ${REMOTE_ASOF} 종가를 반영했다 — 이 실행의 중복 커밋은 버린다(정상)"
                 exit 0

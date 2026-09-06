@@ -45,10 +45,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7 = v7.0.1 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           fetch-depth: 0          # signal.html 의 마지막 커밋 날짜를 읽으려면 전체 이력이 필요하다
-      - uses: actions/configure-pages@v6
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d   # v6 = v6.0.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
       - name: 사이트 파일 모으기
         run: |
           mkdir -p _site/data
@@ -88,8 +88,8 @@ jobs:
             echo "시세: price-data 브랜치를 못 읽음 — 배지 숨김(옛 값을 싣지 않는다)"
           fi
           cp data/dd_percentile.json _site/data/ 2>/dev/null || echo "dd_percentile.json 없음 — 낙폭 백분위 숨김"
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9   # v5 = v5.0.0 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346   # v5 = v5.0.1 (2026-09-06 SHA 고정 · audit/OPS_CONFIG_2026-09-06.md)

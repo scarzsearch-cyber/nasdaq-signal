@@ -64,6 +64,15 @@ push/PR + 평일 01:00 UTC        verify.yml  ← [v37 신설]
 
 ---
 
+### 설치 — 처음 한 번 (2026-09-06 · `audit/REPRO_2026-09-06.md` 격리 클론 실측)
+
+- Python **3.12**(워크플로 기준 · `price.yml` 만 3.11) · 직접 의존성은 **`pandas` `numpy` 둘뿐**:
+  `pip install pandas numpy` — 워크플로 5개가 쓰는 정의와 같다(버전 미고정 · 실측 numpy 2.4~2.5 · pandas 3.0).
+  별도 `requirements.txt` 는 두지 않는다(같은 두 줄을 한 곳 더 적는 중복이 되고, `verify.yml` 은 별도 판단 대상).
+- 화면을 로컬에서 볼 때는 **정적 서버**로 연다 — 저장소 루트에서 `python -m http.server 8000` → `http://localhost:8000/signal.html`.
+  `file://` 로 열면 「로컬 사본 — 배포본이 아닙니다」 경고와 `data/*.json` 읽기 실패가 정상이다.
+- Windows 에서 회귀 일부(`test_ops_recovery3` · `test_watchdog_chain4`)는 Git Bash(`C:\Program Files\Git`)를 찾아 쓴다 · 운영 확인 명령은 `gh` CLI.
+
 ## 3. 검증 — 뭔가 고쳤으면 이것부터
 
 ```bash
@@ -136,6 +145,8 @@ data/*.json, data/qqq.csv   화면이 읽는 것
 **폴더를 나눠도 실험에 지장 없다.** 각 파일 상단에 3줄짜리 경로 보정이 들어 있어
 `python research/axis_isa.py` 처럼 어디서 실행하든 루트의 엔진과 `data/` 를 찾는다.
 새 연구 스크립트를 만들 때도 같은 3줄을 복사해 넣으면 된다.
+`verify_all.py` 도 같다(2026-09-06 · 자기 위치를 작업 디렉터리로 잡는다) — 다른 폴더에서
+`python <경로>/verify_all.py --fast` 를 불러도 `data/` 를 「없음」으로 읽지 않는다.
 
 `archive/` 는 v19~v20 시절 폐기본 15개.
 

@@ -62,6 +62,7 @@
 - `audit/UNCLEAR34_2026-09-06.md` — 담당 불명확 34(RESEARCH_SCOPE §D) 호출자·출력·인용처·순회 실행 기록·분류(옛 판정 재현 16 · 구판/사본 8 · 별도 탐구 6 · 개인 목표/외부 계좌/세후 3 · 운영 docstring 인용 1) — 읽기 전용 · `axis_krspec` 추정기 합성 β 검사만 실행 · 삭제·통합 없음.
 - `audit/scope_scan.py` — RESEARCH_SCOPE·UNCLEAR34 의 근거 스캔 재현 도구(research·research_kit·내가_보는_것 의 import 그래프·피호출·종류별 참조·data 산출물·COVERAGE_MAP 수준) · 계산 실행 0 · **CI 미등재** · `--out` 생성물은 커밋 금지.
 - `audit/krspec_synth_check.py` — `research/axis_krspec.py` 추정기(`_ols`·`weekly`·`strictly_prior`) 합성 β 회복 검사(1.0/0.8 · 환헤지 0 · 경계) · 원자료 무접촉 · **CI 미등재**.
+- `audit/OPS_CONFIG_2026-09-06.md` — 운영·설정 미반영 항목 처리 장부: README 설치·실행(requirements 불요 근거) · REPRO R3 인코딩(테스트 + `daily-signal.yml` 셸 `python3 -c` 명시 UTF-8 · 한글 경로·내용 회귀) · 운영_점검표 복구 입구 · CLAUDE §3 화면 문자열 출력 규약 · 외부 액션 SHA 고정(7 워크플로 · 공식 저장소 태그 → 커밋 대조 · `verify.yml` 은 제안만) · 갱신 절차.
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.

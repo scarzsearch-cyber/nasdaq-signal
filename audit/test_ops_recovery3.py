@@ -683,8 +683,9 @@ class S6_PushRaceGate(unittest.TestCase):
         seed = os.path.join(td, 'seed')
         git('clone', '-q', bare, seed, cwd=td)
         os.makedirs(os.path.join(seed, 'data'))
+        # [2026-09-06 REPRO R3] 실제 signal.json 처럼 한글(UTF-8)을 담는다 — 셸 스니펫의 python3 읽기가 로캘에 기대면 여기서 드러난다.
         files = {'data/qqq.csv': 'Date,Close\n2026-09-03,100\n',
-                 'data/signal.json': json.dumps({'as_of': '2026-09-03'}),
+                 'data/signal.json': json.dumps({'as_of': '2026-09-03', 'note': '한글 내용 · 종가 확정'}, ensure_ascii=False),
                  'data/signal_alert_state.json': '{}',
                  'data/nav_history.csv': 'as_of,code\n',
                  'data/oos_log.csv': 'as_of,changed\n',
@@ -704,7 +705,7 @@ class S6_PushRaceGate(unittest.TestCase):
 
     def _set_asof(self, repo, as_of, extra=None):
         with open(os.path.join(repo, 'data', 'signal.json'), 'w', encoding='utf-8') as f:
-            f.write(json.dumps({'as_of': as_of}))
+            f.write(json.dumps({'as_of': as_of, 'note': '한글 내용 · 종가 확정'}, ensure_ascii=False))
         if extra:
             with open(os.path.join(repo, extra[0]), 'w', encoding='utf-8') as f:
                 f.write(extra[1])
@@ -743,7 +744,8 @@ class S6_PushRaceGate(unittest.TestCase):
             self.assertEqual(self._remote_asof(bare), '2026-09-04')
 
     def test_remote_already_has_same_close_discards_duplicate_as_success(self):
-        with tempfile.TemporaryDirectory(prefix='race_') as td:
+        # [2026-09-06 REPRO R3] 한글 경로(임시 폴더 이름) + 한글 내용(signal.json)으로 — 셸·python3·git 이 로캘에 기대지 않는지
+        with tempfile.TemporaryDirectory(prefix='경쟁_race_') as td:
             bare = self._seed(td)
             a = self._clone(td, bare, 'run_a')
             c = self._clone(td, bare, 'run_c')          # 같은 base 에서 시작한 둘째 실행
@@ -758,7 +760,8 @@ class S6_PushRaceGate(unittest.TestCase):
                              '둘째 실행의 커밋이 원격을 덮었다')
             # 다음 슬롯의 첫 스텝(reset --hard origin/main)이 이 작업트리를 원격과 같게 만든다.
             git('fetch', '-q', 'origin', 'main', cwd=c); git('reset', '-q', '--hard', 'origin/main', cwd=c)
-            self.assertEqual(json.load(open(os.path.join(c, 'data', 'signal.json')))['as_of'], '2026-09-04')
+            with open(os.path.join(c, 'data', 'signal.json'), encoding='utf-8') as f:      # [2026-09-06 REPRO R3] 한글 UTF-8 파일 — 인코딩 명시
+                self.assertEqual(json.load(f)['as_of'], '2026-09-04')
 
     def test_remote_newer_close_wins_over_stale_result(self):
         with tempfile.TemporaryDirectory(prefix='race_') as td:
