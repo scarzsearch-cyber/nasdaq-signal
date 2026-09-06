@@ -55,6 +55,9 @@ class A_Aria(unittest.TestCase):
         self.assertRegex(s, r'id="sysWarn" hidden role="alert"')
         self.assertIn("d.id = 'undoBar';", s)
         self.assertRegex(s, r"d\.setAttribute\('role', 'status'\)")
+        # [v232] 되돌리기 버튼은 자기 줄을 지우므로 초점을 복원 컨트롤로 되돌린다(격리 Chrome 실측 · kb_keyboard_check S5)
+        undo = s[s.index("getElementById('undoBtn').addEventListener"):s.index("getElementById('undoBtn').addEventListener") + 900]
+        self.assertLess(undo.index('back.focus()'), undo.index('d.remove()'), '되돌리기: 초점 복귀가 undoBar 제거보다 앞서야 한다')
 
     def test_guide_search_names_and_notes_filter_state(self):
         g = read('guide.html')

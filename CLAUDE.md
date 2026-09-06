@@ -395,6 +395,11 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **v232 (2026-09-06 · 키보드 활성화·확인창 초점·파일 입력 실측 종결 · 도구 `audit/kb_keyboard_check.py` **CI 미등재** · 장부 `audit/REFERRER_A11Y_2026-09-06.md` §7)**:
+  ⓐ **하네스 문제였다** — 앱 안 브라우저 창은 keypress 를 못 보냈다. 격리 Chrome 152(임시 user-data-dir · headless · 사용자 프로필·탭·저장값 무접촉)을 DevTools 프로토콜로 몰아 **실제 키 이벤트**만 보내는 도구를 만들고, **대조 페이지 15/15 통과 뒤에만** 사이트를 판정했다(button Enter/Space 각 1클릭 · 링크는 Enter 만 · 입력창 Enter 는 keydown 만 · summary 토글 · range 화살표 · 파일 입력 Enter/Space 가 선택창을 연다). DOM `.click()`·합성 이벤트 0.
+  ⓑ **사이트 오류 1(수정)** — 「복원 전으로 되돌리기」 버튼이 자기 줄(undoBar)을 지우며 **초점이 body 로 떨어졌다**(다음 Tab 이 문서 처음으로). 초점을 「파일에서 복원」 입력으로 되돌린다(1줄 · `test_a11y12` 에 순서 검사).
+  ⓒ **정상 확인(실제 키)** — 접기 버튼 Enter/Space 각 1회 · details Enter/Space · 타임머신 칩 Enter(aria-pressed 갱신·1클릭)·재생 Space·슬라이더 화살표 · 노트 필터 Enter/Space(aria-pressed·숨김 갱신) · 검색 타이핑→aria-live 문구 · **확인창**(파일은 `DOM.setFileInputFiles` 주입 — OS 선택창 아님): 취소 → 저장값 무변경·초점 파일 입력 유지·다음 Tab 예측대로 / 확인 → 복원·`undoBar role=status`·초점 유지 · **파일 입력** Tab 도달·Enter/Space 가 선택창 열기(가로채기 이벤트)·기존 입력 보존.
+  ⓓ **여전히 미확인** — OS 파일 선택창 **안**의 키 조작(선택·취소) · 실제 스크린리더 읽기(`aria-live=off`·`aria-pressed` 는 속성 갱신만 확인) · 휴대폰. 데스크톱 자동화 결과와 실기기 결과를 섞어 적지 마라.
 - **v231 (2026-09-06 · 리퍼러 정책 + 키보드·보조기술 · 장부 `audit/REFERRER_A11Y_2026-09-06.md` · 회귀 `audit/test_a11y12.py` **CI 미등재**)**:
   ⓐ **리퍼러** — 배포 헤더에 Referrer-Policy 없음(HSTS 만 · GitHub Pages 는 헤더 설정 불가). 합성 페이지 + 로컬 수신기 두 포트로 실측: 브라우저 기본(strict-origin-when-cross-origin)은 **바깥엔 오리진만**(`https://scarzsearch-cyber.github.io/` = 계정명) · 같은 오리진엔 경로+쿼리 · **해시는 어디에도 안 감**(`#backup=` 링크는 정책과 무관하게 안전).
   바깥 링크는 이미 `noopener noreferrer` 였고 남은 송신처는 폰트 CDN(jsdelivr)·검증 배지(github.com)·stale 배너의 Actions 링크 → 세 화면 `<meta name="referrer" content="no-referrer">` 한 줄(호스팅이 지원하는 최소 · 기능 의존 0 · CSP 무관). 헤더로 설정된 것처럼 적지 마라.

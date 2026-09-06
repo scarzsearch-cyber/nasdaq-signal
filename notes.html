@@ -126,8 +126,18 @@ details.more[open] summary{margin-bottom:6px}
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v231</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v232</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="kbUndoFocus">
+      <div class="head"><span class="v">v232</span><span class="tag fix">수정</span>
+        <span class="ttl">「복원 전으로 되돌리기」 뒤 키보드 초점이 사라지던 것</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>백업을 복원한 뒤 나오는 「복원 전으로 되돌리기」 버튼을 키보드로 누르면 그 줄이 사라지면서 초점도 함께 사라져, 다음 Tab·Enter 가 갈 곳이 없었습니다. 이제 「파일에서 복원」 자리로 초점이 돌아옵니다.</dd>
+        <dt>왜</dt><dd>앱 안 시험 창이 Enter·Space 를 못 보내 v231 에서 미확인으로 남긴 부분을, 따로 띄운 격리 크롬(임시 프로필 · 저장값 없음)에서 실제 키 입력으로 다시 쟀습니다. 접기 버튼·노트 필터·타임머신·확인창 취소/확인·파일 선택창 열기는 전부 정상이었고 이 한 곳만 어긋났습니다.</dd>
+        <dt>결론</dt><dd>키보드 사용자용 초점 복귀 한 줄. 매매 규칙·판정·장부는 그대로입니다. 실제 스크린리더 읽기와 OS 파일 선택창 안의 키 조작은 여전히 확인하지 않았습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="a11yKeys">
       <div class="head"><span class="v">v231</span><span class="tag fix">수정</span>
