@@ -22,7 +22,8 @@ SCREENS = ('signal.html', 'guide.html', 'notes.html')
 
 
 def read(name):
-    return io.open(os.path.join(ROOT, name), encoding='utf-8').read()
+    with io.open(os.path.join(ROOT, name), encoding='utf-8') as f:     # CI 로그의 ResourceWarning 제거
+        return f.read()
 
 
 def head_of(src):
