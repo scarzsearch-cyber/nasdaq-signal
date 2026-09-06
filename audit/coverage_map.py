@@ -97,6 +97,7 @@ TESTS = {
     'audit/test_premise9.py': 3,
     'audit/test_ddpct10.py': 3,
     'audit/test_crisis11.py': 3,
+    'audit/test_a11y12.py': 3,
 }
 # verify_all 상시 관문이 직접 재계산·대조하는 파일(문자열 검사만인 것은 L1 로 낮춰 적는다).
 VERIFY_L3 = {'hist_defensive.py', 'hist_data.py', 'axis_lib.py', 'axis_defmix.py', 'axis_volguard.py', 'reentry_lib.py',

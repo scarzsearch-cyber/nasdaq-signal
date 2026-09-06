@@ -36,7 +36,8 @@
 
 **갱신 절차(기록)**: ① 공식 저장소 releases 로 새 버전 확인 → ② `git ls-remote --tags https://github.com/actions/<repo> refs/tags/vN.x.y` 로 커밋 SHA(주석 태그면 `^{}` 줄) → ③ `gh api repos/actions/<repo>/commits/<sha>` 로 커밋 객체 확인 → ④ `uses:` SHA 와 주석 태그를 같이 바꾸고 이 표 갱신 → ⑤ `python -m unittest audit.test_repro6 audit.test_pages_concurrency audit.test_watchdog_chain4 audit.test_screen8` + `verify_all.py` → ⑥ push 뒤 Pages·검증 run success 확인.
 
-**`verify.yml` 제안(수정 안 함 · 돈전략 검사 편입 판단과 같은 파일)**: `actions/checkout@v4` → `11d5960a326750d5838078e36cf38b85af677262 # v4 = v4.4.0` · `actions/setup-python@v5` → `a26af69be951a213d495a4c3e4e4022e16d87065 # v5 = v5.6.0` · `actions/github-script@v7` → `f28e40c7f34bde8b3046d885e986cb6290c5673b # v7 = v7.1.0`.
+**`verify.yml` 제안(당시 수정 안 함 · 돈전략 검사 편입 판단과 같은 파일)**: `actions/checkout@v4` → `11d5960a326750d5838078e36cf38b85af677262 # v4 = v4.4.0` · `actions/setup-python@v5` → `a26af69be951a213d495a4c3e4e4022e16d87065 # v5 = v5.6.0` · `actions/github-script@v7` → `f28e40c7f34bde8b3046d885e986cb6290c5673b # v7 = v7.1.0`.
+→ **적용(2026-09-06 후속 · 소유자 지시)**: 공식 태그를 다시 읽어 세 SHA 가 그대로임을 확인한 뒤 `verify.yml` 3줄을 같은 SHA·주석으로 고정(버전 변경 0). 같은 커밋에서 unittest 목록에 `audit.test_a11y12` 편입(§4 참조). `rebal_ledger_check`·`oos_protocol_audit` 편입·PR 트리거·판정 규약은 그대로.
 
 ## 4. 회귀·통합
 - `python -m unittest audit.test_ops_recovery3 audit.test_repro6 audit.test_pages_concurrency audit.test_watchdog_chain4 audit.test_screen8` → **64 OK** · `verify_all.py` 전체 **실패 0**(g_deploy 관문 — 스텝 id·`REMOTE_ASOF`·reset 순서 유지).
