@@ -301,7 +301,9 @@ def certified_as_of(cur, now_ts=None):
       그래서 NYSE 달력으로 독립 계산한 마지막 마감 세션보다 뒤처진 as_of 는 인정하지 않는다."""
     now_ts = time.time() if now_ts is None else now_ts
     try:
-        parsed = validate_signal_as_of(cur)
+        # [2026-09-06] 미래 여부도 **같은 시계(now_ts)** 로 잰다. 종전엔 벽시계(UTC 오늘)를 써서 운영에선 같았지만
+        #   셀프테스트의 「2026-09-06 은 미래」 사례가 실제 날짜가 그날이 되는 순간 깨졌다(2026-09-06 00:00 UTC 부터 I14 실패).
+        parsed = validate_signal_as_of(cur, today=datetime.fromtimestamp(now_ts, timezone.utc).date())
         if parsed is None:
             return False
         with open(SIG, encoding='utf-8') as f:

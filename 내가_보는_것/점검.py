@@ -117,15 +117,25 @@ def main():
                  ('지수 20년 CAGR', 9.5, 3.1, 'lo'),
                  ('지수 3년 변동성', 35.6, 51.9, 'hi'),
                  ('2배 드래그 3년', 11.7, 29.4, 'hi')]
-        cur = {}
+        cur, seen = {}, {}
         for ln in out1.splitlines():
             m = re.match(r'\s{2}(\S.*?)\s{2,}([+-]?[\d.]+)%', ln)
             if m:
-                cur.setdefault(m.group(1).strip(), float(m.group(2)))
+                nm_, v_ = m.group(1).strip(), float(m.group(2))
+                cur.setdefault(nm_, v_)
+                seen.setdefault(nm_, []).append(v_)
         warn, out_of_range, unread = [], [], []
         say('  · 느린 변수 4종 (전략이 서 있는 땅이 흔들리는가)')
         for nm, w, x, d in BANDS:
             v = cur.get(nm)
+            # [2026-09-06 전제 감시 검증] 같은 변수 줄이 둘 이상이면(출력 서식이 바뀌어 다른 절에서도 잡히는 경우 등)
+            #   종전엔 첫 값을 조용히 썼다 — 어느 값도 믿을 수 없으므로 「못 읽음」과 같이 다룬다(BANDS·정책 무변경).
+            if v is not None and len(seen.get(nm, [])) > 1:
+                say(f'    {nm:<14} 값이 {len(seen[nm])}개 — 어느 것도 채택하지 않음')
+                R['vars'].append({'name': nm, 'value': None, 'state': '중복'})
+                R['health_errors'].append('var_duplicate:' + nm)
+                unread.append(nm)
+                continue
             if v is None:
                 say(f'    {nm:<14} 값을 못 읽음')
                 R['vars'].append({'name': nm, 'value': None, 'state': '못 읽음'})

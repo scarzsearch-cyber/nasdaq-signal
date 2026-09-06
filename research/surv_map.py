@@ -189,7 +189,9 @@ def main():
         nav = pd.read_csv('data/nav_history.csv', encoding='utf-8', dtype=str)
         last = {}
         for _, r in nav.iterrows():
-            if r['code'] in WATCH4:
+            # [2026-09-06 전제 감시 검증] 「최신 행」은 파일 순서가 아니라 as_of 기준 — 옛 날짜 행이 뒤에 붙어도(재적립·정정)
+            #   그 행을 최신으로 읽지 않는다. 같은 날짜는 뒤 행이 이긴다(종전과 같음).
+            if r['code'] in WATCH4 and (r['code'] not in last or str(r['as_of']) >= str(last[r['code']]['as_of'])):
                 last[r['code']] = r
         if not last:
             raise ValueError('감시 4종목 수집분 없음')

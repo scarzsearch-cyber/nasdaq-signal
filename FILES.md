@@ -51,6 +51,12 @@
 - `audit/RECOVERY_DOCS_2026-09-06.md` — 운영 문서의 복구 절차 대조: 명령·워크플로·secrets 이름 일치 · 누락 3(재설정 확인법 · 통째 정지 복구 · GH_PAT 권한) 수정 · 계정 소유자 전용 단계 목록.
 - `audit/test_screen8.py` — 위 회귀 5(시세 갱신 순서 · 살균 제외 건수 · 손상 저장값 격리 · 복원 중단 · 세 화면 CSP 해시 정책·스텝 순서).
 - `audit/RESEARCH_SCOPE_2026-09-06.md` — 계산·보조 도구 미검증 범위 선정(읽기 전용): research 134+문서 10+research_kit+점검.py 를 운영 사용 12 · 공용 24 · 보관 73 · 불명확 34 로 분류 · 후보 3(낙폭 백분위 · 전제 감시+점검 파싱 · 위기 궤적) 제안만 · 착수 안 함.
+- `audit/PREMISE_2026-09-06.md` — 전제 감시 4변수(지수 10y/20y CAGR·3y 변동성·2배 드래그) 독립 재계산 일치 · 점검.py 파서 실제 출력 연결(누락·서식·중복·AUM 결측/중복/판정불가·exec) · AUM 합성 장부·밴드 경계 · Level 규약. 수정 2(중복 변수 불신 · AUM 최신 행 as_of 기준).
+- `audit/test_premise9.py` — 위 회귀 12(A 독립 재계산 · B 파서 연결 · C AUM 합성 · D Level 경계).
+- `audit/DDPCT_2026-09-06.md` — 낙폭 백분위: 정의(252일 낙폭% · 선형 보간 1~99 · 동률 0 이 11.6%) · 경험분포 괄호 검산 99/99 · 보간 민감도 0.13%p · 화면 「더 깊었던 날」 엄격 셈으로 정정(v230 · 고점일 99%→88%).
+- `audit/test_ddpct10.py` — 위 회귀 4(계약·엔진 대조 · 표시 오차 1%p · 결함 주입 · ddDeeperPct node).
+- `audit/CRISIS_2026-09-06.md` — 위기 타임머신: 비교 조건 확인 · 고점일 = 엔진 252일 고점 · 독립 슬라이스 ≤5e-5 · 공표 정합(낡음 회귀) · 화면 환산·재생 실측. 수동 생성 정책 유지.
+- `audit/test_crisis11.py` — 위 회귀 5(계약·낡음 · 결함 주입 · 엔진 슬라이스 · 공표 정합 · tmPaint node).
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.

@@ -1181,13 +1181,16 @@ async function loadDdPct(){
        if(j && Array.isArray(j.edges) && j.edges.length) DDPCT = j; }
   catch(e){ DDPCT = null; }
 }
-/* 오늘 낙폭보다 **더 깊었던 날**의 비율(%) — edges 는 오름차순(깊은 쪽이 앞). */
+/* 오늘 낙폭보다 **더 깊었던 날**의 비율(%) — edges 는 오름차순(깊은 쪽이 앞).
+   [v230] 「더 깊었던」은 엄격히 더 깊은 날이다 — 경계값이 오늘 낙폭과 **같은** 날은 세지 않는다.
+   종전엔 ≤ 로 세어, 고점 갱신일(dd=0 · 54년 중 11.6%)에 「더 깊었던 날 99%」가 떴다(정확히는 88%).
+   0 이 아닌 낙폭에서는 동률이 사실상 없어 값이 같다(전 일자 최대 오차 1%p — 99개 경계의 정수 % 표시). */
 function ddDeeperPct(dd){
   if(!DDPCT || dd == null || !isFinite(dd)) return null;
   const e = DDPCT.edges;
   let lo = 0, hi = e.length;                    // e[i] = (i+1) 백분위
-  while(lo < hi){ const mid = (lo + hi) >> 1; if(e[mid] <= dd) lo = mid + 1; else hi = mid; }
-  return lo;                                    // e[0..lo-1] <= dd → 그만큼이 더 깊다
+  while(lo < hi){ const mid = (lo + hi) >> 1; if(e[mid] < dd) lo = mid + 1; else hi = mid; }
+  return lo;                                    // e[0..lo-1] < dd → 그만큼이 더 깊다
 }
 function paintDdPct(dd){
   const el = document.getElementById('fDdPct');
