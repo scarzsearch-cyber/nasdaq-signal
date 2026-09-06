@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><!-- [v231] 세 화면 공통 · 근거 audit/REFERRER_A11Y_2026-09-06.md -->
 <!-- 주소창 색 — signal.html·guide.html 과 같은 쌍 (탭을 오가도 색이 튀지 않게) -->
 <meta name="theme-color" content="#0B5FD6">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12181F">
@@ -117,16 +118,27 @@ details.more[open] summary{margin-bottom:6px}
   </div>
 
   <nav class="filters" id="filters" aria-label="종류로 걸러 보기">
-    <button class="on" data-f="all">전체</button>
-    <button data-f="new">신규 기능</button>
-    <button data-f="fix">고친 것</button>
-    <button data-f="del">없앤 것</button>
+    <button class="on" data-f="all" type="button" aria-pressed="true">전체</button><!-- [v231] 눌린 필터를 보조기술도 알게 -->
+    <button data-f="new" type="button" aria-pressed="false">신규 기능</button>
+    <button data-f="fix" type="button" aria-pressed="false">고친 것</button>
+    <button data-f="del" type="button" aria-pressed="false">없앤 것</button>
   </nav>
 
   <!-- ══════════ 최신 ══════════ -->
   <section data-season id="sea169" data-fold>
-    <h2><span class="ver">v186 – v230</span> · 내 손에 맞게</h2>
+    <h2><span class="ver">v186 – v231</span> · 내 손에 맞게</h2>
     <div class="season-sub">2026-09-01 · 무엇을 접을지, 무엇을 남길지는 내가 정합니다.</div>
+
+    <div class="item" data-k="fix" id="a11yKeys">
+      <div class="head"><span class="v">v231</span><span class="tag fix">수정</span>
+        <span class="ttl">바깥으로 주소를 안 보내기 · 키보드·보조기술 상태 표시</span></div>
+      <dl>
+        <dt>무엇이</dt><dd>세 화면이 폰트 서버·검증 배지·Actions 링크에 「어느 사이트에서 왔는지」(주소의 계정 부분)를 보내던 것을 끊었습니다(리퍼러 정책). 백업 링크의 <code>#backup=</code> 부분은 원래부터 어디에도 전송되지 않습니다.
+          보조기술용으로 — 노트 필터 버튼이 「눌린 상태」를 알리고, CSV 불러오기 결과·복원 결과·스크립트 오류가 읽히며, 신호 카드의 5분 시세 배지는 매번 읽히지 않게 했습니다.</dd>
+        <dt>왜</dt><dd>합성 페이지로 실제 전송 내용을 재 봤고(경로·쿼리는 같은 사이트 안에서만, 바깥엔 계정 주소만, 해시는 어디에도), 세 화면을 Tab 키로 훑어 초점 순서·표시·이름을 확인했습니다. 마우스 없이 안 되는 기능은 없었고 상태 표시만 비어 있었습니다.</dd>
+        <dt>결론</dt><dd>보이는 화면·매매 규칙·판정·장부는 그대로입니다. Enter·Space 활성화와 실제 스크린리더 읽기는 자동 도구로 잴 수 없어 확인하지 않았습니다.</dd>
+      </dl>
+    </div>
 
     <div class="item" data-k="fix" id="ddDeeper">
       <div class="head"><span class="v">v230</span><span class="tag fix">수정</span>
@@ -1194,6 +1206,7 @@ function setupFold(){
     var f = b.getAttribute('data-f');
     Array.prototype.forEach.call(bar.querySelectorAll('button'), function(x){
       x.classList.toggle('on', x === b);
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');   // [v231] 색만이 아니라 상태로도
     });
     Array.prototype.forEach.call(document.querySelectorAll('.item'), function(it){
       it.hidden = !(f === 'all' || it.getAttribute('data-k') === f);

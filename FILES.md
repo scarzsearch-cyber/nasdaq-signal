@@ -62,6 +62,8 @@
 - `audit/UNCLEAR34_2026-09-06.md` — 담당 불명확 34(RESEARCH_SCOPE §D) 호출자·출력·인용처·순회 실행 기록·분류(옛 판정 재현 16 · 구판/사본 8 · 별도 탐구 6 · 개인 목표/외부 계좌/세후 3 · 운영 docstring 인용 1) — 읽기 전용 · `axis_krspec` 추정기 합성 β 검사만 실행 · 삭제·통합 없음.
 - `audit/scope_scan.py` — RESEARCH_SCOPE·UNCLEAR34 의 근거 스캔 재현 도구(research·research_kit·내가_보는_것 의 import 그래프·피호출·종류별 참조·data 산출물·COVERAGE_MAP 수준) · 계산 실행 0 · **CI 미등재** · `--out` 생성물은 커밋 금지.
 - `audit/krspec_synth_check.py` — `research/axis_krspec.py` 추정기(`_ols`·`weekly`·`strictly_prior`) 합성 β 회복 검사(1.0/0.8 · 환헤지 0 · 경계) · 원자료 무접촉 · **CI 미등재**.
+- `audit/REFERRER_A11Y_2026-09-06.md` — 리퍼러 정책 실측(합성 페이지 · 로컬 수신기 2포트 · 기본 vs meta no-referrer · 경로/쿼리/해시 구분) → 세 화면 `<meta name="referrer" content="no-referrer">` 적용(v231) · 키보드 Tab 전수(세 화면 초점 순서·표시·이름 · 숨은 요소 0) · 보조기술 상태(aria-pressed·aria-live·role) 최소 수정 · Enter/Space·스크린리더는 미확인.
+- `audit/test_a11y12.py` — 위 계약 회귀 5(리퍼러 meta·noopener · live 영역·role · 검색·필터 상태 · 접기 aria-expanded · 정적 컨트롤 이름) · **CI 미등재**(verify.yml 명시 목록 밖 · 편입은 인계).
 - `audit/OPS_CONFIG_2026-09-06.md` — 운영·설정 미반영 항목 처리 장부: README 설치·실행(requirements 불요 근거) · REPRO R3 인코딩(테스트 + `daily-signal.yml` 셸 `python3 -c` 명시 UTF-8 · 한글 경로·내용 회귀) · 운영_점검표 복구 입구 · CLAUDE §3 화면 문자열 출력 규약 · 외부 액션 SHA 고정(7 워크플로 · 공식 저장소 태그 → 커밋 대조 · `verify.yml` 은 제안만) · 갱신 절차.
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).

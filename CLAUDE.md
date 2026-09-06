@@ -395,6 +395,11 @@ git log --oneline -15 --perl-regexp --invert-grep --grep='^chore\(price\)'
 
 ## 4. 기구현 요약 (중복 제작 금지 — 상세는 signal.html 직접 확인)
 
+- **v231 (2026-09-06 · 리퍼러 정책 + 키보드·보조기술 · 장부 `audit/REFERRER_A11Y_2026-09-06.md` · 회귀 `audit/test_a11y12.py` **CI 미등재**)**:
+  ⓐ **리퍼러** — 배포 헤더에 Referrer-Policy 없음(HSTS 만 · GitHub Pages 는 헤더 설정 불가). 합성 페이지 + 로컬 수신기 두 포트로 실측: 브라우저 기본(strict-origin-when-cross-origin)은 **바깥엔 오리진만**(`https://scarzsearch-cyber.github.io/` = 계정명) · 같은 오리진엔 경로+쿼리 · **해시는 어디에도 안 감**(`#backup=` 링크는 정책과 무관하게 안전).
+  바깥 링크는 이미 `noopener noreferrer` 였고 남은 송신처는 폰트 CDN(jsdelivr)·검증 배지(github.com)·stale 배너의 Actions 링크 → 세 화면 `<meta name="referrer" content="no-referrer">` 한 줄(호스팅이 지원하는 최소 · 기능 의존 0 · CSP 무관). 헤더로 설정된 것처럼 적지 마라.
+  ⓑ **키보드** — 세 화면 Tab 전수(신호 38 · 설명서 46 · 노트 14 스톱 · 숨은/0크기 요소 0 · 전부 focus-visible 표시 · 설명서 검색창만 outline 대신 테두리색) · 슬라이더 화살표 · 검색 타이핑·결과 문구 · 5분 시세/탭 복귀 갱신이 입력 초점·값·캐럿을 안 빼앗음(실측). **Enter/Space 활성화는 이 하네스가 keypress 를 못 보내 재현 불가**(대조용 버튼도 0클릭) — 네이티브 button/summary 라 표준 동작이나 미확인으로 남긴다. 실제 스크린리더·휴대폰 미확인.
+  ⓒ **최소 수정** — 노트 필터 `aria-pressed`(초기 전체 true · 클릭 시 갱신) · `#msg`·`#gsearchMsg` aria-live=polite(사용자 동작 때만 바뀜) · `#sysWarn` role=alert · 복원 `undoBar` role=status · **`#vpx` aria-live=off**(5분 시세 배지가 판정 live 영역 안에서 매번 읽히지 않게 — 정상 갱신 반복 알림 방지). 디자인·동작 무변경. 설명서 검색 Escape 는 크롬이 지우지 않음(네이티브 · 현행 유지).
 - **★ 운영·설정 미반영 항목 처리 (2026-09-06 · 장부 `audit/OPS_CONFIG_2026-09-06.md` · 기존 제안만 처리 · 새 검사·재계산 0)**:
   ⓐ README 「설치」(직접 의존성 = pandas·numpy 둘뿐 · 정적 서버 · `file://` 경고 정상) + `verify_all` cwd 무관 한 줄. **`requirements.txt` 는 현행 유지(만들지 않음)** — 워크플로 5곳 정의의 6번째 사본이 되고 `verify.yml` 참조 전환은 돈전략 판단.
   ⓑ **REPRO R3** — 테스트의 인코딩 없는 `open` 만이 아니라 **`daily-signal.yml` 「변경분 커밋」 셸의 `python3 -c` 두 곳**이 같은 `signal.json`(UTF-8 한글 342자)을 로캘에 기대어 읽었다(러너 UTF-8 이라 CI 오류는 아님) → 셋 다 명시 UTF-8. S6 회귀가 한글 내용·한글 경로(`경쟁_race_*`)로 돌고, 명시를 지우면 cp949 에서 3/5 FAIL 로 잡힌다.

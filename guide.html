@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><!-- [v231] 세 화면 공통 · 근거 audit/REFERRER_A11Y_2026-09-06.md -->
 <!-- 주소창 색 — signal.html 과 같은 쌍 (탭을 오가도 색이 튀지 않게) -->
 <meta name="theme-color" content="#0B5FD6">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#12181F">
@@ -161,7 +162,7 @@ details.foldsec>.foldbody{padding:18px 20px}
   <!-- [v156] 검색 — 절이 11개라 「어디 있더라」가 실제 비용이다. 접힌 절·FAQ 안까지 찾는다. -->
   <input type="search" id="gsearch" placeholder="검색 (예: 재조정, 괴리율, T4)"
     aria-label="설명서 안에서 검색" autocomplete="off">
-  <div id="gsearchMsg" class="dim" hidden></div>
+  <div id="gsearchMsg" class="dim" hidden aria-live="polite"></div><!-- [v231] 검색 결과 수를 보조기술이 읽게 -->
 
   <nav class="toc">
     <a href="#what">① 30초 요약</a>
