@@ -301,9 +301,10 @@ def certified_as_of(cur, now_ts=None):
       그래서 NYSE 달력으로 독립 계산한 마지막 마감 세션보다 뒤처진 as_of 는 인정하지 않는다."""
     now_ts = time.time() if now_ts is None else now_ts
     try:
-        # [2026-09-06] 미래 여부도 **같은 시계(now_ts)** 로 잰다. 종전엔 벽시계(UTC 오늘)를 써서 운영에선 같았지만
-        #   셀프테스트의 「2026-09-06 은 미래」 사례가 실제 날짜가 그날이 되는 순간 깨졌다(2026-09-06 00:00 UTC 부터 I14 실패).
-        parsed = validate_signal_as_of(cur, today=datetime.fromtimestamp(now_ts, timezone.utc).date())
+        # 미래 여부는 벽시계(UTC 오늘) 기준이고 달력 최신성만 now_ts 를 쓴다 — 운영에선 둘이 같은 시계다.
+        #   [2026-09-06] 셀프테스트가 고정 날짜(2026-09-06)를 「미래」 사례로 써서 실제 날짜가 그날이 되자 I14 가 깨졌다 →
+        #   사례를 실제 날짜 기준 내일로 바꿨다(동작 무변경 · 아래 selftest). 두 시계를 하나로 합치는 것은 회귀 S2 의 가짜 시계 전제와 충돌해 보류.
+        parsed = validate_signal_as_of(cur)
         if parsed is None:
             return False
         with open(SIG, encoding='utf-8') as f:
@@ -553,8 +554,10 @@ def selftest():
     try:
         with tempfile.TemporaryDirectory(prefix='wait_close_cert_') as td:
             globals()['SIG'] = os.path.join(td, 'signal.json')
+            # 「미래」 사례는 실제 날짜 기준 내일 — 고정 날짜(2026-09-06)는 그날이 오면 미래가 아니게 돼 검사가 깨진다(2026-09-06 실사고)
+            tomorrow = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
             for as_of, source, want in (('2026-09-04', 'yahoo', True), ('2026-09-02', 'yahoo', False),
-                                        ('2026-09-04', 'cache', False), ('2026-09-06', 'yahoo', False)):
+                                        ('2026-09-04', 'cache', False), (tomorrow, 'yahoo', False)):
                 with open(SIG, 'w', encoding='utf-8') as f:
                     json.dump({'as_of': as_of, 'source': source}, f)
                 assert certified_as_of(as_of, T('2026-09-05 08:00')) is want, (as_of, source)
