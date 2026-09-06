@@ -43,4 +43,6 @@
 - 변조 검사(§1) 3/5 FAIL → 복원 5/5 OK. 라이브 확인은 §5(push 뒤 기입).
 
 ## 5. 통합 기록
-(커밋·CI·Pages 결과는 push 뒤 기입)
+- 커밋 **69e31ca** → main(기준 ce17a6d 에서 main 이동 0 · 충돌 없음). 검증 run 34010827889 **success** · Pages run 34010827965 **success**(deploy 잡 success — 고정 SHA 의 checkout·configure-pages·upload-pages-artifact·deploy-pages 로 실제 배포).
+- 라이브: 사이트 루트 200 · CSP meta 존재 · `data/signal.json` as_of 2026-09-04(변경 없음 — 이 묶음은 데이터를 안 건드린다).
+- 고정된 나머지 워크플로(daily-signal·watchdog·price·monthly-stats)는 예약 실행에서 확인된다 — 월요일 09:31/09:52 KST 관찰이 price·watchdog 을, 화요일 새벽 슬롯이 daily-signal 을 처음 돈다(**실제 관찰 대기**). notify-test·source-probe 는 수동 전용(실행 안 함 — 카톡·네트워크 탐침).
