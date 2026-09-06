@@ -67,8 +67,8 @@
 | research 연구 스크립트 | 134 | 0 | 0 | 107 | 26 | 1 | 0 | 0 | 0 | 담당 확인 필요 |
 | 보관본 | 130 | 0 | 0 | 0 | 0 | 0 | 0 | 130 | 0 | 검사 대상 아님(§2 읽기 전용 · 보관) |
 | 원자료 | 87 | 0 | 0 | 0 | 0 | 0 | 0 | 87 | 0 | 돈전략(확인 · 원자료) |
-| 검사 도구·회귀·장부 | 53 | 0 | 1 | 2 | 2 | 2 | 0 | 46 | 4 | 운영(이번 범위) |
-| 운영 스크립트 | 19 | 0 | 0 | 0 | 4 | 15 | 0 | 0 | 0 | 운영(이번 범위) |
+| 검사 도구·회귀·장부 | 62 | 0 | 1 | 2 | 2 | 3 | 0 | 54 | 4 | 운영(이번 범위) |
+| 운영 스크립트 | 19 | 0 | 0 | 0 | 4 | 15 | 0 | 0 | 1 | 운영(이번 범위) |
 | 공유용_별도전략(격리) | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 14 | 0 | 검사 대상 아님(격리 · g_isolation 관문만) |
 | 전략 계산 엔진(루트) | 13 | 0 | 0 | 5 | 8 | 0 | 0 | 0 | 0 | 돈전략(확인 · 전략 계산) |
 | 문서(루트·docs) | 10 | 0 | 0 | 7 | 1 | 2 | 0 | 0 | 3 | 운영(이번 범위) |
@@ -76,7 +76,7 @@
 | 생성물(파이프라인 산출) | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 운영(이번 범위 · 생성자 코드로 검사) |
 | 워크플로 | 8 | 0 | 0 | 0 | 2 | 6 | 0 | 0 | 1 | 운영(이번 범위) |
 | research F계열 | 8 | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 돈전략(확인 · F계열) |
-| 화면 | 6 | 0 | 1 | 1 | 0 | 4 | 0 | 0 | 0 | 운영·화면(이번 범위) |
+| 화면 | 6 | 0 | 1 | 1 | 0 | 4 | 0 | 0 | 1 | 운영·화면(이번 범위) |
 | 실측 장부·동결값 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 돈전략(확인 · 동결값·실측 장부) |
 | 소유자 안내·점검 | 3 | 0 | 0 | 2 | 0 | 1 | 0 | 0 | 0 | 운영(이번 범위) |
 | 검사 진입점 | 2 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | 0 | 운영(이번 범위) |
@@ -215,7 +215,7 @@
 | research 연구 스크립트 | `research/ml_policy.py` | 실행 코드 | 담당 확인 필요 | L2 전문 판독 | research 리뷰 v204~v209·순회 B01~B15 |  |  |
 | research 연구 스크립트 | `research/near_zone.py` | 실행 코드 | 담당 확인 필요 | L2 전문 판독 | research 리뷰 v204~v209·순회 B01~B15 |  |  |
 | research 연구 스크립트 | `research/new_paths.py` | 실행 코드 | 담당 확인 필요 | L2 전문 판독 | research 리뷰 v204~v209·순회 B01~B15 |  |  |
-| research 연구 스크립트 | `research/oos_protocol_b.py` | 실행 코드 | 담당 확인 필요 | L4 연결·실측 | 회귀 test_watchdog_chain4.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층(언급)·순회 B01~B15·인계 교차검증·인계문·파수꾼 연결(언급) |  |
+| research 연구 스크립트 | `research/oos_protocol_b.py` | 실행 코드 | 담당 확인 필요 | L4 연결·실측 | 회귀 test_watchdog_chain4.py | B 판정 규약 평가기 합성 사건·등록값 독립 재계산(CI 미등재 도구)(언급)·research 리뷰 v204~v209·v206 전체 감사·v220 심층(언급)·순회 B01~B15·인계 교차검증·인계문·파수꾼 연결(언급) |  |
 | research 연구 스크립트 | `research/ops_risk.py` | 실행 코드 | 담당 확인 필요 | L3 함수 검토·회귀·관문 | 회귀 test_ops_review2.py | research 리뷰 v204~v209·v220 심층(언급)·순회 B01~B15 |  |
 | research 연구 스크립트 | `research/pbo_thresh.py` | 실행 코드 | 담당 확인 필요 | L2 전문 판독 | research 리뷰 v204~v209·순회 B01~B15 |  |  |
 | research 연구 스크립트 | `research/plan30_withdraw.py` | 실행 코드 | 담당 확인 필요 | L2 전문 판독 | research 리뷰 v204~v209·순회 B01~B15 |  |  |
@@ -243,7 +243,9 @@
 | 검사 도구·회귀·장부 | `audit/AUDIT_LEDGER_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 순회 B01~B15 |  |  |
 | 검사 도구·회귀·장부 | `audit/CODE_REVIEW_SWEEP_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | research 리뷰 v204~v209 | 인계문 | 검사 후 변경 |
 | 검사 도구·회귀·장부 | `audit/COVERAGE_MAP_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
+| 검사 도구·회귀·장부 | `audit/CRISIS_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_crisis11.py |  |  |
 | 검사 도구·회귀·장부 | `audit/CSP_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_screen8.py |  |  |
+| 검사 도구·회귀·장부 | `audit/DDPCT_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_ddpct10.py |  |  |
 | 검사 도구·회귀·장부 | `audit/DEEP_REVIEW_OPS_UI_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_ops_review2.py |  |  |
 | 검사 도구·회귀·장부 | `audit/DOC_CLAIMS_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 정정안(01·02·04 · 화면 전사 1건) |  |  |
 | 검사 도구·회귀·장부 | `audit/DOC_CORRECTIONS_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
@@ -252,9 +254,11 @@
 | 검사 도구·회귀·장부 | `audit/HANDOFF_CROSSCHECK_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 순회 B01~B15 |  |  |
 | 검사 도구·회귀·장부 | `audit/HANDOFF_TO_CODEX_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/MOBILE_OPS_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
+| 검사 도구·회귀·장부 | `audit/OOS_PROTOCOL_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/OPS_RECOVERY_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/OPS_UI_CROSSCHECK_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | v220 심층·회귀 test_ops_review2.py |  |  |
 | 검사 도구·회귀·장부 | `audit/PAGES_CONCURRENCY_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
+| 검사 도구·회귀·장부 | `audit/PREMISE_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_premise9.py |  |  |
 | 검사 도구·회귀·장부 | `audit/REBAL_LEDGER_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/RECOVERY_DOCS_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/REPRO_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_repro6.py |  |  |
@@ -264,16 +268,20 @@
 | 검사 도구·회귀·장부 | `audit/SCREEN_STATES_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/SECURITY_INPUT_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_repro6.py |  | 검사 후 변경 |
 | 검사 도구·회귀·장부 | `audit/SURVIVAL_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_survival5.py |  | 검사 후 변경 |
+| 검사 도구·회귀·장부 | `audit/UNCLEAR34_2026-09-06.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/WATCHDOG_CHAIN_2026-09-05.md` | 문서 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/audit_all.py` | 실행 코드 | 운영(이번 범위) | L2 전문 판독 | v206 전체 감사·순회 B01~B15 |  |  |
 | 검사 도구·회귀·장부 | `audit/audit_full.py` | 실행 코드 | 운영(이번 범위) | L3 함수 검토·회귀·관문 | v220 심층 | v206 전체 감사·순회 B01~B15 |  |
 | 검사 도구·회귀·장부 | `audit/check_handoff_20260905.py` | 실행 코드 | 운영(이번 범위) | L1 열람·대조 | 인계 교차검증 |  |  |
 | 검사 도구·회귀·장부 | `audit/coverage_map.py` | 실행 코드 | 운영(이번 범위) | n/a 검사 도구 자신(대상 아님) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/gate_mutation.py` | 실행 코드 | 운영(이번 범위) | n/a 검사 도구 자신(대상 아님) |  |  |  |
+| 검사 도구·회귀·장부 | `audit/oos_protocol_audit.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | B 판정 규약 평가기 합성 사건·등록값 독립 재계산(CI 미등재 도구) |  |  |
 | 검사 도구·회귀·장부 | `audit/rebal_ledger_check.py` | 실행 코드 | 운영(이번 범위) | L3 함수 검토·회귀·관문 | 재조정 독립 원장(sim_hold 다자산) |  |  |
 | 검사 도구·회귀·장부 | `audit/screen_states.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v223 화면 실측 |  |  |
 | 검사 도구·회귀·장부 | `audit/test_account_ledger.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 회귀 test_basket_accounting.py·회귀 test_execution_policy.py |  |  |
 | 검사 도구·회귀·장부 | `audit/test_basket_accounting.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
+| 검사 도구·회귀·장부 | `audit/test_crisis11.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 위기 타임머신 독립 슬라이스·실측 |  |  |
+| 검사 도구·회귀·장부 | `audit/test_ddpct10.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 낙폭 백분위 독립 검산 |  |  |
 | 검사 도구·회귀·장부 | `audit/test_execution_bands.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/test_execution_policy.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
 | 검사 도구·회귀·장부 | `audit/test_f1_placebo.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) |  |  |  |
@@ -285,6 +293,7 @@
 | 검사 도구·회귀·장부 | `audit/test_ops_recovery3.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | pages 실측·v222 연결·v225 모바일 실측 |  |  |
 | 검사 도구·회귀·장부 | `audit/test_ops_review2.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | v225 모바일 실측·접근성 실측(v227·v228) | v220 심층·회귀 test_screen8.py |  |
 | 검사 도구·회귀·장부 | `audit/test_pages_concurrency.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | pages 실측 |  |  |
+| 검사 도구·회귀·장부 | `audit/test_premise9.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 전제 감시 독립 재계산·파서 연결 |  |  |
 | 검사 도구·회귀·장부 | `audit/test_repro6.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 재현성(격리 클론 실행) | 보안·입력 경계 |  |
 | 검사 도구·회귀·장부 | `audit/test_research_review.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | research 리뷰 v204~v209·v206 전체 감사·순회 B01~B15 |  |  |
 | 검사 도구·회귀·장부 | `audit/test_screen8.py` | 실행 코드 | 운영(이번 범위) | n/a 근거 문서/회귀 모듈(도구) | 배포본 CSP 실측·화면 갱신·저장 경계 실측 |  |  |
@@ -465,7 +474,7 @@
 | 실측 장부·동결값 | `data/freeze.json` | 장부 | 돈전략(확인 · 동결값·실측 장부) | n/a 장부(관문 I11·I13 지문·행수 감시 · 내용은 §2 불변) | 회귀 test_ops_recovery3.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·관문 verify_all(재계산·지문)·문서 주장 대조·순회 B01~B15·인계문·정정안(01·02·04 · 화면 전사 1건)·회귀 test_repro6.py |  |
 | 실측 장부·동결값 | `data/nav_history.csv` | 장부 | 돈전략(확인 · 동결값·실측 장부) | n/a 장부(관문 I11·I13 지문·행수 감시 · 내용은 §2 불변) | v222 연결·회귀 test_ops_recovery3.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·순회 B01~B15·인계문·회귀 test_premise9.py |  |
 | 실측 장부·동결값 | `data/oos_log.csv` | 장부 | 돈전략(확인 · 동결값·실측 장부) | n/a 장부(관문 I11·I13 지문·행수 감시 · 내용은 §2 불변) | v222 연결·v223 화면 실측·회귀 test_ops_recovery3.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·관문 verify_all(재계산·지문)·순회 B01~B15·인계문 |  |
-| 실측 장부·동결값 | `data/oos_protocol_b.json` | 장부 | 돈전략(확인 · 동결값·실측 장부) | n/a 장부(관문 I11·I13 지문·행수 감시 · 내용은 §2 불변) | 파수꾼 연결·회귀 test_watchdog_chain4.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·관문 verify_all(재계산·지문)·순회 B01~B15·인계 교차검증·인계문 |  |
+| 실측 장부·동결값 | `data/oos_protocol_b.json` | 장부 | 돈전략(확인 · 동결값·실측 장부) | n/a 장부(관문 I11·I13 지문·행수 감시 · 내용은 §2 불변) | B 판정 규약 평가기 합성 사건·등록값 독립 재계산(CI 미등재 도구)·파수꾼 연결·회귀 test_watchdog_chain4.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·관문 verify_all(재계산·지문)·순회 B01~B15·인계 교차검증·인계문 |  |
 | 운영 스크립트 | `deploy/README.md` | 문서 | 운영(이번 범위) | L4 연결·실측 | 회귀 test_ops_recovery3.py·회귀 test_watchdog_chain4.py | research 리뷰 v204~v209·v206 전체 감사·복구 안내 대조·순회 B01~B15 |  |
 | 운영 스크립트 | `deploy/build_stats.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·재현성(격리 클론 실행)·회귀 test_ops_recovery3.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·문서 주장 대조·복구 안내 대조·셀프테스트(I14)·순회 B01~B15·회귀 test_crisis11.py·회귀 test_ops_review2.py |  |
 | 운영 스크립트 | `deploy/csp_inject.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | 배포본 CSP 실측 | 복구 안내 대조·회귀 test_screen8.py |  |
@@ -483,7 +492,7 @@
 | 운영 스크립트 | `deploy/signal_alert.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·회귀 test_ops_recovery3.py | v206 전체 감사·v220 심층·셀프테스트(I14)·순회 B01~B15 |  |
 | 운영 스크립트 | `deploy/stamp_rev.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | 배포본 CSP 실측 | v206 전체 감사·v220 심층·셀프테스트(I14)·순회 B01~B15·회귀 test_screen8.py |  |
 | 운영 스크립트 | `deploy/update_signal.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·v223 화면 실측·v225 모바일 실측·위기 타임머신 독립 슬라이스·실측·회귀 test_ops_recovery3.py | v206 전체 감사·v220 심층·관문 verify_all(재계산·지문)·문서 주장 대조·복구 안내 대조·셀프테스트(I14)·순회 B01~B15·회귀 test_crisis11.py |  |
-| 운영 스크립트 | `deploy/wait_close.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·v225 모바일 실측·재현성(격리 클론 실행)·파수꾼 연결·회귀 test_ops_recovery3.py·회귀 test_watchdog_chain4.py | v206 전체 감사·v220 심층·관문 verify_all(문자열·목록)·복구 안내 대조·셀프테스트(I14)·순회 B01~B15 |  |
+| 운영 스크립트 | `deploy/wait_close.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·v225 모바일 실측·재현성(격리 클론 실행)·파수꾼 연결·회귀 test_ops_recovery3.py·회귀 test_watchdog_chain4.py | v206 전체 감사·v220 심층·관문 verify_all(문자열·목록)·복구 안내 대조·셀프테스트(I14)·순회 B01~B15 | 검사 후 변경 |
 | 운영 스크립트 | `deploy/watchdog.py` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v224 화면 실측·v225 모바일 실측·재현성(격리 클론 실행)·파수꾼 연결·회귀 test_watchdog_chain4.py | v206 전체 감사·v220 심층·관문 verify_all(문자열·목록)·문서 주장 대조·복구 안내 대조·생존·감시 격리 검증·셀프테스트(I14)·순회 B01~B15·인계문·회귀 test_survival5.py |  |
 | 워크플로 | `.github/workflows/daily-signal.yml` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·회귀 test_ops_recovery3.py | v206 전체 감사·v220 심층·관문 verify_all(문자열·목록)·보안·입력 경계·복구 안내 대조·생존·감시 격리 검증·순회 B01~B15·인계문·회귀 test_survival5.py |  |
 | 워크플로 | `.github/workflows/monthly-stats.yml` | 실행 코드 | 운영(이번 범위) | L4 연결·실측 | v222 연결·회귀 test_ops_recovery3.py | v220 심층·관문 verify_all(문자열·목록)·문서 주장 대조·순회 B01~B15 |  |
@@ -597,5 +606,5 @@
 | 화면 | `icon-192.png` | 화면 | 운영·화면(이번 범위) | L2 전문 판독 | research 리뷰 v204~v209 | 관문 verify_all(문자열·목록) |  |
 | 화면 | `icon-512.png` | 화면 | 운영·화면(이번 범위) | L1 열람·대조 | 관문 verify_all(문자열·목록) |  |  |
 | 화면 | `manifest.json` | 화면 | 운영·화면(이번 범위) | L4 연결·실측 | v225 모바일 실측 | v206 전체 감사·관문 verify_all(문자열·목록) |  |
-| 화면 | `notes.html` | 화면 | 운영·화면(이번 범위) | L4 연결·실측 | v222 연결·v224 화면 실측·접근성 실측(v227·v228) | v206 전체 감사·v220 심층·관문 verify_all(문자열·목록)·순회 B01~B15·정정안(01·02·04 · 화면 전사 1건)·회귀 test_fold_anchor.py·회귀 test_research_review.py·회귀 test_screen8.py |  |
+| 화면 | `notes.html` | 화면 | 운영·화면(이번 범위) | L4 연결·실측 | v222 연결·v224 화면 실측·접근성 실측(v227·v228) | v206 전체 감사·v220 심층·관문 verify_all(문자열·목록)·순회 B01~B15·정정안(01·02·04 · 화면 전사 1건)·회귀 test_fold_anchor.py·회귀 test_research_review.py·회귀 test_screen8.py | 검사 후 변경 |
 | 화면 | `signal.html` | 화면 | 운영·화면(이번 범위) | L4 연결·실측 | pages 실측·v222 연결·v223 화면 실측·v224 화면 실측·v225 모바일 실측·배포본 CSP 실측·접근성 실측(v227·v228)·파수꾼 연결·화면 갱신·저장 경계 실측·회귀 test_ops_recovery3.py·회귀 test_watchdog_chain4.py | research 리뷰 v204~v209·v206 전체 감사·v220 심층·v221 교차·관문 verify_all(문자열·목록)·낙폭 백분위 독립 검산·문서 주장 대조·보안·입력 경계·순회 B01~B15·인계문·정정안(01·02·04 · 화면 전사 1건)·회귀 test_crisis11.py·회귀 test_ddpct10.py·회귀 test_fold_anchor.py·회귀 test_ops_review2.py·회귀 test_research_review.py·회귀 test_screen8.py |  |

@@ -59,6 +59,7 @@ LEDGERS = {
     'audit/PREMISE_2026-09-06.md': (4, '전제 감시 독립 재계산·파서 연결'),
     'audit/DDPCT_2026-09-06.md': (3, '낙폭 백분위 독립 검산'),
     'audit/CRISIS_2026-09-06.md': (4, '위기 타임머신 독립 슬라이스·실측'),
+    'audit/OOS_PROTOCOL_2026-09-06.md': (4, 'B 판정 규약 평가기 합성 사건·등록값 독립 재계산(CI 미등재 도구)'),
 }
 # 장부가 이름만 언급한 파일에 근거를 주지 않도록, 근거를 인정할 파일을 명시하는 장부(없으면 본문 언급 전부)
 LEDGER_ONLY = {
@@ -74,6 +75,7 @@ LEDGER_ONLY = {
     'audit/PREMISE_2026-09-06.md': {'research/surv_map.py', 'research/exec_cost.py', '내가_보는_것/점검.py', 'data/ops_check.json', 'audit/test_premise9.py'},
     'audit/DDPCT_2026-09-06.md': {'research/emit_dd_distribution.py', 'data/dd_percentile.json', 'signal.html', 'audit/test_ddpct10.py'},
     'audit/CRISIS_2026-09-06.md': {'research/build_crisis_paths.py', 'data/crisis_paths.json', 'signal.html', 'deploy/update_signal.py', 'audit/test_crisis11.py'},
+    'audit/OOS_PROTOCOL_2026-09-06.md': {'research/oos_protocol_b.py', 'data/oos_protocol_b.json', 'audit/oos_protocol_audit.py'},
     'audit/REPRO_2026-09-06.md': {'verify_all.py', 'research_kit.py', 'deploy/build_stats.py', 'deploy/kr_holidays.py', 'deploy/wait_close.py', 'deploy/nav_collect.py',
                                   'deploy/watchdog.py', 'research/axis_isa.py', 'research/emit_dd_distribution.py', 'data/kr_holidays.json', 'audit/test_repro6.py'},
 }

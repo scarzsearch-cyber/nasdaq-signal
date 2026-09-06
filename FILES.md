@@ -57,6 +57,9 @@
 - `audit/test_ddpct10.py` — 위 회귀 4(계약·엔진 대조 · 표시 오차 1%p · 결함 주입 · ddDeeperPct node).
 - `audit/CRISIS_2026-09-06.md` — 위기 타임머신: 비교 조건 확인 · 고점일 = 엔진 252일 고점 · 독립 슬라이스 ≤5e-5 · 공표 정합(낡음 회귀) · 화면 환산·재생 실측. 수동 생성 정책 유지.
 - `audit/test_crisis11.py` — 위 회귀 5(계약·낡음 · 결함 주입 · 엔진 슬라이스 · 공표 정합 · tmPaint node).
+- `audit/OOS_PROTOCOL_2026-09-06.md` — B 판정 규약 평가기(`research/oos_protocol_b.py --oos`) 독립 검증(기준 269b2f5 · 검사 권한만): 합성 사건으로 경계값(A ≤−50%·엄격 얕음 · B/R 「<」) · 창 미충족 · 독립 간격 · 등록 전후 · R · 지문 41 + 실제 엔진 19(등록값 독립 재계산 · 장부↔엔진 대조 · 실제 역사+합성 OOS) = 60/60 일치. 구현 오류 0 · 규약 모호 6(종속 사건 A 표시 · R 상태 기반 · 역사 집합 열림 · 장부 미대조 · 보류 사건 수 · 자기검산 오차) — 제안만.
+- `audit/oos_protocol_audit.py` — 위 도구(**CI 미등재** · 평가기·규약·장부 무변경 · `--root` 로 다른 사본 검사 · `--engine` 은 실제 엔진).
+- `audit/UNCLEAR34_2026-09-06.md` — 담당 불명확 34(RESEARCH_SCOPE §D) 호출자·출력·인용처·순회 실행 기록·분류(옛 판정 재현 16 · 구판/사본 8 · 별도 탐구 6 · 개인 목표/외부 계좌/세후 3 · 운영 docstring 인용 1) — 읽기 전용 · `axis_krspec` 추정기 합성 β 검사만 실행 · 삭제·통합 없음.
 - `audit/MOBILE_OPS_2026-09-06.md` — 모바일 미검증 흐름 8종 실측(v225) · bare 클론 간헐 실패 원인 미확정 기록 · 신선도 미국 달력 공용 정의·표류 라벨 근거.
 - `audit/PAGES_CONCURRENCY_2026-09-06.md` — pages.yml 취소 연쇄 수정 장부: 경로 확인·잡 수준 concurrency·dispatch 실측 4경우(정상·선행 취소·연속 갱신·수동).
 - `audit/test_pages_concurrency.py` — pages.yml 정적 계약(워크플로 수준 concurrency 없음·잡 if/concurrency) + 이벤트 순서 모형 5경우.
