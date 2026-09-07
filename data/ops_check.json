@@ -1,5 +1,5 @@
 {
- "as_of": "2026-09-01",
+ "as_of": "2026-09-07",
  "level": 0,
  "level_msg": "정상 — 유지",
  "todo": [],
@@ -33,33 +33,42 @@
   {
    "code": "418660",
    "name": "공격 레버리지",
-   "eok": 6488,
+   "eok": 6421,
    "state": "정상"
   },
   {
    "code": "458730",
    "name": "방어 배당",
-   "eok": 43118,
+   "eok": 43239,
    "state": "정상"
   },
   {
    "code": "305080",
    "name": "방어 국채",
-   "eok": 2145,
+   "eok": 2131,
    "state": "정상"
   },
   {
    "code": "411060",
    "name": "방어 금",
-   "eok": 40922,
+   "eok": 40871,
    "state": "정상"
   }
  ],
  "exec": {
-  "switches": 0,
+  "events": 0,
   "need": 20,
-  "nav_days": 6
+  "nav_days": 8
  },
+ "health_errors": [],
  "ok": true,
+ "protocol_b": {
+  "verdict": "ok",
+  "events": 0,
+  "line": "사건 0건 — 재검토 사유 없음",
+  "drift": false,
+  "todo": null,
+  "exit": 0
+ },
  "heartbeat": "2026-09"
 }
